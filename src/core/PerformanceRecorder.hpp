@@ -92,6 +92,8 @@ struct PerformanceFrameRecord {
     double presentThreadCpuMs{};
     double presentNotRunningMs{};
     bool presentThreadCpuValid{};
+    std::size_t defenseShotEvents{};
+    std::size_t activeDefenseProjectiles{};
 };
 
 class PerformanceRecorder {

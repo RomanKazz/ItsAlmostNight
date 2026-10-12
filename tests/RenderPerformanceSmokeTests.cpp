@@ -6,9 +6,63 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <chrono>
 #include <iostream>
 
 namespace {
+bool firstCombatDraw(ian::Renderer& renderer) {
+#if defined(_WIN32)
+    using GetInteger = void (__stdcall *)(unsigned int, int*);
+    using Finish = void (__stdcall *)();
+#else
+    using GetInteger = void (*)(unsigned int, int*);
+    using Finish = void (*)();
+#endif
+    const auto getInteger = reinterpret_cast<GetInteger>(rlGetProcAddress("glGetIntegerv"));
+    const auto finish = reinterpret_cast<Finish>(rlGetProcAddress("glFinish"));
+    if (!getInteger || !finish) return true;
+    const Camera3D camera{{0,2,5},{0,1,0},{0,1,0},45,CAMERA_PERSPECTIVE};
+    const auto savedSettings = renderer.settings();
+    renderer.settings().postProcessing = true;
+    renderer.settings().inkOutlines = true;
+    std::array<double,3> timings{};
+    bool valid = true;
+    for (std::size_t frame=0;frame<timings.size();++frame) {
+        renderer.beginFrame();
+        if (renderer.beginSelectionMaskPass(camera)) {
+            DrawCube({0,1,0},1,1,1,WHITE);
+            renderer.endSelectionMaskPass();
+        }
+        renderer.beginWorldPass(BLACK,camera);
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{}; lighting.cameraPosition=camera.position;
+        renderer.beginWorldShader(lighting);
+        const auto start=std::chrono::steady_clock::now();
+        for (const bool occluder : {false,true}) {
+            ian::WorldMaterialState material{};
+            material.unlitAmount=1; material.inkOccluder=occluder;
+            renderer.setWorldMaterial(material);
+            renderer.beginColorOnlyWorldEffects();
+            int normalOutput=0,coverageOutput=0;
+            getInteger(0x8826,&normalOutput); getInteger(0x8827,&coverageOutput);
+            valid &= coverageOutput == 0x8CE2 && normalOutput == (occluder ? 0x8CE1 : 0);
+            BeginBlendMode(BLEND_ADDITIVE); rlDisableDepthMask();
+            DrawTriangle3D({-1,0,0},{1,0,0},{0,2,0},{255,170,30,160});
+            rlDrawRenderBatchActive(); rlEnableDepthMask(); EndBlendMode();
+            renderer.endColorOnlyWorldEffects();
+        }
+        finish();
+        timings[frame]=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-start).count();
+        renderer.endWorldShader(); EndMode3D();
+        renderer.endWorldPass(); renderer.endFrame();
+    }
+    renderer.settings()=savedSettings;
+    std::cout << "Combat first/repeated GPU draw ms: " << timings[0] << ' '
+        << timings[1] << ' ' << timings[2] << "; coverage routing=" << valid << '\n';
+    return valid;
+}
+
 bool presentWaitDiagnostics(ian::Renderer& renderer) {
     const auto savedSettings = renderer.settings();
     renderer.settings().performanceLogging = true;
@@ -114,6 +168,7 @@ int main() {
         !frustum.intersects({{-1,-1,2},{1,1,4}}) &&
         frustum.intersects({{-100,-100,-100},{100,100,100}});
     Renderer renderer; renderer.initialize();
+    valid = firstCombatDraw(renderer) && valid;
     renderer.settings().frameRateLimit = 0; renderer.applyFrameRateLimit();
     renderer.setGpuProfilingEnabled(true);
     std::size_t issued = 0;

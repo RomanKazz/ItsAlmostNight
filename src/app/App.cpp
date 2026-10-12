@@ -458,6 +458,12 @@ int App::run() {
                 .presentThreadCpuMs = rendererStats.presentThreadCpuMs,
                 .presentNotRunningMs = rendererStats.presentNotRunningMs,
                 .presentThreadCpuValid = rendererStats.presentThreadCpuValid,
+                .defenseShotEvents = hadSimulationTick
+                    ? static_cast<std::size_t>(std::ranges::count_if(gameEventBuffer_, [](const GameEvent& event) {
+                        return event.type == GameEventType::TowerFired || event.type == GameEventType::CannonFired;
+                      })) : 0U,
+                .activeDefenseProjectiles = static_cast<std::size_t>(
+                    std::ranges::count_if(performanceSnapshot.cannonProjectiles, [](const auto& shot) { return shot.active; })),
             });
         }
         persistUserSettings();

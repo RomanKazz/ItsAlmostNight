@@ -56,7 +56,8 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "minimap_prewarm_ms,terrain_chunks_submitted,terrain_chunks_culled,"
                "window_focused,window_minimized,window_focus_changed,"
                "final_batch_submission_ms,present_thread_cpu_ms,"
-               "present_not_running_ms,present_thread_cpu_valid\n";
+               "present_not_running_ms,present_thread_cpu_valid,"
+               "defense_shot_events,active_defense_projectiles\n";
     return true;
 }
 
@@ -119,6 +120,8 @@ void PerformanceRecorder::record(
             << ',' << value.presentThreadCpuMs
             << ',' << value.presentNotRunningMs
             << ',' << static_cast<int>(value.presentThreadCpuValid)
+            << ',' << value.defenseShotEvents
+            << ',' << value.activeDefenseProjectiles
             << '\n';
     ++framesSinceFlush_;
     constexpr std::uint32_t FlushIntervalFrames = 300U;

@@ -18,6 +18,10 @@
 #if defined(__APPLE__) || defined(__unix__)
 #include <time.h>
 #endif
+#if defined(__APPLE__)
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#endif
 
 namespace ian {
 namespace {
@@ -52,6 +56,78 @@ bool routeEffectCoverage(bool color) {
 }
 
 } // namespace
+
+void Renderer::warmCombatRendering() {
+    // Linking a shader does not compile every driver pipeline. Warm the exact
+    // color/normal/effect-coverage layouts before the first real shot.
+    const bool litShader = settings_.worldShader && resources_.worldShader().valid();
+    RenderTextureResource fallback, fallbackCoverage;
+    const bool sceneTarget = resources_.sceneTargetValid();
+    if (!sceneTarget && !fallback.load(32, 32)) return;
+    const RenderTexture2D target = sceneTarget ? resources_.sceneTarget() : fallback.get();
+    RenderTextureResource& coverage = sceneTarget ? selectionEffectCoverage_ : fallbackCoverage;
+    const bool coverageReady = litShader && coverage.load(target.texture.width, target.texture.height);
+    if (coverageReady)
+        rlFramebufferAttach(target.id, coverage.get().texture.id,
+            RL_ATTACHMENT_COLOR_CHANNEL2, RL_ATTACHMENT_TEXTURE2D, 0);
+    const bool normalsReady = sceneTarget && resources_.sceneScreenSpaceBuffers();
+    const Camera3D camera{{0, 0, 5}, {0, 0, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+    BeginTextureMode(target);
+    ClearBackground(BLACK);
+    BeginMode3D(camera);
+    WorldLighting lighting{};
+    lighting.cameraPosition = camera.position;
+    beginWorldShader(lighting);
+    static_cast<void>(drawArrow({-1, 0, 0}, {0, 0, -1}));
+    static_cast<void>(drawCannonball({0, 0, 0}));
+    static_cast<void>(drawCatapultBall({1, 0, 0}));
+    rlDrawRenderBatchActive();
+    WorldMaterialState material{};
+    material.unlitAmount = 1;
+    material.screenAoAmount = 0;
+    material.inkOutlineEligible = false;
+    rlDisableBackfaceCulling();
+    for (int layout = 0; layout < 4; ++layout) {
+        if (layout == 0) rlActiveDrawBuffers(1);
+        if (layout == 1) {
+            if (!normalsReady || !litShader) continue;
+            rlActiveDrawBuffers(2);
+        }
+        if (layout == 2) {
+            if (!coverageReady || !routeEffectCoverage(true)) continue;
+        }
+        if (layout == 3) {
+            if (!normalsReady || !coverageReady) continue;
+            rlActiveDrawBuffers(3);
+        }
+        for (const bool occluder : {false, true}) {
+            material.inkOccluder = occluder;
+            setWorldMaterial(material);
+            for (const int blend : {BLEND_ALPHA, BLEND_ADDITIVE}) {
+                BeginBlendMode(blend);
+                for (const bool depthWrite : {false, true}) {
+                    if (depthWrite) rlEnableDepthMask();
+                    else rlDisableDepthMask();
+                    DrawTriangle3D({-1, -1, 0}, {1, -1, 0}, {0, 1, 0}, {255, 180, 30, 180});
+                    rlDrawRenderBatchActive();
+                }
+                EndBlendMode();
+            }
+        }
+    }
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    setWorldMaterial({});
+    endWorldShader();
+    EndMode3D();
+    rlActiveDrawBuffers(1);
+    ClearBackground(BLACK);
+    EndTextureMode();
+#if defined(__APPLE__)
+    // Deferred compilation must finish while loading, never on a firing frame.
+    glFinish();
+#endif
+}
 
 void Renderer::beginWorldPass(
     Color clearColor, const Camera3D& camera) {

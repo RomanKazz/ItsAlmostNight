@@ -137,59 +137,6 @@ void Renderer::initialize() {
     warmCombatRendering();
 }
 
-void Renderer::warmCombatRendering() {
-    // OpenGL drivers can compile blend/output variants on their first draw,
-    // even after linking the shader. Submit the projectile passes while loading,
-    // into an offscreen target: no flashes, sounds or gameplay events.
-    if (!settings_.worldShader || !resources_.worldShader().valid()) return;
-    RenderTextureResource fallback;
-    const bool sceneTarget = resources_.sceneTargetValid();
-    if (!sceneTarget && !fallback.load(32, 32)) return;
-    const RenderTexture2D target = sceneTarget ? resources_.sceneTarget() : fallback.get();
-    const Camera3D camera{{0, 0, 5}, {0, 0, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
-    BeginTextureMode(target);
-    ClearBackground(BLACK);
-    BeginMode3D(camera);
-    WorldLighting lighting{};
-    lighting.cameraPosition = camera.position;
-    beginWorldShader(lighting);
-    static_cast<void>(drawArrow({-1, 0, 0}, {0, 0, -1}));
-    static_cast<void>(drawCannonball({0, 0, 0}));
-    static_cast<void>(drawCatapultBall({1, 0, 0}));
-    rlDrawRenderBatchActive();
-    WorldMaterialState material{};
-    material.unlitAmount = 1;
-    material.screenAoAmount = 0;
-    material.inkOutlineEligible = false;
-    rlDisableBackfaceCulling();
-    const int outputCount = sceneTarget && resources_.sceneScreenSpaceBuffers() ? 2 : 1;
-    for (int outputs = 1; outputs <= outputCount; ++outputs) {
-        rlActiveDrawBuffers(outputs);
-        material.inkOccluder = outputs == 2;
-        setWorldMaterial(material);
-        for (const int blend : {BLEND_ALPHA, BLEND_ADDITIVE}) {
-            BeginBlendMode(blend);
-            rlDisableDepthMask();
-            DrawTriangle3D({-1, -1, 0}, {1, -1, 0}, {0, 1, 0}, {255, 180, 30, 180});
-            rlDrawRenderBatchActive();
-            rlEnableDepthMask();
-            DrawTriangle3D({-1, -1, 0}, {1, -1, 0}, {0, 1, 0}, {255, 180, 30, 180});
-            rlDrawRenderBatchActive();
-            EndBlendMode();
-        }
-    }
-    rlEnableBackfaceCulling();
-    setWorldMaterial({});
-    endWorldShader();
-    EndMode3D();
-    rlActiveDrawBuffers(1);
-    ClearBackground(BLACK);
-    EndTextureMode();
-#if defined(__APPLE__)
-    // Finish deferred driver work before handing control to the main menu.
-    glFinish();
-#endif
-}
 
 void Renderer::beginFrame() {
     performanceStats_.gpuQueriesIssued = 0U;
