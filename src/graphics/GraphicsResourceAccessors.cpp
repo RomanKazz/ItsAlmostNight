@@ -640,6 +640,11 @@ GraphicsResources::enemyPinkBlobAnimations() const {
 }
 
 const ModelAnimationsResource&
+GraphicsResources::enemyWizardAnimations() const {
+    return enemyWizardAnimations_;
+}
+
+const ModelAnimationsResource&
 GraphicsResources::enemyNinjaAnimations() const {
     return enemyNinjaAnimations_;
 }

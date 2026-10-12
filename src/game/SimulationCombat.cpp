@@ -260,6 +260,16 @@ void Simulation::updateCombat(double deltaSeconds) {
                 structuralRevision_,
             },
             challengeActive());
+        for (const EnemyMagicEvent& magic : enemies_.magicEvents()) {
+            events_.push_back({
+                .type = magic.impact ? GameEventType::EnemyMagicImpact
+                                     : GameEventType::EnemyMagicFired,
+                .sourceId = magic.ownerId,
+                .enemyType = EnemyType::Ranged,
+                .position = magic.position,
+                .intensity = magic.dissipating ? 0.55 : 1.0,
+            });
+        }
         if (challengeActive() && activeChallengeColumn_) {
             enemies_.constrainToArena(
                 challengeColumns_[*activeChallengeColumn_].position,

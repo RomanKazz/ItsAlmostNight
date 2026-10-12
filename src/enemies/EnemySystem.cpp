@@ -753,6 +753,7 @@ EnemySystem::EnemySystem(
     attackBuffer_.reserve(MaxEnemies);
     playerAttackBuffer_.reserve(MaxEnemies);
     projectiles_.reserve(256);
+    magicEventBuffer_.reserve(256);
     areaDamageBuffer_.reserve(MaxEnemies);
     poisonHitBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
@@ -779,6 +780,7 @@ void EnemySystem::reset() {
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     projectiles_.clear();
+    magicEventBuffer_.clear();
     nextProjectileIndex_ = 1U;
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
@@ -1001,6 +1003,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
     };
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
+    magicEventBuffer_.clear();
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
     trackPlayerVelocity(deltaSeconds, playerPosition);
@@ -1296,6 +1299,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                                 .targetId = std::nullopt,
                                 .position = origin,
                                 .targetPosition = target,
+                                .previousPosition = origin,
                                 .velocity = {
                                     dx / length * ProjectileSpeed,
                                     dy / length * ProjectileSpeed,
@@ -1306,6 +1310,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
                                 .lifetimeRemaining = 3.0,
                                 .targetsPlayer = true,
                             });
+                            magicEventBuffer_.push_back({enemy.id, {
+                                origin.x + dx / length * 0.65,
+                                origin.y + dy / length * 0.65,
+                                origin.z + dz / length * 0.65}});
                         } else {
                             playerAttackBuffer_.push_back(
                                 {enemy.id, enemy.damage});
@@ -1598,6 +1606,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     .targetId = blocker->id,
                     .position = origin,
                     .targetPosition = target,
+                    .previousPosition = origin,
                     .velocity = {
                         dx / length * ProjectileSpeed,
                         dy / length * ProjectileSpeed,
@@ -1609,6 +1618,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     .lifetimeRemaining = 3.0,
                     .targetsPlayer = false,
                 });
+                magicEventBuffer_.push_back({enemy.id, {
+                    origin.x + dx / length * 0.65,
+                    origin.y + dy / length * 0.65,
+                    origin.z + dz / length * 0.65}});
             } else {
                 attackBuffer_.push_back({
                     enemy.id, blocker->id, damage, false});

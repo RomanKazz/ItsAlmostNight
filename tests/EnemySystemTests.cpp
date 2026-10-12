@@ -1245,6 +1245,16 @@ void runEnemySystemTests() {
         projectileEnemy.playerAttacks().empty() &&
             projectileEnemy.projectiles().size() == 1U,
         "ranged enemy launches a projectile instead of instant damage");
+    require(projectileEnemy.magicEvents().size() == 1U &&
+            !projectileEnemy.magicEvents().front().impact &&
+            projectileEnemy.magicEvents().front().ownerId == projectileEnemy.enemies().front().id,
+            "wizard emits exactly one cast event with its real projectile");
+    require(projectileEnemy.projectiles().front().previousPosition.x ==
+                projectileEnemy.projectiles().front().position.x,
+            "wizard projectile starts interpolation at its muzzle");
+    projectileEnemy.tick(1.0 / 60.0, projectileBuildings.buildings(), projectileFlow,
+                         ian::Vec3{0.0, 1.7, 0.0});
+    require(projectileEnemy.magicEvents().empty(), "cast event does not repeat on following ticks");
     bool projectileHit = false;
     for (int tick = 0; tick < 120 && !projectileHit; ++tick) {
         projectileEnemy.tick(
@@ -1252,6 +1262,10 @@ void runEnemySystemTests() {
             ian::Vec3{0.0, 1.7, 0.0});
         projectileHit = !projectileEnemy.playerAttacks().empty();
     }
+    require(projectileEnemy.magicEvents().size() == 1U &&
+            projectileEnemy.magicEvents().front().impact &&
+            !projectileEnemy.magicEvents().front().dissipating,
+            "physical player hit emits one wizard impact");
     require(projectileHit,
             "ranged projectile damages player only after travel time");
 
@@ -1280,6 +1294,7 @@ void runEnemySystemTests() {
         1.5, projectileBuildings.buildings(), projectileFlow,
         ian::Vec3{0.0, 1.7, 0.0});
     projectileEnemy.clearProjectiles();
+    require(projectileEnemy.magicEvents().empty(), "phase cleanup removes stale magic events");
     require(projectileEnemy.projectiles().empty(),
             "enemy projectiles can be cleared at a phase boundary");
 
@@ -1293,6 +1308,11 @@ void runEnemySystemTests() {
     replacementWaveEnemy.spawnWave(ProjectileSpawn);
     require(replacementWaveEnemy.projectiles().empty(),
             "starting a new wave clears old enemy projectiles");
+
+    replacementWaveEnemy.tick(1.0/60.0, projectileBuildings.buildings(), projectileFlow,
+                             ian::Vec3{0,1.7,0});
+    replacementWaveEnemy.reset();
+    require(replacementWaveEnemy.magicEvents().empty(), "reset clears wizard presentation events");
 
     std::vector<ian::EnemySpawn> stressSpawns;
     stressSpawns.reserve(ian::EnemySystem::MaxEnemies + 64);

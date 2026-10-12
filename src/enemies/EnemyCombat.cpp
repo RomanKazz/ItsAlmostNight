@@ -652,8 +652,13 @@ std::span<const EnemyProjectile> EnemySystem::projectiles() const {
     return projectiles_;
 }
 
+std::span<const EnemyMagicEvent> EnemySystem::magicEvents() const {
+    return magicEventBuffer_;
+}
+
 void EnemySystem::clearProjectiles() {
     projectiles_.clear();
+    magicEventBuffer_.clear();
 }
 
 std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {

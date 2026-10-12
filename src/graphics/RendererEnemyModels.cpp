@@ -116,10 +116,13 @@ EnemyAnimationSource enemyAnimationFor(
 
     if (modelVisual == EnemyModelVisual::Minion ||
         modelVisual == EnemyModelVisual::Rogue ||
+        modelVisual == EnemyModelVisual::Mage ||
         modelVisual == EnemyModelVisual::Splitter ||
         modelVisual == EnemyModelVisual::Splitling) {
         if (modelVisual == EnemyModelVisual::Rogue) {
             animations = &resources.enemyNinjaAnimations();
+        } else if (modelVisual == EnemyModelVisual::Mage) {
+            animations = &resources.enemyWizardAnimations();
         } else if (modelVisual == EnemyModelVisual::Splitter) {
             animations = &resources.enemySplitterAnimations();
         } else if (modelVisual == EnemyModelVisual::Splitling) {
@@ -340,7 +343,7 @@ Color crowdLodTint(EnemyModelVisual visual, Color tint) {
     case EnemyModelVisual::Warrior:
         return {93, 60, 105, tint.a};
     case EnemyModelVisual::Mage:
-        return {55, 118, 154, tint.a};
+        return {129, 77, 193, tint.a};
     case EnemyModelVisual::Sapper:
         return {170, 118, 43, tint.a};
     case EnemyModelVisual::Flying:

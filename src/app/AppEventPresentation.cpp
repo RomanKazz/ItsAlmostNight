@@ -207,6 +207,14 @@ void App::processPresentationEvents(
             playerArrival_.start();
         }
         audio_.playEvent(event, eventSnapshot);
+        if (event.type == GameEventType::EnemyMagicFired ||
+            event.type == GameEventType::EnemyMagicImpact) {
+            const bool impact = event.type == GameEventType::EnemyMagicImpact;
+            addEffect(impact ? PresentationEffectType::EnemyMagicImpact
+                             : PresentationEffectType::EnemyMagicCast,
+                      event.position, impact ? 0.48 : 0.24,
+                      static_cast<float>(event.intensity), event.sourceId);
+        }
         if (event.type == GameEventType::PlayerDashed) {
             Vec3 dustPosition = event.position;
             dustPosition.y = simulation_.terrain().getHeight(

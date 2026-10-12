@@ -246,12 +246,20 @@ struct BossActionEvent {
     double damage{};
 };
 
+struct EnemyMagicEvent {
+    EntityId ownerId;
+    Vec3 position;
+    bool impact{};
+    bool dissipating{};
+};
+
 struct EnemyProjectile {
     EntityId id;
     EntityId ownerId;
     std::optional<EntityId> targetId;
     Vec3 position;
     Vec3 targetPosition;
+    Vec3 previousPosition;
     Vec3 velocity;
     double damage{};
     double radius{0.24};
@@ -366,6 +374,8 @@ class EnemySystem {
     [[nodiscard]] bool hasPendingSplits() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
+    // Borrowed until the next tick/reset. Cleared per tick; storage reused.
+    [[nodiscard]] std::span<const EnemyMagicEvent> magicEvents() const;
     void clearProjectiles();
     void constrainToArena(
         Vec3 center, double radius);
@@ -416,6 +426,7 @@ class EnemySystem {
     std::vector<EnemyAttack> attackBuffer_;
     std::vector<EnemyPlayerAttack> playerAttackBuffer_;
     std::vector<EnemyProjectile> projectiles_;
+    std::vector<EnemyMagicEvent> magicEventBuffer_;
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EnemyPoisonHit> poisonHitBuffer_;
     std::vector<EntityId> statusTargetBuffer_;

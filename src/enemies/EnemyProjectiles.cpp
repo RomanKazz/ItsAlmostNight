@@ -77,12 +77,15 @@ void EnemySystem::updateProjectiles(
     for (EnemyProjectile& projectile : projectiles_) {
         if (!projectile.active) continue;
         const Vec3 previousPosition = projectile.position;
+        projectile.previousPosition = previousPosition;
         projectile.position.x += projectile.velocity.x * deltaSeconds;
         projectile.position.y += projectile.velocity.y * deltaSeconds;
         projectile.position.z += projectile.velocity.z * deltaSeconds;
         projectile.lifetimeRemaining -= deltaSeconds;
         if (projectile.lifetimeRemaining <= 0.0) {
             projectile.active = false;
+            magicEventBuffer_.push_back(
+                {projectile.ownerId, projectile.position, true, true});
             continue;
         }
         if (projectile.targetsPlayer) {
@@ -99,6 +102,8 @@ void EnemySystem::updateProjectiles(
                     hitRadius * hitRadius) {
                     playerAttackBuffer_.push_back(
                         {projectile.ownerId, projectile.damage});
+                    magicEventBuffer_.push_back(
+                        {projectile.ownerId, projectile.position, true});
                     projectile.active = false;
                 }
             }
@@ -125,6 +130,8 @@ void EnemySystem::updateProjectiles(
                     attackBuffer_.push_back({
                         projectile.ownerId, *projectile.targetId,
                         projectile.damage, false});
+                    magicEventBuffer_.push_back(
+                        {projectile.ownerId, projectile.position, true});
                     projectile.active = false;
                 }
             }
@@ -134,6 +141,10 @@ void EnemySystem::updateProjectiles(
                 terrain->getHeight(
                     projectile.position.x,
                     projectile.position.z) + 0.12) {
+            projectile.position.y = terrain->getHeight(
+                projectile.position.x, projectile.position.z) + 0.12;
+            magicEventBuffer_.push_back(
+                {projectile.ownerId, projectile.position, true});
             projectile.active = false;
         }
     }

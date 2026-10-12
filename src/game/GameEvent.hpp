@@ -114,6 +114,8 @@ enum class GameEventType {
     ChallengeCompleted,
     TowerFired,
     PoisonHit,
+    EnemyMagicFired,
+    EnemyMagicImpact,
 };
 
 struct GameEvent {

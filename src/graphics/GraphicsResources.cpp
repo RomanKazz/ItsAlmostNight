@@ -1266,7 +1266,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     enemyWarriorModel_.load(
         "assets/models/enemies/ultimate/mushnub_evolved.gltf");
     enemyMageModel_.load(
-        "assets/models/enemies/mage.glb");
+        "assets/models/enemies/ultimate/wizard.gltf");
     enemySapperModel_.load(
         "assets/models/enemies/ultimate/sapper.gltf");
     enemyFlyingModel_.load(
@@ -1281,6 +1281,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/enemies/animations/general.glb");
     enemyPinkBlobAnimations_.load(
         "assets/models/enemies/pink_blob.gltf");
+    enemyWizardAnimations_.load("assets/models/enemies/ultimate/wizard.gltf");
     enemyNinjaAnimations_.load(
         "assets/models/enemies/ultimate/ninja.gltf");
     enemyMushroomKingAnimations_.load(
@@ -1503,6 +1504,7 @@ void GraphicsResources::shutdown() {
     enemySapperAnimations_.unload();
     enemyMovementAnimations_.unload();
     enemyMushroomKingAnimations_.unload();
+    enemyWizardAnimations_.unload();
     enemyNinjaAnimations_.unload();
     enemyPinkBlobAnimations_.unload();
     enemyGeneralAnimations_.unload();

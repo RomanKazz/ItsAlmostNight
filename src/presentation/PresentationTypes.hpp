@@ -54,6 +54,8 @@ enum class PresentationEffectType {
     BuildingDamaged,
     BuildingRepaired,
     RepairShockwave,
+    EnemyMagicCast,
+    EnemyMagicImpact,
 };
 
 struct PresentationEffect {

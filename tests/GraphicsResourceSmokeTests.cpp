@@ -6,6 +6,7 @@
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
+#include "WizardGraphicsChecks.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
 #include "PowerupPickupModelChecks.hpp"
@@ -2934,6 +2935,12 @@ int main() {
             !resources.viewModelCompositeShader().valid() ||
             !resources.enemyMinionModel().valid() ||
             !resources.enemyRogueModel().valid() ||
+            !resources.enemyMageModel().valid() ||
+            resources.enemyWizardAnimations().find("Idle") == nullptr ||
+            resources.enemyWizardAnimations().find("Walk") == nullptr ||
+            resources.enemyWizardAnimations().find("Bite_Front") == nullptr ||
+            resources.enemyWizardAnimations().find("HitRecieve") == nullptr ||
+            !animationMovesSkeleton(resources.enemyMageModel(), resources.enemyWizardAnimations(), "Walk") ||
             !resources.enemyWarriorModel().valid() ||
             !resources.enemySplitterModel().valid() ||
             !resources.enemySplitlingModel().valid() ||
@@ -3116,6 +3123,7 @@ int main() {
             std::cerr << "cartoon ice projectile presentation failed\n";
             result = 1;
         }
+        if (!checkWizardMagic(renderer)) return 1;
         if (!checkPowerupPickupModels(renderer)) {
             std::cerr << "Powerup pickup models failed visibility or depth checks\n";
             result = 1;

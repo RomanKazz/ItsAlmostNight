@@ -4,6 +4,7 @@
 #include "app/AppFreezeDrawing.hpp"
 #include "app/AppPoisonDrawing.hpp"
 #include "graphics/CameraCulling.hpp"
+#include "graphics/EnemyMagicEffect.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
 #include <raylib.h>
@@ -408,36 +409,28 @@ void App::drawWorldEnemies(
         }
     }
     rlDrawRenderBatchActive();
-    // Enemy projectile glow/trails are transparent too. Keep depth testing,
-    // but do not let their fading silhouette occlude subsequent objects.
-    for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
-        if (!projectile.active) continue;
-        const Vector3 head{
-            static_cast<float>(projectile.position.x),
-            static_cast<float>(projectile.position.y),
-            static_cast<float>(projectile.position.z)};
-        if (!enemyVisible(head, 1.0F)) {
-            continue;
-        }
-        Vector3 velocity{
-            static_cast<float>(projectile.velocity.x),
-            static_cast<float>(projectile.velocity.y),
-            static_cast<float>(projectile.velocity.z)};
-        if (Vector3LengthSqr(velocity) > 0.001F) {
-            velocity = Vector3Normalize(velocity);
-        }
-        const Vector3 tail = Vector3Subtract(
-            head, Vector3Scale(velocity, 0.72F));
-        const float pulse = 0.5F + 0.5F * std::sin(
-            static_cast<float>(snapshot.elapsedSeconds) * 13.0F +
-            static_cast<float>(projectile.id.index) * 0.73F);
-        DrawCylinderEx(tail, head, 0.035F, 0.12F, 8,
-                       {84, 58, 220, 150});
-        DrawSphere(head, 0.20F + pulse * 0.035F,
-                   {166, 105, 255, 235});
-        DrawSphere(head, 0.09F, {238, 221, 255, 255});
-    }
     EndBlendMode();
+    if (!snapshot.enemyProjectiles.empty()) {
+        WorldMaterialState magicMaterial{};
+        magicMaterial.unlitAmount = 1;
+        magicMaterial.screenAoAmount = 0;
+        magicMaterial.inkOutlineEligible = false;
+        const float interpolation = static_cast<float>(fixedStep_.interpolationAlpha());
+        for (const bool headPass : {false, true}) {
+            magicMaterial.inkOccluder = headPass;
+            renderer_->setWorldMaterial(magicMaterial);
+            renderer_->beginColorOnlyWorldEffects();
+            fire_wand_effect::beginBatch(headPass);
+            for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
+                if (!projectile.active || !enemyVisible(enemy_magic_effect::point(projectile.position), 2)) continue;
+                enemy_magic_effect::projectile(projectile, camera.position, snapshot.elapsedSeconds,
+                    interpolation, headPass, renderer_->settings().particles);
+            }
+            fire_wand_effect::endBatch();
+            renderer_->endColorOnlyWorldEffects();
+        }
+        renderer_->setWorldMaterial({});
+    }
     Vector3 flameRight = Vector3CrossProduct(
         cameraForward, {0.0F, 1.0F, 0.0F});
     if (Vector3LengthSqr(flameRight) < 0.001F) {

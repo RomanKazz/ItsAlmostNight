@@ -1,3 +1,4 @@
+#include "graphics/EnemyMagicEffect.hpp"
 #include "app/App.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
@@ -368,6 +369,36 @@ void App::drawPresentationEffects(
     const Vector3 billboardUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, cameraForward));
 
+    if (std::ranges::any_of(effects_, [](const PresentationEffect& effect) {
+            return effect.type == PresentationEffectType::EnemyMagicCast ||
+                   effect.type == PresentationEffectType::EnemyMagicImpact;
+        })) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = true;
+        renderer_->setWorldMaterial(material);
+        renderer_->beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch();
+        for (const auto& effect : effects_) {
+            if (effect.startDelayRemaining > 0 || effect.duration <= 0 ||
+                (effect.type != PresentationEffectType::EnemyMagicCast &&
+                 effect.type != PresentationEffectType::EnemyMagicImpact)) continue;
+            const Vector3 center = enemy_magic_effect::point(effect.position);
+            const Vector3 delta = Vector3Subtract(center, camera.position);
+            if (Vector3LengthSqr(delta) > 1600 || Vector3DotProduct(delta, cameraForward) < -1) continue;
+            enemy_magic_effect::burst(center, camera.position,
+                static_cast<float>(1 - effect.remaining / effect.duration), effect.scale,
+                effect.type == PresentationEffectType::EnemyMagicImpact,
+                renderer_->settings().particles,
+                effect.entityId ? effect.entityId->index : 0);
+        }
+        fire_wand_effect::endBatch();
+        renderer_->endColorOnlyWorldEffects();
+        renderer_->endWorldShader();
+    }
     const bool hasResourceFragments = std::ranges::any_of(
         effects_, [](const PresentationEffect& effect) {
             return effect.startDelayRemaining <= 0.0 &&
@@ -748,6 +779,8 @@ void App::drawPresentationEffects(
     for (const auto& effect : effects_) {
         // Frozen impacts and burning use their own batches, not generic debris.
         if (effect.startDelayRemaining > 0.0 ||
+            effect.type == PresentationEffectType::EnemyMagicCast ||
+            effect.type == PresentationEffectType::EnemyMagicImpact ||
             effect.type == PresentationEffectType::EnemyBurn ||
             effect.type == PresentationEffectType::IceImpact ||
             effect.type == PresentationEffectType::IceCrack ||

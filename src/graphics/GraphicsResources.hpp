@@ -360,6 +360,8 @@ class GraphicsResources {
     [[nodiscard]] const ModelAnimationsResource&
         enemyPinkBlobAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
+        enemyWizardAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
         enemyNinjaAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyMushroomKingAnimations() const;
@@ -484,6 +486,7 @@ class GraphicsResources {
     ModelResource enemySplitlingModel_;
     ModelAnimationsResource enemyGeneralAnimations_;
     ModelAnimationsResource enemyPinkBlobAnimations_;
+    ModelAnimationsResource enemyWizardAnimations_;
     ModelAnimationsResource enemyNinjaAnimations_;
     ModelAnimationsResource enemyMushroomKingAnimations_;
     ModelAnimationsResource enemySplitterAnimations_;
