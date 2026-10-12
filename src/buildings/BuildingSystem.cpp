@@ -902,6 +902,9 @@ RepairResult BuildingSystem::validateRepair(EntityId id, int wood, int stone, in
     if (iterator == buildings_.end()) {
         return {.error = BuildingActionError::NotFound};
     }
+    if (iterator->type == BuildingType::Core) {
+        return {.error = BuildingActionError::Unsupported, .building = *iterator};
+    }
     if (iterator->health >= iterator->maxHealth) {
         return {.error = BuildingActionError::FullHealth, .building = *iterator};
     }
@@ -983,6 +986,9 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
     }
     if (combatCardProgressionEnabled_ &&
         buildingLimitCategory(iterator->type) == BuildingLimitCategory::Defense) {
+        const auto coreBuilding = core();
+        if (!coreBuilding || coreBuilding->level <= iterator->level)
+            return {.error = UpgradeError::CoreLevelRequired, .building = *iterator};
         return {.error = UpgradeError::CardRequired, .building = *iterator};
     }
     if (iterator->type != BuildingType::Core) {

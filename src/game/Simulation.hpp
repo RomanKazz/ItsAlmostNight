@@ -79,7 +79,6 @@ struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
 struct InteractCommand {};
 struct RerollChestCommand { EntityId chestId; };
-struct RepairAllBuildingsCommand {};
 struct PurchaseBombBundleCommand {};
 struct RevealNearestChestCommand {};
 struct DefeatAllEnemiesCommand {};
@@ -158,7 +157,6 @@ struct PlayerCommand {
     std::optional<UseConsumableCommand> useConsumable;
     std::optional<InteractCommand> interact;
     std::optional<RerollChestCommand> rerollChest;
-    std::optional<RepairAllBuildingsCommand> repairAllBuildings;
     std::optional<PurchaseBombBundleCommand> purchaseBombBundle;
     std::optional<RevealNearestChestCommand> revealNearestChest;
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
@@ -428,7 +426,6 @@ struct SimulationSnapshot {
     int bombPurchaseCoinCost;
     int bombPurchaseAmount;
     int chestRerollCoinCost;
-    int repairAllCoinCost;
     int chestRevealCoinCost;
     int waveCompletionReward;
     int tutorialWoodTarget;

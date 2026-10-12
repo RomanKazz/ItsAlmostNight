@@ -741,46 +741,9 @@ void App::drawCoreDefenseMenu() {
     const bool canUpgrade = hasNextLevel &&
         (snapshot.unlimitedResources ||
          snapshot.crystals >= coreUpgradeCost);
-    const bool hasDamagedBuilding =
-        std::ranges::any_of(
-            snapshot.buildings,
-            [](const BuildingInstance& building) {
-                return building.health < building.maxHealth;
-            }) ||
-        std::ranges::any_of(
-            snapshot.platformFrames,
-            [](const PlatformFrameInstance& building) {
-                return building.health < building.maxHealth;
-            }) ||
-        std::ranges::any_of(
-            snapshot.modularWalls,
-            [](const WallInstance& building) {
-                return building.health < building.maxHealth;
-            }) ||
-        std::ranges::any_of(
-            snapshot.ramps,
-            [](const RampInstance& building) {
-                return building.health < building.maxHealth;
-            });
-    const bool canRepair = hasDamagedBuilding &&
-        (snapshot.unlimitedResources ||
-         snapshot.coins >= snapshot.repairAllCoinCost);
-
-    const bool repairClicked = drawActionButton(
-            ui_, transform,
-            {432.0F, 780.0F, 420.0F, 102.0F},
-            CoreMenuTexture::Wrench, "REPAIR ALL",
-            CoreMenuTexture::Coin, snapshot.repairAllCoinCost,
-            canRepair, Color{29, 80, 208, 255},
-            Color{51, 146, 242, 255}, buttonReveal,
-            coreMenuPointerActive_);
-    if (!coreDefenseMenuClosing_ && repairClicked) {
-        pendingRepairAllBuildings_ = true;
-        audio_.playUiConfirm();
-    }
     const bool upgradeClicked = drawActionButton(
             ui_, transform,
-            {872.0F, 780.0F, 430.0F, 102.0F},
+            {432.0F, 780.0F, 870.0F, 102.0F},
             CoreMenuTexture::Upgrade, "UPGRADE",
             CoreMenuTexture::Gem, coreUpgradeCost,
             canUpgrade, Color{16, 163, 70, 255},

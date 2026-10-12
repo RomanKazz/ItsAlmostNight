@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "DefenseCardProgressionChecks.hpp"
+#include "CoreDefenseGateChecks.hpp"
 #include "game/Simulation.hpp"
 
 #include <limits>
@@ -8,6 +9,7 @@
 
 void runRunUpgradeTests() {
     checkDefenseCardProgression();
+    checkCoreDefenseGateAndRepairs();
     using namespace ian;
     const auto rerollWithSavedToken = [](Simulation& run) {
         auto checkpoint = run.saveSuspendedRunState();
@@ -334,13 +336,17 @@ void runRunUpgradeTests() {
         arsenal->returnToMainMenu();
         arsenal->startRunFromSeed(character.type, 4321);
         require(arsenal->snapshot().buildingArsenalCount == 1 &&
-            arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)) &&
-            arsenal->snapshot().buildingArsenalCount == 1 &&
-            arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(character.startingBuilding))] == 2,
-            "every character upgrades its level-one starter without spending another slot");
+            !arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)) &&
+            arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(character.startingBuilding))] == 1,
+            "every character starts at level one and needs core level two before upgrading");
     }
     arsenal->returnToMainMenu();
     arsenal->startRunFromSeed(PlayerClass::Vanguard, 4321);
+    auto levelTwoCore = arsenal->saveSuspendedRunState();
+    levelTwoCore.buildings.push_back({.id = {1000, 1}, .type = BuildingType::Core,
+        .gridPosition = {0, 0}, .level = 2, .health = 500, .maxHealth = 500});
+    arsenal->returnToMainMenu();
+    require(arsenal->loadSuspendedRunState(levelTwoCore), "arsenal fixture opens shared level two through the core");
     require(arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon, RunUpgradeRarity::Legendary) &&
         arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTurret) &&
         arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockSpikeTrap) &&
@@ -510,6 +516,7 @@ void runRunUpgradeTests() {
 
     auto legacyEconomy = arsenalSave;
     legacyEconomy.buildingArsenalVersion = 1;
+    legacyEconomy.coreBuildRadiusLevel = 1;
     legacyEconomy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 1;
     legacyEconomy.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 1;
     legacyEconomy.buildings = {
@@ -518,12 +525,14 @@ void runRunUpgradeTests() {
     };
     legacyEconomy.resumeState = RunState::BuildPhase;
     restored->returnToMainMenu();
-    require(restored->loadSuspendedRunState(legacyEconomy) && restored->snapshot().buildingArsenalCount == 4 &&
+    require(restored->loadSuspendedRunState(legacyEconomy), "legacy economic fixture resumes");
+    require(restored->snapshot().buildingArsenalCount == 4 &&
         restored->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::Quarry)],
         "old checkpoints retain producers already built without consuming combat slots");
 
     auto legacyArsenal = arsenalSave;
     legacyArsenal.buildingArsenalVersion = 0;
+    legacyArsenal.coreBuildRadiusLevel = 1;
     legacyArsenal.runUpgradeStacks.fill(0);
     legacyArsenal.runUpgradePower.fill(0);
     legacyArsenal.buildings = {

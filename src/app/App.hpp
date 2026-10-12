@@ -451,7 +451,6 @@ class App {
     std::optional<UpgradeBuildingBlueprintCommand>
         pendingBuildingBlueprintUpgrade_;
     std::optional<RepairBuildingCommand> pendingBuildingRepair_;
-    bool pendingRepairAllBuildings_{};
     bool pendingPurchaseBombBundle_{};
     std::optional<EntityId> repairSweepTarget_;
     bool repairSweepActive_{};

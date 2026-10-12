@@ -307,6 +307,10 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     return building && runCombatBuilding(*building);
 }
 
+[[nodiscard]] constexpr int runDefenseLevelLimit(std::uint8_t coreLevel) {
+    return std::clamp<int>(coreLevel, 1, MaxBuildingLevel);
+}
+
 [[nodiscard]] constexpr std::optional<RunUpgradeEffect> buildingRunUpgrade(BuildingType type) {
     for (std::size_t index = runUpgradeIndex(RunUpgradeEffect::UnlockGunTurret);
          index < RunUpgradeEffectCount; ++index) {

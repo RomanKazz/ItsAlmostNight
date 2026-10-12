@@ -37,7 +37,6 @@ void App::resetRunInputState() {
     pendingBuildingUpgrade_.reset();
     pendingBuildingBlueprintUpgrade_.reset();
     pendingBuildingRepair_.reset();
-    pendingRepairAllBuildings_ = false;
     pendingPurchaseBombBundle_ = false;
     pendingBuildingSale_.reset();
     pendingModularBuildingRemoval_.reset();

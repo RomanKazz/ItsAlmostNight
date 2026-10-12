@@ -46,8 +46,12 @@ inline void checkDefenseCardProgression() {
     require(!buildings.setCombatBlueprintLevel(BuildingType::GunTurret, 4), "repeated runtime refresh is idempotent");
     auto future = buildings.place(BuildingType::GunTurret, {6, 0}, 0, 99999, 99999, 99999);
     require(future && future->building.level == 4, "future copies inherit shared level");
+    require(buildings.validateUpgrade(first->building.id, 99999, 99999, 99999).error == UpgradeError::CoreLevelRequired,
+        "combat management explains the core gate at the shared level ceiling");
+    for (int i = 0; i < 4; ++i)
+        require(buildings.upgrade(core->building.id, 99999, 99999, 99999).valid(), "core fixture reaches level five");
     require(buildings.validateUpgrade(first->building.id, 99999, 99999, 99999).error == UpgradeError::CardRequired,
-        "resource upgrade cannot bypass combat cards");
+        "resource upgrade cannot bypass combat cards after the core gate opens");
     require(buildings.validateUpgrade(core->building.id, 99999, 99999, 99999).valid(),
         "core keeps resource upgrades");
     require(!buildings.setCombatBlueprintLevel(BuildingType::Quarry, 4), "producers are not global card types");
@@ -67,7 +71,7 @@ inline void checkDefenseCardProgression() {
     run->startRunFromSeed(PlayerClass::Vanguard, 54321);
     auto saved = run->saveSuspendedRunState();
     saved.buildings = {
-        {.id = {1000, 1}, .type = BuildingType::Core, .gridPosition = {0, 0}, .health = 500, .maxHealth = 500},
+        {.id = {1000, 1}, .type = BuildingType::Core, .gridPosition = {0, 0}, .level = 3, .health = 500, .maxHealth = 500},
         {.id = {1001, 1}, .type = BuildingType::GunTurret, .gridPosition = {2, 0}, .health = 90, .maxHealth = 100},
         {.id = {1002, 1}, .type = BuildingType::GunTurret, .gridPosition = {4, 0}, .health = 100, .maxHealth = 100},
     };

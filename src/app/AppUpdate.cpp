@@ -815,9 +815,6 @@ void App::update() {
             tickInput.upgradeBuildingBlueprint =
                 pendingBuildingBlueprintUpgrade_;
             tickInput.repairBuilding = pendingBuildingRepair_;
-            if (pendingRepairAllBuildings_) {
-                tickInput.repairAllBuildings = RepairAllBuildingsCommand{};
-            }
             if (pendingPurchaseBombBundle_) {
                 tickInput.purchaseBombBundle = PurchaseBombBundleCommand{};
             }
@@ -903,7 +900,6 @@ void App::update() {
         pendingBuildingUpgrade_.reset();
         pendingBuildingBlueprintUpgrade_.reset();
         pendingBuildingRepair_.reset();
-        pendingRepairAllBuildings_ = false;
         pendingPurchaseBombBundle_ = false;
         pendingBuildingSale_.reset();
         pendingModularBuildingRemoval_.reset();

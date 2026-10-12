@@ -175,6 +175,9 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     }
     if (const auto building = runUpgradeBuilding(effect)) {
         if (sandboxMode_ || unlimitedResources_) return false;
+        const auto core = buildings_.core();
+        if (runCombatBuilding(*building) && runUpgradeStacks_[runUpgradeIndex(effect)] >=
+            runDefenseLevelLimit(core ? core->level : 0U)) return false;
         return runCombatBuilding(*building)
             ? ownsRunBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount
             : !ownsRunBuilding(*building);
@@ -307,6 +310,9 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (const auto building = runUpgradeBuilding(effect)) {
         if (runCombatBuilding(*building)) {
+            const auto core = buildings_.core();
+            if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
+                runDefenseLevelLimit(core ? core->level : 0U)) return false;
             if (!ownsRunBuilding(*building) &&
                 runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
         } else if (ownsRunBuilding(*building)) return false;

@@ -393,10 +393,6 @@ const SimulationSnapshot& Simulation::snapshot() const {
                           chest->rerollCount,
                           economy_.chestRerollCoinCosts.size() - 1U);
             }()),
-        .repairAllCoinCost = saturatingAdd(
-            economy_.repairAllCoinCost,
-            saturatingMultiplyNonNegative(
-                economy_.repairAllCoinCostPerWave, wave_)),
         .chestRevealCoinCost = economy_.chestRevealCoinCost,
         .waveCompletionReward = saturatingAdd(
             economy_.waveRewardBase,

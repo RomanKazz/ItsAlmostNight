@@ -699,18 +699,6 @@ void App::processGameplayInput(bool controlDown,
                 }
             }
         }
-        if (buildingManagementActive && aimingCore &&
-            keyPressed(userSettings_.controls, ControlAction::Repair)) {
-            const auto core = std::ranges::find(
-                currentSnapshot.buildings,
-                *currentSnapshot.coreId,
-                &BuildingInstance::id);
-            if (core != currentSnapshot.buildings.end() &&
-                core->health < core->maxHealth) {
-                pendingBuildingRepair_ =
-                    RepairBuildingCommand{core->id};
-            }
-        }
         if (aimingCore &&
             currentSnapshot.unlockedWeapons[
                 static_cast<std::size_t>(PlayerWeapon::Bomb)] &&
