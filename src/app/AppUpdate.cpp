@@ -60,6 +60,9 @@ void App::update() {
         pendingSandboxCardGrant_.reset();
     }
     const auto& progressionSnapshot = simulation_.snapshot();
+    if(progressionSnapshot.runShop.pending && !progressionSnapshot.runUpgradeChoicePending &&
+        progressionSnapshot.state!=RunState::Paused) runShopOverlayEntranceSeconds_+=frameSeconds;
+    else if(!progressionSnapshot.runShop.pending) runShopOverlayEntranceSeconds_=0;
     if (progressionSnapshot.runUpgradeChoicePending) {
         runUpgradeOverlayEntranceSeconds_ = std::min(
             1.5, runUpgradeOverlayEntranceSeconds_ + frameSeconds);

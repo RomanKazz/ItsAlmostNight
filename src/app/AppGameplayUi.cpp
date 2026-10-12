@@ -951,8 +951,9 @@ drawRunUpgradeOverlay(
     runUpgradeOverlayEntranceSeconds_,
     runUpgradeOverlayExitSeconds_,
     runUpgradePendingChoice_,
-    runUpgradeCardHoverAmounts_);
-drawRunShopOverlay(ui_, snapshot, runShopKeyboardFocus_);
+    runUpgradeCardHoverAmounts_,std::nullopt,userSettings_.accessibility.reduceFlashes);
+drawRunShopOverlay(ui_, snapshot, runShopKeyboardFocus_,std::nullopt,runShopOverlayEntranceSeconds_,
+    userSettings_.accessibility.reduceFlashes);
 endSdfUiTextBatch();
 if (snapshot.state == RunState::Paused &&
     !renderer_->graphicsPanelVisible()) {

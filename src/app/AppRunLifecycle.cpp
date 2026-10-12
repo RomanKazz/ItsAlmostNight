@@ -7,6 +7,8 @@ namespace ian {
 void App::resetRunClientState(
     const SimulationSnapshot& snapshot) {
     restartHold_.resetProgress();
+    runShopWasVisible_=false;
+    runShopOverlayEntranceSeconds_=0;
     fixedStep_.reset();
     statusMessage_.clear();
     statusMessageRemaining_ = 0.0;

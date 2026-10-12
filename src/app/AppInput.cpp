@@ -110,6 +110,7 @@ void App::processInput() {
     const bool shopVisible = simulation_.snapshot().runShop.pending && !upgradeChoicePending && runState != RunState::Paused;
     if (shopVisible) {
         if (!runShopWasVisible_) {
+            runShopOverlayEntranceSeconds_=0;
             runShopWasVisible_ = true;
             runShopInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runShopKeyboardFocus_.reset();

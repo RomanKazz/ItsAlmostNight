@@ -372,6 +372,7 @@ class App {
     bool graphicsPanelWasVisible_{};
     bool runShopWasVisible_{};
     double runShopInputDelayRemaining_{};
+    double runShopOverlayEntranceSeconds_{};
     std::optional<int> runShopKeyboardFocus_{};
     bool runUpgradeChoiceWasVisible_{};
     double runUpgradeChoiceInputDelayRemaining_{};

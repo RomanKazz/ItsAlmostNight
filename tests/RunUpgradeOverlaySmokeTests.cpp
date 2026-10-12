@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "RewardBackdropChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
 #include "localization/Localization.hpp"
@@ -149,6 +150,7 @@ int main(int argc, char** argv) {
             UnloadRenderTexture(target);
         }
         ian::setLanguage(ian::Language::English);
+        checkRewardBackdrops(ui,shop,argc>1?argv[1]:nullptr);
     }
     // Compare the readonly projection with real upgrade application, including
     // class bonuses, accumulated upgrades, rarity scaling and discrete caps.
