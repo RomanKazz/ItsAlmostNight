@@ -39,3 +39,21 @@ Validation: `ian_enemy_pressure_tests` covers actual wave plans, every elite aff
 ordinary split children and dense explosion admission. `ian_audio_smoke` additionally
 exercises real audio loading/playback/shutdown. Full Debug and sanitizer CTest are
 also required.
+
+## Movement and early XP follow-up
+
+Heavy enemies move at **1.5** instead of 1.2 (+25%); flying enemies at **3.2**
+instead of 2.6 (+23%). Other base movement speeds remain unchanged. Runtime
+`enemies.json` and fallback `GameBalance::defaults()` agree.
+
+The first upgrade now costs **30 XP** instead of 40. Later thresholds remain
+65/95/125/160/... . Runtime `insight.json` and `InsightConfig` both use a first
+requirement discount of 70. An old save at the 40-XP first threshold migrates its
+filled fraction (20/40 becomes 15/30), without granting an upgrade during loading.
+
+XP drops use `ceil(previousOrbCount / 2)` crystals instead of the previous 2–8.
+The reward total is unchanged and is distributed as integers across the smaller
+burst. Examples: a basic enemy gives one crystal worth 3 XP instead of two;
+a heavy gives two worth 8 XP total instead of three; a tree gives two worth
+11 XP instead of four; a boss gives four worth 70 XP instead of eight.
+Odd burst counts round up. Existing dropped crystals are unaffected.
