@@ -90,6 +90,8 @@ struct WorldMaterialState {
     float bushRampSmoothness{0.10F};
     float bushHighlightStrength{0.82F};
     float coniferAmount{};
+    // x/z world root encoded in xy; z enables the fixed palette anchor.
+    Vector3 plantBiomeAnchor{};
     Vector3 coniferShadowColor{0.129F, 0.302F, 0.263F};
     Vector3 coniferMidColor{0.275F, 0.482F, 0.259F};
     Vector3 coniferLightColor{0.475F, 0.663F, 0.294F};
@@ -741,6 +743,7 @@ class Renderer {
         int bushRampSmoothness{-1};
         int bushHighlightStrength{-1};
         int coniferAmount{-1};
+        int plantBiomeAnchor{-1};
         int coniferShadowColor{-1};
         int coniferMidColor{-1};
         int coniferLightColor{-1};

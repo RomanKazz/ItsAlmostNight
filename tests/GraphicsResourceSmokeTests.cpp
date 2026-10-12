@@ -2426,7 +2426,8 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
             }
         }
     }
-    const auto captureTree = [&](Vector2 position, bool instanced) {
+    const auto captureTree = [&](Vector2 position, bool instanced,
+                                 std::optional<Vector2> paletteAnchor = std::nullopt) {
         const Camera3D camera{{position.x, 8, position.y + 28},
             {position.x, 5, position.y}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
         ian::WorldLighting lighting{};
@@ -2441,6 +2442,7 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
         renderer.beginWorldShader(lighting);
         ian::WorldMaterialState material{};
         material.treeAmount = material.vegetationAmount = 1;
+        if (paletteAnchor) material.plantBiomeAnchor = {paletteAnchor->x, paletteAnchor->y, 1};
         renderer.setWorldMaterial(material);
         if (instanced) {
             const std::array instances{ian::TreeDrawInstance{
@@ -2469,6 +2471,48 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
                 (instanced ? "boundary-tree-instanced.png" : "boundary-tree.png")).string().c_str());
         UnloadImage(edgeTree);
         UnloadImage(centerTree);
+    }
+    // Reproduce a hit displacement across the actual closest-biome boundary.
+    // Center the camera on each visual pose so the pixel comparison isolates color.
+    const auto regionAt = [&](Vector2 point) {
+        const auto weights = ian::visual_biomes::weights(biomes, point.x, point.y);
+        return std::max_element(weights.begin(), weights.end()) - weights.begin();
+    };
+    Vector2 resting{}, shifted{};
+    bool foundHitBoundary = false;
+    for (int z = -150; z < 150 && !foundHitBoundary; ++z) {
+        for (int x = -150; x < 150 && !foundHitBoundary; ++x) {
+            Vector2 low{float(x), float(z)}, high{float(x) + .25F, float(z)};
+            const auto region = regionAt(low);
+            if (region == regionAt(high)) continue;
+            for (int i = 0; i < 12; ++i) {
+                const Vector2 middle{(low.x + high.x) * .5F, low.y};
+                if (regionAt(middle) == region) low = middle;
+                else high = middle;
+            }
+            resting = {low.x - .015F, low.y};
+            shifted = {high.x + .015F, high.y};
+            foundHitBoundary = regionAt(resting) != regionAt(shifted);
+        }
+    }
+    bool stableHitPalette = foundHitBoundary;
+    if (foundHitBoundary) {
+        Image still = captureTree(resting, false);
+        Image shaken = captureTree(shifted, false, resting);
+        Image switched = captureTree(shifted, false);
+        const auto stableChanges = changedPixels(still, shaken);
+        const auto switchedChanges = changedPixels(still, switched);
+        stableHitPalette = stableChanges < 70 && switchedChanges > 100;
+        if (!stableHitPalette) std::cerr << "tree hit palette changes " << stableChanges
+            << " without anchor " << switchedChanges << '\n';
+        if (const char* directory = std::getenv("IAN_CAPTURE_BIOMES")) {
+            ExportImage(still, (std::filesystem::path(directory) / "hit-tree-rest.png").string().c_str());
+            ExportImage(shaken, (std::filesystem::path(directory) / "hit-tree-anchored.png").string().c_str());
+            ExportImage(switched, (std::filesystem::path(directory) / "hit-tree-unanchored.png").string().c_str());
+        }
+        UnloadImage(still);
+        UnloadImage(shaken);
+        UnloadImage(switched);
     }
     // Probe the actual grass shader on a bright blade under daytime exposure:
     // blue vegetation must keep color in its highlights rather than turn white.
@@ -2543,7 +2587,7 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
     UnloadRenderTexture(target);
     renderer.shutdown();
     renderer.initialize();
-    return distinct && unchangedProps && discreteTrees && blueGrass;
+    return distinct && unchangedProps && discreteTrees && stableHitPalette && blueGrass;
 }
 
 bool checkCoreCrystalOrbit(ian::ModelResource& resource) {

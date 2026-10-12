@@ -1354,6 +1354,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.bushHighlightStrength ==
             worldMaterial_.bushHighlightStrength &&
         material.coniferAmount == worldMaterial_.coniferAmount &&
+        sameVector3(material.plantBiomeAnchor, worldMaterial_.plantBiomeAnchor) &&
         sameVector3(material.coniferShadowColor,
                     worldMaterial_.coniferShadowColor) &&
         sameVector3(material.coniferMidColor,

@@ -431,6 +431,7 @@ void Renderer::resolveWorldShaderLocations() {
         .bushHighlightStrength =
             GetShaderLocation(shader, "bushHighlightStrength"),
         .coniferAmount = GetShaderLocation(shader, "coniferAmount"),
+        .plantBiomeAnchor = GetShaderLocation(shader, "plantBiomeAnchor"),
         .coniferShadowColor =
             GetShaderLocation(shader, "coniferShadowColor"),
         .coniferMidColor =
@@ -955,6 +956,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.bushHighlightStrength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.coniferAmount,
                    &material.coniferAmount, SHADER_UNIFORM_FLOAT);
+    upload(worldShaderLocations_.plantBiomeAnchor,
+                   &material.plantBiomeAnchor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.coniferShadowColor,
                    &material.coniferShadowColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.coniferMidColor,

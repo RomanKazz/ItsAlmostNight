@@ -55,6 +55,7 @@ uniform float vegetationAmount;
 uniform float treeAmount;
 uniform float bushAmount;
 uniform float coniferAmount;
+uniform vec3 plantBiomeAnchor;
 
 uniform vec2 worldBiomeCenters[4];
 uniform vec4 worldBiomeShape;
@@ -136,7 +137,9 @@ void main()
         fragBiomeWeights = visualBiomeWeights(worldPosition.xz);
     else if (vegetationAmount > 0.001 || treeAmount > 0.001 ||
              bushAmount > 0.001 || coniferAmount > 0.001)
-        fragBiomeWeights = plantBiomeWeights(modelMatrix[3].xz);
+        fragBiomeWeights = plantBiomeWeights(
+            instancingEnabled == 0 && plantBiomeAnchor.z > 0.5
+                ? plantBiomeAnchor.xy : modelMatrix[3].xz);
     fragWorldPosition = worldPosition.xyz;
     vec3 localNormal = vertexNormal;
     if (skinningEnabled != 0 && skinWeight > 0.0001) {

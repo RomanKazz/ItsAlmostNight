@@ -471,7 +471,8 @@ void App::drawWorldEntities(
             presentation::resourceHitScale(
                 effects_, node.id);
         if (node.type == ResourceType::Wood) {
-            if (material.hitFlashAmount <= 0.001F) {
+            const bool displaced = std::abs(hitOffset.x) + std::abs(hitOffset.z) > 1e-6;
+            if (material.hitFlashAmount <= 0.001F && !displaced) {
                 resourceTreeDrawInstances_.push_back({
                     .position = nodePosition,
                     .yawRadians =
@@ -482,6 +483,8 @@ void App::drawWorldEntities(
                 });
                 continue;
             }
+            material.plantBiomeAnchor = {static_cast<float>(node.position.x),
+                static_cast<float>(node.position.z), 1.0F};
             renderer_->setWorldMaterial(material);
             if (!renderer_->drawTree(
                     nodePosition,
