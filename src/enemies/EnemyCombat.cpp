@@ -94,6 +94,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     enemy->health = std::max(0.0, enemy->health - amount);
     enemy->hitAnimationRemaining = 0.22;
     const bool killed = enemy->health <= 0.0;
+    if (!killed) recordBossWindupDamage(*enemy, previousHealth - enemy->health);
     const EnemyType killedType = enemy->type;
     const std::uint8_t killedAffixes = enemy->eliteAffixes;
     const Vec3 killedPosition = enemy->position;
@@ -125,6 +126,23 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
             healthMultiplier, damageMultiplier);
     }
     return result;
+}
+
+void EnemySystem::recordBossWindupDamage(EnemyInstance& enemy, double damage) {
+    if (enemy.type != EnemyType::Boss || enemy.state != EnemyState::BossStormWindup ||
+        enemy.bossAbilityWindupRemaining <= 0 || enemy.bossStormInterruptDamage <= 0) return;
+    enemy.bossStormDamageTaken += damage;
+    if (enemy.bossStormDamageTaken + 1e-9 < enemy.bossStormInterruptDamage) return;
+    const auto& config = definitions_[static_cast<std::size_t>(EnemyType::Boss)].bossBattle;
+    enemy.bossAbilityWindupRemaining = 0;
+    enemy.bossStrikesRemaining = 0;
+    enemy.bossStrikeTimer = 0;
+    enemy.bossInterruptRemaining = config.stormInterruptRecoverySeconds;
+    enemy.bossAbilityCooldownRemaining = config.stormInterruptRecoverySeconds;
+    enemy.state = EnemyState::MoveToCore;
+    bossActionEventBuffer_.push_back({.type=BossActionType::Interrupted, .bossId=enemy.id,
+        .position={enemy.position.x, enemy.worldSurfaceHeight+enemy.position.y, enemy.position.z},
+        .phase=enemy.bossPhase, .attack=RoyalAttack::Storm});
 }
 
 double EnemySystem::incomingDamageMultiplier(
@@ -354,6 +372,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             0.0, enemy->health - effectiveDamage);
         enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
+        if (!killed) recordBossWindupDamage(*enemy, previousHealth - enemy->health);
         const EnemyType killedType = enemy->type;
         const std::uint8_t killedAffixes = enemy->eliteAffixes;
         const double childHealthMultiplier = enemy->maxHealth /
@@ -666,6 +685,9 @@ void EnemySystem::clearProjectiles() {
         enemy.bossStrikesRemaining=0;
         enemy.bossAbilityWindupRemaining=0;
         enemy.bossAbilityCooldownRemaining=1.0;
+        enemy.bossStormDamageTaken=0;
+        enemy.bossStormInterruptDamage=0;
+        enemy.bossInterruptRemaining=0;
         if(enemy.active) enemy.state=EnemyState::MoveToCore;
     }
 }

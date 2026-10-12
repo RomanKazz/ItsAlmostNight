@@ -375,6 +375,9 @@ void App::processPresentationEvents(
                 PresentationEffectType::EliteSpawn,
                 event.position, 0.72, 1.0F,
                 event.entityId);
+        } else if(event.type==GameEventType::BossAttackInterrupted) {
+            addEffect(PresentationEffectType::RoyalImpact,event.position,.65,1.1F,event.entityId);
+            setStatusMessage("STORM INTERRUPTED",1.6);
         } else if(event.type==GameEventType::BossRoyalImpact) {
             addEffect(PresentationEffectType::RoyalImpact,event.position,.65,
                 static_cast<float>(event.intensity)*.55F,event.entityId);

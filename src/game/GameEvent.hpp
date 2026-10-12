@@ -119,6 +119,7 @@ enum class GameEventType {
     BossAttackTelegraph,
     BossRoyalImpact,
     BossSummonAppeared,
+    BossAttackInterrupted,
 };
 
 struct GameEvent {

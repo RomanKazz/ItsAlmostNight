@@ -27,14 +27,18 @@ struct BossBattleConfig {
     double summonHealthMultiplier{7.0};
     double summonDamageMultiplier{1.4};
     int summonLimit{12};
+    double stormInterruptHealthFraction{.03};
+    double stormInterruptRecoverySeconds{1.6};
     [[nodiscard]] bool valid() const {
         const std::array values{introSeconds,transitionSeconds,volleyWindup,diveWindup,stormWindup,
             summonWindup,recoverySeconds,projectileSpeed,attackRange,volleyDamageScale,diveRadius,diveDamageScale,
-            stormRadius,stormDamageScale,structureDamageScale,summonHealthMultiplier,summonDamageMultiplier};
+            stormRadius,stormDamageScale,structureDamageScale,summonHealthMultiplier,summonDamageMultiplier,
+            stormInterruptRecoverySeconds};
         return std::ranges::all_of(values,[](double v){return std::isfinite(v) && v>0;}) &&
             std::isfinite(phaseTwo) && std::isfinite(phaseThree) &&
             std::isfinite(transitionDamageMultiplier) && transitionDamageMultiplier>0 && transitionDamageMultiplier<=1 &&
-            phaseThree>0 && phaseThree<phaseTwo && phaseTwo<1 && summonLimit>0 && summonLimit<=32;
+            phaseThree>0 && phaseThree<phaseTwo && phaseTwo<1 && summonLimit>0 && summonLimit<=32 &&
+            std::isfinite(stormInterruptHealthFraction) && stormInterruptHealthFraction>0 && stormInterruptHealthFraction<=1;
     }
 };
 enum class RoyalAttack { Volley, Dive, Storm, Summon };

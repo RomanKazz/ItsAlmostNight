@@ -1,5 +1,7 @@
 #include "enemies/EnemySystem.hpp"
 
+#include "core/Geometry.hpp"
+#include "world/CollisionWorld.hpp"
 #include "world/TerrainHeightfield.hpp"
 
 #include <algorithm>
@@ -7,6 +9,23 @@
 
 namespace ian {
 namespace {
+
+std::optional<double> segmentBoxFraction(Vec3 start, Vec3 end,
+    const EnemyProjectileBlocker& box, double radius) {
+    double near=0, far=1;
+    const auto slab=[&](double origin,double delta,double minimum,double maximum) {
+        minimum-=radius; maximum+=radius;
+        if (std::abs(delta)<1e-12) return origin>=minimum && origin<=maximum;
+        double a=(minimum-origin)/delta,b=(maximum-origin)/delta;
+        if(a>b) std::swap(a,b);
+        near=std::max(near,a); far=std::min(far,b);
+        return near<=far;
+    };
+    if(!slab(start.x,end.x-start.x,box.minimum.x,box.maximum.x) ||
+       !slab(start.y,end.y-start.y,box.minimum.y,box.maximum.y) ||
+       !slab(start.z,end.z-start.z,box.minimum.z,box.maximum.z)) return std::nullopt;
+    return near;
+}
 
 double pointSegmentDistanceSquared(
     Vec3 point, Vec3 start, Vec3 end) {
@@ -121,18 +140,58 @@ void EnemySystem::updateProjectiles(
             if (!targetExists) {
                 projectile.active = false;
             } else {
-                const double hitRadius =
-                    projectile.radius + projectile.targetRadius;
-                if (pointSegmentDistanceSquared(
-                        projectile.targetPosition, previousPosition,
-                        projectile.position) <=
-                    hitRadius * hitRadius) {
-                    attackBuffer_.push_back({
-                        projectile.ownerId, *projectile.targetId,
-                        projectile.damage, false});
-                    magicEventBuffer_.push_back(
-                        {projectile.ownerId, projectile.position, true, false, projectile.royal});
-                    projectile.active = false;
+                if (projectile.royal) {
+                    // Swept collision chooses the first wall or target, including
+                    // on coarse ticks. Walls behind the Core cannot intercept it.
+                    double first=2;
+                    std::optional<EntityId> hit;
+                    const auto segment=geometry::subtract(projectile.position,previousPosition);
+                    const double length=geometry::length(segment);
+                    const double radius=projectile.radius+projectile.targetRadius;
+                    if(geometry::distanceSquared(previousPosition,projectile.targetPosition)<=radius*radius) {
+                        first=0;hit=projectile.targetId;
+                    } else if(length>1e-12) {
+                        const auto distance=geometry::raySphereDistance(previousPosition,
+                            geometry::scale(segment,1/length),projectile.targetPosition,radius);
+                        if(distance && *distance<=length) {first=*distance/length;hit=projectile.targetId;}
+                    }
+                    const auto consider=[&](EntityId id,const EnemyProjectileBlocker& box) {
+                        const auto fraction=segmentBoxFraction(previousPosition,projectile.position,box,projectile.radius);
+                        if(fraction && *fraction<first) {first=*fraction;hit=id;}
+                    };
+                    for(const auto& building:buildings) {
+                        if(building.id==*projectile.targetId ||
+                           (building.type!=BuildingType::Wall && building.type!=BuildingType::Gate) ||
+                           !buildingBlocksMovement(building)) continue;
+                        const auto box=buildingCollisionBox(building.type,building.gridPosition,building.baseHeight);
+                        consider(building.id,{{box.minX,box.minimumBlockingEyeY,box.minZ},
+                            {box.maxX,box.maximumBlockingEyeY,box.maxZ}});
+                    }
+                    for(const auto& structure:additionalStructures)
+                        if(structure.attackable && structure.projectileBlocker)
+                            consider(structure.id,*structure.projectileBlocker);
+                    if(hit) {
+                        projectile.position=geometry::lerpClamped(previousPosition,projectile.position,first);
+                        attackBuffer_.push_back({projectile.ownerId,*hit,projectile.damage,false});
+                        magicEventBuffer_.push_back({projectile.ownerId,projectile.position,true,false,true});
+                        projectile.active=false;
+                    }
+                    // Royal shots never use the old target-only collision below.
+                    if (!projectile.active) continue;
+                } else {
+                    const double hitRadius =
+                        projectile.radius + projectile.targetRadius;
+                    if (pointSegmentDistanceSquared(
+                            projectile.targetPosition, previousPosition,
+                            projectile.position) <=
+                        hitRadius * hitRadius) {
+                        attackBuffer_.push_back({
+                            projectile.ownerId, *projectile.targetId,
+                            projectile.damage, false});
+                        magicEventBuffer_.push_back(
+                            {projectile.ownerId, projectile.position, true, false, projectile.royal});
+                        projectile.active = false;
+                    }
                 }
             }
         }

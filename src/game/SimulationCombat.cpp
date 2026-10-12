@@ -300,6 +300,11 @@ void Simulation::updateCombat(double deltaSeconds) {
                 continue;
             }
             if (action.type == BossActionType::Volley) continue;
+            if (action.type == BossActionType::Interrupted) {
+                events_.push_back({.type=GameEventType::BossAttackInterrupted,.entityId=action.bossId,
+                    .position=action.position,.amount=static_cast<int>(action.attack)});
+                continue;
+            }
             if (action.type == BossActionType::WarCry) {
                 events_.push_back({.type=GameEventType::BossWarCry,.entityId=action.bossId,
                     .position=action.position,.amount=action.phase,.intensity=action.radius});

@@ -2,8 +2,10 @@
 
 #include "TestHarness.hpp"
 #include "enemies/EnemySystem.hpp"
+#include "BossCounterplayChecks.hpp"
 
 inline void checkAlpakingBattle() {
+    checkBossCounterplay();
     using namespace ian;
     BuildingSystem buildings;
     buildings.setSandboxMode(true);

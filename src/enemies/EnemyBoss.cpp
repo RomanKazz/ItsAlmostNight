@@ -69,6 +69,9 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
         enemy.bossWindupDuration=enemy.bossAbilityWindupRemaining;
         enemy.bossAbilityCooldownRemaining=0;
         enemy.bossStrikesRemaining=0;
+        enemy.bossStormDamageTaken=0;
+        enemy.bossStormInterruptDamage=0;
+        enemy.bossInterruptRemaining=0;
         enemy.bossHoverOffset=AlpakingHover;
         enemy.position.y=AlpakingBodyCenter+enemy.bossHoverOffset;
         notifyPhase();
@@ -77,6 +80,10 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
     if(enemy.state==EnemyState::BossPhaseTransition) {
         enemy.bossAbilityWindupRemaining=std::max(0.0,enemy.bossAbilityWindupRemaining-deltaSeconds);
         if(enemy.bossAbilityWindupRemaining<=0) enemy.state=EnemyState::MoveToCore;
+        return true;
+    }
+    if(enemy.bossInterruptRemaining>0) {
+        enemy.bossInterruptRemaining=std::max(0.0,enemy.bossInterruptRemaining-deltaSeconds);
         return true;
     }
     if(enemy.bossStrikesRemaining>0) {
@@ -206,6 +213,8 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
             warning(target,config.diveRadius,enemy.bossWindupDuration,attack);
         } else if(attack==RoyalAttack::Storm) {
             enemy.state=EnemyState::BossStormWindup;
+            enemy.bossStormDamageTaken=0;
+            enemy.bossStormInterruptDamage=enemy.maxHealth*config.stormInterruptHealthFraction;
             enemy.bossWindupDuration=config.stormWindup*(1-.12*(enemy.bossPhase-1));
             enemy.bossAttackRadius=config.stormRadius+(enemy.bossPhase-1)*.15;
             const double dx=target.x-enemy.position.x,dz=target.z-enemy.position.z;

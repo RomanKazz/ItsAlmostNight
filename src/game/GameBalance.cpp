@@ -41,6 +41,8 @@ EnemyDefinition parseEnemy(const Json& value, bool boss) {
         battle.volleyWindup = data.value("volleyWindup", battle.volleyWindup);
         battle.diveWindup = data.value("diveWindup", battle.diveWindup);
         battle.stormWindup = data.value("stormWindup", battle.stormWindup);
+        battle.stormInterruptHealthFraction = data.value("stormInterruptHealthFraction", battle.stormInterruptHealthFraction);
+        battle.stormInterruptRecoverySeconds = data.value("stormInterruptRecoverySeconds", battle.stormInterruptRecoverySeconds);
         battle.summonWindup = data.value("summonWindup", battle.summonWindup);
         battle.recoverySeconds = data.value("recoverySeconds", battle.recoverySeconds);
         battle.projectileSpeed = data.value("projectileSpeed", battle.projectileSpeed);

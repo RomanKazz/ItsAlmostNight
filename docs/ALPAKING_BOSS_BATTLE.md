@@ -86,3 +86,34 @@ locked-target, phase, summon limit and death/reset checks remain active. This is
 a deterministic regression, not a substitute for tuning a complete played run.
 The x0.65 structure multiplier and shorter cooldown need playtesting against
 Core HP and well-built defenses, especially low-level or underbuilt bases.
+
+## Core counterplay
+
+Siege volley projectiles now sweep their full movement segment against closed
+conventional walls/gates and supported modular wall envelopes. The first wall
+receives the normal structure-scaled shot damage; that projectile ends there
+with its existing feather impact. Open gates, removed/unsupported walls,
+walls above or below the trajectory and walls behind the Core do not protect
+it. A narrow wall can cover only part of the fan. Height and rotation of modular
+walls use their actual bottom/top and horizontal footprint. Player-targeted
+volleys and ordinary mage collision behaviour are unchanged.
+
+During storm preparation, actual HP damage from direct, area and status hits
+accumulates toward `maxHealth * stormInterruptHealthFraction` (default 3%).
+Damage before the cast is excluded. Reaching the threshold cancels all three
+pending strikes and their authoritative ground warnings, then gives 1.6 s
+recovery (`stormInterruptRecoverySeconds`). The next cast starts at zero.
+After release, accumulated damage cannot cancel already queued strikes.
+The HUD shows an interrupt prompt and progress bar; a successful interrupt
+shows a feather burst and localized status message. A phase change, death,
+combat cleanup or respawn cannot retain the previous interrupt sequence.
+
+Public additions: optional `EnemyStructureTarget::projectileBlocker` envelope,
+boss interrupt runtime fields in `EnemyInstance`, the two tuning fields in
+`BossBattleConfig`/optional balance JSON, appended `BossActionType::Interrupted`
+and `GameEventType::BossAttackInterrupted`. Existing API signatures, enemy/save
+IDs and checkpoints are unchanged. No additional per-projectile allocations.
+Regression checks cover mixed damage, once-only feedback, recovery, late hits,
+new-cast/reset cleanup, wave scaling, wall interception, open gates, heights,
+nearest-hit ordering and swept collisions over a 1.2 s step. Playtest 3% in the
+shorter phase-two/three windups with weak and strong builds before final balance.

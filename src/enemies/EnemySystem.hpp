@@ -59,6 +59,7 @@ enum class BossActionType {
     Telegraph,
     RoyalImpact,
     Volley,
+    Interrupted,
 };
 
 enum class EnemyApproachRole : std::uint8_t {
@@ -161,6 +162,9 @@ struct EnemyInstance {
     int bossStrikesRemaining{};
     double bossStrikeTimer{};
     std::array<Vec3, 3> bossStrikeTargets{};
+    double bossStormDamageTaken{};
+    double bossStormInterruptDamage{};
+    double bossInterruptRemaining{};
     std::optional<Vec3> arrivalPortal{};
     double portalArrivalRemaining{};
     double portalExitYaw{};
@@ -207,6 +211,11 @@ struct EnemyAttack {
     bool ram;
 };
 
+struct EnemyProjectileBlocker {
+    Vec3 minimum;
+    Vec3 maximum;
+};
+
 struct EnemyStructureTarget {
     EntityId id;
     Vec3 position;
@@ -223,6 +232,8 @@ struct EnemyStructureTarget {
         std::numeric_limits<double>::infinity()};
     std::optional<double> attackSurfaceHeight;
     bool attackable{true};
+    // Exact wall envelope for royal shots; omitted for walkable supports.
+    std::optional<EnemyProjectileBlocker> projectileBlocker;
 };
 
 struct EnemyNavigationView {
@@ -424,6 +435,7 @@ class EnemySystem {
 
     void trackPlayerVelocity(
         double deltaSeconds, std::optional<Vec3> playerPosition);
+    void recordBossWindupDamage(EnemyInstance& enemy, double damage);
     void updateProjectiles(
         double deltaSeconds,
         const std::vector<BuildingInstance>& buildings,

@@ -81,12 +81,21 @@ inline void drawBossHealthBar(std::span<const EnemyInstance> enemies,int width) 
     menuStyle::panel(box(x-4*scale,barY-10*scale,57,54),.55F*scale,{67,54,43,255});
     bossHud::crown({x+24*scale,barY+16*scale},scale);
     const char* action=nullptr;
-    if(boss->state==EnemyState::BossPhaseTransition) action="CROWN SHIELD";
+    if(boss->bossInterruptRemaining>0) action="STORM INTERRUPTED";
+    else if(boss->state==EnemyState::BossPhaseTransition) action="CROWN SHIELD";
     else if(boss->state==EnemyState::BossVolleyWindup) action=boss->bossAttackPlayer?"ROYAL VOLLEY":"CORE VOLLEY";
     else if(boss->state==EnemyState::BossSlamWindup) action="DIVE - MOVE!";
-    else if(boss->state==EnemyState::BossStormWindup || boss->bossStrikesRemaining>0) action=boss->bossAttackPlayer?"FEATHER STORM":"CORE SIEGE";
+    else if(boss->state==EnemyState::BossStormWindup) action="BREAK STORM - HIT THE KING!";
+    else if(boss->bossStrikesRemaining>0) action=boss->bossAttackPlayer?"FEATHER STORM":"CORE SIEGE";
     else if(boss->state==EnemyState::BossWarCryWindup) action="CALLING THE COURT";
     if(action) menuStyle::text(action,{left,barY+38*scale,barW,21*scale},14*scale,
         cream,UiFontRole::Display,1);
+    if(boss->state==EnemyState::BossStormWindup && boss->bossStormInterruptDamage>0) {
+        const Rectangle meter{left+barW*.15F,barY+61*scale,barW*.70F,7*scale};
+        drawChamferedFill(meter,2*scale,BLACK);
+        const float progress=static_cast<float>(std::clamp(boss->bossStormDamageTaken/boss->bossStormInterruptDamage,0.0,1.0));
+        drawChamferedFill({meter.x+scale,meter.y+scale,(meter.width-2*scale)*progress,5*scale},scale,
+            {131,228,164,255});
+    }
 }
 } // namespace ian

@@ -164,6 +164,9 @@ void buildModularEnemyTargets(
         }
         Vec3 position = modularBaseCenter(wall, config);
         position.y = wall.bottomHeight;
+        const bool alongX=wall.rotation==Rotation::Deg0 || wall.rotation==Rotation::Deg180;
+        const double halfX=alongX ? config.cellSize*.5 : .09;
+        const double halfZ=alongX ? .09 : config.cellSize*.5;
         targets.push_back({
             .id = wall.id,
             .position = position,
@@ -176,6 +179,9 @@ void buildModularEnemyTargets(
                 wall.bottomHeight - 0.45,
             .maximumEnemySurfaceHeight =
                 wall.bottomHeight + 1.6,
+            .projectileBlocker = EnemyProjectileBlocker{
+                {position.x-halfX,wall.bottomHeight,position.z-halfZ},
+                {position.x+halfX,wall.topHeight,position.z+halfZ}},
         });
     }
 

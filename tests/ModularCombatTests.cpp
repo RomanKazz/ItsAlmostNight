@@ -38,6 +38,15 @@ void runModularCombatTests() {
         [frame](const ian::EnemyStructureTarget& target) {
             return target.id == frame->id;
         });
+    const auto wallTarget=std::find_if(targets.begin(),targets.end(),[&](const auto& target) {
+        return target.id==wall->id;
+    });
+    require(wallTarget!=targets.end() && wallTarget->projectileBlocker.has_value(),
+        "supported modular walls expose royal-shot collision geometry");
+    requireNear(wallTarget->projectileBlocker->minimum.y,wall->bottomHeight,1e-9,
+        "wall shot envelope begins at the actual supported height");
+    requireNear(wallTarget->projectileBlocker->maximum.y,wall->topHeight,1e-9,
+        "wall shot envelope ends at the actual wall top");
     require(
         frameTarget != targets.end() &&
             frameTarget->modular &&
