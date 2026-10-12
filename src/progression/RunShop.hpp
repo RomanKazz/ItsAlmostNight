@@ -53,13 +53,19 @@ struct RunShopState {
 // Prices use run coins, not resources or level-up reroll tokens.
 [[nodiscard]] inline int runShopPrice(RunUpgradeEffect effect, RunUpgradeRarity rarity, int wave) {
     const int base = runUpgradeBuilding(effect) || runUpgradeWeapon(effect) ? 18 : 12;
-    const auto cost = static_cast<long long>(base + 8 * static_cast<int>(rarity)) +
-        3LL * std::max(0LL, static_cast<long long>(wave) - 1);
-    return static_cast<int>(std::min(cost, static_cast<long long>(std::numeric_limits<int>::max())));
+    const long long basePrice=base+8*static_cast<int>(rarity);
+    const long long completed=std::max(0LL,static_cast<long long>(wave)-1);
+    // Wave scaling applies equally to rarity and blueprints. Integer ceiling
+    // preserves exact prices; check before multiplying large late-run values.
+    const long long percent=100+25*completed+completed*completed;
+    const long long maximumScaled=static_cast<long long>(std::numeric_limits<int>::max())*100;
+    if(percent>maximumScaled/basePrice) return std::numeric_limits<int>::max();
+    return static_cast<int>((basePrice*percent+99)/100);
 }
 [[nodiscard]] inline int runShopRerollPrice(const RunShopState& shop) {
-    const long long step = std::max(1LL, shop.wave * 2LL / 5);
-    const long long cost = std::max(1LL, shop.wave * 3LL / 4) + step * (1LL + shop.rerolls);
+    const long long completed=std::max(0LL,static_cast<long long>(shop.wave)-1);
+    const long long step=1+completed/4;
+    const long long cost=2+completed+step*std::max(0LL,static_cast<long long>(shop.rerolls));
     return static_cast<int>(std::min(cost, static_cast<long long>(std::numeric_limits<int>::max())));
 }
 } // namespace ian

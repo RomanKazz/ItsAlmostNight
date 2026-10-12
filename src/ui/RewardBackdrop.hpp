@@ -32,14 +32,14 @@ inline void draw(const GameUi& ui,Kind kind,double seconds,Vector2 viewport,floa
     const float scale=std::min(viewport.x/1920.0F,viewport.y/1080.0F);
     const double time=reduced?0:seconds;
     const auto texture=ui.resourceTexture(UiResourceIcon::Coin);
-    for(int i=0;i<24;++i) {
+    for(int i=0;i<36;++i) {
         const float depth=.45F+.55F*unit(i,0);
         const float size=(24+28*depth)*scale;
         const double phase=time*(.50+depth*.55)+unit(i,3)*6.28;
         const float x=viewport.x*unit(i,1)+
-            static_cast<float>(std::sin(phase*.62))*22*scale;
-        const float travel=static_cast<float>(std::fmod(unit(i,2)+time*(.013+depth*.012),1.0));
-        const float y=viewport.y*(1-travel);
+            static_cast<float>(std::sin(phase*.62))*4*scale;
+        const float travel=static_cast<float>(std::fmod(unit(i,2)+time*(.16+depth*.12),1.0));
+        const float y=viewport.y*travel;
         const float edge=std::min(1.0F,std::min(travel,1-travel)*12);
         const auto alpha=static_cast<unsigned char>(std::clamp(opacity*edge*(.25F+.35F*depth),0.0F,1.0F)*255);
         if(kind==Kind::Coins && IsTextureValid(texture)) {

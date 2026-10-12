@@ -5,10 +5,17 @@
 #include <vector>
 
 namespace ian {
+namespace {
+void startShopVisit(RunShopState& shop,int wave) {
+    shop.wave=wave;
+    shop.rerolls=0;
+    for(auto& offer:shop.offers) if(offer.present && offer.locked)
+        offer.price=runShopPrice(offer.effect,offer.rarity,wave);
+}
+}
 void Simulation::prepareRunShop() {
     if (sandboxMode_) return;
-    runShop_.wave = wave_;
-    runShop_.rerolls = 0;
+    startShopVisit(runShop_,wave_);
     runShop_.pending = true;
     generateRunShopOffers();
     invalidateSnapshotCache();
@@ -69,8 +76,7 @@ bool Simulation::openRunShop(bool debugAccess) {
             state_ != RunState::Sunset && state_ != RunState::Wave &&
             state_ != RunState::WaveComplete && state_ != RunState::StageClear) return false;
         if (runShop_.generation == 0 || runShop_.wave != wave_) {
-            runShop_.wave = wave_;
-            runShop_.rerolls = 0;
+            startShopVisit(runShop_,wave_);
             generateRunShopOffers();
         }
     } else if (runShop_.wave <= 0 || runShop_.wave != wave_ ||

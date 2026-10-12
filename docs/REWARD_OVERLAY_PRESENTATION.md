@@ -4,14 +4,17 @@ The between-wave run shop now enters over 0.18 s with a 40%-to-full scale
 reveal, shared smooth fade of plates/icons/text and a small damped scale
 overshoot. Input still uses the existing release/quiet barrier (0.35 s);
 hover previews/tooltips are suppressed until the visible layout has settled.
-Final button hit areas, prices, rerolls, locks and godmode behaviour stay intact.
+Final button hit areas, offer eligibility, locks and godmode controls stay intact.
 
-The shop has 24 decorative coins behind its opaque panels. They use the existing
-UI coin texture, slow upward drift, individual depth/size and face-width rotation.
-Level-up choice overlays have 24 cyan faceted XP crystals with white glints,
+The shop has 36 decorative coins behind its opaque panels. They use the existing
+UI coin texture, downward rain (230–302 px/s at 1080p), individual depth/size and
+face-width rotation. Warm amber rays animate behind the shop cards; level-up
+rays keep their existing pale cream palette.
+Level-up choice overlays have 36 cyan faceted XP crystals with white glints,
 matching the game's XP palette without a heavy world outline. Decorations use
 independent deterministic hash channels for X/Y/depth/phase, avoiding rows or
-regular diagonal patterns. Edge fade removes wraparound pops.
+regular diagonal patterns. Both backgrounds fall almost vertically at varied speeds; edge fade removes
+wraparound pops. See SHOP_WAVE_PRICING.md for the updated economy.
 
 The shop's presentation clock advances while the game is paused for shopping,
 resets on each opening and clears on run reset/close. Level-up decorations use

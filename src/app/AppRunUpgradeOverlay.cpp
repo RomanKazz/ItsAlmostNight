@@ -3,8 +3,12 @@
 #include "ui/UiText.hpp"
 #include "ui/RunHammerUi.hpp"
 #include "ui/RewardBackdrop.hpp"
+#include "ui/UiSolidGeometry.hpp"
+#include "ui/UiViewport.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cctype>
 #include <cmath>
 #include <iomanip>
@@ -248,6 +252,57 @@ Color fadedColor(Color color, float opacity) {
         static_cast<float>(color.a) *
         std::clamp(opacity, 0.0F, 1.0F)));
     return color;
+}
+
+float rayRandom(std::uint32_t index, std::uint32_t salt) {
+    std::uint32_t bits = (index + 1U) * 0x9e3779b9U ^ salt;
+    bits ^= bits >> 16U;
+    bits *= 0x7feb352dU;
+    bits ^= bits >> 15U;
+    bits *= 0x846ca68bU;
+    bits ^= bits >> 16U;
+    return static_cast<float>(bits >> 8U) / 16777216.0F;
+}
+
+// Each slot respawns a stationary rectangular beam after its fade/shrink
+// finishes. Hashes provide reproducible randomness without mutable RNG state
+// or frame-rate-dependent births; neighbouring slots may overlap freely.
+void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=false) {
+    if (fade <= 0) return;
+    const Vector2 center{offers.x + offers.width * 0.5F, offers.y + offers.height * 0.52F};
+    const float screenRadius = std::hypot(static_cast<float>(uiScreenWidth()),
+        static_cast<float>(uiScreenHeight())) * 0.72F;
+    const float scale = std::min(1.0F,static_cast<float>(uiScreenHeight())/1080.0F);
+    constexpr std::uint32_t rayCount = 28;
+    for (std::uint32_t slot = 0; slot < rayCount; ++slot) {
+        const double lifetime = (2.4 + rayRandom(slot, 0xbb67aeU) * 2.2) * (2.0 / 3.0);
+        const double elapsed = std::max(0.0, seconds) + rayRandom(slot, 0x6a09e6U) * lifetime;
+        const auto cycle = static_cast<std::uint32_t>(std::fmod(std::floor(elapsed / lifetime), 4294967296.0));
+        const float age = static_cast<float>(std::fmod(elapsed, lifetime) / lifetime);
+        const std::uint32_t seed = slot ^ (cycle * 0x9e3779b9U);
+        const float angle = rayRandom(seed, 0x51f15eU) * (2 * PI);
+        constexpr float fadeInFraction = 0.15F;
+        // Brief appearance at full width, then one shared curve shrinks and
+        // fades the beam together. Nothing remains at the final width.
+        const float remaining = 1 - smoothUnit((age - fadeInFraction) / (1 - fadeInFraction));
+        const float opacity = age < fadeInFraction ? smoothUnit(age / fadeInFraction) : remaining;
+        const float widthSample = rayRandom(seed, 0x3c6ef3U);
+        const float maxWidth = (12 + 268 * widthSample * widthSample) * scale;
+        const float endWidthRatio = 0.15F + rayRandom(seed, 0x1f83d9U) * 0.15F;
+        const float widthRatio = endWidthRatio + (1 - endWidthRatio) * remaining;
+        const float halfWidth = maxWidth * widthRatio * 0.5F;
+        const float length = screenRadius * (0.72F + rayRandom(seed, 0xa54ff5U) * 0.38F);
+        const Vector2 direction{std::cos(angle), std::sin(angle)};
+        const Vector2 side{-direction.y * halfWidth, direction.x * halfWidth};
+        const Vector2 end{center.x + direction.x * length, center.y + direction.y * length};
+        const std::array<Vector2, 4> points{{
+            {center.x - side.x, center.y - side.y}, {center.x + side.x, center.y + side.y},
+            {end.x + side.x, end.y + side.y}, {end.x - side.x, end.y - side.y}}};
+        const bool bright=rayRandom(seed, 0x510e52U)<0.4F;
+        const Color color=shop ? (bright?Color{255,212,105,255}:Color{255,168,51,255}) :
+            (bright?Color{255,249,184,255}:Color{255,235,142,255});
+        drawSolidTriangleFan(points.data(), static_cast<int>(points.size()), fadedColor(color, fade * opacity * (shop?.30F:.90F)));
+    }
 }
 
 Rectangle expandedRectangle(Rectangle bounds, float amount) {
@@ -1276,6 +1331,9 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     const auto l=scaledShopLayout(shopLayout(),.4F+.6F*fade+(reducedMotion?0:.025F*std::sin(progress*PI)));
     const float s=l.scale;
     DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(), fadedColor({11, 19, 22, 190},fade));
+    const auto base=shopLayout();
+    drawUpgradeRays({base.header.x,base.cards[0].y,base.header.width,base.cards[0].height},
+        reducedMotion?0:entranceSeconds,fade,true);
     reward_backdrop::draw(ui,reward_backdrop::Kind::Coins,entranceSeconds,
         {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},fade,reducedMotion);
     auto preview = snapshot;
@@ -1336,7 +1394,7 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     button(l.proceed,"CONTINUE",true,9,menuStyle::Gold);
     label("R: REROLL / 1-4: BUY / ESC: CONTINUE",{l.header.x, l.proceed.y,820*s,30*s},
         19*s,menuStyle::Muted,fade,UiFontRole::BodyBold);
-    label("Locked offers carry over. Buy all four for a free refresh.",
+    label("Locked offers carry over. Prices rise every wave.",
         {l.header.x,l.proceed.y+35*s,850*s,28*s},18*s,menuStyle::Muted,fade);
     if (inventoryHover) drawItemTooltip(inventoryHover->title,inventoryHover->description,pointer,
         {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},s);

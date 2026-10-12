@@ -11,6 +11,24 @@ void chooseLevels(ian::Simulation& run) {
 }
 }
 void runRunShopTests() {
+    using Effect=ian::RunUpgradeEffect;
+    using Rarity=ian::RunUpgradeRarity;
+    require(ian::runShopPrice(Effect::Damage,Rarity::Common,1)==12 &&
+        ian::runShopPrice(Effect::Damage,Rarity::Common,5)==26 &&
+        ian::runShopPrice(Effect::Damage,Rarity::Common,10)==49,
+        "shop price scales by wave with upward rounding");
+    for(const auto effect:{Effect::Damage,Effect::UnlockCannon}) for(int rarity=0;rarity<5;++rarity) {
+        int previous=ian::runShopPrice(effect,static_cast<Rarity>(rarity),0);
+        for(int wave=2;wave<=100;++wave) {
+            const int price=ian::runShopPrice(effect,static_cast<Rarity>(rarity),wave);
+            require(price>previous,"every wave raises every rarity and blueprint price");previous=price;
+        }
+    }
+    require(ian::runShopPrice(Effect::Damage,Rarity::Legendary,std::numeric_limits<int>::max())==std::numeric_limits<int>::max(),
+        "extreme shop waves saturate without signed overflow");
+    for(int wave=2;wave<100;++wave)
+        require(ian::runShopRerollPrice({.wave=wave})>ian::runShopRerollPrice({.wave=wave-1}),
+            "first reroll becomes dearer on every wave");
     auto map = ian::MapDefinition::defaults(); map.resources.clear(); map.obstacles.clear();
     auto world = ian::WorldConfig::defaults(); world.terrainAmplitude = 0;
     world.pondMinimumCount = world.pondMaximumCount = 0;
@@ -112,9 +130,14 @@ void runRunShopTests() {
     require(resumed->closeRunShop(), "next-wave fixture leaves the shop");
     resumed->tick(resumed->snapshot().phaseDuration);
     resumed->tick(0,start); resumed->tick(0,clear); chooseLevels(*resumed);
-    require(resumed->snapshot().runShop.wave == 2 && resumed->snapshot().runShop.rerolls == 0 &&
-        resumed->snapshot().runShop.offers == carried,
-        "locks retain exact offers and prices across waves while reroll price resets");
+    require(resumed->snapshot().runShop.wave==2 && resumed->snapshot().runShop.rerolls==0,
+        "new wave resets the reroll ladder");
+    for(std::size_t i=0;i<carried.size();++i) {
+        const auto& next=resumed->snapshot().runShop.offers[i];
+        require(next.effect==carried[i].effect && next.rarity==carried[i].rarity && next.locked &&
+            next.price==ian::runShopPrice(next.effect,next.rarity,2) && next.price>carried[i].price,
+            "locked offers preserve identity but use the new wave price");
+    }
     saved = resumed->saveSuspendedRunState();
     saved.runShop.offers[0] = {.effect=ian::RunUpgradeEffect::Luck,.price=1,.present=true};
     for (std::size_t i=1;i<4;++i) saved.runShop.offers[i] = {};
