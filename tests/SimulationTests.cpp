@@ -30,6 +30,56 @@ void resolveLevelUps(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        auto map=ian::MapDefinition::defaults();map.obstacles.clear();
+        map.playerSpawn={0,0,0};
+        map.resources={
+            {ian::ResourceType::Barrel,{10,0,0},.68,1000,0,75},
+            {ian::ResourceType::Crate,{20,0,0},.68,1000,0,75},
+            {ian::ResourceType::ItemCrate,{30,0,0},.68,1000,0,75},
+            {ian::ResourceType::Wood,{40,0,0},.68,1000,10,75}};
+        auto world=ian::WorldConfig::defaults();world.terrainAmplitude=0;
+        world.pondMinimumCount=world.pondMaximumCount=0;
+        auto run=std::make_unique<ian::Simulation>(ian::GameBalance::defaults(),map,world);
+        run->startRun(ian::PlayerClass::Vanguard);
+        require(run->grantDebugRunUpgrade(ian::RunUpgradeEffect::UnlockRifle),"container fixture unlocks rifle");
+        for(std::size_t i=0;i<4;++i) {
+            auto saved=run->saveSuspendedRunState();
+            const auto node=saved.resourceNodes[i];
+            saved.playerPosition={node.position.x,node.position.y+1.7,node.position.z+1.8};
+            run->returnToMainMenu();
+            require(run->loadSuspendedRunState(saved),"container interaction fixture restores nearby player");
+            ian::PlayerCommand open;open.interact=ian::InteractCommand{};open.overrideAimedResource=true;open.aimedResourceOverride=node.id;
+            open.selectWeapon=ian::SelectWeaponCommand{ian::PlayerWeapon::Rifle};
+            const auto countOpened=[](const auto& events){return std::ranges::count_if(events,[](const auto& event){
+                return event.type==ian::GameEventType::ResourceCollected;
+            });};
+            run->takeEvents(); run->tick(0,open);
+            const auto events=run->takeEvents();
+            require(countOpened(events)==(i<3?1:0) && run->snapshot().resourceNodes[i].active==(i==3),
+                "E opens each container while holding a rifle but never opens trees");
+            if(i<3) {
+                const auto loot=run->snapshot().lootChests.size();
+                const auto pickups=run->snapshot().coinPickups.size();
+                require((loot>saved.lootChests.size() || pickups>0) &&
+                    run->snapshot().selectedWeapon==ian::PlayerWeapon::Rifle,
+                    "rifle-equipped interaction creates a fresh container reward");
+                run->tick(0,open);
+                const auto repeated=run->takeEvents();
+                require(countOpened(repeated)==0 && run->snapshot().lootChests.size()==loot && run->snapshot().coinPickups.size()==pickups,
+                    "repeated E does not duplicate rewards");
+                const auto opened=run->saveSuspendedRunState();
+                run->returnToMainMenu();
+                require(run->loadSuspendedRunState(opened) && !run->snapshot().resourceNodes[i].active,
+                    "opened state survives save/load");
+            }
+        }
+        run->restartRun();
+        ian::PlayerCommand remote;remote.interact=ian::InteractCommand{};remote.overrideAimedResource=true;
+        remote.aimedResourceOverride=run->snapshot().resourceNodes[0].id;
+        run->tick(0,remote);
+        require(run->snapshot().resourceNodes[0].active,"a remote ID override cannot open a container");
+    }
+    {
         auto map = ian::MapDefinition::defaults();
         map.resources.clear();
         map.obstacles.clear();

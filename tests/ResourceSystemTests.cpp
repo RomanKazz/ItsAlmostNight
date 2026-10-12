@@ -6,6 +6,26 @@
 #include <vector>
 
 void runResourceSystemTests() {
+    {
+        ian::ResourceSystem props({
+            {ian::ResourceType::Barrel,{0,0,0},.6,1000,0,30},
+            {ian::ResourceType::Crate,{5,0,0},.6,1000,0,30},
+            {ian::ResourceType::ItemCrate,{10,0,0},.6,1000,0,30},
+            {ian::ResourceType::Wood,{15,0,0},.6,1000,10,30}});
+        for(std::size_t i=0;i<3;++i) {
+            const auto id=props.nodes()[i].id;
+            const auto hit=i==1?props.damage(id,.001):props.breakProp(id);
+            require(hit && hit->collected && hit->amount==0 && !props.nodes()[i].active,
+                "containers open instantly independent of legacy HP and tool damage");
+            require(!props.breakProp(id),"an opened container cannot be collected twice");
+        }
+        require(!props.breakProp(props.nodes()[3].id) && props.nodes()[3].health>0,
+            "interact does not bypass harvesting trees");
+        require(props.consumeCollisionGeometryDirty(),"opened containers invalidate collision geometry");
+        props.reset();
+        require(props.nodes()[0].active && !props.breakProp({0,1}),
+            "reset restores containers and stale IDs cannot open them");
+    }
     ian::ResourceSystem resources;
     const ian::EntityId firstRunResource =
         resources.nodes().front().id;

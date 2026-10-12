@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "core/DeterministicRandom.hpp"
+#include "core/Geometry.hpp"
 #include "core/SaturatingArithmetic.hpp"
 #include "game/ResourceWorld.hpp"
 
@@ -194,6 +195,53 @@ void Simulation::advanceBuildingProduction(double deltaSeconds) {
                 .amount = produced.amount,
             });
         }
+    }
+}
+
+void Simulation::dropPropLoot(const ResourceHit& hit, Vec3 position, std::uint64_t rewardSeed) {
+    const double rewardRoll = unitRandom(rewardSeed);
+    const int baseCoins = hit.type == ResourceType::Barrel
+        ? 3 + static_cast<int>(rewardSeed % 5ULL)
+        : hit.type == ResourceType::Crate
+            ? 5 + static_cast<int>(rewardSeed % 7ULL)
+            : 7 + static_cast<int>(rewardSeed % 9ULL);
+    const int coins = static_cast<int>(std::lround(
+        static_cast<double>(baseCoins)));
+    bool droppedItem = false;
+    LootRarity rarity = LootRarity::Common;
+    if (hit.type == ResourceType::Crate) {
+        droppedItem = rewardRoll < 0.16;
+        rarity = rewardRoll < 0.025
+            ? LootRarity::Rare : LootRarity::Common;
+    } else if (hit.type == ResourceType::ItemCrate) {
+        droppedItem = rewardRoll < 0.62;
+        rarity = rewardRoll < 0.025
+            ? LootRarity::Legendary
+            : rewardRoll < 0.16
+                ? LootRarity::Rare
+                : LootRarity::Common;
+    }
+    if (droppedItem) {
+        lootChests_.spawnLooseLoot(
+            position, rarity, rewardSeed);
+    } else {
+        coinPickups_.spawnValue(
+            position, coins, rewardSeed, terrain_,
+            0.5);
+    }
+    const double medkitChance =
+        hit.type == ResourceType::Barrel ? 0.05 : 0.08;
+    const std::uint64_t medkitSeed = rewardSeed ^
+        0xe7037ed1a0b428dbULL;
+    if (unitRandom(medkitSeed) < medkitChance) {
+        if (droppedItem) {
+            coinPickups_.spawnValue(
+                position, coins, rewardSeed,
+                terrain_, 0.5);
+        }
+        coinPickups_.spawnHeart(
+            position, medkitSeed,
+            terrain_, 0.5);
     }
 }
 
@@ -522,50 +570,7 @@ void Simulation::updatePlayerActions(
                             attackSeed ^
                             (static_cast<std::uint64_t>(targetId.index)
                              << 17U));
-                        const double rewardRoll = unitRandom(rewardSeed);
-                        const int baseCoins = hit->type == ResourceType::Barrel
-                            ? 3 + static_cast<int>(rewardSeed % 5ULL)
-                            : hit->type == ResourceType::Crate
-                                ? 5 + static_cast<int>(rewardSeed % 7ULL)
-                                : 7 + static_cast<int>(rewardSeed % 9ULL);
-                        const int coins = static_cast<int>(std::lround(
-                            static_cast<double>(baseCoins)));
-                        bool droppedItem = false;
-                        LootRarity rarity = LootRarity::Common;
-                        if (hit->type == ResourceType::Crate) {
-                            droppedItem = rewardRoll < 0.16;
-                            rarity = rewardRoll < 0.025
-                                ? LootRarity::Rare : LootRarity::Common;
-                        } else if (hit->type == ResourceType::ItemCrate) {
-                            droppedItem = rewardRoll < 0.62;
-                            rarity = rewardRoll < 0.025
-                                ? LootRarity::Legendary
-                                : rewardRoll < 0.16
-                                    ? LootRarity::Rare
-                                    : LootRarity::Common;
-                        }
-                        if (droppedItem) {
-                            lootChests_.spawnLooseLoot(
-                                impactPosition, rarity, rewardSeed);
-                        } else {
-                            coinPickups_.spawnValue(
-                                impactPosition, coins, rewardSeed, terrain_,
-                                0.5);
-                        }
-                        const double medkitChance =
-                            hit->type == ResourceType::Barrel ? 0.05 : 0.08;
-                        const std::uint64_t medkitSeed = rewardSeed ^
-                            0xe7037ed1a0b428dbULL;
-                        if (unitRandom(medkitSeed) < medkitChance) {
-                            if (droppedItem) {
-                                coinPickups_.spawnValue(
-                                    impactPosition, coins, rewardSeed,
-                                    terrain_, 0.5);
-                            }
-                            coinPickups_.spawnHeart(
-                                impactPosition, medkitSeed,
-                                terrain_, 0.5);
-                        }
+                        dropPropLoot(*hit, impactPosition, rewardSeed);
                         if (hit->type == ResourceType::Barrel) {
                             grantConfiguredInsight(
                                 1.0 + unitRandom(rewardSeed ^ 0x94d049bbULL),
@@ -737,6 +742,25 @@ void Simulation::updatePlayerActions(
             });
             if (result == ChestOpenResult::Opened)
                 aimedChest_.reset();
+        } else if (aimedResource_ && !selectedBuilding_) {
+            const auto node = std::ranges::find(resources_.nodes(), *aimedResource_, &ResourceNode::id);
+            // Precise client aim may select authored geometry, but cannot open
+            // a remote container through an arbitrary ID override.
+            if (node != resources_.nodes().end() && node->active && isDestructibleProp(node->type) &&
+                geometry::length(geometry::subtract(node->position, playerPosition_)) <= gameplay_.resourceGatherRange + node->radius &&
+                (!command.aimedResourceHitPositionOverride ||
+                 geometry::length(geometry::subtract(*command.aimedResourceHitPositionOverride, playerPosition_)) <= gameplay_.resourceGatherRange + .05)) {
+                const Vec3 center = node->position;
+                const std::uint64_t seed = mixBits64(tick_ ^
+                    (static_cast<std::uint64_t>(node->id.index) << 17U) ^
+                    (static_cast<std::uint64_t>(node->id.generation) << 32U) ^ node->respawnGeneration);
+                if (const auto hit = resources_.breakProp(node->id)) {
+                    events_.push_back({.type=GameEventType::ResourceCollected,.entityId=hit->nodeId,
+                        .resourceType=hit->type,.position=center,.targetPosition=center});
+                    dropPropLoot(*hit, center, seed);
+                    aimedResource_.reset();
+                }
+            }
         }
     }
     if (command.rerollChest) {

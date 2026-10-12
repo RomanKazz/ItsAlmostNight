@@ -221,7 +221,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
     for (const ResourceNode& resource : snapshot.resourceNodes) {
         const auto visibility = resourceHealthVisibility_.find(
             entityKey(resource.id));
-        if (!resource.active ||
+        if (!resource.active || isDestructibleProp(resource.type) ||
             visibility == resourceHealthVisibility_.end() ||
             visibility->second.remaining <= 0.0 ||
             (snapshot.aimedResource &&
@@ -325,7 +325,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 return candidate.active &&
                        candidate.id == *snapshot.aimedResource;
             });
-        if (resource != snapshot.resourceNodes.end()) {
+        if (resource != snapshot.resourceNodes.end() && !isDestructibleProp(resource->type)) {
             candidate = Visual{
                 .target = {TargetKind::Resource, resource->id},
                 .anchorPosition = resourceAnchor(*resource),

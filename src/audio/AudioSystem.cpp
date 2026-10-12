@@ -294,9 +294,8 @@ void AudioSystem::playEvent(
     case GameEventType::ResourceCollected:
         if (event.resourceType) {
             playAt(
-                *event.resourceType == ResourceType::Wood
-                    ? woodBreak_
-                    : stoneBreak_,
+                (*event.resourceType == ResourceType::Wood || isDestructibleProp(*event.resourceType))
+                    ? woodBreak_ : stoneBreak_,
                 event.position, snapshot, 0.95F,
                 variedPitch(0.07F));
         }

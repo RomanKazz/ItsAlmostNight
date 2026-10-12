@@ -826,10 +826,15 @@ void App::processGameplayInput(bool controlDown,
         }
         if (keyPressed(userSettings_.controls,
                        ControlAction::Interact)) {
+            const auto prop = currentSnapshot.aimedResource
+                ? std::ranges::find(currentSnapshot.resourceNodes, *currentSnapshot.aimedResource, &ResourceNode::id)
+                : currentSnapshot.resourceNodes.end();
+            const bool aimedProp = !currentSnapshot.selectedBuilding && !foundationBuildMode_ &&
+                prop != currentSnapshot.resourceNodes.end() && prop->active && isDestructibleProp(prop->type);
             if (currentSnapshot.aimedChest ||
                 currentSnapshot.aimedLoot ||
                 currentSnapshot.aimedChallengeColumn ||
-                currentSnapshot.aimedWorldLandmark) {
+                currentSnapshot.aimedWorldLandmark || aimedProp) {
                 pendingInteract_ = true;
             } else if (!currentSnapshot.selectedBuilding &&
                        actionBuilding) {

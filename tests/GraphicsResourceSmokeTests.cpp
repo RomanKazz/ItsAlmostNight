@@ -10,6 +10,7 @@
 #include "WizardGraphicsChecks.hpp"
 #include "RoyalBossGraphicsChecks.hpp"
 #include "PortalArrivalGraphicsChecks.hpp"
+#include "PropBreakGraphicsChecks.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
 #include "PowerupPickupModelChecks.hpp"
@@ -3130,6 +3131,7 @@ int main() {
         if (!checkWizardMagic(renderer)) return 1;
         if (!checkRoyalBossGraphics(renderer)) return 1;
         if (!checkPortalArrivalGraphics(renderer)) return 1;
+        if (!checkPropBreakGraphics(renderer)) return 1;
         if (!checkPowerupPickupModels(renderer)) {
             std::cerr << "Powerup pickup models failed visibility or depth checks\n";
             result = 1;

@@ -128,6 +128,8 @@ class ResourceSystem {
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
     std::optional<ResourceHit> damage(EntityId id, double amount);
+    // Containers have no progressive damage: interact or one tool hit opens them.
+    std::optional<ResourceHit> breakProp(EntityId id);
 
     [[nodiscard]] const std::vector<ResourceNode>& nodes() const;
 

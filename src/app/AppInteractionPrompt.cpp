@@ -248,6 +248,20 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         }
     }
 
+    if (snapshot.aimedResource) {
+        const auto prop = std::ranges::find(snapshot.resourceNodes, *snapshot.aimedResource, &ResourceNode::id);
+        if (prop != snapshot.resourceNodes.end() && prop->active && isDestructibleProp(prop->type)) {
+            return finalize(InteractionPrompt{
+                .targetKind=InteractionPromptTargetKind::Resource,
+                .targetId=prop->id,
+                .worldAnchor={static_cast<float>(prop->position.x),
+                    static_cast<float>(prop->position.y + .85 * prop->visualScale),static_cast<float>(prop->position.z)},
+                .actionText="Break open", .input=ControlAction::Interact,
+                .accentColor={255,218,117,255},
+            });
+        }
+    }
+
     if (snapshot.aimedBuilding) {
         const auto building = std::find_if(
             snapshot.buildings.begin(), snapshot.buildings.end(),

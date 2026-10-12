@@ -496,7 +496,8 @@ std::optional<ResourceHit> ResourceSystem::damage(EntityId id, double amount) {
         return std::nullopt;
     }
 
-    iterator->health = std::max(0.0, iterator->health - amount);
+    iterator->health = isDestructibleProp(iterator->type)
+        ? 0.0 : std::max(0.0, iterator->health - amount);
     const bool collected = iterator->health <= 0.0;
     int grantedAmount = 0;
     if (isDestructibleProp(iterator->type)) {
@@ -532,6 +533,12 @@ std::optional<ResourceHit> ResourceSystem::damage(EntityId id, double amount) {
         .collected = collected,
         .amount = grantedAmount,
     };
+}
+
+std::optional<ResourceHit> ResourceSystem::breakProp(EntityId id) {
+    const auto node = std::ranges::find(nodes_, id, &ResourceNode::id);
+    if (node == nodes_.end() || !isDestructibleProp(node->type)) return std::nullopt;
+    return damage(id, 1.0);
 }
 
 const std::vector<ResourceNode>& ResourceSystem::nodes() const {

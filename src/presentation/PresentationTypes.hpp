@@ -57,6 +57,7 @@ enum class PresentationEffectType {
     EnemyMagicCast,
     EnemyMagicImpact,
     RoyalImpact,
+    PropBreak,
 };
 
 struct PresentationEffect {

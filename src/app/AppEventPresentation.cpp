@@ -781,7 +781,13 @@ void App::processPresentationEvents(
                     node != eventSnapshot.resourceNodes.end()
                         ? node->position
                         : event.position;
-                destroyedResourceVisuals_.push_back({
+                if (isDestructibleProp(*event.resourceType)) {
+                    addEffect(PresentationEffectType::PropBreak,
+                        {center.x,center.y+.40,center.z},.72,
+                        node != eventSnapshot.resourceNodes.end() ? static_cast<float>(node->visualScale) : 1.0F,
+                        event.entityId);
+                    effects_.back().resourceType=event.resourceType;
+                } else destroyedResourceVisuals_.push_back({
                     .type = *event.resourceType,
                     .visualVariant =
                         node != eventSnapshot.resourceNodes.end()

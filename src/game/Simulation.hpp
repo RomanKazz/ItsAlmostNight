@@ -835,6 +835,7 @@ class Simulation {
     void addCrystals(int amount);
     [[nodiscard]] bool hasStorageSpace(
         ResourceType resource) const;
+    void dropPropLoot(const ResourceHit& hit, Vec3 position, std::uint64_t seed);
     [[nodiscard]] double playerPermanentMaxHealth() const;
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] double repairCooldownRemaining(EntityId id) const;

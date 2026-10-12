@@ -1,5 +1,6 @@
 #include "graphics/RoyalBossEffect.hpp"
 #include "graphics/EnemyMagicEffect.hpp"
+#include "graphics/PropBreakEffect.hpp"
 #include "app/App.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
@@ -373,7 +374,8 @@ void App::drawPresentationEffects(
     if (std::ranges::any_of(effects_, [](const PresentationEffect& effect) {
             return effect.type == PresentationEffectType::EnemyMagicCast ||
                    effect.type == PresentationEffectType::EnemyMagicImpact ||
-                   effect.type == PresentationEffectType::RoyalImpact;
+                   effect.type == PresentationEffectType::RoyalImpact ||
+                   effect.type == PresentationEffectType::PropBreak;
         })) {
         renderer_->beginWorldShader(lighting);
         WorldMaterialState material{};
@@ -388,10 +390,18 @@ void App::drawPresentationEffects(
             if (effect.startDelayRemaining > 0 || effect.duration <= 0 ||
                 (effect.type != PresentationEffectType::EnemyMagicCast &&
                  effect.type != PresentationEffectType::EnemyMagicImpact &&
-                 effect.type != PresentationEffectType::RoyalImpact)) continue;
+                 effect.type != PresentationEffectType::RoyalImpact &&
+                 effect.type != PresentationEffectType::PropBreak)) continue;
             const Vector3 center = enemy_magic_effect::point(effect.position);
             const Vector3 delta = Vector3Subtract(center, camera.position);
             if (Vector3LengthSqr(delta) > 1600 || Vector3DotProduct(delta, cameraForward) < -1) continue;
+            if(effect.type==PresentationEffectType::PropBreak) {
+                prop_break_effect::burst(center,camera.position,
+                    static_cast<float>(1-effect.remaining/effect.duration),effect.scale,
+                    effect.entityId?effect.entityId->index:0,renderer_->settings().particles,
+                    effect.resourceType==ResourceType::Barrel);
+                continue;
+            }
             if(effect.type==PresentationEffectType::RoyalImpact) {
                 royal_boss_effect::impact(center,camera.position,
                     static_cast<float>(1-effect.remaining/effect.duration),effect.scale,renderer_->settings().particles);
@@ -788,6 +798,7 @@ void App::drawPresentationEffects(
         // Frozen impacts and burning use their own batches, not generic debris.
         if (effect.startDelayRemaining > 0.0 ||
             effect.type == PresentationEffectType::RoyalImpact ||
+            effect.type == PresentationEffectType::PropBreak ||
             effect.type == PresentationEffectType::EnemyMagicCast ||
             effect.type == PresentationEffectType::EnemyMagicImpact ||
             effect.type == PresentationEffectType::EnemyBurn ||

@@ -593,11 +593,9 @@ std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot,
     PlayerWeapon weapon) {
-    if (weapon == PlayerWeapon::Rifle ||
+    const bool ranged = weapon == PlayerWeapon::Rifle ||
         weapon == PlayerWeapon::IceWand ||
-        weapon == PlayerWeapon::FireWand) {
-        return std::nullopt;
-    }
+        weapon == PlayerWeapon::FireWand;
     constexpr double MaximumDistance = 2.6;
     const double horizontal = std::cos(snapshot.playerPitch);
     const Ray ray{
@@ -650,6 +648,10 @@ std::optional<ResourceAimHit> preciseResourceAim(
                 },
             };
         }
+    }
+    if (ranged && result) {
+        const auto node=std::ranges::find(snapshot.resourceNodes,result->id,&ResourceNode::id);
+        if (node==snapshot.resourceNodes.end() || !isDestructibleProp(node->type)) return std::nullopt;
     }
     return result;
 }
