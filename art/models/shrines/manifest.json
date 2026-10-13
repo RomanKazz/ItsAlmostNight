@@ -1,0 +1,50 @@
+{
+  "player": {
+    "glb": "assets/models/world_landmarks/player_shrine.glb",
+    "authoring_bounds_min": [
+      -0.9200000166893005,
+      0.0,
+      -0.9200000166893005
+    ],
+    "authoring_bounds_max": [
+      0.9200000166893005,
+      2.6131577491760254,
+      0.9200000166893005
+    ],
+    "runtime_height": 2.8,
+    "primitives": 2,
+    "material_count": 1,
+    "collision": "Simulation: static centered 2x2m blocking box, height 2.8m; hover from actual rendered meshes",
+    "pivot_glb": [
+      0,
+      0,
+      0
+    ],
+    "transforms": "neutral root, vertices baked; Blender Z-up / GLB Y-up",
+    "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "building": {
+    "glb": "assets/models/world_landmarks/building_shrine.glb",
+    "authoring_bounds_min": [
+      -0.9200000166893005,
+      0.0,
+      -0.9200000166893005
+    ],
+    "authoring_bounds_max": [
+      0.9200000166893005,
+      2.719816207885742,
+      0.9200000166893005
+    ],
+    "runtime_height": 2.8,
+    "primitives": 2,
+    "material_count": 1,
+    "collision": "Simulation: static centered 2x2m blocking box, height 2.8m; hover from actual rendered meshes",
+    "pivot_glb": [
+      0,
+      0,
+      0
+    ],
+    "transforms": "neutral root, vertices baked; Blender Z-up / GLB Y-up",
+    "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  }
+}

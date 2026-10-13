@@ -1,0 +1,44 @@
+{
+  "player": {
+    "meshes": [
+      {
+        "name": "player_shrine_blessing.003",
+        "triangles": 124,
+        "manifold": true,
+        "outward_winding": true
+      },
+      {
+        "name": "player_shrine_body.003",
+        "triangles": 1344,
+        "manifold": true,
+        "outward_winding": true
+      }
+    ],
+    "palette_byte_identical": true,
+    "unit_normals": true,
+    "glyph_clearance": true,
+    "floor_zero": true,
+    "native_playtest": false
+  },
+  "building": {
+    "meshes": [
+      {
+        "name": "building_shrine_blessing.002",
+        "triangles": 264,
+        "manifold": true,
+        "outward_winding": true
+      },
+      {
+        "name": "building_shrine_body.002",
+        "triangles": 1344,
+        "manifold": true,
+        "outward_winding": true
+      }
+    ],
+    "palette_byte_identical": true,
+    "unit_normals": true,
+    "glyph_clearance": true,
+    "floor_zero": true,
+    "native_playtest": false
+  }
+}
