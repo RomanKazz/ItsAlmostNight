@@ -51,6 +51,7 @@ struct InteractionPrompt {
     ControlAction input{ControlAction::Interact};
     InteractionState state{InteractionState::Available};
     std::optional<ResourceCost> cost;
+    bool showResourceCost{};
     std::optional<ProducerStockPrompt> producerStock;
     ResourceCost availableResources{};
     std::optional<int> availableCurrency;

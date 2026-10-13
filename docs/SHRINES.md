@@ -4,7 +4,7 @@ New runs generate 12 Player Shrines and 12 Building Shrines at seeded, safe site
 
 ## Costs
 
-Both types share the count of paid activations, `n` (0–23). Player: `(20+8n) wood, (12+5n) stone, (4+2n) crystals`. Buildings: `(25+8n), (15+5n), (5+2n)`. Payment is atomic; insufficient resources preserve the altar and counter. Godmode bypasses payment. Three distinct common-strength bonuses are drawn uniformly from the relevant pool, independently of owned tomes. Paid offers cannot use normal reroll tokens. Unfinished offers persist through save/load with their exact choices and source shrine.
+Both types share the count of paid activations, `n` (0–23). Player: `(20+8n) wood, (12+5n) stone, (4+2n) crystals`. Buildings: `(25+8n), (15+5n), (5+2n)`. The world prompt uses the same wood/stone/crystal icon-and-amount row as building upgrades, with affordable amounts light and missing resources red, and an E action below. No coin cost is shown. Payment is atomic; insufficient resources preserve the altar and counter. Godmode bypasses payment. Three distinct common-strength bonuses are drawn uniformly from the relevant pool, independently of owned tomes. Paid offers cannot use normal reroll tokens. Unfinished offers persist through save/load with their exact choices and source shrine.
 
 ## Tome effects
 
@@ -18,7 +18,7 @@ Repeated shrine percentages add within the shrine source, which multiplies with 
 
 ## State and compatibility
 
-`ShrineRunState` stores separate player/building counters, total paid activations and an optional pending source/kind. Save fields are additive. State validation checks pool membership, totals, per-type limits, matching used altar counts, and the pending source. Queued level rewards resume after the paid shrine choice. Restart clears all shrine state.
+`ShrineRunState` stores separate player/building counters, total paid activations and an optional pending source/kind. Save fields are additive. State validation checks pool membership, totals, per-type limits, matching used altar counts, and the pending source. The activation frame finishes already-produced loot/XP rewards before combat pauses; queued level rewards resume after the paid shrine choice. Restart clears all shrine state.
 
 Old two-landmark maps regenerate their historical challenge/scenery layout and resume with two landmarks, avoiding new shrines through existing bases. New runs get all 24. Existing enum/save IDs are retained; shrine landmark types are appended.
 

@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "ui/UiTomeIcon.hpp"
 #include "RewardBackdropChecks.hpp"
+#include "ShrinePromptChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
 #include "ui/DebugUpgradeMenu.hpp"
@@ -60,6 +61,7 @@ int main(int argc, char** argv) {
     ian::initializeUiText();
     ian::GameUi ui;
     ui.initialize();
+    checkShrineResourcePrompt(ui,argc>1 ? argv[1] : nullptr);
     const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");
     Image venomImage = LoadImageFromTexture(venomIcon);

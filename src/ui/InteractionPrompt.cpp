@@ -496,6 +496,15 @@ void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt, const Camera3D& camera,
     const GameUi& ui, const ControlSettings& controls,
     float opacity, float scale, float liftPixels) {
+    if (prompt.targetKind == InteractionPromptTargetKind::Landmark && prompt.showResourceCost) {
+        if (projectable(prompt,camera)) {
+            drawBuildingUpgradePrompt(prompt,camera,ui,opacity);
+            auto action=prompt;
+            action.worldAnchor.y-=.5F;
+            drawChallengeKeyPrompt(action,camera,controls,opacity,scale);
+        }
+        return;
+    }
     if (prompt.targetKind == InteractionPromptTargetKind::Building) {
         if (projectable(prompt, camera))
             drawBuildingUpgradePrompt(prompt, camera, ui, opacity);
