@@ -1,3 +1,4 @@
+#include "OvertimeChecks.hpp"
 #include "TestHarness.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/CoreProgression.hpp"
@@ -29,6 +30,7 @@ void resolveLevelUps(ian::Simulation& simulation) {
 }
 
 void runSimulationTests() {
+    checkOvertime();
     {
         auto map=ian::MapDefinition::defaults();map.obstacles.clear();
         map.playerSpawn={0,0,0};

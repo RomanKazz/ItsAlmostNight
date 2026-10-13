@@ -127,8 +127,10 @@ void runGameBalanceTests() {
         dayIncome.syncBuildings({earlyMine});
         static_cast<void>(dayIncome.tick(assetBalance.balance.gameplay.firstBuildPhaseSeconds));
         const int collected = dayIncome.collect(earlyMine.id, 100);
-        require(collected == 12 && collected + firstWaveReward >= CorePrices[0],
-                "one full first-day mine cycle budget funds the first Core upgrade after wave one");
+        require(collected == 8, "first-day mine output reflects two-thirds production speed");
+        static_cast<void>(dayIncome.tick(assetBalance.balance.gameplay.nightDurationSeconds));
+        require(collected + dayIncome.collect(earlyMine.id, 100) + firstWaveReward >= CorePrices[0],
+                "day and night production fund the first Core upgrade after wave one");
     }
     require(
         assetBalance.balance.buildings[static_cast<std::size_t>(
@@ -255,6 +257,22 @@ void runGameBalanceTests() {
     const auto loaded =
         ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, Gameplay);
     require(loaded.valid(), "valid JSON balance parses");
+    {
+        require(loaded.balance.gameplay.overtime.afterWave == 10,
+            "legacy gameplay JSON defaults to pressure after wave ten");
+        auto gameplay = nlohmann::json::parse(Gameplay);
+        gameplay["overtime"] = {{"afterWave", 11}, {"healthDoublingSeconds", 90.0}};
+        const auto custom = ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, gameplay.dump());
+        require(custom.valid() && custom.balance.gameplay.overtime.afterWave == 11 &&
+            custom.balance.gameplay.overtime.healthDoublingSeconds == 90,
+            "overtime balance is data driven");
+        gameplay["overtime"]["healthDoublingSeconds"] = 0;
+        require(!ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, gameplay.dump()).valid(),
+            "zero overtime doubling interval is rejected");
+        gameplay["overtime"] = {{"maximumSpawnRate", 100}};
+        require(!ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, gameplay.dump()).valid(),
+            "unsafe population pressure is rejected");
+    }
     require(loaded.balance.economy.coreUpgradeCrystals ==
                 std::array<int, 7>{20, 30, 150, 200, 250, 300, 350} &&
             loaded.balance.economy.buildingUpgradeCrystalBonus ==
@@ -381,9 +399,9 @@ void runGameBalanceTests() {
     require(mine.has_value(), "configured mine placement succeeds");
     ian::CrystalMineSystem mines{loaded.balance.economy};
     mines.syncBuildings(buildings.buildings());
-    const auto configuredProduction = mines.tick(2.0);
+    const auto configuredProduction = mines.tick(3.0);
     require(configuredProduction.size() == 1 && configuredProduction[0].amount == 7,
-            "mine consumes loaded interval and amount");
+            "mine consumes loaded interval at two-thirds speed and preserves amount");
 
     ian::PlayerWeaponSystem rifle{loaded.balance.weapons.rifle};
     require(rifle.rifleRange() == 12.0 && rifle.rifleDamage() == 5.0 &&

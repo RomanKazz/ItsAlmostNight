@@ -549,6 +549,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"state", static_cast<int>(saved.resumeState)},
             {"tick", saved.tick},
             {"elapsedSeconds", saved.elapsedSeconds},
+            {"overtimeSeconds", saved.overtimeSeconds},
             {"phaseTimeRemaining", saved.phaseTimeRemaining},
             {"phaseDuration", saved.phaseDuration},
             {"stageCleared", saved.stageCleared},
@@ -681,6 +682,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
         resume.at("state").get<int>());
     saved.tick = resume.at("tick").get<std::uint64_t>();
     saved.elapsedSeconds = resume.at("elapsedSeconds").get<double>();
+    saved.overtimeSeconds = resume.value("overtimeSeconds", 0.0);
     saved.phaseTimeRemaining =
         resume.at("phaseTimeRemaining").get<double>();
     saved.phaseDuration = resume.at("phaseDuration").get<double>();

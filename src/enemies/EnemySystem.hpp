@@ -345,6 +345,8 @@ class EnemySystem {
             GameBalance::defaults().enemies);
 
     void reset();
+    // Applies to live actors and future spawns; keeps health fraction/statuses.
+    void setOvertimeDifficulty(OvertimeDifficulty difficulty);
     void spawnWave(std::span<const Vec3> positions);
     void spawnWave(std::span<const EnemySpawn> spawns);
     void spawnGroup(std::span<const EnemySpawn> spawns);
@@ -486,6 +488,7 @@ class EnemySystem {
     std::vector<EntityId> areaTargetBuffer_;
     std::vector<PendingSplit> pendingSplitBuffer_;
     std::vector<PendingSplit> delayedSplitBuffer_;
+    OvertimeDifficulty overtime_{};
     std::size_t activeCount_{};
     std::uint32_t firstIndex_{FirstEnemyIndex};
     std::uint32_t nextIndex_{FirstEnemyIndex};

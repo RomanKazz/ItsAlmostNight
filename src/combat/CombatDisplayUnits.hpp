@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace ian {
 
@@ -11,11 +12,12 @@ namespace ian {
 inline constexpr double CombatDisplayScale = 10.0;
 
 [[nodiscard]] inline int combatDisplayValue(double value) {
-    if (value <= 0.0) {
+    if (std::isnan(value) || value <= 0.0) {
         return 0;
     }
-    return std::max(
-        1, static_cast<int>(std::lround(value * CombatDisplayScale)));
+    const double scaled = std::min(value * CombatDisplayScale,
+        static_cast<double>(std::numeric_limits<int>::max()));
+    return std::max(1, static_cast<int>(std::lround(scaled)));
 }
 
 [[nodiscard]] inline double combatDisplayScalar(double value) {

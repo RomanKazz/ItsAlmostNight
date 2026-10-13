@@ -339,7 +339,7 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
 }
 
 GameplayBalanceDefinition parseGameplay(const Json& value) {
-    const GameplayBalanceDefinition definition{
+    GameplayBalanceDefinition definition{
         .eyeHeight = value.at("eyeHeight").get<double>(),
         .walkSpeed = value.at("walkSpeed").get<double>(),
         .sprintSpeed = value.value("sprintSpeed", value.at("walkSpeed").get<double>()),
@@ -391,7 +391,17 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .minimumPlacementDistance = value.at("minimumPlacementDistance").get<double>(),
         .maximumPlacementDistance = value.at("maximumPlacementDistance").get<double>(),
     };
-    if (definition.eyeHeight <= 0.0 || definition.walkSpeed <= 0.0 ||
+    const auto overtime = value.value("overtime", nlohmann::json::object());
+    definition.overtime = {
+        .afterWave = overtime.value("afterWave", 10),
+        .healthDoublingSeconds = overtime.value("healthDoublingSeconds", 60.0),
+        .damageDoublingSeconds = overtime.value("damageDoublingSeconds", 120.0),
+        .speedGainPerMinute = overtime.value("speedGainPerMinute", 0.12),
+        .maximumSpeed = overtime.value("maximumSpeed", 1.75),
+        .spawnGainPerMinute = overtime.value("spawnGainPerMinute", 0.20),
+        .maximumSpawnRate = overtime.value("maximumSpawnRate", 2.0),
+    };
+    if (!definition.overtime.valid() || definition.eyeHeight <= 0.0 || definition.walkSpeed <= 0.0 ||
         definition.sprintSpeed <= 0.0 ||
         definition.playerAcceleration <= 0.0 ||
         definition.playerDeceleration <= 0.0 ||

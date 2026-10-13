@@ -1,5 +1,7 @@
 #pragma once
 
+#include "waves/OvertimeDifficulty.hpp"
+
 #include "enemies/BossBattleConfig.hpp"
 
 #include <array>
@@ -171,6 +173,7 @@ struct GameplayBalanceDefinition {
     double dawnSeconds;
     double minimumPlacementDistance;
     double maximumPlacementDistance;
+    OvertimeConfig overtime{};
 };
 
 struct GameBalance {

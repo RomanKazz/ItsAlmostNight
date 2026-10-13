@@ -13,6 +13,10 @@
 namespace ian {
 namespace {
 
+int damageEventAmount(double damage) {
+    return static_cast<int>(std::clamp(damage, 0.0, static_cast<double>(std::numeric_limits<int>::max())));
+}
+
 int remainingTimeUnits(double seconds) {
     constexpr double SecondsPerReward = 10.0;
     return static_cast<int>(std::floor(
@@ -215,13 +219,19 @@ void Simulation::updateRunPhase(
 void Simulation::updateCombat(double deltaSeconds) {
     if (state_ == RunState::Wave || enemies_.activeCount() > 0) {
         if (state_ == RunState::Wave) {
+            const bool bossPendingOrAlive = waveBossSpawn_.has_value() ||
+                std::ranges::any_of(enemies_.enemies(), [](const EnemyInstance& enemy) {
+                    return enemy.active && enemy.type == EnemyType::Boss;
+                });
+            if (!sandboxMode_ && !challengeActive() && wave_ > gameplay_.overtime.afterWave) {
+                const double combatSeconds = finalNight_ || bossPendingOrAlive
+                    ? deltaSeconds : std::min(deltaSeconds, phaseTimeRemaining_);
+                overtimeSeconds_ = std::min(1'000'000'000.0, overtimeSeconds_ + combatSeconds);
+                enemies_.setOvertimeDifficulty(overtimeDifficulty(overtimeSeconds_, gameplay_.overtime));
+            }
             if (!finalNight_) {
                 phaseTimeRemaining_ = std::max(
                     0.0, phaseTimeRemaining_ - deltaSeconds);
-                const bool bossPendingOrAlive = waveBossSpawn_.has_value() ||
-                    std::ranges::any_of(enemies_.enemies(), [](const EnemyInstance& enemy) {
-                        return enemy.active && enemy.type==EnemyType::Boss;
-                    });
                 if (phaseTimeRemaining_ <= 0.0 && !bossPendingOrAlive) {
                     // Dawn banishes the remaining horde. Resetting actors
                     // deliberately produces no kill XP, Coins, loot, splits,
@@ -242,7 +252,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     return;
                 }
             }
-            if(phaseTimeRemaining_>0 || waveBossSpawn_) tickWaveSpawning(deltaSeconds);
+            if(finalNight_ || phaseTimeRemaining_>0 || waveBossSpawn_) tickWaveSpawning(deltaSeconds);
         }
         updateTrapCombat(deltaSeconds);
 
@@ -426,7 +436,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     .ramp = modularDamage->ramp,
                     .position = effectCenter,
                     .amount =
-                        static_cast<int>(attack.damage),
+                        damageEventAmount(attack.damage),
                 });
                 if (attack.ram) {
                     events_.push_back({
@@ -497,7 +507,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 .buildingType = damage->type,
                 .position =
                     buildingWorldPosition(*damage),
-                .amount = static_cast<int>(attack.damage),
+                .amount = damageEventAmount(attack.damage),
             });
             if (attack.ram) {
                 events_.push_back({
@@ -506,7 +516,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     .sourceId = attack.enemyId,
                     .buildingType = damage->type,
                     .position = attackPosition,
-                    .amount = static_cast<int>(attack.damage),
+                    .amount = damageEventAmount(attack.damage),
                 });
             }
             if (damage->type == BuildingType::Core) {
@@ -516,7 +526,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     .sourceId = attack.enemyId,
                     .buildingType = damage->type,
                     .position = attackPosition,
-                    .amount = static_cast<int>(attack.damage),
+                    .amount = damageEventAmount(attack.damage),
                 });
             }
             if (damage->destroyed) {

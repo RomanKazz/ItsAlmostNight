@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 namespace ian {
 
@@ -125,7 +126,7 @@ void Simulation::damagePlayer(
         .type = GameEventType::PlayerDamaged,
         .sourceId = attackerId,
         .position = attackPosition,
-        .amount = static_cast<int>(damage),
+        .amount = static_cast<int>(std::clamp(damage, 0.0, static_cast<double>(std::numeric_limits<int>::max()))),
     });
     if (playerHealth_ <= 0.0) {
         beginPlayerRespawn(attackerId);

@@ -272,6 +272,7 @@ void Simulation::beginPreparedWave() {
     const std::size_t firstGroupSize = std::min({
         static_cast<std::size_t>(waveSpawnGroupSize_),
         waveSpawnQueue_.size(), MaximumActiveEnemies});
+    enemies_.setOvertimeDifficulty(overtimeDifficulty(overtimeSeconds_, gameplay_.overtime));
     enemies_.spawnWave(
         std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
@@ -342,12 +343,15 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
         progress >= 0.40 && progress < 0.55;
     const bool finalSurge = !finalNight_ && progress >= 0.80;
     const int surge = firstSurge ? 0 : finalSurge ? 1 : -1;
-    const std::size_t targetActive = static_cast<std::size_t>(
+    const OvertimeDifficulty overtime = overtimeDifficulty(overtimeSeconds_, gameplay_.overtime);
+    const std::size_t baseTargetActive = static_cast<std::size_t>(
         std::min(34, 7 + std::min(wave_, 9) * 3 +
                  static_cast<int>(progress * 5.0)) +
         (firstSurge ? 5 : finalSurge ? 9 : 0));
+    const std::size_t targetActive = std::min(MaximumActiveEnemies,
+        static_cast<std::size_t>(std::ceil(static_cast<double>(baseTargetActive) * overtime.spawnRate)));
     const double baseInterval = std::clamp(
-        waveSpawnInterval_, 0.35, 2.0);
+        waveSpawnInterval_, 0.35, 2.0) / overtime.spawnRate;
     const double interval = surge >= 0
         ? baseInterval * 0.6 : baseInterval;
 

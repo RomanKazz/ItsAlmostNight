@@ -44,7 +44,10 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
     if ((activeState == RunState::Sunset ||
          activeState == RunState::Wave) &&
         waveStartCheckpoint_) {
-        return *waveStartCheckpoint_;
+        auto checkpoint = *waveStartCheckpoint_;
+        // Replaying a night must not rewind the accumulated pressure clock.
+        checkpoint.overtimeSeconds = overtimeSeconds_;
+        return checkpoint;
     }
     SuspendedRunState saved{
         .buildingArsenalVersion = 3,
@@ -54,6 +57,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .resumeState = activeState,
         .tick = tick_,
         .elapsedSeconds = elapsedSeconds_,
+        .overtimeSeconds = overtimeSeconds_,
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .wave = wave_,
@@ -346,6 +350,7 @@ bool Simulation::loadSuspendedRunState(
     const bool invalidPhase =
         !validResumeState ||
         !finiteNonNegative(saved.elapsedSeconds) ||
+        !finiteNonNegative(saved.overtimeSeconds) ||
         !finiteNonNegative(saved.phaseTimeRemaining) ||
         !finiteNonNegative(saved.phaseDuration) ||
         saved.phaseTimeRemaining > saved.phaseDuration + 1e-6 ||
@@ -661,6 +666,8 @@ bool Simulation::loadSuspendedRunState(
     }
     stageCleared_ = saved.stageCleared;
     finalNight_ = false;
+    overtimeSeconds_ = saved.overtimeSeconds;
+    enemies_.setOvertimeDifficulty(overtimeDifficulty(overtimeSeconds_, gameplay_.overtime));
     waveStartCheckpoint_.reset();
     phaseTimeRemaining_ = saved.phaseTimeRemaining;
     phaseDuration_ = saved.phaseDuration;

@@ -30,7 +30,7 @@ int landmarkProductionAmount(WorldLandmarkType type) {
 }
 
 double landmarkProductionInterval(WorldLandmarkType type) {
-    return type == WorldLandmarkType::Mine ? 10.0 : 8.0;
+    return type == WorldLandmarkType::Mine ? 15.0 : 12.0;
 }
 
 double landmarkRadius(WorldLandmarkType type) {
@@ -284,9 +284,6 @@ void Simulation::updateWorldLandmarks(
 
     double productionDeltaSeconds = deltaSeconds;
     if (challengeActive()) productionDeltaSeconds = 0.0;
-    if (state_ == RunState::Wave) {
-        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
-    }
     productionDeltaSeconds *= productionSpeedMultiplier_ *
         runProductionSpeedMultiplier_;
     advanceWorldLandmarkProduction(productionDeltaSeconds);

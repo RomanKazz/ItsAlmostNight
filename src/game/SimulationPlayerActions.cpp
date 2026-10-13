@@ -251,9 +251,6 @@ void Simulation::updatePlayerActions(
     if (challengeActive()) {
         productionDeltaSeconds = 0.0;
     }
-    if (state_ == RunState::Wave) {
-        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
-    }
     advanceBuildingProduction(productionDeltaSeconds);
 
     const Vec3 direction = lookDirection(playerYaw_, playerPitch_);

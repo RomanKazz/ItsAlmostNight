@@ -17,23 +17,23 @@ void runCrystalMineSystemTests() {
     ian::CrystalMineSystem mines;
     mines.syncBuildings(buildings.buildings());
     require(mines.mines().size() == 1, "mine runtime follows building");
-    require(mines.tick(7.9).empty(), "mine waits for production interval");
+    require(mines.tick(11.9).empty(), "mine waits for production interval");
     const auto firstProduction = mines.tick(0.1);
     require(firstProduction.size() == 1 && firstProduction[0].amount == 3,
             "mine produces configured crystals");
     const auto upgradedMine = buildings.upgrade(mine->building.id, 10, 5, 10);
     require(upgradedMine.valid(), "mine fixture upgrades mine");
     mines.syncBuildings(buildings.buildings());
-    const auto upgradedProduction = mines.tick(6.7);
+    const auto upgradedProduction = mines.tick(10.0);
     require(upgradedProduction.size() == 1 && upgradedProduction[0].amount == 3,
             "level-two mine gains a predictable cycle-speed bonus");
     requireNear(
         mines.productionInterval(ian::BuildingType::CrystalMine, 2),
-        8.0 / 1.2, 1e-9,
+        12.0 / 1.2, 1e-9,
         "producer level two is twenty percent faster");
     requireNear(
         mines.productionInterval(ian::BuildingType::CrystalMine, 3),
-        8.0 / 1.4, 1e-9,
+        12.0 / 1.4, 1e-9,
         "producer levels scale linearly without output rounding spikes");
 
     require(buildings.upgrade(core->building.id, 0, 0, 100).valid(),
@@ -48,7 +48,7 @@ void runCrystalMineSystemTests() {
     require(lumberMill.has_value() && quarry.has_value(),
             "quarry and lumber mill unlock at core level three");
     mines.syncBuildings(buildings.buildings());
-    const auto resourceProduction = mines.tick(10.0);
+    const auto resourceProduction = mines.tick(15.0);
     const auto wood = std::find_if(
         resourceProduction.begin(), resourceProduction.end(),
         [](const ian::CrystalProduced& produced) {
@@ -92,18 +92,18 @@ void runCrystalMineSystemTests() {
     specialized.setProductionSpeedMultiplier(1.5);
     const double unchangedQuarry = specialized.productionInterval(ian::BuildingType::Quarry);
     specialized.setTypeProductionSpeedMultipliers(1.4, 1.0, 1.0);
-    requireNear(specialized.productionInterval(ian::BuildingType::LumberMill), 3.75, 1e-9,
+    requireNear(specialized.productionInterval(ian::BuildingType::LumberMill), 5.75, 1e-9,
         "type production bonuses combine with global speed");
     requireNear(specialized.productionInterval(ian::BuildingType::Quarry), unchangedQuarry, 1e-9,
         "lumber mill card does not change quarry production");
     specialized.syncBuildings(buildings.buildings());
-    const auto specializedOutput = specialized.tick(3.75);
+    const auto specializedOutput = specialized.tick(5.75);
     require(specializedOutput.size() == 1 && specializedOutput.front().buildingType == ian::BuildingType::LumberMill,
         "specialized production changes actual cycles, not only UI");
 
     buildings.damage(lumberMill->building.id, 1.0);
     mines.syncBuildings(buildings.buildings());
-    const auto damagedProduction = mines.tick(8.0);
+    const auto damagedProduction = mines.tick(12.0);
     require(
         std::any_of(
             damagedProduction.begin(), damagedProduction.end(),

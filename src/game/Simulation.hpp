@@ -334,6 +334,9 @@ struct SimulationSnapshot {
     bool breadWellFed{};
     bool stageCleared{};
     bool finalNight{};
+    bool overtimeActive{};
+    double overtimeSeconds{};
+    OvertimeDifficulty overtime{};
     double chestOpeningCostMultiplier;
     bool freeChestOpeningAvailable{};
     int freeChestRerollsRemaining{};
@@ -472,6 +475,7 @@ struct SuspendedRunState {
     RunState resumeState{RunState::BuildPhase};
     std::uint64_t tick{};
     double elapsedSeconds{};
+    double overtimeSeconds{};
     double phaseTimeRemaining{};
     double phaseDuration{};
     int wave{};
@@ -1026,6 +1030,7 @@ class Simulation {
     bool forceWaveCompletion_{};
     bool stageCleared_{};
     bool finalNight_{};
+    double overtimeSeconds_{};
     std::unique_ptr<SuspendedRunState> waveStartCheckpoint_;
     double playerDamageMultiplier_{1.0};
     double runPlayerDamageMultiplier_{1.0};

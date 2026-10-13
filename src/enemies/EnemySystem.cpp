@@ -801,6 +801,7 @@ void EnemySystem::reset() {
     structureGridHeads_.clear();
     collisionEnemyLinks_.clear();
     activeCount_ = 0;
+    overtime_ = {};
     spatialHash_.clear();
     performanceStats_ = {};
     profilingTick_ = false;
@@ -810,6 +811,32 @@ void EnemySystem::reset() {
     navigationCache_.reset();
     cachedNavigationRevision_ =
         std::numeric_limits<std::uint64_t>::max();
+}
+
+void EnemySystem::setOvertimeDifficulty(OvertimeDifficulty difficulty) {
+    if (difficulty == overtime_) return;
+    const auto valid = [](double value) {
+        return std::isfinite(value) && value >= 1.0 && value <= std::exp2(40.0);
+    };
+    if (!valid(difficulty.health) || !valid(difficulty.damage) ||
+        !valid(difficulty.speed) || !valid(difficulty.spawnRate)) return;
+    const double healthRatio = difficulty.health / overtime_.health;
+    const double damageRatio = difficulty.damage / overtime_.damage;
+    const double speedRatio = difficulty.speed / overtime_.speed;
+    for (EnemyInstance& enemy : enemies_) {
+        if (!enemy.active) continue;
+        enemy.maxHealth *= healthRatio;
+        enemy.health *= healthRatio;
+        enemy.damage *= damageRatio;
+        enemy.speed *= speedRatio;
+        // Preserve progress towards interrupting an already warned storm.
+        enemy.bossStormInterruptDamage *= healthRatio;
+        enemy.bossStormDamageTaken *= healthRatio;
+    }
+    for (EnemyProjectile& projectile : projectiles_) {
+        if (projectile.active) projectile.damage *= damageRatio;
+    }
+    overtime_ = difficulty;
 }
 
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
@@ -1680,7 +1707,7 @@ void EnemySystem::appendEnemy(
         std::max(0.01, spawn.damageMultiplier) *
         (elite ? EliteDamageMultiplier : 1.0);
     const double maximumHealth = roundedEnemyHealth(
-        stats.health * healthMultiplier);
+        stats.health * healthMultiplier) * overtime_.health;
     const auto reusable = std::find_if(
         enemies_.begin(), enemies_.end(),
         [this](const EnemyInstance& enemy) {
@@ -1736,8 +1763,8 @@ void EnemySystem::appendEnemy(
         .position = position,
         .health = maximumHealth,
         .maxHealth = maximumHealth,
-        .speed = stats.speed * (spawn.summonerId ? 1.12 : 1.0),
-        .damage = stats.damage * damageMultiplier,
+        .speed = stats.speed * (spawn.summonerId ? 1.12 : 1.0) * overtime_.speed,
+        .damage = stats.damage * damageMultiplier * overtime_.damage,
         .attackCooldownRemaining = 0.0,
         .hitAnimationRemaining = 0.0,
         .spawnAnimationRemaining =

@@ -148,7 +148,9 @@ double CrystalMineSystem::productionInterval(
         0.20 * static_cast<double>(std::max<int>(1, level) - 1);
     const double typeSpeed = type == BuildingType::LumberMill ? lumberMillSpeedMultiplier_
         : type == BuildingType::Quarry ? quarrySpeedMultiplier_ : crystalMineSpeedMultiplier_;
-    const double effectiveSpeed = productionSpeedMultiplier_ * typeSpeed *
+    // All producers run equally by day and night, at two-thirds of the old rate.
+    constexpr double BaseProductionSpeed = 2.0 / 3.0;
+    const double effectiveSpeed = BaseProductionSpeed * productionSpeedMultiplier_ * typeSpeed *
         levelSpeed * std::clamp(healthEfficiency, 0.01, 1.0);
     if (type == BuildingType::LumberMill) {
         return 8.0 / effectiveSpeed;

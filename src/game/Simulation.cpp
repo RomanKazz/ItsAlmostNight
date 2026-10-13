@@ -528,6 +528,7 @@ void Simulation::resetRun(GameEventType eventType) {
     currentWaveHasBoss_ = false;
     stageCleared_ = false;
     finalNight_ = false;
+    overtimeSeconds_ = 0.0;
     waveStartCheckpoint_.reset();
     modularTargetBuffer_.clear();
     collisionWorld_.syncPondLilySurfaces(

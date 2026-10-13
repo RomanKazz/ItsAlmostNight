@@ -203,6 +203,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .breadWellFed = breadWellFed_,
         .stageCleared = stageCleared_,
         .finalNight = finalNight_,
+        .overtimeActive = !sandboxMode_ && (wave_ > gameplay_.overtime.afterWave || overtimeSeconds_ > 0.0),
+        .overtimeSeconds = overtimeSeconds_,
+        .overtime = overtimeDifficulty(overtimeSeconds_, gameplay_.overtime),
         .chestOpeningCostMultiplier =
             chestOpeningCostMultiplier_,
         .freeChestOpeningAvailable =

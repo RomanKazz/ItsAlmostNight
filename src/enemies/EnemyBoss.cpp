@@ -152,8 +152,8 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
             const int count=std::clamp(3+(enemy.bossPhase-1),0,std::max(0,config.summonLimit-active));
             bossActionEventBuffer_.push_back({.type=BossActionType::WarCry,.bossId=enemy.id,
                 .position=ground(),.phase=enemy.bossPhase,.radius=5.2,.attack=RoyalAttack::Summon,.count=count,
-                .healthScale=config.summonHealthMultiplier*enemy.maxHealth/std::max(1.0,definition.health),
-                .damageScale=config.summonDamageMultiplier*enemy.damage/std::max(1.0,definition.damage)});
+                .healthScale=config.summonHealthMultiplier*enemy.maxHealth/std::max(1.0,definition.health)/overtime_.health,
+                .damageScale=config.summonDamageMultiplier*enemy.damage/std::max(1.0,definition.damage)/overtime_.damage});
         }
         enemy.state=EnemyState::MoveToCore;
         enemy.bossAbilityCooldownRemaining=config.recoverySeconds/(1+(enemy.bossPhase-1)*.32);

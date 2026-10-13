@@ -82,6 +82,7 @@ void translateDynamicHudText(std::string& text) {
         {"ACTIVE", "АКТИВНЫХ"},
         {"BOSS RAM INCOMING", "АТАКА БОССА"},
         {"STORM INTERRUPTED", "ШТОРМ ПРЕРВАН"},
+        {"OVERTIME", "НАТИСК"},
         {"BREAK STORM - HIT THE KING!", "СОРВИ ШТОРМ — БЕЙ БОССА!"},
         {"COLLAPSE RISK:", "РИСК ОБРУШЕНИЯ:"},
         {"DEPENDENT PARTS", "ЗАВИСИМЫХ ЧАСТЕЙ"},

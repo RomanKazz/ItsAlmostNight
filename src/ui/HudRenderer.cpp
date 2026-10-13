@@ -1243,6 +1243,23 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 snapshot);
         }
 
+        if (snapshot.overtimeActive) {
+            const double wholeSeconds = std::floor(snapshot.overtimeSeconds);
+            const std::string timer = "OVERTIME  " + phaseClock(wholeSeconds);
+            const float width = std::max(192.0F, measureUiText(timer, 12.0F).x + 24.0F);
+            const float startX = static_cast<float>(GetScreenWidth()) * 0.5F - timelineWidth * 0.5F - width - 22.0F;
+            ui.drawPanel({startX, 32.0F, width, 58.0F}, 210);
+            const RunState pressurePhase = snapshot.state == RunState::Paused ? snapshot.stateBeforePause : snapshot.state;
+            const bool fighting = pressurePhase == RunState::Wave && !snapshot.runShop.pending && !snapshot.runUpgradeChoicePending;
+            const float pulse = fighting ? static_cast<float>(0.5 + 0.5 * std::sin(snapshot.overtimeSeconds * 3.0)) : 0.0F;
+            drawSdfUiText(timer, {startX + 12.0F, 40.0F}, 12.0F,
+                {255, static_cast<unsigned char>(139.0F + pulse * 40.0F), 90, 255});
+            char pressure[80]{};
+            std::snprintf(pressure, sizeof(pressure), "HP x%.2g   DMG x%.2g",
+                snapshot.overtime.health, snapshot.overtime.damage);
+            drawSdfUiText(pressure, {startX + 12.0F, 65.0F}, 11.0F, {255, 230, 201, 255});
+        }
+
         const bool phaseTextContainsTime =
             (snapshot.state == RunState::BuildPhase &&
              !snapshot.sandboxMode) ||
