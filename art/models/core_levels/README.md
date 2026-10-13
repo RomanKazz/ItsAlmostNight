@@ -8,13 +8,13 @@ open `LASER` scene/file was preserved. The runtime now loads
 ## Visual progression
 
 1. Original Kenney pedestal/crystal identity.
-2. New tapered reactor, steel shoe, four diagonal support petals, open basin.
-3. Four purple energy windows and six orbiting crystals.
+2. New tapered reactor, gold shoe, four diagonal support petals, open basin.
+3. Six orbiting crystals with alternating large/small sizes.
 4. Wider supports and octagonal anchor bolts.
 5. Taller body and structural waist band.
 6. Four collar terminals and eight orbiting crystals.
-7. Four small purple energy anchors on the shoe.
-8. Reinforced crown collar and orange edge accent.
+7. Small counter-rotating upper crystal ring; clean reactor casing.
+8. Reinforced gold crown collar and six upper orbiting crystals.
 
 Round sidewalls have smooth radial normals. Caps, ledges and brace edges are
 hard. The embedded PNG is the original Kenney `colormap.png`, byte-identical;
@@ -37,11 +37,14 @@ no new palette, solid-color override, baked shadows or emissive material.
   All core passes use the same `forEachLevelPart` selection. Raycast uses that
   envelope; context/feedback height uses selected transformed meshes.
 - Existing 0.28 rad/s orbit and six-second bob remain. Growth/lift matches the
-  authored body. Removed the old extra upper orbit to keep the silhouette clear.
+  authored body. Small upper shards return at L7/L8, counter-rotating at -0.20 rad/s.
+  Lower shards alternate full/72% sizes from L3, with small shards lifted 0.04 m.
+  Gold accents sample the original palette at U=0.65625. Removed decorative
+  casing crystals and moved anchor bolts outward to seat visibly on the supports.
 - No new collision meshes, attack rig, sockets or gameplay stats. Core movement
   blocking uses existing game rules; hover uses the level envelope, not decorative
   geometry. HP, costs, level IDs, saves and upgrades retain existing behavior.
-- 6/6/8/8/8/10/10/10 draws, 688–3064 triangles per visible level. No geometry,
+- 6/6/8/8/8/10/14/16 draws, 688–2456 triangles per visible level. No geometry,
   buffers or runtime containers created per frame.
 
 ## Files and regeneration

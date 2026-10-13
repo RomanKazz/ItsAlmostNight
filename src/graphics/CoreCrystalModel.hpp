@@ -57,22 +57,27 @@ void forEachLevelPart(int requestedLevel, double seconds, Emit&& emit) {
 
     // Mesh 1 already contains its GLB node offset. Recenter before placing
     // copies on the orbit, rather than rotating each crystal around itself.
-    const auto orbit = [&](int count, float radius, float height, float size, double speed) {
+    const auto orbit = [&](int count, float radius, float height, float size, double speed, bool stagger = false) {
         for (int crystal = 0; crystal < count; ++crystal) {
             const double phase = crystal * (2.0 * PI / count);
             const float angle = static_cast<float>(std::fmod(seconds * speed + phase, 2.0 * PI));
             const float bob = 0.015F * static_cast<float>(std::sin(seconds * (2.0 * PI / 6.0) + phase));
+            const bool small = stagger && (crystal % 2 != 0);
+            const float shardSize = size * (small ? 0.72F : 1.0F);
             const Matrix pose = MatrixMultiply(MatrixTranslate(0, -0.441512F, 0.25F),
-                MatrixMultiply(MatrixScale(size, size, size),
+                MatrixMultiply(MatrixScale(shardSize, shardSize, shardSize),
                     MatrixMultiply(MatrixRotateY(angle),
-                        MatrixTranslate(std::sin(angle) * radius, height + bob,
+                        MatrixTranslate(std::sin(angle) * radius, height + bob + (small ? 0.04F : 0.0F),
                                         -std::cos(angle) * radius))));
             emit(1, pose, WHITE, false);
         }
     };
     const int satelliteCount = level >= 6 ? 8 : (level >= 3 ? 6 : 4);
     orbit(satelliteCount, 0.29F + progression * 0.008F,
-          0.491512F + lift, 1.0F + progression * 0.025F, 0.28);
+          0.491512F + lift, 1.0F + progression * 0.025F, 0.28, level >= 3);
+    if (level >= 7)
+        orbit(level == 8 ? 6 : 4, 0.26F,
+              0.94F + static_cast<float>(level - 7) * 0.04F, 0.48F, -0.20);
 }
 
 [[nodiscard]] inline BoundingBox levelBounds(int requestedLevel) {

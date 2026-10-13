@@ -86,19 +86,23 @@ for level in range(1,9):
         # Sample a complete orbit and bob cycle with phased satellites.
         seconds=degree*math.pi/180/.28
         orbit=[]
-        for i in range(count):
-            phase=math.tau*i/count;angle=degree*math.pi/180+phase
-            bob=.015*math.sin(seconds*math.tau/6+phase)
-            size=1+p*.025
-            pose=Matrix.Translation((math.sin(angle)*(.29+p*.008),math.cos(angle)*(.29+p*.008),.491512+lift+bob))@Matrix.Rotation(angle,4,'Z')@Matrix.Diagonal((size,size,size,1))@Matrix.Translation((0,-.25,-.441512))
-            moving=tree(1,pose)
-            if pedestal.overlap(moving) or center.overlap(moving):collisions.append((level,degree,i,'body'))
-            if any(previous.overlap(moving) for previous in orbit):collisions.append((level,degree,i,'satellite'))
-            orbit.append(moving)
-            top=.267762+(.815262-.267762)*growth+lift
-            assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and -.00234<=v.z<=top+.0001 for v in vertices(1,pose))
+        rings=[(count,.29+p*.008,.491512+lift,1+p*.025,.28,level>=3)]
+        if level>=7:rings.append((6 if level==8 else 4,.26,.94+(level-7)*.04,.48,-.20,False))
+        for ring_count,radius,height,base_size,speed,stagger in rings:
+            for i in range(ring_count):
+                phase=math.tau*i/ring_count;angle=seconds*speed+phase
+                bob=.015*math.sin(seconds*math.tau/6+phase)
+                small=stagger and i%2
+                size=base_size*(.72 if small else 1)
+                pose=Matrix.Translation((math.sin(angle)*radius,math.cos(angle)*radius,height+bob+(.04 if small else 0)))@Matrix.Rotation(angle,4,'Z')@Matrix.Diagonal((size,size,size,1))@Matrix.Translation((0,-.25,-.441512))
+                moving=tree(1,pose)
+                if pedestal.overlap(moving) or center.overlap(moving):collisions.append((level,degree,i,'body'))
+                if any(previous.overlap(moving) for previous in orbit):collisions.append((level,degree,i,'satellite'))
+                orbit.append(moving)
+                top=.267762+(.815262-.267762)*growth+lift
+                assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and -.00234<=v.z<=top+.0001 for v in vertices(1,pose))
         frames+=1
 assert not collisions,collisions[:12]
-result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
+result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8 if level==6 else 12 if level==7 else 14)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
 (ART/'validation.json').write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result))

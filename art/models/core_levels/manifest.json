@@ -36,7 +36,12 @@
       ],
       "crystal_lift": 0.0,
       "crystal_growth": 1.0,
-      "satellites": 4
+      "satellites": 4,
+      "upper_satellites": 0,
+      "draws": 6,
+      "runtime_triangles": 688,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.4388000000000003
     },
     "2": {
       "pedestal_mesh": 6,
@@ -52,7 +57,12 @@
       ],
       "crystal_lift": 0.035,
       "crystal_growth": 1.045,
-      "satellites": 4
+      "satellites": 4,
+      "upper_satellites": 0,
+      "draws": 6,
+      "runtime_triangles": 808,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.543762
     },
     "3": {
       "pedestal_mesh": 7,
@@ -68,7 +78,12 @@
       ],
       "crystal_lift": 0.07,
       "crystal_growth": 1.09,
-      "satellites": 6
+      "satellites": 6,
+      "upper_satellites": 0,
+      "draws": 8,
+      "runtime_triangles": 920,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.6487240000000003
     },
     "4": {
       "pedestal_mesh": 8,
@@ -84,7 +99,12 @@
       ],
       "crystal_lift": 0.10500000000000001,
       "crystal_growth": 1.135,
-      "satellites": 6
+      "satellites": 6,
+      "upper_satellites": 0,
+      "draws": 8,
+      "runtime_triangles": 1240,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.7536860000000003
     },
     "5": {
       "pedestal_mesh": 9,
@@ -100,7 +120,12 @@
       ],
       "crystal_lift": 0.14,
       "crystal_growth": 1.18,
-      "satellites": 6
+      "satellites": 6,
+      "upper_satellites": 0,
+      "draws": 8,
+      "runtime_triangles": 1368,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.8586480000000003
     },
     "6": {
       "pedestal_mesh": 10,
@@ -116,7 +141,12 @@
       ],
       "crystal_lift": 0.17500000000000002,
       "crystal_growth": 1.225,
-      "satellites": 8
+      "satellites": 8,
+      "upper_satellites": 0,
+      "draws": 10,
+      "runtime_triangles": 1800,
+      "visible_width_game": 1.76,
+      "visible_height_game": 1.9636100000000003
     },
     "7": {
       "pedestal_mesh": 11,
@@ -132,7 +162,12 @@
       ],
       "crystal_lift": 0.21000000000000002,
       "crystal_growth": 1.27,
-      "satellites": 8
+      "satellites": 8,
+      "upper_satellites": 4,
+      "draws": 14,
+      "runtime_triangles": 2024,
+      "visible_width_game": 1.76,
+      "visible_height_game": 2.068572
     },
     "8": {
       "pedestal_mesh": 12,
@@ -148,32 +183,35 @@
       ],
       "crystal_lift": 0.24500000000000002,
       "crystal_growth": 1.315,
-      "satellites": 8
+      "satellites": 8,
+      "upper_satellites": 6,
+      "draws": 16,
+      "runtime_triangles": 2456,
+      "visible_width_game": 1.76,
+      "visible_height_game": 2.1735340000000005
     }
   },
   "license": "Kenney source geometry/palette CC0; new authored geometry project-owned",
-  "draws_per_level": [
-    6,
-    6,
-    8,
-    8,
-    8,
-    10,
-    10,
-    10
-  ],
-  "triangles_per_level": [
-    688,
-    808,
-    1624,
-    1944,
-    2072,
-    2504,
-    2744,
-    3064
-  ],
-  "runtime_integration": "GraphicsResources loads core_levels.glb; CoreCrystalModel selects one pedestal; no gameplay/save changes",
-  "collision": "Existing game footprint/blocking unchanged; hover uses selected level animation envelope",
-  "animation": "Original central crystal and satellites, 0.28 rad/s orbit, 0.015 bob / 6 sec, 4/6/8 satellites",
-  "root": "core_asset_root: identity, floor 0; original L1 minY -0.002238"
+  "accent_swatch": {
+    "name": "original gold",
+    "blender_uv": [
+      0.65625,
+      0.285,
+      0.465
+    ]
+  },
+  "animation": "Lower ring: alternating full/72% shards from L3, small shards lifted .04; upper counter-orbit at L7/L8. 0.28/-0.20 rad/s, six-second bob. No per-frame mesh allocation.",
+  "root": {
+    "name": "core_asset_root",
+    "transform": "identity; authored child coordinates baked",
+    "pivot_glb": [
+      0,
+      0,
+      0
+    ]
+  },
+  "collision": "Unchanged existing core build footprint and movement rules; hover uses per-level animation envelope, no decorative colliders.",
+  "integration": "Loaded by ModelResource/core renderer; 13 node-ordered primitives, one selected pedestal, shared animated crystals.",
+  "primitives": 13,
+  "materials": 1
 }

@@ -70,7 +70,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1232
+      "triangles": 528
     },
     {
       "mesh": "core_pedestal_l4",
@@ -79,7 +79,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1552
+      "triangles": 848
     },
     {
       "mesh": "core_pedestal_l5",
@@ -88,7 +88,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1680
+      "triangles": 976
     },
     {
       "mesh": "core_pedestal_l6",
@@ -97,7 +97,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 2000
+      "triangles": 1296
     },
     {
       "mesh": "core_pedestal_l7",
@@ -106,7 +106,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 2240
+      "triangles": 1296
     },
     {
       "mesh": "core_pedestal_l8",
@@ -115,7 +115,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 2560
+      "triangles": 1616
     }
   ],
   "palette_byte_identical": true,
@@ -125,12 +125,12 @@
   "triangles_per_level": [
     688,
     808,
-    1624,
-    1944,
-    2072,
-    2504,
-    2744,
-    3064
+    920,
+    1240,
+    1368,
+    1800,
+    2024,
+    2456
   ],
   "loader_check": "C++ graphics smoke test (separate)",
   "native_playtest": false

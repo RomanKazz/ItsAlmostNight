@@ -76,7 +76,7 @@ for obj in originals.values():
     obj.data.materials.clear()
     obj.data.materials.append(material)
 
-STEEL = (.84375, .035, .215)
+GOLD = (.65625, .285, .465)
 DARK = (.59375, .035, .215)
 ORANGE = (.84375, .285, .465)
 RED = (.96875, .285, .465)
@@ -114,7 +114,7 @@ class Geometry:
         self.groups[name] = list(range(start, len(self.vertices)))
 
     def brace(self, name, angle, bottom, top, width, swatch):
-        # Radial steel petals rise from the shoe into the collar. Six-sided
+        # Radial gold petals rise from the shoe into the collar. Six-sided
         # profile, bevelled shoulder; no coplanar orange/metal overlays.
         profile = [(.40, bottom), (.51, bottom), (.48, bottom+.045),
                    (.35, top), (.31, top), (.35, bottom+.055)]
@@ -159,45 +159,32 @@ pedestals=[originals['core_pedestal_l1']]
 for level in range(2,9):
     g=Geometry()
     height=.207762+.035*(level-1)
-    # One substantial tapered body, a wide steel shoe and a real basin. Not
+    # One substantial tapered body, a wide gold shoe and a real basin. Not
     # repeated copies of the original pedestal. The inner bowl is open above.
     profile=[(.015,0),(.48,0),(.50,.025),(.50,.055),(.45,.075),
              (.40,.09),(.34,height-.065),(.36,height-.065),
              (.365,height-.045),(.365,height-.015),(.35,height),
              (.285,height),(.275,height-.055),(.015,height-.075)]
-    colors=[DARK,STEEL,STEEL,STEEL,DARK,RED,ORANGE,ORANGE,STEEL,STEEL,STEEL,DARK,DARK,DARK]
+    colors=[DARK,GOLD,GOLD,GOLD,DARK,RED,ORANGE,ORANGE,GOLD,GOLD,GOLD,DARK,DARK,DARK]
     g.lathe('reactor_shoe_body_and_basin',profile,colors)
     for i in range(4):
         angle=math.pi*.25+i*math.pi*.5
-        g.brace(f'steel_support_{i+1}',angle,.035,height-.035,.055 if level<4 else .085,STEEL)
-    if level>=3:
-        for i in range(4):
-            angle=i*math.pi*.5
-            # Octagonal energy window, facing out; dark surround + purple
-            # inset physically separated by .006 m, no painted fake shadow.
-            m=Matrix.Translation((.377*math.cos(angle),.377*math.sin(angle),.105+(height-.24)*.45)) @ Matrix.Rotation(angle,4,'Z') @ Matrix.Rotation(math.pi*.5,4,'Y')
-            g.lathe(f'window_frame_{i+1}',[(.01,-.018),(.059,-.018),(.066,-.01),(.066,.01),(.052,.018),(.01,.018)],DARK,8,m)
-            g.lathe(f'window_crystal_{i+1}',[(.01,.019),(.046,.019),(.045,.026),(.025,.04),(.01,.041)],PURPLE,8,m)
+        g.brace(f'gold_support_{i+1}',angle,.035,height-.035,.055 if level<4 else .085,GOLD)
     if level>=4:
         for i in range(4):
             angle=math.pi*.25+i*math.pi*.5
-            m=Matrix.Translation((.46*math.cos(angle),.46*math.sin(angle),.085)) @ Matrix.Rotation(angle,4,'Z') @ Matrix.Rotation(math.pi*.5,4,'Y')
-            g.lathe(f'anchor_bolt_{i+1}',[(.007,-.009),(.026,-.009),(.029,.006),(.022,.018),(.007,.018)],DARK,8,m)
+            m=Matrix.Translation((.485*math.cos(angle),.485*math.sin(angle),.085)) @ Matrix.Rotation(angle,4,'Z') @ Matrix.Rotation(math.pi*.5,4,'Y')
+            g.lathe(f'anchor_bolt_{i+1}',[(.007,-.009),(.022,-.009),(.024,.004),(.019,.012),(.007,.012)],DARK,8,m)
     if level>=5:
-        # Two restrained steel waist bands support the taller reactor.
-        g.lathe('waist_band',[(.35,.14),(.407,.14),(.407,.169),(.35,.169)],STEEL)
+        # Two restrained gold waist bands support the taller reactor.
+        g.lathe('waist_band',[(.35,.14),(.407,.14),(.407,.169),(.35,.169)],GOLD)
     if level>=6:
         for i in range(4):
             angle=i*math.pi*.5
             m=Matrix.Translation((.30*math.cos(angle),.30*math.sin(angle),height))
             g.lathe(f'collar_terminal_{i+1}',[(.012,-.03),(.041,-.03),(.044,.008),(.028,.035),(.012,.035)],ORANGE,8,m)
-    if level>=7:
-        for i in range(4):
-            angle=math.pi*.25+i*math.pi*.5
-            m=Matrix.Translation((.43*math.cos(angle),.43*math.sin(angle),.105))
-            g.lathe(f'energy_anchor_{i+1}',[(.012,-.05),(.037,-.05),(.037,.015),(.014,.065),(.012,.065)],PURPLE,6,m)
     if level==8:
-        g.lathe('master_collar',[(.278,height-.012),(.36,height-.012),(.379,height+.012),(.368,height+.039),(.30,height+.039),(.278,height+.016)],STEEL)
+        g.lathe('master_collar',[(.278,height-.012),(.36,height-.012),(.379,height+.012),(.368,height+.039),(.30,height+.039),(.278,height+.016)],GOLD)
         g.lathe('orange_collar_crown',[(.365,height+.01),(.386,height+.01),(.386,height+.025),(.365,height+.025)],ORANGE)
     obj=g.object(f'core_pedestal_l{level}')
     obj['core_level']=level
@@ -255,8 +242,15 @@ for level in range(1,9):
     count=4 if level<3 else 6 if level<6 else 8
     for i in range(count):
         a=math.tau*i/count
-        pose=Matrix.Translation((math.sin(a)*(.29+p*.008),math.cos(a)*(.29+p*.008),.491512+lift)) @ Matrix.Rotation(a,4,'Z') @ Matrix.Diagonal((1+p*.025,1+p*.025,1+p*.025,1)) @ Matrix.Translation((0,-.25,-.441512))
+        size=(1+p*.025)*(.72 if level>=3 and i%2 else 1)
+        height=.491512+lift+(.04 if level>=3 and i%2 else 0)
+        pose=Matrix.Translation((math.sin(a)*(.29+p*.008),math.cos(a)*(.29+p*.008),height)) @ Matrix.Rotation(a,4,'Z') @ Matrix.Diagonal((size,size,size,1)) @ Matrix.Translation((0,-.25,-.441512))
         clone(originals['core_satellite_1'],f'Preview_L{level}_orb_{i+1}',offset@pose)
+    if level>=7:
+        for i in range(6 if level==8 else 4):
+            a=math.tau*i/(6 if level==8 else 4)
+            pose=Matrix.Translation((math.sin(a)*.26,math.cos(a)*.26,.94+(level-7)*.04)) @ Matrix.Rotation(a,4,'Z') @ Matrix.Diagonal((.48,.48,.48,1)) @ Matrix.Translation((0,-.25,-.441512))
+            clone(originals['core_satellite_1'],f'Preview_L{level}_upper_{i+1}',offset@pose)
     font=bpy.data.curves.new(f'L{level}_label','FONT');font.body=f'LEVEL {level}';font.align_x='CENTER';font.size=.14
     label=bpy.data.objects.new(f'L{level}_label',font);scene.collection.objects.link(label);label.location=(x,y-.62,.005)
 
@@ -285,6 +279,21 @@ for level,obj in enumerate(pedestals,1):
     coords=[v.co for v in obj.data.vertices]
     manifest['levels'][str(level)]={'pedestal_mesh':level+4,'pedestal_min':[min(v[i] for v in coords) for i in (0,2,1)],
         'pedestal_max':[max(v[i] for v in coords) for i in (0,2,1)],'crystal_lift':(level-1)*.035,'crystal_growth':1+(level-1)*.045,
-        'satellites':4 if level<3 else 6 if level<6 else 8}
+        'satellites':4 if level<3 else 6 if level<6 else 8,
+        'upper_satellites':6 if level==8 else 4 if level==7 else 0,
+        'draws':6 if level<3 else 8 if level<6 else 10 if level==6 else 14 if level==7 else 16}
+manifest['accent_swatch']={'name':'original gold','blender_uv':[.65625,.285,.465]}
+manifest['animation']='Lower ring: alternating full/72% shards from L3, small shards lifted .04; upper counter-orbit at L7/L8. 0.28/-0.20 rad/s, six-second bob. No per-frame mesh allocation.'
+manifest['root']={'name':'core_asset_root','transform':'identity; authored child coordinates baked','pivot_glb':[0,0,0]}
+manifest['collision']='Unchanged existing core build footprint and movement rules; hover uses per-level animation envelope, no decorative colliders.'
+manifest['integration']='Loaded by ModelResource/core renderer; 13 node-ordered primitives, one selected pedestal, shared animated crystals.'
+manifest['primitives']=13
+manifest['materials']=1
+for level,obj in enumerate(pedestals,1):
+    obj.data.calc_loop_triangles()
+    shards=manifest['levels'][str(level)]['satellites']+manifest['levels'][str(level)]['upper_satellites']
+    manifest['levels'][str(level)]['runtime_triangles']=len(obj.data.loop_triangles)+56*(1+shards)
+    manifest['levels'][str(level)]['visible_width_game']=1.76
+    manifest['levels'][str(level)]['visible_height_game']=(.267762+(.815262-.267762)*(1+(level-1)*.045)+(level-1)*.035+.002238)*1.76
 (ART/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 print('Authored and exported 8 core levels, 13 meshes. Original source and other Blender scenes preserved.')
