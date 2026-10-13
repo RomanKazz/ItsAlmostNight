@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "DefenseIdleAimChecks.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -22,6 +23,7 @@ void tickUntilShot(ian::CannonSystem& cannons,
 } // namespace
 
 void runCannonSystemTests() {
+    defense_idle_aim_checks::ballistics();
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "cannon fixture creates core");
@@ -242,8 +244,8 @@ void runCannonSystemTests() {
     for (int tick = 0; tick < 120; ++tick) {
         smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
     }
-    requireNear(smoothCannons.cannons().front().pitch, 0.0, 1e-5,
-                "barrel smoothly settles back to its resting pitch");
+    requireNear(smoothCannons.cannons().front().pitch, raisedPitch, 1e-12,
+                "idle barrel retains its last elevation indefinitely");
     smoothRegistry.front().rotation = 3;
     smoothCannons.syncBuildings(smoothRegistry);
     for (int tick = 0; tick < 120; ++tick) {

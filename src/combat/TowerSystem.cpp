@@ -308,19 +308,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             tower.targetSearchCooldownRemaining = SearchInterval;
         }
         if (!tower.targetId) {
-            if (std::abs(wrapBuildingAngle(tower.baseYaw - tower.restYaw)) > 0.0001) {
-                // Preserve the original manual turn while the base rotates.
-                tower.yaw = smoothBuildingAngle(
-                    tower.yaw, tower.restYaw, deltaSeconds);
-                tower.yawVelocity = 0.0;
-            } else {
-                tower.yaw = advanceDefenseAim(
-                    tower.yaw, tower.restYaw, tower.yawVelocity,
-                    deltaSeconds, aimResponse, aimTurnSpeed, true);
-            }
-            tower.pitch = advanceDefenseAim(
-                tower.pitch, 0.0, tower.pitchVelocity,
-                deltaSeconds, 10.0, aimPitchSpeed, false);
+            defense_runtime::holdAimWithoutTarget(tower, deltaSeconds);
             continue;
         }
 
@@ -330,6 +318,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             continue;
         }
         const Vec3 aimPosition = enemyAimPosition(*target);
+        tower.manualTurnPending = false;
         const double deltaX = aimPosition.x - origin.x;
         const double deltaY = aimPosition.y - origin.y;
         const double deltaZ = aimPosition.z - origin.z;

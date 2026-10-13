@@ -22,6 +22,7 @@ struct TowerRuntime {
     double pitchVelocity{};
     double previousYaw{};
     double previousPitch{};
+    bool manualTurnPending{};
     double fireCooldownRemaining{};
     double targetSearchCooldownRemaining{};
     std::uint8_t nextMuzzle{};

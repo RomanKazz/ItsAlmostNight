@@ -40,9 +40,24 @@ void syncBuildings(
             });
         } else if (std::abs(wrapBuildingAngle(runtime->restYaw - restYaw)) > 0.0001) {
             runtime->restYaw = restYaw;
+            runtime->manualTurnPending = true;
             runtime->targetId.reset();
             runtime->targetSearchCooldownRemaining = searchInterval;
         }
+    }
+}
+
+// Target loss is an idle hold, not an instruction to return to placement yaw.
+// Only an explicit player rotation may move an idle defense. Stop residual aim
+// velocity so acquiring the next target cannot reuse momentum from the old one.
+template <typename Runtime>
+void holdAimWithoutTarget(Runtime& runtime, double deltaSeconds) {
+    runtime.yawVelocity = 0.0;
+    runtime.pitchVelocity = 0.0;
+    if (runtime.manualTurnPending) {
+        runtime.yaw = smoothBuildingAngle(runtime.yaw, runtime.restYaw, deltaSeconds);
+        if (std::abs(wrapBuildingAngle(runtime.yaw - runtime.restYaw)) < 1e-12)
+            runtime.manualTurnPending = false;
     }
 }
 

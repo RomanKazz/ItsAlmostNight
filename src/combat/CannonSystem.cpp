@@ -227,6 +227,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
                 cannon.firingAnimationRemaining;
             cannon.pitch = catapultArmPitch(elapsed);
             if (cannon.pendingTargetPosition && cannon.targetId) {
+                cannon.manualTurnPending = false;
                 const Vec3& target = *cannon.pendingTargetPosition;
                 const double desiredYaw = std::atan2(
                     targetingOrigin.x - target.x, targetingOrigin.z - target.z);
@@ -234,9 +235,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
                     cannon.yaw, desiredYaw, cannon.yawVelocity,
                     deltaSeconds, 12.0, TurnSpeed, true);
             } else {
-                cannon.yaw = smoothBuildingAngle(
-                    cannon.yaw, cannon.restYaw, deltaSeconds);
-                cannon.yawVelocity = 0.0;
+                defense_runtime::holdAimWithoutTarget(cannon, deltaSeconds);
             }
             if (previousElapsed < CatapultReleaseTime &&
                 elapsed >= CatapultReleaseTime &&
@@ -309,16 +308,14 @@ std::span<const CannonExplosion> CannonSystem::tick(
             }
         }
         if (cannon.targetId) {
+            cannon.manualTurnPending = false;
             cannon.yaw = advanceDefenseAim(
                 cannon.yaw, desiredYaw, cannon.yawVelocity,
                 deltaSeconds, 12.0, TurnSpeed, true);
         } else {
-            // Keep the original manual/rest turn; inertia is only for aiming.
-            cannon.yaw = smoothBuildingAngle(
-                cannon.yaw, cannon.restYaw, deltaSeconds);
-            cannon.yawVelocity = 0.0;
+            defense_runtime::holdAimWithoutTarget(cannon, deltaSeconds);
         }
-        if (building->type == BuildingType::Cannon) {
+        if (building->type == BuildingType::Cannon && cannon.targetId) {
             cannon.pitch = advanceDefenseAim(
                 cannon.pitch, desiredPitch, cannon.pitchVelocity,
                 deltaSeconds, 10.0, PitchSpeed, false);

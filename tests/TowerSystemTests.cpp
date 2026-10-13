@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "DefenseIdleAimChecks.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "combat/TowerSystem.hpp"
@@ -10,6 +11,7 @@
 #include <cmath>
 
 void runTowerSystemTests() {
+    defense_idle_aim_checks::towers();
     requireNear(
         ian::TowerSystem::fireInterval(
             ian::BuildingType::Turret, 1),
@@ -185,14 +187,17 @@ void runTowerSystemTests() {
                 "both hitscan towers ease into aim, settle and still fire");
         targets.reset();
         const double aimedYaw = smoothTowers.towers().front().yaw;
+        const double aimedPitch = smoothTowers.towers().front().pitch;
         smoothTowers.tick(1.0 / 60.0, registry, targets);
         require(std::abs(ian::wrapBuildingAngle(smoothTowers.towers().front().yaw - aimedYaw)) < 0.02,
                 "target loss cannot abruptly spin a hitscan tower back to rest");
         for (int tick = 0; tick < 120; ++tick) {
             smoothTowers.tick(1.0 / 60.0, registry, targets);
         }
-        requireNear(smoothTowers.towers().front().yaw, 0.0, 1e-5,
-                    "hitscan tower settles back to its resting direction");
+        requireNear(smoothTowers.towers().front().yaw, aimedYaw, 1e-12,
+                    "idle hitscan tower retains its last yaw indefinitely");
+        requireNear(smoothTowers.towers().front().pitch, aimedPitch, 1e-12,
+                    "idle hitscan tower retains its last elevation indefinitely");
     }
 
     {
@@ -240,10 +245,11 @@ void runTowerSystemTests() {
                     "crossbow changes yaw and elevation smoothly between targets");
         }
         targets.reset();
+        const double heldPitch = crossbow.towers().front().pitch;
         for (int frame = 0; frame < 180; ++frame)
             crossbow.tick(1.0 / 60.0, registry, targets);
-        requireNear(crossbow.towers().front().pitch, 0.0, 1e-6,
-                    "crossbow settles back to level after target loss");
+        requireNear(crossbow.towers().front().pitch, heldPitch, 1e-12,
+                    "crossbow retains its last elevation after target loss");
     }
 
     ian::BuildingSystem gunBuildings;
