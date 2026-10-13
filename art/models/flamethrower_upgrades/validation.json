@@ -1,0 +1,199 @@
+{
+  "meshes": [
+    {
+      "mesh": "upgrade_l2_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l2_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l2_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l3_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l3_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l3_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 108
+    },
+    {
+      "mesh": "upgrade_l4_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 60
+    },
+    {
+      "mesh": "upgrade_l4_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 48
+    },
+    {
+      "mesh": "upgrade_l4_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 108
+    },
+    {
+      "mesh": "upgrade_l5_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 60
+    },
+    {
+      "mesh": "upgrade_l5_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 144
+    },
+    {
+      "mesh": "upgrade_l5_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 108
+    },
+    {
+      "mesh": "upgrade_l6_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 60
+    },
+    {
+      "mesh": "upgrade_l6_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 144
+    },
+    {
+      "mesh": "upgrade_l6_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 400
+    },
+    {
+      "mesh": "upgrade_l7_base.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 60
+    },
+    {
+      "mesh": "upgrade_l7_pitch.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 144
+    },
+    {
+      "mesh": "upgrade_l7_yaw.002",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 500
+    },
+    {
+      "mesh": "upgrade_l8_base.003",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 112
+    },
+    {
+      "mesh": "upgrade_l8_pitch.003",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 192
+    },
+    {
+      "mesh": "upgrade_l8_yaw.003",
+      "finite": true,
+      "unit_normals": true,
+      "valid_uv": true,
+      "manifold": true,
+      "positive_volume": true,
+      "smooth_faces": 596
+    }
+  ],
+  "palette_matches": true,
+  "base_preserved": true,
+  "tested_poses": 7560,
+  "rotating_overlaps_fixed_geometry": [],
+  "loader_verified": false,
+  "native_playtest": false
+}
