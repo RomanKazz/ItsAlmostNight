@@ -1,0 +1,9 @@
+# Gameplay hint style
+
+Interaction prompts use one compact chamfered dark panel with the existing menu colors, outlined faces and shared key badge (`UiHintStyle.hpp`). This covers trials, shrines, restored map producers, chests, breakable crates/barrels, loot, building upgrades, producer stock and modular repairs. Inventory descriptions, placement summaries/errors, repair mode and restart prompts share those visual tokens.
+
+Copy is limited to the action and key, plus a price/stock row where needed. Only loot retains an item name and an available reroll instruction; repairs do not repeat copy/sell/close controls. Shrine prompts show `Player bonus` or `Building bonus` and wood/stone/crystal prices. Enough resources are light; missing resources are red. Existing coin purchases keep coin prices. Controls come from bindings, including remapped keys.
+
+Appearance fades opacity only: panel dimensions, text size, line breaks and baseline stay fixed. Width is capped at 420 scaled pixels and stays independent of camera distance. Panels clamp to the logical viewport and avoid the crosshair. Breakable prop hints sit below the crosshair near the aimed object, and visibility uses the actual mesh-bounds center instead of a hard-coded tall world offset. Terrain/occlusion filtering and progress feedback are retained.
+
+`interactionPromptPanelBounds` exposes the real layout for checks. `ShrinePromptChecks.hpp` covers matching resource presentation, affordability colors, remapped keys, viewport bounds, hidden occluded targets, low prop placement and stationary geometry during entrance. English/Russian captures cover six interaction kinds. Automated captures do not imply a manual native playtest.

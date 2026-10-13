@@ -4,7 +4,7 @@ New runs generate 12 Player Shrines and 12 Building Shrines at seeded, safe site
 
 ## Costs
 
-Both types share the count of paid activations, `n` (0–23). Player: `(20+8n) wood, (12+5n) stone, (4+2n) crystals`. Buildings: `(25+8n), (15+5n), (5+2n)`. The world prompt uses the same wood/stone/crystal icon-and-amount row as building upgrades, with affordable amounts light and missing resources red, and an E action below. No coin cost is shown. Payment is atomic; insufficient resources preserve the altar and counter. Godmode bypasses payment. Three distinct common-strength bonuses are drawn uniformly from the relevant pool, independently of owned tomes. Paid offers cannot use normal reroll tokens. Unfinished offers persist through save/load with their exact choices and source shrine.
+Both types share the count of paid activations, `n` (0–23). Player: `(20+8n) wood, (12+5n) stone, (4+2n) crystals`. Buildings: `(25+8n), (15+5n), (5+2n)`. The world prompt uses the same wood/stone/crystal icon-and-amount row as building upgrades, with affordable amounts light and missing resources red, and a compact E action in the same panel. No coin cost is shown. Payment is atomic; insufficient resources preserve the altar and counter. Godmode bypasses payment. Three distinct common-strength bonuses are drawn uniformly from the relevant pool, independently of owned tomes. Paid offers cannot use normal reroll tokens. Unfinished offers persist through save/load with their exact choices and source shrine.
 
 ## Tome effects
 

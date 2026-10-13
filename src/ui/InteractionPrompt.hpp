@@ -64,6 +64,9 @@ struct InteractionPrompt {
     bool occluded{};
 };
 
+[[nodiscard]] Rectangle interactionPromptPanelBounds(const InteractionPrompt& prompt,Vector2 anchor,
+    Vector2 screen,const ControlSettings& controls);
+
 class InteractionPromptRenderer {
   public:
     void draw(const std::optional<InteractionPrompt>& prompt,
@@ -91,8 +94,7 @@ class InteractionPromptRenderer {
     void drawPrompt(const InteractionPrompt& prompt,
                     const Camera3D& camera, const GameUi& ui,
                     const ControlSettings& controls,
-                    float opacity, float scale,
-                    float liftPixels);
+                    float opacity);
 
     std::optional<TargetKey> activeTarget_;
     std::optional<TargetKey> candidateTarget_;
@@ -100,8 +102,6 @@ class InteractionPromptRenderer {
     double candidateSeconds_{};
     double missingSeconds_{};
     float opacity_{};
-    float scale_{0.96F};
-    float liftPixels_{5.0F};
     float progress_{}, progressOpacity_{};
     float failureRemaining_{};
     float successRemaining_{};

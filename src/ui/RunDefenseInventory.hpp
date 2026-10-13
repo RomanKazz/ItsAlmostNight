@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiItemTooltip.hpp"
 
 #include "ui/RunHammerUi.hpp"
 #include "localization/Localization.hpp"
@@ -46,17 +47,10 @@ inline void drawRunDefenseInventory(const GameUi& ui, const SimulationSnapshot& 
         drawUiText("+", {cell.x + (cell.width - measured.x) * .5F,
             cell.y + (cell.height - measured.y) * .5F}, size, fade({190, 202, 197, 115}));
     }
-    if (hovered) {
-        const float width = std::min(300.0F, static_cast<float>(uiScreenWidth()) - 24);
-        const float left = std::clamp(mouse.x, 12.0F, static_cast<float>(uiScreenWidth()) - width - 12);
-        const Rectangle tooltip{left, bounds.y + pitch + 6, width, 62};
-        DrawRectangleRounded(tooltip, .12F, 4, fade({24, 29, 27, 245}));
-        const auto name = localizeText(runUpgradeDefinition(*hovered).name);
-        drawUiText(name, {left + 10, tooltip.y + 8}, fitUiTextSize(name, 17, 11, width - 20), fade(UiWhite));
-        const ScopedUiFontRole body(UiFontRole::Body);
-        drawUiText("LVL " + std::to_string(snapshot.runUpgradeStacks[runUpgradeIndex(*hovered)]),
-            {left + 10, tooltip.y + 36}, 14, fade({197, 207, 190, 255}));
-    }
+    if (hovered) drawItemTooltip(runUpgradeDefinition(*hovered).name,
+        "LVL "+std::to_string(snapshot.runUpgradeStacks[runUpgradeIndex(*hovered)])+" · "+
+            localizeText(runUpgradeDefinition(*hovered).description),
+        mouse,{static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},.85F,opacity);
 }
 
 } // namespace ian

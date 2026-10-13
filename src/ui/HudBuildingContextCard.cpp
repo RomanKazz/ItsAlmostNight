@@ -5,6 +5,7 @@
 #include "ui/UiChamferedPlate.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiHintStyle.hpp"
 #include "ui/UiViewport.hpp"
 
 #include <algorithm>
@@ -90,22 +91,12 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
             std::lround(static_cast<float>(color.a) * opacity));
         return color;
     };
-    // Fill once: stacking translucent plate layers makes the panel opaque.
-    const float cut = 12 * scale;
-    drawChamferedFill({x,y,width,height}, cut, faded({32,44,38,198}));
-    const std::array<Vector2, 9> outline{{
-        {x+cut,y}, {x,y+cut}, {x,y+height-cut}, {x+cut,y+height},
-        {x+width-cut,y+height}, {x+width,y+height-cut},
-        {x+width,y+cut}, {x+width-cut,y}, {x+cut,y},
-    }};
-    for (std::size_t i = 1; i < outline.size(); ++i)
-        DrawLineEx(outline[i-1], outline[i], 3 * scale, faded({8,15,11,220}));
-    DrawLineEx({x+12*scale,y+48*scale}, {x+width-12*scale,y+48*scale},
-        scale, faded({171,190,169,110}));
+    hintStyle::panel({x,y,width,height},scale,opacity);
+    DrawLineEx({x+16*scale,y+48*scale},{x+width-16*scale,y+48*scale},scale,faded(menuStyle::Card));
+    const ScopedUiFontRole body(UiFontRole::Body);
     const auto point = [=](float px, float py) { return Vector2{x+px*scale,y+py*scale}; };
-    const float titleFont = std::min(19.0F, 19.0F * 330.0F /
-        std::max(330.0F, measureUiText(title, 19).x)) * scale;
-    drawSdfUiText(title, point(16,9), titleFont, faded({255,244,216,255}));
+    hintStyle::text(title,{x+16*scale,y+8*scale,330*scale,31*scale},19*scale,
+        menuStyle::Gold,UiFontRole::Display,opacity);
     if (level > 0) {
         const std::string label = "LVL " + std::to_string(level);
         drawSdfUiText(label, point(444-measureUiText(label,13).x,15),13*scale,

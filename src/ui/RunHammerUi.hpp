@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiItemTooltip.hpp"
 
 #include "ui/UiViewport.hpp"
 
@@ -65,17 +66,10 @@ inline void drawRunHammerInventory(const GameUi& ui, const SimulationSnapshot& s
             cell.y + (cell.height - plusSize.y) * .5F},
             fontSize, fade({190, 202, 197, 115}));
     }
-    if (hovered) {
-        const std::string level = "LVL " + std::to_string(runTomeLevel(hovered->effect, snapshot.runUpgradeStacks));
-        const float width = std::min(300.0F, static_cast<float>(uiScreenWidth()) - 24.0F);
-        const float left = std::clamp(mouse.x, 12.0F, static_cast<float>(uiScreenWidth()) - width - 12.0F);
-        const Rectangle tooltip{left, bounds.y + static_cast<float>((count + columns - 1) / columns) * cellSize + 6.0F, width, 62.0F};
-        DrawRectangleRounded(tooltip, 0.12F, 4, fade({24, 29, 27, 245}));
-        const float fontSize = fitUiTextSize(hovered->name, 17.0F, 11.0F, width - 20.0F);
-        drawUiText(hovered->name, {left + 10.0F, tooltip.y + 8.0F}, fontSize, fade(UiWhite));
-        const ScopedUiFontRole body(UiFontRole::Body);
-        drawUiText(level, {left + 10.0F, tooltip.y + 36.0F}, 14.0F, fade({197, 207, 190, 255}));
-    }
+    if (hovered) drawItemTooltip(hovered->name,
+        "LVL "+std::to_string(runTomeLevel(hovered->effect,snapshot.runUpgradeStacks))+" · "+
+            localizeText(runUpgradeDefinition(hovered->effect).description),
+        mouse,{static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},.85F,opacity);
 }
 
 } // namespace ian
