@@ -1,0 +1,137 @@
+{
+  "geometry": [
+    {
+      "mesh": "core_crystal",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 56
+    },
+    {
+      "mesh": "core_satellite_1",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 56
+    },
+    {
+      "mesh": "core_satellite_2",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 56
+    },
+    {
+      "mesh": "core_satellite_3",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 56
+    },
+    {
+      "mesh": "core_satellite_4",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 56
+    },
+    {
+      "mesh": "core_pedestal_l1",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 408
+    },
+    {
+      "mesh": "core_pedestal_l2",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 528
+    },
+    {
+      "mesh": "core_pedestal_l3",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 1232
+    },
+    {
+      "mesh": "core_pedestal_l4",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 1552
+    },
+    {
+      "mesh": "core_pedestal_l5",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 1680
+    },
+    {
+      "mesh": "core_pedestal_l6",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 2000
+    },
+    {
+      "mesh": "core_pedestal_l7",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 2240
+    },
+    {
+      "mesh": "core_pedestal_l8",
+      "finite": true,
+      "valid_uv": true,
+      "manifold": true,
+      "outward_winding": true,
+      "unit_normals": true,
+      "triangles": 2560
+    }
+  ],
+  "palette_byte_identical": true,
+  "original_preserved": true,
+  "orbit_frames": 2880,
+  "orbit_collisions": [],
+  "triangles_per_level": [
+    688,
+    808,
+    1624,
+    1944,
+    2072,
+    2504,
+    2744,
+    3064
+  ],
+  "loader_check": "C++ graphics smoke test (separate)",
+  "native_playtest": false
+}

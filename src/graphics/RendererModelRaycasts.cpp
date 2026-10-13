@@ -338,7 +338,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         if (building.type == BuildingType::Core) {
             const BoundingBox bounds =
                 world_transforms::transformBounds(
-                    core_crystal_model_detail::levelBounds(resource->visualBounds(), building.level),
+                    core_crystal_model_detail::levelBounds(building.level),
                     baseTransform);
             return acceptCollision(GetRayCollisionBox(ray, bounds));
         }

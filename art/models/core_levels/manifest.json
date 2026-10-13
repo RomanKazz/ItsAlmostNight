@@ -1,0 +1,179 @@
+{
+  "source": "core.glb (original preserved)",
+  "source_sha256": "53e6530cf9a5ffa8cd97f1306e89b10fa3dbfa40e66a4e86c9c333a39e519893",
+  "glb": "assets/models/buildings/core_levels.glb",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "runtime_scale": 1.76,
+  "authoring": "Blender MCP; isolated IAN_CORE_LEVELS scene",
+  "axes": "Blender +Z up, GLB +Y up; symmetric core, no directional front",
+  "mesh_order": [
+    "core_crystal",
+    "core_satellite_1",
+    "core_satellite_2",
+    "core_satellite_3",
+    "core_satellite_4",
+    "core_pedestal_l1",
+    "core_pedestal_l2",
+    "core_pedestal_l3",
+    "core_pedestal_l4",
+    "core_pedestal_l5",
+    "core_pedestal_l6",
+    "core_pedestal_l7",
+    "core_pedestal_l8"
+  ],
+  "levels": {
+    "1": {
+      "pedestal_mesh": 5,
+      "pedestal_min": [
+        -0.5,
+        -0.002237983513623476,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.2077620029449463,
+        0.5
+      ],
+      "crystal_lift": 0.0,
+      "crystal_growth": 1.0,
+      "satellites": 4
+    },
+    "2": {
+      "pedestal_mesh": 6,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.2427619993686676,
+        0.5
+      ],
+      "crystal_lift": 0.035,
+      "crystal_growth": 1.045,
+      "satellites": 4
+    },
+    "3": {
+      "pedestal_mesh": 7,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.2777619957923889,
+        0.5
+      ],
+      "crystal_lift": 0.07,
+      "crystal_growth": 1.09,
+      "satellites": 6
+    },
+    "4": {
+      "pedestal_mesh": 8,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.31276199221611023,
+        0.5
+      ],
+      "crystal_lift": 0.10500000000000001,
+      "crystal_growth": 1.135,
+      "satellites": 6
+    },
+    "5": {
+      "pedestal_mesh": 9,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.34776198863983154,
+        0.5
+      ],
+      "crystal_lift": 0.14,
+      "crystal_growth": 1.18,
+      "satellites": 6
+    },
+    "6": {
+      "pedestal_mesh": 10,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.41776201128959656,
+        0.5
+      ],
+      "crystal_lift": 0.17500000000000002,
+      "crystal_growth": 1.225,
+      "satellites": 8
+    },
+    "7": {
+      "pedestal_mesh": 11,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.45276200771331787,
+        0.5
+      ],
+      "crystal_lift": 0.21000000000000002,
+      "crystal_growth": 1.27,
+      "satellites": 8
+    },
+    "8": {
+      "pedestal_mesh": 12,
+      "pedestal_min": [
+        -0.5,
+        0.0,
+        -0.5
+      ],
+      "pedestal_max": [
+        0.5,
+        0.4917620122432709,
+        0.5
+      ],
+      "crystal_lift": 0.24500000000000002,
+      "crystal_growth": 1.315,
+      "satellites": 8
+    }
+  },
+  "license": "Kenney source geometry/palette CC0; new authored geometry project-owned",
+  "draws_per_level": [
+    6,
+    6,
+    8,
+    8,
+    8,
+    10,
+    10,
+    10
+  ],
+  "triangles_per_level": [
+    688,
+    808,
+    1624,
+    1944,
+    2072,
+    2504,
+    2744,
+    3064
+  ],
+  "runtime_integration": "GraphicsResources loads core_levels.glb; CoreCrystalModel selects one pedestal; no gameplay/save changes",
+  "collision": "Existing game footprint/blocking unchanged; hover uses selected level animation envelope",
+  "animation": "Original central crystal and satellites, 0.28 rad/s orbit, 0.015 bob / 6 sec, 4/6/8 satellites",
+  "root": "core_asset_root: identity, floor 0; original L1 minY -0.002238"
+}

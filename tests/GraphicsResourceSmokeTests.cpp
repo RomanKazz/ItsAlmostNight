@@ -2598,7 +2598,7 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
 }
 
 bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
-    if (!resource.valid() || resource.get().meshCount != 7) return false;
+    if (!resource.valid() || resource.get().meshCount != ian::core_crystal_model_detail::MeshCount) return false;
     const Model& model = resource.get();
     for (int part = 0; part < model.meshCount; ++part) {
         const Mesh& mesh = model.meshes[part];
@@ -2650,7 +2650,7 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
     // Bounds used by aiming and feedback must contain every upgraded part,
     // including rotating satellite rings, without changing the build footprint.
     for (int level = 1; level <= 8; ++level) {
-        const BoundingBox bounds = ian::core_crystal_model_detail::levelBounds(resource.visualBounds(), level);
+        const BoundingBox bounds = ian::core_crystal_model_detail::levelBounds(level);
         for (int frame = 0; frame < 24; ++frame) {
             bool contained = true;
             ian::core_crystal_model_detail::forEachLevelPart(level, frame * 0.25,

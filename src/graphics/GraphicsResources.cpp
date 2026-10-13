@@ -1099,7 +1099,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     gunTurretModel_.load("assets/models/buildings/gun_turret.glb");
     flamethrowerModel_.load("assets/models/buildings/flamethrower.glb");
     turretBulletModel_.load("assets/models/projectiles/turret_bullet.glb");
-    coreModel_.load("assets/models/buildings/core.glb");
+    coreModel_.load("assets/models/buildings/core_levels.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
     static_cast<void>(pickaxeAnimation_.load(

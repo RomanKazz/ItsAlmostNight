@@ -579,7 +579,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
             height = std::max(height, transformed.max.y * scale);
         };
         const auto includePair = [&](int index, bool) { includeMesh(index); };
-        if (type == BuildingType::Core && meshCount == 7) {
+        if (type == BuildingType::Core && meshCount == core_crystal_model_detail::MeshCount) {
             core_crystal_model_detail::forEachLevelPart(level, 0.0,
                 [&](int index, Matrix pose, Color, bool) { includeMesh(index, pose); });
         } else if (type == BuildingType::CrystalMine &&
@@ -637,7 +637,7 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
     prepareModelShader(model);
     constexpr float GroundOffset = 0.005F;
     position.y += GroundOffset;
-    if (model.meshCount == 7) {
+    if (model.meshCount == core_crystal_model_detail::MeshCount) {
         const float uniformScale = CoreModelScale * scale;
         const Matrix transform = MatrixMultiply(
             model.transform,

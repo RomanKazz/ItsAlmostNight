@@ -8,8 +8,10 @@
 
 namespace ian::core_crystal_model_detail {
 
-// core.glb: central crystal = 0, four satellites = 1..4, pedestal = 5,
-// reusable metal band = 6 (hidden at level 1).
+inline constexpr int MeshCount = 13;
+// core_levels.glb: original central crystal = 0, satellites = 1..4,
+// authored pedestals for levels 1..8 = 5..12. One textured pedestal draw
+// replaces the old stack of scaled/tinted copies of the original geometry.
 // Node offsets are baked into the loaded vertices, so a shared rotation
 // around the model origin moves the satellites around the central crystal.
 [[nodiscard]] inline Matrix meshTransform(int meshIndex, double seconds) {
@@ -43,7 +45,7 @@ void forEachLevelPart(int requestedLevel, double seconds, Emit&& emit) {
     }
     const float progression = static_cast<float>(level - 1);
     const float growth = 1.0F + progression * 0.045F;
-    const float lift = level >= 5 ? 0.16F : (level >= 3 ? 0.08F : 0.0F);
+    const float lift = progression * 0.035F;
     constexpr float CrystalBottom = 0.267762F;
     const Matrix centerPose = MatrixMultiply(
         MatrixTranslate(0, -CrystalBottom, 0),
@@ -51,18 +53,7 @@ void forEachLevelPart(int requestedLevel, double seconds, Emit&& emit) {
                                   1.0F + (growth - 1.0F) * 0.5F),
             MatrixTranslate(0, CrystalBottom + lift, 0)));
     emit(0, centerPose, WHITE, false);
-    emit(5, MatrixIdentity(), WHITE, false);
-    const auto pedestalPart = [&](float radius, float height, float y, Color color, bool solid) {
-        emit(solid ? 6 : 5, MatrixMultiply(MatrixScale(radius, height, radius),
-                               MatrixTranslate(0, y, 0)), color, solid);
-    };
-    const Color metal = level >= 5 ? Color{239, 188, 77, 255} : Color{151, 181, 206, 255};
-    pedestalPart(1.025F, 1.2F, 0.12F, metal, true);
-    if (level >= 3) pedestalPart(0.80F, 0.55F, 0.18F, WHITE, false);
-    if (level >= 4) pedestalPart(0.825F, 1.0F, 0.265F, metal, true);
-    if (level >= 5) pedestalPart(0.66F, 0.45F, 0.27F, WHITE, false);
-    if (level >= 6) pedestalPart(0.685F, 1.0F, 0.345F, metal, true);
-    if (level == 8) pedestalPart(0.53F, 1.4F, 0.365F, {255, 217, 116, 255}, true);
+    emit(level + 4, MatrixIdentity(), WHITE, false);
 
     // Mesh 1 already contains its GLB node offset. Recenter before placing
     // copies on the orbit, rather than rotating each crystal around itself.
@@ -82,22 +73,19 @@ void forEachLevelPart(int requestedLevel, double seconds, Emit&& emit) {
     const int satelliteCount = level >= 6 ? 8 : (level >= 3 ? 6 : 4);
     orbit(satelliteCount, 0.29F + progression * 0.008F,
           0.491512F + lift, 1.0F + progression * 0.025F, 0.28);
-    if (level >= 7) orbit(level == 8 ? 6 : 4, 0.22F,
-        0.90F + static_cast<float>(level - 7) * 0.04F, 0.48F, -0.20);
 }
 
-[[nodiscard]] inline BoundingBox levelBounds(BoundingBox authored, int requestedLevel) {
+[[nodiscard]] inline BoundingBox levelBounds(int requestedLevel) {
     const int level = std::clamp(requestedLevel, 1, 8);
-    if (level == 1) return authored;
+    // visualBounds() covers all eight stored variants, not only the selected
+    // one. Use the original dimensions and the authored animation envelope.
+    // The whole pedestal family fits the same half-metre horizontal bounds.
     constexpr float CrystalBottom = 0.267762F;
-    const float lift = level >= 5 ? 0.16F : (level >= 3 ? 0.08F : 0.0F);
-    authored.min.x *= 1.025F;
-    authored.min.z *= 1.025F;
-    authored.max.x *= 1.025F;
-    authored.max.z *= 1.025F;
-    authored.max.y = CrystalBottom + (authored.max.y - CrystalBottom) *
-        (1.0F + static_cast<float>(level - 1) * 0.045F) + lift;
-    return authored;
+    const float progression = static_cast<float>(level - 1);
+    const float lift = progression * 0.035F;
+    return {{-0.5F, -0.002238F, -0.5F},
+            {0.5F, CrystalBottom + (0.815262F - CrystalBottom) *
+                (1.0F + progression * 0.045F) + lift, 0.5F}};
 }
 
 } // namespace ian::core_crystal_model_detail
