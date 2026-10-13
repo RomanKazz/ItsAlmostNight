@@ -260,7 +260,9 @@ void GameUi::initialize() {
     }
     for (const auto& tome : RunTomeDefinitions) {
         auto& icon = tomeIcons_[runUpgradeIndex(tome.effect)];
-        icon = createRunTomeIcon(runUpgradeSymbolTexture(tome.effect), tome.colorRgb);
+        if (const char* path = runTomeIconPath(tome.effect)) icon = loadTexture(path);
+        if (!IsTextureValid(icon))
+            icon = createRunTomeIcon(runUpgradeSymbolTexture(tome.effect), tome.colorRgb);
         smoothHudIcon(icon);
     }
     minimapTarget_ = LoadRenderTexture(

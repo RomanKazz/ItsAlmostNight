@@ -1,0 +1,297 @@
+{
+  "tool": "built-in image_gen",
+  "styleReferences": [
+    "assets/ui/building_turret.png",
+    "assets/ui/building_flamethrower.png"
+  ],
+  "entries": [
+    {
+      "name": "fortitude",
+      "effect": "BuildingHealth",
+      "coverRgb": "78A7FF",
+      "subject": "blue cover with a large pale steel shield bearing one simple castle battlement silhouette, protective building toughness",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Subject: blue cover with a large pale steel shield bearing one simple castle battlement silhouette, protective building toughness.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-f29e9710-7791-4d3e-ac4a-b27bca983765.png",
+      "asset": "assets/ui/tomes/fortitude.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "industry",
+      "effect": "ProductionSpeed",
+      "coverRgb": "72DA92",
+      "subject": "green cover with a large blue-gray steel cog and a warm orange central hub, industrial production",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: green cover with a large blue-gray steel cog and a warm orange central hub, industrial production.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-5aa8b530-a681-43b1-b76d-070d4c7ba9c9.png",
+      "asset": "assets/ui/tomes/industry.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "fortune",
+      "effect": "Luck",
+      "coverRgb": "A36CEF",
+      "subject": "purple cover with one plump bright green four-leaf clover and a short stem, luck",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: purple cover with one plump bright green four-leaf clover and a short stem, luck.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-bc861c26-83c0-4327-af1b-c10d493901e2.png",
+      "asset": "assets/ui/tomes/fortune.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "capacity",
+      "effect": "ResourceCapacity",
+      "coverRgb": "D3B061",
+      "subject": "ochre brown cover with a compact cluster of three large resource chunks: an orange cut log, a slate rock and a violet crystal, richer resource deposits",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: ochre brown cover with a compact cluster of three large resource chunks: an orange cut log, a slate rock and a violet crystal, richer resource deposits.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-93c7991c-f46c-412f-ba06-ca8c8823af36.png",
+      "asset": "assets/ui/tomes/capacity.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "vitality",
+      "effect": "MaximumHealth",
+      "coverRgb": "FF647F",
+      "subject": "rose-red cover with one large plump bright red heart, health",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: rose-red cover with one large plump bright red heart, health.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-da6f7777-393f-4410-ad68-6fdb5d6b5d1e.png",
+      "asset": "assets/ui/tomes/vitality.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "guard",
+      "effect": "RecoverableArmor",
+      "coverRgb": "68DBFF",
+      "subject": "cyan cover with one large royal blue shield with silver rim, armor",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: cyan cover with one large royal blue shield with silver rim, armor.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-877c5305-7f95-44c3-bfa3-e97bad42aaac.png",
+      "asset": "assets/ui/tomes/guard.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "swift",
+      "effect": "MoveSpeed",
+      "coverRgb": "73D1CC",
+      "subject": "turquoise cover with a chunky brown boot with golden cuff and two short ivory speed strokes, movement",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: turquoise cover with a chunky brown boot with golden cuff and two short ivory speed strokes, movement.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-75b373ad-a737-4f6d-9397-8a53f12cac52.png",
+      "asset": "assets/ui/tomes/swift.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "rapid",
+      "effect": "AttackSpeed",
+      "coverRgb": "4DDCF2",
+      "subject": "cyan-blue cover with two bold golden lightning bolts, faster attacks",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: cyan-blue cover with two bold golden lightning bolts, faster attacks.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-016d5d07-a98e-4d15-bcb6-753155638fa9.png",
+      "asset": "assets/ui/tomes/rapid.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "might",
+      "effect": "Damage",
+      "coverRgb": "FFAD43",
+      "subject": "orange cover with two crossed short blue-gray swords with thick golden hilts, damage",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: orange cover with two crossed short blue-gray swords with thick golden hilts, damage.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-3f36e6e9-beb6-496a-bdff-b44bd2ffdaca.png",
+      "asset": "assets/ui/tomes/might.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "regen",
+      "effect": "Regeneration",
+      "coverRgb": "8BDA66",
+      "subject": "fresh green cover with a plump red heart and one small ivory plus embossed on its upper right, regeneration",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: fresh green cover with a plump red heart and one small ivory plus embossed on its upper right, regeneration.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-a86c10ff-a56d-43a2-9117-b1db25daf898.png",
+      "asset": "assets/ui/tomes/regen.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "vampiric",
+      "effect": "BloodHarvest",
+      "coverRgb": "F56891",
+      "subject": "burgundy-pink cover with a large red heart and two short chunky white vampire fangs below the heart, life steal",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: burgundy-pink cover with a large red heart and two short chunky white vampire fangs below the heart, life steal.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-6dcdc42f-39db-4239-bdbd-ce03d9e30829.png",
+      "asset": "assets/ui/tomes/vampiric.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "bounce",
+      "effect": "Bounces",
+      "coverRgb": "75C9FF",
+      "subject": "sky blue cover with one bold golden zigzag ricochet arrow, bouncing projectile",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: sky blue cover with one bold golden zigzag ricochet arrow, bouncing projectile.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-892d3e4c-1122-4749-9542-49fe072cbf32.png",
+      "asset": "assets/ui/tomes/bounce.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "volley",
+      "effect": "ProjectileCount",
+      "coverRgb": "FFE078",
+      "subject": "golden-yellow cover with exactly three chunky brass bullets with blue-gray tips arranged in a compact fan, extra projectiles",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: golden-yellow cover with exactly three chunky brass bullets with blue-gray tips arranged in a compact fan, extra projectiles.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-a695ac50-d148-41ce-9144-d13a1712a5f1.png",
+      "asset": "assets/ui/tomes/volley.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "piercing",
+      "effect": "Pierce",
+      "coverRgb": "73D1CC",
+      "subject": "deep teal cover with one chunky golden arrow piercing through two short blue-gray plates, penetration",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: deep teal cover with one chunky golden arrow piercing through two short blue-gray plates, penetration.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-a7c0f9e9-f8c1-4ec8-828d-e14b231a5397.png",
+      "asset": "assets/ui/tomes/piercing.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "gathering",
+      "effect": "GatheringSpeed",
+      "coverRgb": "A9D96D",
+      "subject": "olive green cover with crossed blue-gray pickaxe and axe, thick short brown handles, harvesting",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: olive green cover with crossed blue-gray pickaxe and axe, thick short brown handles, harvesting.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-7f55480f-f80f-42e0-8a98-34dc6396c0bf.png",
+      "asset": "assets/ui/tomes/gathering.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "velocity",
+      "effect": "ProjectileSpeed",
+      "coverRgb": "4DDCF2",
+      "subject": "turquoise blue cover with one large diagonal golden bullet with steel tip and two short ivory motion strokes behind, projectile speed",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: turquoise blue cover with one large diagonal golden bullet with steel tip and two short ivory motion strokes behind, projectile speed.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-2169d806-6491-4582-81bb-8d607a7f7017.png",
+      "asset": "assets/ui/tomes/velocity.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "duration",
+      "effect": "AttackDuration",
+      "coverRgb": "8DAFFF",
+      "subject": "periwinkle-blue cover with one squat golden hourglass, pale glass and a mound of orange sand, duration",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: periwinkle-blue cover with one squat golden hourglass, pale glass and a mound of orange sand, duration.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-5f3e4bc9-4877-4cc8-bf0e-8c2f4af4abc8.png",
+      "asset": "assets/ui/tomes/duration.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "size",
+      "effect": "AttackSize",
+      "coverRgb": "F69ED6",
+      "subject": "pink cover with one large simple ivory four-point expanding star and four small outward golden arrowheads, attack size",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: pink cover with one large simple ivory four-point expanding star and four small outward golden arrowheads, attack size.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-0a88591e-0fc1-4027-88d5-1274fcd548d9.png",
+      "asset": "assets/ui/tomes/size.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "precision",
+      "effect": "CriticalChance",
+      "coverRgb": "FFCF65",
+      "subject": "golden orange cover with one bold red-and-ivory target disc and a simple steel crosshair, precision",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: golden orange cover with one bold red-and-ivory target disc and a simple steel crosshair, precision.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-863f4b76-0dc5-4314-ad66-7d7275e9b242.png",
+      "asset": "assets/ui/tomes/precision.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "ferocity",
+      "effect": "CriticalDamage",
+      "coverRgb": "FF805D",
+      "subject": "red-orange cover with one broad blue-gray sword set over a chunky golden impact burst, powerful critical damage",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: red-orange cover with one broad blue-gray sword set over a chunky golden impact burst, powerful critical damage.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-377c4250-bc92-40c2-9460-46f8699d3e2a.png",
+      "asset": "assets/ui/tomes/ferocity.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "impact",
+      "effect": "AttackKnockback",
+      "coverRgb": "9DB7D6",
+      "subject": "slate blue cover with one chunky golden gauntlet fist pointing right with two short ivory impact strokes, knockback",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: slate blue cover with one chunky golden gauntlet fist pointing right with two short ivory impact strokes, knockback.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-95e27ef4-1773-46d1-bc12-04faf8a4ddba.png",
+      "asset": "assets/ui/tomes/impact.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "venom",
+      "effect": "PoisonChance",
+      "coverRgb": "8BDA66",
+      "subject": "lime-green cover with one squat bottle filled with vivid green poison, a purple cork and a single round ivory shine, poison",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game inventory icon for ItsAlmostNight. Create ONE chunky closed magical hardcover tome, tilted slightly in a three-quarter isometric view with its broad front cover facing the viewer; visible thick ivory page block on lower/right side and a substantial spine on the left. Match chunky cartoon defense-building icons: bold near-black outer and inner contour, about 5-6 pixels at final 256px size, broad clean low-poly cel-shaded color planes, soft bevelled edges, 2-3 tones per material, light from upper left, orange/gold metal corners and clasp, restrained cream highlights. The book is the only object. Large simple raised emblem centered on cover, readable at 40px. Consistent book silhouette across the series; cover facing forward, spine at left, pages at lower right, subtle diagonal tilt. Center the whole book, fill about 83% of square canvas with transparent padding on every side. Actual transparent alpha background. No scenery, ground, cast shadow outside object, glow, sparkles, text, lettering, numbers, banners, badge or icon tile/frame. No tiny decorations, ornate filigree, realistic textures or brush strokes. Output square PNG. Reference image is the base tome for this cohesive series. Preserve its exact book silhouette, camera angle, gold hardware, ivory page block, bold contour and shading style. Change only the cover hue and the central embossed emblem. Remove its castle-shield emblem completely. New variant subject: lime-green cover with one squat bottle filled with vivid green poison, a purple cork and a single round ivory shine, poison.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-64eca2f8-cf1b-4cc5-a455-afb72c98bb4b.png",
+      "asset": "assets/ui/tomes/venom.png",
+      "size": [
+        256,
+        256
+      ]
+    }
+  ],
+  "baseBookSource": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-f29e9710-7791-4d3e-ac4a-b27bca983765.png",
+  "preparation": "Preserved alpha; transparent-padding crop; aspect-ratio-preserving Lanczos resize into centered 216x216 content area on 256x256 RGBA canvas."
+}

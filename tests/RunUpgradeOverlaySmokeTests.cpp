@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "ui/UiTomeIcon.hpp"
 #include "RewardBackdropChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
@@ -62,8 +63,14 @@ int main(int argc, char** argv) {
     const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");
     Image venomImage = LoadImageFromTexture(venomIcon);
-    require(GetImageColor(venomImage, 0, 0).a == 0 &&
-        GetImageColor(venomImage, 55, 90).g > GetImageColor(venomImage, 55, 90).r,
+    int venomGreenPixels = 0;
+    for (int y = 0; y < venomImage.height; ++y)
+        for (int x = 0; x < venomImage.width; ++x) {
+            const Color color = GetImageColor(venomImage, x, y);
+            if (color.a > 200 && color.g > color.r + 20 && color.g > color.b + 20)
+                ++venomGreenPixels;
+        }
+    require(GetImageColor(venomImage, 0, 0).a == 0 && venomGreenPixels > 3000,
         "venom tome has transparent padding and green cover");
     UnloadImage(venomImage);
     ian::SimulationSnapshot venomPreview{};
@@ -83,10 +90,19 @@ int main(int argc, char** argv) {
         "building upgrade arrow has a green face and transparent background");
     UnloadImage(arrowImage);
     for (const auto& tome : ian::RunTomeDefinitions) {
+        if (!ian::retiredRunUpgrade(tome.effect)) {
+            const char* path = ian::runTomeIconPath(tome.effect);
+            require(path && FileExists(path), "every active tome ships its generated PNG");
+        }
         const auto icon = ui.runUpgradeTexture(tome.effect);
         require(icon.width == 256 && icon.height == 256, "tomes share cached book artwork dimensions");
         Image image = LoadImageFromTexture(icon);
-        require(GetImageColor(image, 0, 0).a == 0 && GetImageColor(image, 100, 55).a == 255,
+        int opaquePixels = 0;
+        for (int y = 0; y < image.height; ++y)
+            for (int x = 0; x < image.width; ++x)
+                if (GetImageColor(image, x, y).a > 200) ++opaquePixels;
+        require(GetImageColor(image, 0, 0).a == 0 &&
+            GetImageColor(image, 255, 255).a == 0 && opaquePixels > 15000,
             "book covers render with transparent outer padding");
         UnloadImage(image);
     }

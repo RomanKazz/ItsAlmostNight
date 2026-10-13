@@ -2,8 +2,44 @@
 
 #include <raylib.h>
 #include <cstdint>
+#include <array>
+#include <utility>
+#include "progression/RunUpgrade.hpp"
 
 namespace ian {
+// Generated tomes share the building icons' chunky illustrated style. Kept
+// separate from upgrade IDs: saved runs and gameplay metadata stay unchanged.
+inline constexpr std::array<std::pair<RunUpgradeEffect, const char*>, 22> RunTomeIconPaths{{
+    {RunUpgradeEffect::BuildingHealth, "assets/ui/tomes/fortitude.png"},
+    {RunUpgradeEffect::ProductionSpeed, "assets/ui/tomes/industry.png"},
+    {RunUpgradeEffect::Luck, "assets/ui/tomes/fortune.png"},
+    {RunUpgradeEffect::ResourceCapacity, "assets/ui/tomes/capacity.png"},
+    {RunUpgradeEffect::MaximumHealth, "assets/ui/tomes/vitality.png"},
+    {RunUpgradeEffect::RecoverableArmor, "assets/ui/tomes/guard.png"},
+    {RunUpgradeEffect::MoveSpeed, "assets/ui/tomes/swift.png"},
+    {RunUpgradeEffect::AttackSpeed, "assets/ui/tomes/rapid.png"},
+    {RunUpgradeEffect::Damage, "assets/ui/tomes/might.png"},
+    {RunUpgradeEffect::Regeneration, "assets/ui/tomes/regen.png"},
+    {RunUpgradeEffect::BloodHarvest, "assets/ui/tomes/vampiric.png"},
+    {RunUpgradeEffect::Bounces, "assets/ui/tomes/bounce.png"},
+    {RunUpgradeEffect::ProjectileCount, "assets/ui/tomes/volley.png"},
+    {RunUpgradeEffect::Pierce, "assets/ui/tomes/piercing.png"},
+    {RunUpgradeEffect::GatheringSpeed, "assets/ui/tomes/gathering.png"},
+    {RunUpgradeEffect::ProjectileSpeed, "assets/ui/tomes/velocity.png"},
+    {RunUpgradeEffect::AttackDuration, "assets/ui/tomes/duration.png"},
+    {RunUpgradeEffect::AttackSize, "assets/ui/tomes/size.png"},
+    {RunUpgradeEffect::CriticalChance, "assets/ui/tomes/precision.png"},
+    {RunUpgradeEffect::CriticalDamage, "assets/ui/tomes/ferocity.png"},
+    {RunUpgradeEffect::AttackKnockback, "assets/ui/tomes/impact.png"},
+    {RunUpgradeEffect::PoisonChance, "assets/ui/tomes/venom.png"},
+}};
+
+[[nodiscard]] constexpr const char* runTomeIconPath(RunUpgradeEffect effect) {
+    for (const auto& [tome, path] : RunTomeIconPaths)
+        if (tome == effect) return path;
+    return nullptr;
+}
+
 // Cached once by GameUi. Existing upgrade symbols become embossed book covers.
 inline Texture2D createRunTomeIcon(Texture2D symbol, std::uint32_t rgb) {
     const RenderTexture2D target = LoadRenderTexture(256, 256);
