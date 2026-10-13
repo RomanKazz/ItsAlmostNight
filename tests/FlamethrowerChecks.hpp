@@ -47,6 +47,12 @@ inline void checkFlamethrowerBuilding() {
     const auto layout=makeBuildingHotbarLayout(simulation->snapshot().unlockedBuildings,
         BuildingHotbarCategory::Defense,true,1,true);
     require(layout.indexOf(BuildingType::Flamethrower).has_value(), "acquired flamethrower has its own hotbar slot");
+    auto allUnlocked = simulation->snapshot().unlockedBuildings;
+    allUnlocked.fill(true);
+    const auto complete = makeBuildingHotbarLayout(allUnlocked, BuildingHotbarCategory::Defense, true, 8, true);
+    require(complete.count == 7 && complete.types[4] == BuildingType::Flamethrower &&
+        complete.types[5] == BuildingType::SpikeTrap && complete.types[6] == BuildingType::SlowTrap,
+        "defense hotbar places weapons first and traps in the final slots");
     place.placeBuilding=PlaceBuildingCommand{BuildingType::Flamethrower,{3,0},3};
     simulation->tick(0,place);
     auto findFlame=[&]() {

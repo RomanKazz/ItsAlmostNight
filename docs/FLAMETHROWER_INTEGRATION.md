@@ -1,56 +1,67 @@
-# Огнемёт: подключение здания
+# Flamethrower integration
 
-`BuildingType::Flamethrower` добавлен в конец enum (save ID 15), карточка
-`RunUpgradeEffect::UnlockFlamethrower` — ID 59. Остальные ID сохранены.
+Building save ID 15; acquisition/upgrade card ID 59. Stable IDs and checkpoint
+version 7 are unchanged. Existing core limits, cards, shop, Shift+F5, placement,
+rotation, sale, destruction, save/load and global modifiers are shared.
+Cost: 35 wood / 25 stone / 10 crystal; base HP 160; footprint 2×2.
 
-## Строительство и прогрессия
+## Attack and progression
 
-- Стоимость: 35 дерева, 25 камня, 10 кристаллов; базовое здоровье 160.
-- Footprint 2×2 клетки; автоматический фундамент, установка на этажах,
-  выделение, продажа, урон и уничтожение работают через общие системы.
-- Здание занимает слот обороны и учитывает лимит ядра.
-- Получение и улучшение всех копий — обычная карточка обороны, доступная
-  также в магазине и меню Shift+F5. Максимальный уровень ограничен ядром.
-- В Sandbox/godmode появляется седьмым в категории обороны; в обычном
-  забеге позиция зависит от приобретённых сооружений.
-- Собственная иконка, подписи, локализация, стоимость в HUD, маркер миникарты.
-- Модель пока одна для всех уровней; здоровье растёт по общей таблице.
+TowerSystem owns one smooth aim runtime. Finite 32° flame cone starts at the
+actual muzzle. Heat pulses use FinalAttackStats, shared capsule contacts, crit,
+knockback and damage attribution; no artificial projectiles or burst sequences.
 
-## Модель и представление
+| Level | Pulse damage | Range | Heat interval | Raw direct DPS |
+|---|---:|---:|---:|---:|
+| 1 | .60 | 4.0 | .2000 | 3.00 |
+| 2 | .85 | 4.2 | .1923 | 4.42 |
+| 3 | 1.10 | 4.4 | .1852 | 5.94 |
+| 4 | 1.40 | 4.6 | .1786 | 7.84 |
+| 5 | 1.70 | 4.8 | .1724 | 9.86 |
+| 6 | 2.00 | 5.0 | .1667 | 12.00 |
+| 7 | 2.35 | 5.2 | .1613 | 14.57 |
+| 8 | 2.70 | 5.4 | .1563 | 17.28 |
 
-Runtime GLB сохранён без изменения геометрии и палитры. Метры, scale 1,
-корень на подошве, +Y вверх, −Z вперёд. Коллайдер исключён из render meshes:
-0 base, 1 pitch, 2 yaw. Высота модели 1.14 м используется для мирового UI.
+Afterburn: strongest dose per enemy, refreshed for 2 seconds; half-second ticks
+apply 25% of pulse damage. Duration extends afterburn; Size extends actual cone
+and the white hover/placement range. Supported: Damage, Attack Speed, Duration,
+Size, Crit Chance/Damage, Knockback, Range. Quantity, Projectile Speed, Bounce,
+Pierce are inapplicable. Periodic burns cannot recursively trigger on-hit procs.
+Burn state has a bounded enemy-slot lookup and is cleared on reset/wave cleanup.
 
-`GraphicsResources::flamethrowerModel()` и `Renderer::drawFlamethrower()`
-подключают загрузку, выгрузку, мир, тени, обводку, оба пути placement preview,
-исчезновение отменённого превью и продажу. Превью использует общую плавную
-ротацию; установленная модель, тень, обводка и raycast используют одну
-плавную визуальную ротацию. Ротация — восемь направлений с шагом 45°.
-Ротационный runtime удаляется при продаже/уничтожении и сбрасывается между
-забегами. Движение игрока блокируется по тем же правилам, что у прочей обороны.
+## Model, effects and audio
 
-Исправлена ошибка main placement preview, которая отправляла огнемёт
-в запасную геометрию ворот. Ветвь drag preview также очищена от дубликата.
+The user's original GLB and colormap stay intact. Seven cumulative three-mesh
+upgrade shells supply distinct levels. Base/yaw/pitch poses are shared by model,
+shadow, selection, preview and raycast. Raised details count toward UI height and
+precise targeting. Pitch stays within the safe −10°/+21° range.
 
-## Сохранения и проверки
+Analytic cartoon fire heads move at 7.6 m/s. Smooth 0.16-second ignition propagates
+from the muzzle; after stopping, the tail keeps travelling and dissolves. Runtime
+retains ignition age and bounded tail time separately from heat damage events.
+No particle containers or per-frame allocations. Global cap: 384 moving heads,
+LOD 18/10/6, distance cull 32m, one triangle batch. Flames depth-test against the
+world and cover ink behind them without receiving black world outlines.
 
-Версия checkpoint 7 сохранена. Старый массив 15 уровней зданий дополняется
-уровнем 1; массивы 59 карточек дополняются нулями. Проба реального JSON parser
-проверила новые и старые массивы и отказ для обрезанного массива 14 зданий.
+One seamless shared audio loop fades by nearby active emitters; crowded jets do
+not multiply identical gun/impact sounds. Visual hit feedback is coalesced per
+enemy per presentation frame, without reducing real simulation damage events.
 
-`FlamethrowerChecks.hpp` проверяет ID, категорию, footprint, приобретение,
-строительство, поворот, карточки/здоровье, checkpoint и продажу.
-`FlamethrowerGraphicsChecks.hpp` проверяет GLB, дуло, отсутствие collision mesh
-в отрисовке, высоту, иконку и отрисовку рядом с пушкой/полной панелью обороны.
+Public additions: `GraphicsResources::flamethrowerUpgradeModel`, extended
+`Renderer::drawFlamethrower(..., pitch, headYaw, level)` and optional base yaw in
+building raycast; snapshot blueprint levels / selected preview FinalAttackStats;
+TowerRuntime flame age/tail; diagnostic `TowerSystem::activeFlameBurns`.
 
-Это этап подключения здания без атаки. Следующий этап — короткая конусная
-струя с общей системой характеристик и попаданий; геометрию модели менять
-для этого не требуется.
+Defense hotbar order: gun turret, crossbow, cannon, catapult, flamethrower, spikes,
+slow trap. Its new RGBA icon is shared across existing UI consumers.
 
-Сборки Debug, Release, ASan/UBSan завершены. Полные Debug и sanitizer suites:
-19/20; единственный отказ — существующий `ian_run_menus_smoke`:
-`native window retains upgrade names after the SDF cache warms under scissor`.
-Gameplay, атаки, прогрессия и graphics resource smoke прошли; ошибок
-санитайзеров нет. Проверки относятся к рабочему дереву проекта, содержащему
-другие незакоммиченные изменения.
+## Validation
+
+Independent flame tests cover levels, cone contacts, Attack Speed/Size/Duration,
+crit, afterburn, target loss/tail expiry, reset and 32-jet/1000-enemy stress.
+Release stress measured ~1.18 ms/tick for the simulation-only overlap fixture;
+this is not a native game's FPS measurement. Graphics smoke covers animation,
+world occlusion, white hover range, all eight model levels and raised-part raycast.
+Blender round trip and 7,560-pose geometry sweep pass. Native combat playtest
+remains necessary for damage balance and flame feel. Full suite results are
+reported separately; unrelated UI/graphics tests can fail in this working tree.
