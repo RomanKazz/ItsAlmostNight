@@ -91,6 +91,7 @@ inline constexpr double PoisonDamageFraction = 0.25;
 }
 
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
+inline constexpr std::size_t DefaultRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
 struct RunUpgradeDefinition {
