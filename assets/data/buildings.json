@@ -47,6 +47,10 @@
     "wood": 50, "stone": 45, "crystals": 25,
     "maxHealth": 210, "unlockCoreLevel": 1, "maxCount": 64
   },
+  "flamethrower": {
+    "wood": 35, "stone": 25, "crystals": 10,
+    "maxHealth": 160, "unlockCoreLevel": 1, "maxCount": 64
+  },
   "modular": {
     "platform": {"wood": 20, "stone": 5, "crystals": 0},
     "wall": {"wood": 5, "stone": 10, "crystals": 0},

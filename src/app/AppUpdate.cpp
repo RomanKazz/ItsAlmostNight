@@ -1015,6 +1015,24 @@ void App::update() {
                            building.type == BuildingType::Gate;
                 });
         });
+    // The attackless flamethrower has no combat rig yet. Keep its manual
+    // turns in presentation so world, shadow, selection and aim share a pose.
+    std::erase_if(flamethrowerRotationVisuals_, [&eventSnapshot](const auto& visual) {
+        return std::ranges::none_of(eventSnapshot.buildings, [&visual](const auto& building) {
+            return building.id == visual.id && building.type == BuildingType::Flamethrower;
+        });
+    });
+    for (const auto& building : eventSnapshot.buildings) {
+        if (building.type != BuildingType::Flamethrower) continue;
+        const double targetYaw = buildingRotationYaw(building.type, building.rotation);
+        const auto visual = std::ranges::find(
+            flamethrowerRotationVisuals_, building.id, &FlamethrowerRotationVisual::id);
+        if (visual == flamethrowerRotationVisuals_.end()) {
+            flamethrowerRotationVisuals_.push_back({building.id, targetYaw});
+        } else {
+            visual->yaw = smoothBuildingAngle(visual->yaw, targetYaw, frameSeconds);
+        }
+    }
     if (eventSnapshot.runUpgradeChoicePending) {
         if (!groundCameraSmoothingInitialized_) {
             smoothedGroundCameraY_ =

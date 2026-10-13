@@ -18,6 +18,7 @@ inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;
         return 1.45;
     case BuildingType::Turret:
         return 1.52;
+    case BuildingType::Flamethrower: return 1.14;
     case BuildingType::GunTurret:
         return 1.16;
     case BuildingType::CrystalMine:

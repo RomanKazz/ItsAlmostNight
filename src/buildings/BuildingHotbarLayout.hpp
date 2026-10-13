@@ -27,13 +27,14 @@ inline constexpr std::size_t MaximumBuildingHotbarSlots = 8U;
 inline constexpr std::array<BuildingType, 1> BaseBuildingOrder{
         BuildingType::Core,
     };
-inline constexpr std::array<BuildingType, 6> DefenseBuildingOrder{
+inline constexpr std::array<BuildingType, 7> DefenseBuildingOrder{
         BuildingType::GunTurret,
         BuildingType::Turret,
         BuildingType::SlowTrap,
         BuildingType::SpikeTrap,
         BuildingType::Cannon,
         BuildingType::Catapult,
+        BuildingType::Flamethrower,
     };
 inline constexpr std::array<BuildingType, 0> EconomyBuildingOrder{};
 inline constexpr std::array<BuildingType, 5> ModularBuildingOrder{

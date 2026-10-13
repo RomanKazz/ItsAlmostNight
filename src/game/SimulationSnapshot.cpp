@@ -258,6 +258,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::CrystalStorage),
             buildings_.configuredCost(BuildingType::GunTurret),
             buildings_.configuredCost(BuildingType::Catapult),
+            buildings_.configuredCost(BuildingType::Flamethrower),
         },
         .unlockedBuildings = {
             buildingUnlocked(BuildingType::Core),
@@ -275,6 +276,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::CrystalStorage),
             buildingUnlocked(BuildingType::GunTurret),
             buildingUnlocked(BuildingType::Catapult),
+            buildingUnlocked(BuildingType::Flamethrower),
         },
         .coreBuildRadius = sandboxMode_
             ? 0

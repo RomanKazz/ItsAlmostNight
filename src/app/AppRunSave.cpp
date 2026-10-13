@@ -59,13 +59,13 @@ bool readFixedArray(const Json& document, std::string_view key,
 template <typename T, std::size_t Size>
 bool readExpandableFixedArray(
     const Json& document, std::string_view key,
-    std::array<T, Size>& destination) {
+    std::array<T, Size>& destination, T missingValue = T{}) {
     const auto iterator = document.find(key);
     if (iterator == document.end() || !iterator->is_array() ||
         iterator->size() > Size) {
         return false;
     }
-    destination.fill(T{});
+    destination.fill(missingValue);
     for (std::size_t index = 0; index < iterator->size(); ++index) {
         destination[index] = iterator->at(index).get<T>();
     }
@@ -706,8 +706,9 @@ SuspendedRunState readSuspendedRun(const Json& document) {
         !readExpandableFixedArray(
             document, "runUpgradeStacks",
             saved.runUpgradeStacks) ||
-        !readFixedArray(document, "buildingBlueprintLevels",
-                        saved.buildingBlueprintLevels)) {
+        !readExpandableFixedArray(document, "buildingBlueprintLevels",
+                        saved.buildingBlueprintLevels, std::uint8_t{1}) ||
+        document.at("buildingBlueprintLevels").size() < 15U) {
         throw Json::type_error::create(302, "invalid checkpoint array", &document);
     }
     if (document.contains("runUpgradePower") && !readExpandableFixedArray(

@@ -12,6 +12,7 @@
 #include "PortalArrivalGraphicsChecks.hpp"
 #include "PropBreakGraphicsChecks.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "FlamethrowerGraphicsChecks.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
 #include "PowerupPickupModelChecks.hpp"
 #include "BombGraphicsChecks.hpp"
@@ -3119,6 +3120,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkFlamethrowerGraphics(renderer)) {
+            std::cerr << "flamethrower model, collider, icon or renderer integration failed\n";
+            return 1;
+        }
         if (!checkCartoonBombs(renderer)) {
             std::cerr << "cartoon bomb visibility, fuse motion or depth failed\n";
             result = 1;

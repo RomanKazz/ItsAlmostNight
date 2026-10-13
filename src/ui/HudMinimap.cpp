@@ -965,6 +965,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         case BuildingType::Turret:
         case BuildingType::GunTurret:
         case BuildingType::Cannon:
+        case BuildingType::Flamethrower:
         case BuildingType::Catapult:
             DrawCircleV(
                 point,

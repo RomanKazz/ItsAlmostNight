@@ -234,6 +234,16 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     return true;
 }
 
+bool Renderer::drawFlamethrower(Vector3 position, float yawRadians, Color tint, float scale) {
+    auto& resource = resources_.flamethrowerModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    prepareModelShader(model);
+    // The GLB already has its final metre scale and neutral rig pose.
+    DrawModelEx(model, position, {0, 1, 0}, yawRadians * RAD2DEG, {scale, scale, scale}, tint);
+    return true;
+}
+
 bool Renderer::drawCatapult(
     Vector3 position, float yawRadians, float armPitchRadians,
     bool loaded, Color tint, float scaleFactor, int level) {
@@ -543,6 +553,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::Turret: model = &resources_.crossbowModel(); break;
     case BuildingType::GunTurret: model = &resources_.gunTurretModel(); break;
     case BuildingType::Cannon: model = &resources_.cannonModel(); break;
+    case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;
     case BuildingType::CrystalMine: model = &resources_.mineModel(); scale = 1.05F; break;
     case BuildingType::LumberMill: model = &resources_.lumberMillModel(); scale = .825F; break;

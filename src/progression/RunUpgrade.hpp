@@ -77,10 +77,11 @@ enum class RunUpgradeEffect {
     PoisonChance,
     UpgradeAxe,
     UpgradePickaxe,
+    UnlockFlamethrower, // New IDs always append, preserving existing saves.
     ResourceCapacity = RichResources, // Stable former yield-tome save ID.
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 59U;
+inline constexpr std::size_t RunUpgradeEffectCount = 60U;
 // Poison deals 25% of the triggering hit per second for four seconds.
 // Reapplication refreshes duration and retains the strongest dose.
 inline constexpr double PoisonDuration = 4.0;
@@ -263,6 +264,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::PoisonChance, runTomeDefinition(RunUpgradeEffect::PoisonChance)->name, "+10% chance to poison on hit (25% hit damage/s, 4s)"},
         {RunUpgradeEffect::UpgradeAxe, "AXE", "Upgrade axe power by one level"},
         {RunUpgradeEffect::UpgradePickaxe, "PICKAXE", "Upgrade pickaxe power by one level"},
+        {RunUpgradeEffect::UnlockFlamethrower, "FLAMETHROWER", "Acquire defense / upgrade all copies. Attack not implemented yet."},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -271,9 +273,9 @@ inline constexpr std::array<RunUpgradeDefinition,
 }
 
 inline constexpr std::size_t RunBuildingSlotCount = 4U;
-inline constexpr std::array<BuildingType, 6> RunBuildingTypes{
+inline constexpr std::array<BuildingType, 7> RunBuildingTypes{
     BuildingType::GunTurret, BuildingType::Turret, BuildingType::Cannon,
-    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap};
+    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::Flamethrower};
 
 inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     BuildingType::LumberMill, BuildingType::Quarry, BuildingType::CrystalMine};
@@ -297,6 +299,7 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     case RunUpgradeEffect::UnlockTurret: return BuildingType::Turret;
     case RunUpgradeEffect::UnlockCannon: return BuildingType::Cannon;
     case RunUpgradeEffect::UnlockCatapult: return BuildingType::Catapult;
+    case RunUpgradeEffect::UnlockFlamethrower: return BuildingType::Flamethrower;
     case RunUpgradeEffect::UnlockSpikeTrap: return BuildingType::SpikeTrap;
     case RunUpgradeEffect::UnlockSlowTrap: return BuildingType::SlowTrap;
     case RunUpgradeEffect::UnlockLumberMill: return BuildingType::LumberMill;

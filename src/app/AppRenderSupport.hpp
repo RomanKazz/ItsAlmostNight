@@ -101,7 +101,8 @@ void drawCentered(
     Renderer& renderer,
     const SimulationSnapshot& snapshot,
     const std::function<float(EntityId, bool)>&
-        gateOpenAmount = {});
+        gateOpenAmount = {},
+    const std::function<float(const BuildingInstance&)>& flamethrowerYaw = {});
 [[nodiscard]] std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot,

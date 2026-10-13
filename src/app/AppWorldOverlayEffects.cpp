@@ -203,6 +203,8 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::Flamethrower) {
+            static_cast<void>(renderer_->drawFlamethrower({x, baseY - sink, z}, yaw, tint, scale));
         } else if (building.type == BuildingType::GunTurret) {
             static_cast<void>(renderer_->drawGunTurret(
                 {x, baseY - sink, z}, yaw, yaw, tint, scale, {}, building.level));
@@ -541,6 +543,8 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::Flamethrower) {
+        static_cast<void>(renderer_->drawFlamethrower(modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::GunTurret) {
         static_cast<void>(renderer_->drawGunTurret(
             modelPosition, yaw, yaw, WHITE, scale));

@@ -442,6 +442,9 @@ void App::drawShadowPass(
                               z - 0.55F}, 0.18F,
                              0.18F, 1.0F, WHITE);
                 }
+            } else if (building.type == BuildingType::Flamethrower) {
+                static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
+                    flamethrowerVisualYaw(building), WHITE, spawnScale));
             } else if (building.type == BuildingType::GunTurret) {
                 static_cast<void>(renderer_->drawGunTurret(
                     {x, groundY, z},
@@ -1038,6 +1041,9 @@ void App::drawSelectionPass(
                              z - 0.55F}, 0.18F,
                             0.18F, 1.0F, WHITE);
                     }
+                } else if (building->type == BuildingType::Flamethrower) {
+                    static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
+                        flamethrowerVisualYaw(*building), WHITE, spawnScale));
                 } else if (building->type == BuildingType::GunTurret) {
                     static_cast<void>(renderer_->drawGunTurret(
                         {x, groundY, z},

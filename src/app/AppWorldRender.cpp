@@ -1080,6 +1080,9 @@ void App::drawWorldEntities(
                     0.0F, 1.55F, -0.55F, 0.18F, 0.18F,
                     1.0F, {50, 58, 67, 255});
             }
+        } else if (building.type == BuildingType::Flamethrower) {
+            static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
+                flamethrowerVisualYaw(building), WHITE, spawnScale));
         } else if (building.type == BuildingType::GunTurret) {
             if (!renderer_->drawGunTurret(
                     {x, groundY, z},

@@ -255,6 +255,8 @@ class App {
         EntityId id) const;
     [[nodiscard]] float gateOpenAmount(
         EntityId id, bool open) const;
+    [[nodiscard]] float flamethrowerVisualYaw(
+        const BuildingInstance& building) const;
     [[nodiscard]] Vec3 buildingImpactOffsetAt(
         EntityId id) const;
     [[nodiscard]] Vec3 buildingShotRecoilOffsetAt(
@@ -634,6 +636,11 @@ class App {
         bool wasOpen{};
     };
     std::vector<GateDoorVisual> gateDoorVisuals_;
+    struct FlamethrowerRotationVisual {
+        EntityId id;
+        double yaw{};
+    };
+    std::vector<FlamethrowerRotationVisual> flamethrowerRotationVisuals_;
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
     double crystalHudBounceRemaining_{};

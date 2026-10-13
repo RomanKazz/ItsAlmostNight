@@ -65,6 +65,7 @@ void App::resetRunClientState(
     buildingContextCardUpgradeCost_.reset();
     buildingContextCardStats_.reset();
     buildingImpactVisuals_.clear();
+    flamethrowerRotationVisuals_.clear();
     placementPreviewCenter_.reset();
     placementPreviewGrid_.reset();
     placementPreviewType_.reset();

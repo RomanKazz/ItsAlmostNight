@@ -180,6 +180,11 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
+    case BuildingType::Flamethrower:
+        resource = &resources_.flamethrowerModel();
+        modelScale = 1.0F;
+        yaw = defensiveYaw;
+        break;
     case BuildingType::Catapult:
         resource = &resources_.catapultModel();
         modelScale = 1.0F;

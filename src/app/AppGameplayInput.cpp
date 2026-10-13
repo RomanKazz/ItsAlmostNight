@@ -96,6 +96,9 @@ void App::processGameplayInput(bool controlDown,
                 *renderer_, currentSnapshot,
                 [this](EntityId id, bool open) {
                     return gateOpenAmount(id, open);
+                },
+                [this](const BuildingInstance& building) {
+                    return flamethrowerVisualYaw(building);
                 });
         if (foundationBuildMode_ ||
             currentSnapshot.selectedBuilding) {
@@ -386,7 +389,7 @@ void App::processGameplayInput(bool controlDown,
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 BuildingKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE,
-                    KEY_FOUR, KEY_FIVE, KEY_SIX,
+                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
                 };
             const BuildingHotbarLayout layout =
                 makeBuildingHotbarLayout(

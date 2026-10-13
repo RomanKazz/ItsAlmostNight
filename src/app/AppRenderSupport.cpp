@@ -523,7 +523,8 @@ std::optional<EntityId> preciseBuildingAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot,
     const std::function<float(EntityId, bool)>&
-        gateOpenAmount) {
+        gateOpenAmount,
+    const std::function<float(const BuildingInstance&)>& flamethrowerYaw) {
     constexpr double MaximumDistance = 4.0;
     const double horizontal =
         std::cos(snapshot.playerPitch);
@@ -553,9 +554,7 @@ std::optional<EntityId> preciseBuildingAim(
             BroadPhaseRadius * BroadPhaseRadius) {
             continue;
         }
-        float yaw =
-            static_cast<float>(building.rotation) *
-            PI * 0.5F;
+        float yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation));
         float pitch = 0.0F;
         if (building.type == BuildingType::Turret ||
             building.type == BuildingType::GunTurret) {
@@ -568,6 +567,9 @@ std::optional<EntityId> preciseBuildingAim(
             building.type == BuildingType::Catapult) {
             yaw = cannonYaw(snapshot, building);
             pitch = cannonPitch(snapshot, building);
+        }
+        if (building.type == BuildingType::Flamethrower && flamethrowerYaw) {
+            yaw = flamethrowerYaw(building);
         }
         const auto distance =
             renderer.buildingRaycastDistance(
@@ -1062,6 +1064,8 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::Flamethrower) {
+        static_cast<void>(renderer.drawFlamethrower(position, yawRadians));
     } else if (type == BuildingType::GunTurret) {
         if (!renderer.drawGunTurret(
                 position, yawRadians, yawRadians)) {

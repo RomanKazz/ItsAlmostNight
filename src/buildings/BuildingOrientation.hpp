@@ -16,7 +16,8 @@ inline constexpr double PiRadians = 3.14159265358979323846;
     return type == BuildingType::Turret ||
            type == BuildingType::GunTurret ||
            type == BuildingType::Cannon ||
-           type == BuildingType::Catapult;
+           type == BuildingType::Catapult ||
+           type == BuildingType::Flamethrower;
 }
 
 [[nodiscard]] inline bool supportsManualBuildingRotation(

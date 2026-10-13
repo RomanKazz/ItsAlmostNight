@@ -479,6 +479,7 @@ GameBalance GameBalance::defaults() {
             {30, 25, 0, 160.0, 1, 8},
             {35, 25, 10, 150.0, 1, 64},
             {50, 45, 25, 210.0, 1, 64},
+            {35, 25, 10, 160.0, 1, 64},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -604,6 +605,9 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             buildings.contains("catapult")
                 ? parseBuilding(buildings.at("catapult"))
                 : result.balance.buildings[14],
+            buildings.contains("flamethrower")
+                ? parseBuilding(buildings.at("flamethrower"))
+                : result.balance.buildings[15],
         }};
         if (parsed[0].maxCount != 1 || parsed[0].unlockCoreLevel != 0) {
             throw std::runtime_error("core must be unique and unlocked");

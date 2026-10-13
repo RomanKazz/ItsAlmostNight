@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "combat/CombatDisplayUnits.hpp"
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
@@ -529,6 +530,13 @@ float App::gateOpenAmount(EntityId id, bool open) const {
     return visual != gateDoorVisuals_.end()
         ? visual->openAmount * visual->openDirection
         : open ? 1.0F : 0.0F;
+}
+
+float App::flamethrowerVisualYaw(const BuildingInstance& building) const {
+    const auto visual = std::ranges::find(
+        flamethrowerRotationVisuals_, building.id, &FlamethrowerRotationVisual::id);
+    return static_cast<float>(visual != flamethrowerRotationVisuals_.end()
+        ? visual->yaw : buildingRotationYaw(building.type, building.rotation));
 }
 
 } // namespace ian

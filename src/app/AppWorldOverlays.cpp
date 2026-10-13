@@ -1032,6 +1032,8 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::Flamethrower) {
+                    static_cast<void>(renderer_->drawFlamethrower(position, yaw));
                 } else if (preview.type == BuildingType::GunTurret) {
                     static_cast<void>(renderer_->drawGunTurret(
                         position, yaw, yaw));
@@ -1119,6 +1121,8 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::Flamethrower) {
+            static_cast<void>(renderer_->drawFlamethrower({x, 0.0F, z}, yaw));
         } else if (preview.type == BuildingType::GunTurret) {
             if (!renderer_->drawGunTurret(
                     {x, 0.0F, z}, yaw, yaw)) {

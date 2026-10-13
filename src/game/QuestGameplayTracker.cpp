@@ -43,6 +43,7 @@ std::string_view buildingId(BuildingType type) {
     case BuildingType::CrystalStorage: return "crystal_storage";
     case BuildingType::GunTurret: return "gun_turret";
     case BuildingType::Catapult: return "catapult";
+    case BuildingType::Flamethrower: return "flamethrower";
     }
     return {};
 }
@@ -75,6 +76,7 @@ constexpr std::array<std::string_view, RunUpgradeEffectCount> UpgradeIds{{
     "unlock_lumber_mill", "unlock_quarry", "unlock_crystal_mine",
     "lumber_mill_production", "quarry_production", "crystal_mine_production",
     "regeneration",
+    "poison_chance", "upgrade_axe", "upgrade_pickaxe", "unlock_flamethrower",
 }};
 
 } // namespace

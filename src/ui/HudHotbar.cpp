@@ -427,7 +427,7 @@ void drawBuildHotbar(
         return;
     }
     constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
-        "1", "2", "3", "4", "5", "6",
+        "1", "2", "3", "4", "5", "6", "7", "8",
     };
     const BuildingHotbarLayout layout =
         makeBuildingHotbarLayout(
