@@ -1,3 +1,5 @@
+#include "TeslaGraphicsChecks.hpp"
+#include "MissileLauncherGraphicsChecks.hpp"
 #include "ToolLevelGraphicsChecks.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/QuarryModel.hpp"
@@ -3145,6 +3147,8 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkTeslaGraphics(renderer)) {std::cerr << "tesla model/icon/lightning/depth/range failed\n";return 1;}
+        if (!checkMissileLauncherGraphics(renderer)) { std::cerr << "missile launcher model/rig/icon/raycast failed\n"; return 1; }
         if (!checkFlamethrowerGraphics(renderer)) {
             std::cerr << "flamethrower model, collider, icon or renderer integration failed\n";
             return 1;

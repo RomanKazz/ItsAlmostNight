@@ -270,6 +270,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& sawBladeModel();
     [[nodiscard]] ModelResource& crossbowModel();
     [[nodiscard]] ModelResource& gunTurretModel();
+    [[nodiscard]] ModelResource& teslaTowerModel();
+    [[nodiscard]] ModelResource& missileLauncherModel();
     [[nodiscard]] ModelResource& flamethrowerModel();
     [[nodiscard]] ModelResource& turretBulletModel();
     [[nodiscard]] ModelResource& coreModel();
@@ -421,6 +423,8 @@ class GraphicsResources {
     ModelResource sawBladeModel_;
     ModelResource crossbowModel_;
     ModelResource gunTurretModel_;
+    ModelResource teslaTowerModel_;
+    ModelResource missileLauncherModel_;
     ModelResource flamethrowerModel_;
     ModelResource turretBulletModel_;
     ModelResource coreModel_;

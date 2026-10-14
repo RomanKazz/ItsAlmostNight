@@ -1097,6 +1097,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     sawBladeModel_.load("assets/models/projectiles/saw_blade.glb");
     crossbowModel_.load("assets/models/weapons/crossbow.glb");
     gunTurretModel_.load("assets/models/buildings/gun_turret.glb");
+    teslaTowerModel_.load("assets/models/buildings/tesla_tower.glb");
+    missileLauncherModel_.load("assets/models/buildings/missile_launcher.glb");
     flamethrowerModel_.load("assets/models/buildings/flamethrower.glb");
     turretBulletModel_.load("assets/models/projectiles/turret_bullet.glb");
     coreModel_.load("assets/models/buildings/core_levels.glb");
@@ -1601,6 +1603,8 @@ void GraphicsResources::shutdown() {
     coreModel_.unload();
     crossbowModel_.unload();
     gunTurretModel_.unload();
+    teslaTowerModel_.unload();
+    missileLauncherModel_.unload();
     flamethrowerModel_.unload();
     turretBulletModel_.unload();
     sawBladeModel_.unload();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/AttackStats.hpp"
 
 namespace ian {
 
@@ -13,6 +14,20 @@ namespace ian {
 [[nodiscard]] inline double buildingAnvilMultiplier(
     const BuildingInstance& building) {
     return buildingAnvilMultiplier(building.anvilStacks, building.anvilEnhanced);
+}
+
+// All defense types compose the same run, per-building and class sources.
+// A weapon only supplies immutable base data and its attack pattern.
+[[nodiscard]] inline FinalAttackStats resolveBuildingAttackStats(
+    const AttackStats& base, const BuildingInstance& building,
+    const AttackModifiers& run, BuildingType bonusType,
+    const AttackModifiers& typeBonus, double highGroundDamage = 1.0) {
+    AttackModifiers local;
+    local[AttackStat::Damage].multiplier = buildingAnvilMultiplier(building) *
+        (building.platformStorey > 0 ? highGroundDamage : 1.0);
+    const std::array sources{run, local,
+        building.type == bonusType ? typeBonus : AttackModifiers{}};
+    return resolveAttackStats(base, sources);
 }
 
 } // namespace ian

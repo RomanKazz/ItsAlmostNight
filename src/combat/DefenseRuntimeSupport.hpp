@@ -9,8 +9,8 @@
 
 namespace ian::defense_runtime {
 
-// Share registration and rotation invalidation without coupling hitscan
-// attacks to ballistic projectiles or changing saved runtime structures.
+// Share registration and rotation invalidation without coupling weapon
+// patterns or changing saved building structures.
 template <typename Runtime, typename AcceptsBuilding, typename MatchesRuntime>
 void syncBuildings(
     std::vector<Runtime>& runtimes,

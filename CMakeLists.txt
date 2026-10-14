@@ -104,6 +104,7 @@ add_library(ian_simulation
     src/buildings/SupportSystem.cpp
     src/buildings/BuildingSystem.cpp
     src/buildings/BuildingStats.cpp
+    src/combat/AttackProjectile.cpp
     src/combat/TowerSystem.cpp
     src/combat/TrapSystem.cpp
     src/combat/CannonSystem.cpp
@@ -349,6 +350,31 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_render_performance_smoke COMMAND ian_render_performance_smoke)
     set_tests_properties(ian_render_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+    target_compile_definitions(its_almost_night PRIVATE IAN_PRESENTATION_SMOKE_TEST)
+    target_sources(its_almost_night PRIVATE tests/AppPresentationEventsSmoke.cpp)
+    add_test(NAME ian_presentation_events_smoke COMMAND its_almost_night --test-presentation-events)
+    set_tests_properties(ian_presentation_events_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "graphics;integration" TIMEOUT 60)
+
+    add_executable(ian_missile_tests tests/MissileLauncherTests.cpp)
+    target_link_libraries(ian_missile_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_missile_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_missile_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_missile_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_missile_tests COMMAND ian_missile_tests)
+    set_tests_properties(ian_missile_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
+    add_executable(ian_tesla_tests tests/TeslaTowerTests.cpp)
+    target_link_libraries(ian_tesla_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_tesla_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_tesla_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_tesla_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_tesla_tests COMMAND ian_tesla_tests)
+    set_tests_properties(ian_tesla_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
     add_executable(ian_enemy_pressure_tests tests/EnemyPressureTests.cpp)
     target_link_libraries(ian_enemy_pressure_tests PRIVATE ian_simulation)
     ian_set_warnings(ian_enemy_pressure_tests)

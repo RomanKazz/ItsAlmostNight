@@ -337,7 +337,7 @@ void App::processGameplayInput(bool controlDown,
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 ConstructionKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
-                    KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
+                    KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO,
                 };
             const ConstructionHotbarLayout layout =
                 makeConstructionHotbarLayout(
@@ -389,7 +389,7 @@ void App::processGameplayInput(bool controlDown,
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 BuildingKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE,
-                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
+                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO,
                 };
             const BuildingHotbarLayout layout =
                 makeBuildingHotbarLayout(
@@ -443,8 +443,7 @@ void App::processGameplayInput(bool controlDown,
         } else {
             constexpr std::array<int, PlayerWeaponCount> EquipmentKeys{
                 KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
-                KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
-                KEY_NINE,
+                KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE,
             };
             const auto order = equipmentOrder(actionMode_);
             std::size_t visibleSlotIndex = 0;

@@ -1,3 +1,4 @@
+#include "buildings/TowerRig.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -678,14 +679,17 @@ void App::drawWorldOverlays(
         if (!wallDragStart_ &&
             !placementPreviewObstructed(
                 snapshot.buildingPreview->placement.error) &&
-            isDirectionalDefense(
-                snapshot.buildingPreview->type)) {
+            (isDirectionalDefense(snapshot.buildingPreview->type) || snapshot.buildingPreview->type == BuildingType::TeslaTower)) {
             const BuildingType type =
                 snapshot.buildingPreview->type;
             const bool artillery =
                 type == BuildingType::Cannon ||
                 type == BuildingType::Catapult;
-            const float range = artillery
+            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower)
+                ? std::max<std::uint8_t>(1, snapshot.buildingBlueprintLevels[static_cast<std::size_t>(type)]) : 1;
+            const float range = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower) && snapshot.buildingPreviewFinalAttackStats
+                ? static_cast<float>(snapshot.buildingPreviewFinalAttackStats->range * (type == BuildingType::Flamethrower ? snapshot.buildingPreviewFinalAttackStats->size : 1.0))
+                : artillery
                 ? static_cast<float>(
                       CannonSystem::attackRange(type, 1))
                 : static_cast<float>(
@@ -697,9 +701,10 @@ void App::drawWorldOverlays(
                  visualCenter.y},
                 range,
                 static_cast<float>(placementRotationYaw_),
-                static_cast<float>(defenseAttackArcDegrees(1)),
+                type == BuildingType::TeslaTower ? 360.0F : static_cast<float>(defenseAttackArcDegrees(previewLevel)),
                 {228, 239, 226, 92},
-                artillery
+                type == BuildingType::MissileLauncher ? static_cast<float>(MissileLauncherMinimumRange)
+                    : artillery
                     ? static_cast<float>(
                           CannonSystem::minimumRange(type, 1))
                     : 0.0F);
@@ -1032,6 +1037,12 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::TeslaTower) {
+                    static_cast<void>(renderer_->drawTeslaTower(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+                } else if (preview.type == BuildingType::MissileLauncher) {
+                    static_cast<void>(renderer_->drawMissileLauncher(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::Flamethrower) {
                     static_cast<void>(renderer_->drawFlamethrower(position, yaw));
                 } else if (preview.type == BuildingType::GunTurret) {
@@ -1121,6 +1132,12 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::TeslaTower) {
+            static_cast<void>(renderer_->drawTeslaTower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+        } else if (preview.type == BuildingType::MissileLauncher) {
+            static_cast<void>(renderer_->drawMissileLauncher({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::Flamethrower) {
             static_cast<void>(renderer_->drawFlamethrower({x, 0.0F, z}, yaw));
         } else if (preview.type == BuildingType::GunTurret) {

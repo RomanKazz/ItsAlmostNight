@@ -77,7 +77,7 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
                 if (building.type == BuildingType::Wall) {
                     cell.terrainCost = WallTraversalCost;
                 } else if (building.type == BuildingType::Turret ||
-                           building.type == BuildingType::GunTurret) {
+                           building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower) {
                     cell.terrainCost = 8.0;
                 } else if (
                     building.type == BuildingType::CrystalMine ||

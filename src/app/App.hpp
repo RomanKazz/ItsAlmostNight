@@ -119,6 +119,7 @@ struct AppPerformanceStats {
 };
 
 class App {
+    friend struct AppPresentationTestAccess;
   public:
     App();
     int run();

@@ -203,6 +203,10 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::TeslaTower) {
+            static_cast<void>(renderer_->drawTeslaTower({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
+        } else if (building.type == BuildingType::MissileLauncher) {
+            static_cast<void>(renderer_->drawMissileLauncher({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::Flamethrower) {
             static_cast<void>(renderer_->drawFlamethrower({x, baseY - sink, z}, yaw, tint, scale));
         } else if (building.type == BuildingType::GunTurret) {
@@ -543,6 +547,12 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::TeslaTower) {
+        static_cast<void>(renderer_->drawTeslaTower(modelPosition, yaw, WHITE, scale, 0, {},
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+    } else if (preview.type == BuildingType::MissileLauncher) {
+        static_cast<void>(renderer_->drawMissileLauncher(modelPosition, yaw, WHITE, scale, 0, {},
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::Flamethrower) {
         static_cast<void>(renderer_->drawFlamethrower(modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::GunTurret) {

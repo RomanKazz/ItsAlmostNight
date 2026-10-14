@@ -3,6 +3,14 @@
   "languages": {
     "en": {},
     "ru": {
+      "TESLA": "ТЕСЛА",
+      "Tesla": "Тесла",
+      "Chain lightning jumps between enemies. Upgrade all copies.": "Цепные молнии. Улучшает все теслы.",
+      "Circular defense. Lightning jumps between nearby enemies.": "Круговая оборона. Молния перескакивает между врагами.",
+      "MISSILE LAUNCHER": "РАКЕТНИЦА",
+      "Missile Launcher": "Ракетница",
+      "Guided rockets explode on impact. Upgrade all copies.": "Самонаводящиеся ракеты. Улучшает все ракетницы.",
+      "Guided rockets hit groups and flyers. Cannot aim within 2.5 m.": "Ракеты против групп и летающих. Слепая зона 2,5 м.",
       "YOU DIED": "ВЫ ПОГИБЛИ",
       "RESPAWN IN": "ВОЗРОЖДЕНИЕ ЧЕРЕЗ",
       "PROTECTED": "ЗАЩИТА",

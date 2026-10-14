@@ -36,16 +36,17 @@ BuildingStats buildingStatsAtLevel(
         stats.crystalCapacity = static_cast<double>(
             coreResourceCapacity(ResourceCapacityType::Crystal, level));
     } else if (building.type == BuildingType::Turret ||
-               building.type == BuildingType::GunTurret) {
+               building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower) {
         const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = TowerSystem::attackDamage(
             building.type, level) *
             towerBonus * CombatDisplayScale;
         stats.attackRange = TowerSystem::attackRange(
             building.type, level);
-        stats.attackArcDegrees = defenseAttackArcDegrees(level);
+        stats.attackArcDegrees = building.type == BuildingType::TeslaTower ? 360.0 : defenseAttackArcDegrees(level);
         stats.attacksPerSecond =
             1.0 / TowerSystem::fireInterval(building.type, level);
+        if (building.type == BuildingType::MissileLauncher) stats.effectRadius = 1.6;
         if (building.type == BuildingType::Turret) {
             stats.piercingCount = static_cast<double>(
                 TowerSystem::piercingCount(building.type, level));
@@ -58,7 +59,7 @@ BuildingStats buildingStatsAtLevel(
             towerBonus * CombatDisplayScale;
         stats.attackRange = CannonSystem::attackRange(
             building.type, level);
-        stats.attackArcDegrees = defenseAttackArcDegrees(level);
+        stats.attackArcDegrees = building.type == BuildingType::TeslaTower ? 360.0 : defenseAttackArcDegrees(level);
         stats.attacksPerSecond =
             1.0 / CannonSystem::fireInterval(building.type, level);
         stats.effectRadius = CannonSystem::explosionRadius(

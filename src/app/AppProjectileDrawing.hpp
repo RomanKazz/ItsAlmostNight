@@ -1,3 +1,4 @@
+#include "combat/AttackProjectile.hpp"
 #pragma once
 
 #include "combat/CannonSystem.hpp"
@@ -299,6 +300,89 @@ inline void emitDefenseShotGeometry(
         emitProjectileVertex(arcPoint(
             rearCenter, -Arc[index].x, Arc[index].y), rearRim);
     }
+}
+
+// Keep the authored shot style independent of the physical flight runtime.
+// Damage controls the original palette/scale; Size is an additional modifier.
+inline void emitDefenseProjectileGeometry(
+    const AttackProjectile& projectile, Vector3 cameraPosition,
+    float interpolationAlpha, bool drawTail) {
+    const auto appearance = presentation::bulletAppearance(projectile.configuration.stats.damage);
+    const float scale = appearance.scale *
+        static_cast<float>(projectile.configuration.stats.size) *
+        (projectile.shrapnel ? 0.56F : 1.0F);
+    const auto position = geometry::lerpClamped(
+        projectile.previousPosition, projectile.position, interpolationAlpha);
+    Vector3 direction{static_cast<float>(projectile.runtime.velocity.x),
+        static_cast<float>(projectile.runtime.velocity.y),
+        static_cast<float>(projectile.runtime.velocity.z)};
+    direction = Vector3LengthSqr(direction) > 0.000001F
+        ? Vector3Normalize(direction) : Vector3{0, 0, -1};
+    if (projectile.type == BuildingType::MissileLauncher) {
+        const float rocketScale = static_cast<float>(projectile.configuration.stats.size);
+        const Vector3 center{static_cast<float>(position.x), static_cast<float>(position.y), static_cast<float>(position.z)};
+        Vector3 right = Vector3CrossProduct(direction, {0, 1, 0});
+        right = Vector3LengthSqr(right) > 1e-6F ? Vector3Normalize(right) : Vector3{1, 0, 0};
+        const Vector3 up = Vector3Normalize(Vector3CrossProduct(right, direction));
+        const auto point = [&](float axial, float x, float y) {
+            return Vector3Add(center, Vector3Scale(Vector3Add(Vector3Scale(direction, axial),
+                Vector3Add(Vector3Scale(right, x), Vector3Scale(up, y))), rocketScale));
+        };
+        constexpr std::array<Vector2, 9> ring{{{1,0},{.7071F,.7071F},{0,1},{-.7071F,.7071F},
+            {-1,0},{-.7071F,-.7071F},{0,-1},{.7071F,-.7071F},{1,0}}};
+        if (!drawTail) {
+            for (std::size_t i = 1; i < ring.size(); ++i) {
+                const auto a = ring[i-1], b = ring[i];
+                const Color body = i < 5 ? Color{218,235,247,255} : Color{107,142,170,255};
+                emitProjectileQuad(point(-.22F,a.x*.09F,a.y*.09F), point(.13F,a.x*.09F,a.y*.09F),
+                    point(.13F,b.x*.09F,b.y*.09F), point(-.22F,b.x*.09F,b.y*.09F), body,body,body,body);
+                emitProjectileVertex(point(.13F,a.x*.09F,a.y*.09F), {255,143,34,255});
+                emitProjectileVertex(point(.30F,0,0), {255,210,95,255});
+                emitProjectileVertex(point(.13F,b.x*.09F,b.y*.09F), {226,78,26,255});
+                emitProjectileVertex(point(-.22F,a.x*.09F,a.y*.09F),body);
+                emitProjectileVertex(point(-.22F,b.x*.09F,b.y*.09F),body);
+                emitProjectileVertex(point(-.22F,0,0),body);
+            }
+            for (int i=0; i<4; ++i) {
+                const auto axis = ring[static_cast<std::size_t>(i*2)];
+                emitProjectileVertex(point(-.20F,axis.x*.08F,axis.y*.08F),{255,170,48,255});
+                emitProjectileVertex(point(-.27F,axis.x*.20F,axis.y*.20F),{244,114,27,255});
+                emitProjectileVertex(point(-.03F,axis.x*.08F,axis.y*.08F),{255,206,81,255});
+            }
+        } else {
+            const float pulse = .5F + .5F * std::sin(static_cast<float>(projectile.runtime.elapsedLifetime)*53.0F);
+            for (std::size_t i=1;i<ring.size();++i) {
+                const auto a=ring[i-1], b=ring[i];
+                emitProjectileVertex(point(-.22F,a.x*.075F,a.y*.075F),{255,243,168,235});
+                emitProjectileVertex(point(-.60F-.12F*pulse,0,0),{255,104,23,0});
+                emitProjectileVertex(point(-.22F,b.x*.075F,b.y*.075F),{255,177,41,210});
+            }
+            // Fixed flight history follows curved trajectories; no particle allocations.
+            const auto& trail = projectile.runtime;
+            for (std::size_t puff=1;puff<trail.trailCount;++puff) {
+                const float age = static_cast<float>(puff)/8.0F;
+                const Vec3 stored = trail.trailPositions[(trail.trailHead + trail.trailPositions.size()-puff)%trail.trailPositions.size()];
+                const Vector3 smoke{static_cast<float>(stored.x), static_cast<float>(stored.y)+age*.1F, static_cast<float>(stored.z)};
+                emitCannonballGeometry(smoke,direction,cameraPosition,(.07F+.10F*age)*rocketScale,
+                    {205,218,225,static_cast<unsigned char>(100*(1-age))});
+            }
+        }
+        return;
+    }
+    // The simulation point is the capsule center, not its leading edge.
+    // Retain the old launch lead so the body emerges from the muzzle centered.
+    const float launchLead = 0.41F * scale;
+    const Vector3 head = Vector3Add(
+        {static_cast<float>(position.x), static_cast<float>(position.y),
+         static_cast<float>(position.z)}, Vector3Scale(direction, launchLead));
+    Color color{appearance.color.r, appearance.color.g, appearance.color.b, 255};
+    const bool bolt = projectile.type == BuildingType::Turret;
+    if (bolt) color = ColorLerp(color, {132, 210, 255, 255}, 0.65F);
+    const float travelled = static_cast<float>(std::lerp(
+        projectile.runtime.previousTravelledDistance, projectile.runtime.travelledDistance,
+        std::clamp(static_cast<double>(interpolationAlpha), 0.0, 1.0)));
+    emitDefenseShotGeometry(head, direction, cameraPosition,
+        travelled + launchLead, scale, 1.0F, color, drawTail, bolt);
 }
 
 } // namespace ian::app_projectile_drawing

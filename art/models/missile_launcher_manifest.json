@@ -1,0 +1,632 @@
+{
+  "asset": "missile_launcher",
+  "colliders": [
+    {
+      "bounds_glb": {
+        "max": [
+          0.6,
+          1.54,
+          0.6
+        ],
+        "min": [
+          -0.6,
+          0.0,
+          -0.6
+        ],
+        "size": [
+          1.2,
+          1.54,
+          1.2
+        ]
+      },
+      "name": "COL_BOX_BODY",
+      "parent": "asset_root",
+      "role": "Fixed body and full aiming height envelope; independent of build/movement footprint.",
+      "triangles": 12,
+      "type": "box",
+      "unique_vertices": 8,
+      "walkable": false
+    }
+  ],
+  "concept": "User four-tube orange missile launcher concept, adapted to the Kenney defense family; longer housing and fully supported clevis.",
+  "coordinates": "GLB +Y up, -Z forward, +X right; Blender +Z up, +Y forward",
+  "counts": {
+    "collision_materials": 1,
+    "collision_meshes": 1,
+    "collision_primitives": 1,
+    "total_materials": 2,
+    "total_meshes": 4,
+    "total_primitives": 4,
+    "total_triangles": 1756,
+    "triangles_by_mesh": {
+      "COL_BOX_BODY": 12,
+      "base_mesh": 376,
+      "pitch_mesh": 1088,
+      "yaw_mesh": 280
+    },
+    "visible_materials": 1,
+    "visible_meshes": 3,
+    "visible_primitives": 3,
+    "visible_triangles": 1744
+  },
+  "export_primitive_indices_in_node_order": {
+    "COL_BOX_BODY": 1,
+    "base_mesh": 0,
+    "pitch_mesh": 2,
+    "yaw_mesh": 3
+  },
+  "files": {
+    "blend": "art/models/missile_launcher.blend",
+    "comparison": "art/models/missile_launcher_comparison.png",
+    "generator": "tools/create_missile_launcher_model.py",
+    "handoff": "art/models/missile_launcher_handoff.md",
+    "loader_probe": "tools/validate_missile_launcher_loader.cpp",
+    "preview": "art/models/missile_launcher_preview.png",
+    "runtime_glb": "assets/models/buildings/missile_launcher.glb",
+    "validator": "tools/validate_missile_launcher_model.py",
+    "views": [
+      "art/models/missile_launcher_views/beauty.png",
+      "art/models/missile_launcher_views/front.png",
+      "art/models/missile_launcher_views/side.png",
+      "art/models/missile_launcher_views/back.png",
+      "art/models/missile_launcher_views/top.png"
+    ],
+    "loader_report": "art/models/missile_launcher_loader_report.json"
+  },
+  "footprint": {
+    "note": "Must be assigned in game code; GLB does not configure build or movement blocking.",
+    "recommended_cells": [
+      2,
+      2
+    ],
+    "x_range": [
+      -1,
+      1
+    ],
+    "z_range": [
+      -1,
+      1
+    ]
+  },
+  "geometry_source": "Original project geometry based on the user concept; kit palette reused.",
+  "groups": {
+    "base_mesh": "Fixed foot, stepped orange pedestal, four steel braces and bolts.",
+    "pitch_mesh": "Beveled orange missile pod, silver bezel, dark cassette, four round recessed tubes, roof cap and trunnion axle.",
+    "yaw_mesh": "Wide steel turntable, wooden support platform, supported clevis and bearing caps."
+  },
+  "integration": {
+    "loader_checked": true,
+    "note": "Export, fresh import and current game loaders verified. Gameplay, aiming, missile attack and VFX integration unconnected; no playtest performed.",
+    "playtested": false,
+    "rig_connected": false
+  },
+  "levels": {
+    "count": 1,
+    "kind": "complete base model",
+    "overlays": []
+  },
+  "motion": {
+    "intentional_contacts": [
+      "Trunnion drive axle inside the stationary bearings."
+    ],
+    "pitch_axis_glb": [
+      1,
+      0,
+      0
+    ],
+    "pitch_elevation_degrees": [
+      -8,
+      30
+    ],
+    "pose_validation": {
+      "maximum_horizontal_radius_m": 0.539538,
+      "maximum_moving_height_m": 1.511106,
+      "minimum_moving_height_m": 0.573,
+      "pitch_step_degrees": 1,
+      "poses_checked": 1368,
+      "surface_intersections": 0,
+      "yaw_samples_for_full_pitch": [
+        0,
+        45,
+        90,
+        135,
+        180,
+        225,
+        270,
+        315
+      ],
+      "yaw_step_degrees_at_extremes_and_neutral": 1
+    },
+    "positive_pitch": "raises muzzle",
+    "recoil_travel_m": 0,
+    "yaw_axis_glb": [
+      0,
+      1,
+      0
+    ],
+    "yaw_degrees": [
+      0,
+      360
+    ]
+  },
+  "muzzles": [
+    {
+      "forward_relative_to_root": [
+        0,
+        0,
+        -1
+      ],
+      "name": "MUZZLE_01",
+      "offset_ahead_of_tube_m": 0.02,
+      "position_relative_to_root": [
+        -0.113,
+        1.203,
+        -0.4388
+      ],
+      "up_relative_to_root": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "forward_relative_to_root": [
+        0,
+        0,
+        -1
+      ],
+      "name": "MUZZLE_02",
+      "offset_ahead_of_tube_m": 0.02,
+      "position_relative_to_root": [
+        0.113,
+        1.203,
+        -0.4388
+      ],
+      "up_relative_to_root": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "forward_relative_to_root": [
+        0,
+        0,
+        -1
+      ],
+      "name": "MUZZLE_03",
+      "offset_ahead_of_tube_m": 0.02,
+      "position_relative_to_root": [
+        -0.113,
+        0.977,
+        -0.4388
+      ],
+      "up_relative_to_root": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "forward_relative_to_root": [
+        0,
+        0,
+        -1
+      ],
+      "name": "MUZZLE_04",
+      "offset_ahead_of_tube_m": 0.02,
+      "position_relative_to_root": [
+        0.113,
+        0.977,
+        -0.4388
+      ],
+      "up_relative_to_root": [
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "palette": {
+    "dimensions": [
+      512,
+      512
+    ],
+    "embedded_glb": true,
+    "license": "Kenney Tower Defense Kit 2.1, CC0",
+    "license_file": "art/references/kenney_tower_defense/LICENSE.txt",
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "render_indices_after_collision_removal": {
+    "base_mesh": 0,
+    "pitch_mesh": 1,
+    "yaw_mesh": 2
+  },
+  "transforms_glb": {
+    "COL_BOX_BODY": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "MUZZLE_01": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        -0.113,
+        0.113,
+        -0.4388
+      ],
+      "parent": "pitch_pivot",
+      "position_relative_to_asset_root": [
+        -0.113,
+        1.203,
+        -0.4388
+      ]
+    },
+    "MUZZLE_02": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.113,
+        0.113,
+        -0.4388
+      ],
+      "parent": "pitch_pivot",
+      "position_relative_to_asset_root": [
+        0.113,
+        1.203,
+        -0.4388
+      ]
+    },
+    "MUZZLE_03": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        -0.113,
+        -0.113,
+        -0.4388
+      ],
+      "parent": "pitch_pivot",
+      "position_relative_to_asset_root": [
+        -0.113,
+        0.977,
+        -0.4388
+      ]
+    },
+    "MUZZLE_04": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.113,
+        -0.113,
+        -0.4388
+      ],
+      "parent": "pitch_pivot",
+      "position_relative_to_asset_root": [
+        0.113,
+        0.977,
+        -0.4388
+      ]
+    },
+    "asset_root": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": null,
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "pitch_pivot": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.49,
+        0.0
+      ],
+      "parent": "yaw_pivot",
+      "position_relative_to_asset_root": [
+        0.0,
+        1.09,
+        0.0
+      ]
+    },
+    "socket_base": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "socket_ui_top": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        1.65,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        1.65,
+        0.0
+      ]
+    },
+    "yaw_pivot": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.6,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        0.6,
+        0.0
+      ]
+    }
+  },
+  "units": "metres",
+  "validation": {
+    "editable_blend_checked": true,
+    "embedded_palette_byte_identical": true,
+    "exposed_bolt_face_vertices_checked": 32,
+    "fresh_import": true,
+    "game_loader": {
+      "attack_connected": false,
+      "collider_max": [
+        0.6000000238418579,
+        1.5399999618530273,
+        0.6000000238418579
+      ],
+      "collider_min": [
+        -0.6000000238418579,
+        0.0,
+        -0.6000000238418579
+      ],
+      "collider_name": "COL_BOX_BODY",
+      "colliders": 1,
+      "embedded_texture_loaded": true,
+      "glb_collision_valid": true,
+      "model_resource_valid": true,
+      "muzzle_count": 4,
+      "muzzles": [
+        {
+          "forward": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "name": "MUZZLE_01",
+          "position": [
+            -0.11299999803304672,
+            1.2030000686645508,
+            -0.43880000710487366
+          ],
+          "up": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "forward": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "name": "MUZZLE_02",
+          "position": [
+            0.11299999803304672,
+            1.2030000686645508,
+            -0.43880000710487366
+          ],
+          "up": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "forward": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "name": "MUZZLE_03",
+          "position": [
+            -0.11299999803304672,
+            0.9770000576972961,
+            -0.43880000710487366
+          ],
+          "up": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "forward": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "name": "MUZZLE_04",
+          "position": [
+            0.11299999803304672,
+            0.9770000576972961,
+            -0.43880000710487366
+          ],
+          "up": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        }
+      ],
+      "playtested": false,
+      "removed_collision_mesh_indices": [
+        1
+      ],
+      "visible_mesh_count": 3
+    },
+    "glb_sha256": "1d2c6015a28e9b2af4833adf48fa5b71ddef24125e450106b05cb0a7bc875972",
+    "normals_uv_manifold": true,
+    "pose_sweep": true,
+    "raw_glb": true,
+    "support_feet_checked": 8
+  },
+  "visible_bounds_glb": {
+    "max": [
+      0.6,
+      1.358,
+      0.6
+    ],
+    "min": [
+      -0.6,
+      0.0,
+      -0.6
+    ],
+    "size": [
+      1.2,
+      1.358,
+      1.2
+    ]
+  },
+  "authoring": {
+    "blender_mcp": true,
+    "skill": "itsalmostnight-models",
+    "changes_from_concept": [
+      "Fitted proportions to existing defense family",
+      "Pod length increased by 20%; original width retained",
+      "Clevis platform widened to fully support both feet",
+      "Four base bolt heads moved outside brace faces"
+    ]
+  },
+  "pod_dimensions_neutral_m": {
+    "width": 0.57,
+    "length": 0.8364,
+    "original_width_retained": true,
+    "length_multiplier": 1.2
+  }
+}

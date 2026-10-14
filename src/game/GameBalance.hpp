@@ -179,7 +179,7 @@ struct GameplayBalanceDefinition {
 struct GameBalance {
     static constexpr std::size_t EnemyTypeCount = 9;
     static constexpr std::size_t WaveCount = 6;
-    static constexpr std::size_t BuildingTypeCount = 16;
+    static constexpr std::size_t BuildingTypeCount = 18;
 
     std::array<EnemyDefinition, EnemyTypeCount> enemies;
     std::array<WaveDefinition, WaveCount> waves;

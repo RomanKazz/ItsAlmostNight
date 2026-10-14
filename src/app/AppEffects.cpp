@@ -1,3 +1,4 @@
+#include "graphics/ChainLightningEffect.hpp"
 #include "graphics/RoyalBossEffect.hpp"
 #include "graphics/EnemyMagicEffect.hpp"
 #include "graphics/PropBreakEffect.hpp"
@@ -86,79 +87,6 @@ void emitImpactStreak(
     rlVertex3f(sideB.x, sideB.y, sideB.z);
 }
 
-Vector3 lightningOffsetDirection(
-    Vector3 direction, Vector3 axis) {
-    Vector3 result = Vector3CrossProduct(direction, axis);
-    if (Vector3LengthSqr(result) < 0.0001F) {
-        result = Vector3CrossProduct(
-            direction, Vector3{1.0F, 0.0F, 0.0F});
-    }
-    return Vector3Normalize(result);
-}
-
-void drawLightningArc(
-    Vector3 start, Vector3 end, float progress,
-    int seed, float amplitudeScale, float alphaScale) {
-    const Vector3 delta = Vector3Subtract(end, start);
-    const float length = Vector3Length(delta);
-    if (length < 0.01F) {
-        return;
-    }
-    const Vector3 direction = Vector3Scale(delta, 1.0F / length);
-    const Vector3 side = lightningOffsetDirection(
-        direction, Vector3{0.0F, 1.0F, 0.0F});
-    const Vector3 lift = Vector3Normalize(
-        Vector3CrossProduct(side, direction));
-    const int segmentCount = std::clamp(
-        static_cast<int>(std::ceil(length * 2.2F)), 7, 20);
-    const int flickerFrame =
-        static_cast<int>(std::floor(progress * 34.0F));
-    const float baseAmplitude =
-        std::min(0.42F, 0.075F * length) * amplitudeScale;
-    Vector3 previous = start;
-    for (int segment = 1; segment <= segmentCount; ++segment) {
-        const float t = static_cast<float>(segment) /
-            static_cast<float>(segmentCount);
-        Vector3 point = Vector3Lerp(start, end, t);
-        if (segment < segmentCount) {
-            const float envelope = std::sin(t * PI);
-            const int sample = segment + flickerFrame * 29 + seed * 101;
-            const float sideNoise =
-                effectUnit(sample, 201 + seed) * 2.0F - 1.0F;
-            const float liftNoise =
-                effectUnit(sample, 263 + seed) * 2.0F - 1.0F;
-            const float wave = std::sin(
-                t * (10.0F + static_cast<float>(seed % 5)) +
-                progress * 22.0F + static_cast<float>(seed));
-            point = Vector3Add(
-                point,
-                Vector3Scale(
-                    side,
-                    (sideNoise * 0.78F + wave * 0.22F) *
-                        baseAmplitude * envelope));
-            point = Vector3Add(
-                point,
-                Vector3Scale(
-                    lift, liftNoise * baseAmplitude * 0.62F *
-                        envelope));
-        }
-
-        DrawCylinderEx(
-            previous, point, 0.120F * amplitudeScale,
-            0.120F * amplitudeScale, 6,
-            {35, 104, 255,
-             atmosphereAlpha(0.24F * alphaScale)});
-        DrawCylinderEx(
-            previous, point, 0.052F * amplitudeScale,
-            0.052F * amplitudeScale, 6,
-            {63, 187, 255,
-             atmosphereAlpha(0.82F * alphaScale)});
-        DrawCylinderEx(
-            previous, point, 0.016F * amplitudeScale,
-            0.016F * amplitudeScale, 5,
-            {238, 253, 255,
-             atmosphereAlpha(0.98F * alphaScale)});
-        previous = point;
     }
 }
 
@@ -794,6 +722,26 @@ void App::drawPresentationEffects(
         renderer_->endColorOnlyWorldEffects();
         renderer_->endWorldShader();
     }
+    if (std::ranges::any_of(effects_, [](const auto& effect) {
+            return effect.type == PresentationEffectType::ChainLightning && effect.startDelayRemaining <= 0;
+        })) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState material{}; material.unlitAmount=1;material.screenAoAmount=0;
+        material.inkOutlineEligible=false;renderer_->setWorldMaterial(material);
+        renderer_->beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch();
+        int remaining=chain_lightning_effect::MaximumVisibleArcs;
+        for(auto it=effects_.rbegin();it!=effects_.rend() && remaining>0;++it) {
+            const auto& effect=*it;
+            if(effect.type!=PresentationEffectType::ChainLightning || effect.startDelayRemaining>0 || !effect.targetPosition || effect.duration<=0) continue;
+            --remaining;
+            const auto seed=static_cast<std::uint64_t>(effect.variant)*37U + (effect.entityId?effect.entityId->index:0U);
+            chain_lightning_effect::emit(chain_lightning_effect::point(effect.position),
+                chain_lightning_effect::point(*effect.targetPosition),camera.position,
+                static_cast<float>(effect.duration-effect.remaining),static_cast<float>(effect.duration),seed,effect.scale,static_cast<float>(GetTime()));
+        }
+        fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->endWorldShader();
+    }
     for (const auto& effect : effects_) {
         // Frozen impacts and burning use their own batches, not generic debris.
         if (effect.startDelayRemaining > 0.0 ||
@@ -804,6 +752,7 @@ void App::drawPresentationEffects(
             effect.type == PresentationEffectType::EnemyBurn ||
             effect.type == PresentationEffectType::IceImpact ||
             effect.type == PresentationEffectType::IceCrack ||
+            effect.type == PresentationEffectType::ChainLightning ||
             effect.type == PresentationEffectType::FireImpact) {
             continue;
         }
@@ -917,91 +866,6 @@ void App::drawPresentationEffects(
                 }
             }
             rlDrawRenderBatchActive();
-            rlEnableDepthMask();
-            EndBlendMode();
-            continue;
-        }
-        if (effect.type ==
-                PresentationEffectType::ChainLightning &&
-            effect.targetPosition) {
-            const Vector3 target{
-                static_cast<float>(effect.targetPosition->x),
-                static_cast<float>(effect.targetPosition->y),
-                static_cast<float>(effect.targetPosition->z),
-            };
-            const float appear = smoothstep(0.0F, 0.08F, progress);
-            const float fade = 1.0F -
-                smoothstep(0.48F, 1.0F, progress);
-            const float pulse = appear * fade;
-            const int seed = effect.variant * 37 +
-                (effect.entityId
-                     ? static_cast<int>(effect.entityId->index % 997U)
-                     : 0);
-            rlDrawRenderBatchActive();
-            BeginBlendMode(BLEND_ADDITIVE);
-            rlDisableDepthMask();
-            // The arc often runs through a dense pack. It is a very short
-            // gameplay cue, so render its emissive layers over silhouettes
-            // instead of letting several enemy meshes hide it completely.
-            rlDisableDepthTest();
-            drawLightningArc(
-                origin, target, progress, seed, 1.0F, pulse);
-            drawLightningArc(
-                origin, target, progress, seed + 17,
-                0.52F, pulse * 0.48F);
-            drawLightningArc(
-                origin, target, progress, seed + 41,
-                0.34F, pulse * 0.30F);
-
-            const float flash = pulse *
-                (0.72F + 0.28F * std::sin(progress * 48.0F));
-            DrawSphere(
-                origin, 0.26F + flash * 0.12F,
-                {45, 132, 255,
-                 atmosphereAlpha(flash * 0.22F)});
-            DrawSphere(
-                origin, 0.075F + flash * 0.035F,
-                {231, 252, 255,
-                 atmosphereAlpha(flash * 0.92F)});
-            DrawSphere(
-                target, 0.52F + flash * 0.22F,
-                {45, 132, 255,
-                 atmosphereAlpha(flash * 0.26F)});
-            DrawSphere(
-                target, 0.135F + flash * 0.065F,
-                {231, 252, 255,
-                 atmosphereAlpha(flash * 0.96F)});
-            for (int spark = 0; spark < 7; ++spark) {
-                const float angle = effectUnit(
-                    seed + spark * 13, 509) * 2.0F * PI;
-                const float lift =
-                    effectUnit(seed + spark * 17, 521) * 2.0F - 0.65F;
-                Vector3 sparkDirection{
-                    std::cos(angle), lift, std::sin(angle)};
-                sparkDirection = Vector3Normalize(sparkDirection);
-                const float sparkLength =
-                    0.34F + effectUnit(seed + spark * 19, 523) * 0.48F;
-                const Vector3 sparkEnd = Vector3Add(
-                    target, Vector3Scale(
-                        sparkDirection, sparkLength * flash));
-                DrawCylinderEx(
-                    target, sparkEnd, 0.018F, 0.004F, 4,
-                    {139, 224, 255,
-                     atmosphereAlpha(flash * 0.78F)});
-                DrawSphere(
-                    sparkEnd, 0.025F,
-                    {230, 253, 255,
-                     atmosphereAlpha(flash * 0.72F)});
-            }
-            const Vector3 ringCenter{
-                target.x, target.y + 0.015F, target.z};
-            DrawCircle3D(
-                ringCenter, 0.18F + progress * 0.75F,
-                {1.0F, 0.0F, 0.0F}, 90.0F,
-                {92, 207, 255,
-                 atmosphereAlpha(pulse * 0.72F)});
-            rlDrawRenderBatchActive();
-            rlEnableDepthTest();
             rlEnableDepthMask();
             EndBlendMode();
             continue;

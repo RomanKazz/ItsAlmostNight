@@ -1,0 +1,368 @@
+{
+  "asset": "tesla_tower",
+  "colliders": [
+    {
+      "bounds_glb": {
+        "max": [
+          0.6,
+          1.44,
+          0.6
+        ],
+        "min": [
+          -0.6,
+          0.0,
+          -0.6
+        ],
+        "size": [
+          1.2,
+          1.44,
+          1.2
+        ]
+      },
+      "name": "COL_BOX_BODY",
+      "parent": "asset_root",
+      "triangles": 12,
+      "type": "box",
+      "unique_vertices": 8,
+      "walkable": false
+    }
+  ],
+  "concept": "User Tesla concept adapted to the defense family: thick orange terminal collar, three blue-gray insulating ribs, stepped pedestal and cyan orb.",
+  "coordinates": "GLB +Y up, -Z forward, +X right; Blender +Z up, +Y forward",
+  "counts": {
+    "collision_materials": 1,
+    "collision_meshes": 1,
+    "collision_primitives": 1,
+    "total_materials": 3,
+    "total_meshes": 3,
+    "total_primitives": 3,
+    "total_triangles": 1424,
+    "triangles_by_mesh": {
+      "COL_BOX_BODY": 12,
+      "base_mesh": 1188,
+      "energy_mesh": 224
+    },
+    "visible_materials": 2,
+    "visible_meshes": 2,
+    "visible_primitives": 2,
+    "visible_triangles": 1412
+  },
+  "energy_material": {
+    "note": "Base color remains readable without emission. Glow, bloom and lightning require game renderer/VFX integration.",
+    "standard_gltf_emissive_factor": [
+      0.65,
+      0.65,
+      0.65
+    ]
+  },
+  "export_primitive_indices_in_node_order": {
+    "COL_BOX_BODY": 1,
+    "base_mesh": 0,
+    "energy_mesh": 2
+  },
+  "files": {
+    "blend": "art/models/tesla_tower.blend",
+    "comparison": "art/models/tesla_tower_comparison.png",
+    "generator": "tools/create_tesla_tower_model.py",
+    "handoff": "art/models/tesla_tower_handoff.md",
+    "loader_probe": "tools/validate_tesla_tower_loader.cpp",
+    "preview": "art/models/tesla_tower_preview.png",
+    "runtime_glb": "assets/models/buildings/tesla_tower.glb",
+    "validator": "tools/validate_tesla_tower_model.py",
+    "views": [
+      "art/models/tesla_tower_views/beauty.png",
+      "art/models/tesla_tower_views/front.png",
+      "art/models/tesla_tower_views/side.png",
+      "art/models/tesla_tower_views/back.png",
+      "art/models/tesla_tower_views/top.png"
+    ],
+    "loader_report": "art/models/tesla_tower_views/loader_report.json"
+  },
+  "footprint": {
+    "note": "Game code must assign footprint and movement blocking; GLB does not configure either.",
+    "recommended_cells": [
+      2,
+      2
+    ],
+    "x_range": [
+      -1,
+      1
+    ],
+    "z_range": [
+      -1,
+      1
+    ]
+  },
+  "geometry_source": "New concept geometry authored for the project; original kit palette reused.",
+  "groups": {
+    "base_mesh": "Fixed foot, simple orange pedestal and collars, four steel braces/bolts, three-rib coil and thick orange terminal collar.",
+    "energy_mesh": "Fixed faceted cyan sphere; separate material for energy rendering."
+  },
+  "integration": {
+    "loader_checked": true,
+    "note": "Export, fresh import and current game loaders verified. Gameplay, lightning and glow integration unconnected; no playtest performed.",
+    "playtested": false,
+    "rig_connected": false
+  },
+  "levels": {
+    "count": 1,
+    "kind": "complete base model",
+    "overlays": []
+  },
+  "motion": {
+    "note": "Static Tesla tower; no mechanical aiming pivots or clips. Runtime lightning chooses the target.",
+    "pitch_pivot": false,
+    "recoil_travel_m": 0,
+    "yaw_pivot": false
+  },
+  "muzzles": [
+    {
+      "forward_relative_to_root": [
+        0,
+        0,
+        -1
+      ],
+      "name": "MUZZLE_01",
+      "offset_ahead_of_sphere_surface_m": 0.02,
+      "up_relative_to_root": [
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "palette": {
+    "dimensions": [
+      512,
+      512
+    ],
+    "embedded_glb": true,
+    "license": "Kenney Tower Defense Kit 2.1, CC0",
+    "license_file": "art/references/kenney_tower_defense/LICENSE.txt",
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "render_indices_after_collision_removal": {
+    "base_mesh": 0,
+    "energy_mesh": 1
+  },
+  "transforms_glb": {
+    "COL_BOX_BODY": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "MUZZLE_01": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        1.26,
+        -0.2
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        1.26,
+        -0.2
+      ]
+    },
+    "asset_root": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": null,
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "socket_base": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "socket_effect_energy": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        1.26,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        1.26,
+        0.0
+      ]
+    },
+    "socket_ui_top": {
+      "local_rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "local_scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "local_translation": [
+        0.0,
+        1.54,
+        0.0
+      ],
+      "parent": "asset_root",
+      "position_relative_to_asset_root": [
+        0.0,
+        1.54,
+        0.0
+      ]
+    }
+  },
+  "units": "metres",
+  "validation": {
+    "c4_mirror_symmetry": true,
+    "editable_blend_checked": true,
+    "embedded_palette_byte_identical": true,
+    "fresh_import": true,
+    "game_loader": {
+      "collider_max": [
+        0.6000000238418579,
+        1.440000057220459,
+        0.6000000238418579
+      ],
+      "collider_min": [
+        -0.6000000238418579,
+        0.0,
+        -0.6000000238418579
+      ],
+      "collider_name": "COL_BOX_BODY",
+      "colliders": 1,
+      "embedded_texture_loaded": true,
+      "glb_collision_valid": true,
+      "lightning_connected": false,
+      "model_resource_valid": true,
+      "muzzle_forward": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "muzzle_name": "MUZZLE_01",
+      "muzzle_position": [
+        0.0,
+        1.2599999904632568,
+        -0.20000000298023224
+      ],
+      "muzzle_up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "muzzles": 1,
+      "playtested": false,
+      "removed_collision_mesh_indices": [
+        1
+      ],
+      "visible_mesh_count": 2
+    },
+    "glb_sha256": "70ece4cbbefe19861cee14c4ada395c2bc4a0e1554b5fbffb1ab3141a1b26bb1",
+    "normals_uv_manifold": true,
+    "raw_glb": true
+  },
+  "visible_bounds_glb": {
+    "max": [
+      0.6,
+      1.44,
+      0.6
+    ],
+    "min": [
+      -0.6,
+      0.0,
+      -0.6
+    ],
+    "size": [
+      1.2,
+      1.44,
+      1.2
+    ]
+  },
+  "authoring": {
+    "skill": "itsalmostnight-models",
+    "blender_mcp_preview": true,
+    "method": "Reproducible Blender generator; final file inspected and opened through Blender MCP"
+  }
+}

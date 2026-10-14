@@ -43,6 +43,8 @@ std::string_view buildingId(BuildingType type) {
     case BuildingType::CrystalStorage: return "crystal_storage";
     case BuildingType::GunTurret: return "gun_turret";
     case BuildingType::Catapult: return "catapult";
+    case BuildingType::TeslaTower: return "tesla_tower";
+    case BuildingType::MissileLauncher: return "missile_launcher";
     case BuildingType::Flamethrower: return "flamethrower";
     }
     return {};
@@ -75,8 +77,9 @@ constexpr std::array<std::string_view, RunUpgradeEffectCount> UpgradeIds{{
     "cannon_heavy_shell", "cannon_scattershot", "cannon_cluster_shell",
     "unlock_lumber_mill", "unlock_quarry", "unlock_crystal_mine",
     "lumber_mill_production", "quarry_production", "crystal_mine_production",
-    "regeneration",
-    "poison_chance", "upgrade_axe", "upgrade_pickaxe", "unlock_flamethrower",
+    "regeneration", "unlock_club", "unlock_rifle", "unlock_bomb", "unlock_ice_wand", "unlock_fire_wand",
+    "projectile_speed", "attack_duration", "attack_size", "critical_chance", "critical_damage", "attack_knockback",
+    "poison_chance", "upgrade_axe", "upgrade_pickaxe", "unlock_flamethrower", "unlock_wall", "unlock_missile_launcher", "unlock_tesla_tower",
 }};
 
 } // namespace

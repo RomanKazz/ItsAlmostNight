@@ -51,6 +51,14 @@
     "wood": 35, "stone": 25, "crystals": 10,
     "maxHealth": 160, "unlockCoreLevel": 1, "maxCount": 64
   },
+  "missileLauncher": {
+    "wood": 50, "stone": 40, "crystals": 25,
+    "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 64
+  },
+  "teslaTower": {
+    "wood": 40, "stone": 30, "crystals": 20,
+    "maxHealth": 170, "unlockCoreLevel": 1, "maxCount": 64
+  },
   "modular": {
     "platform": {"wood": 20, "stone": 5, "crystals": 0},
     "wall": {"wood": 5, "stone": 10, "crystals": 0},

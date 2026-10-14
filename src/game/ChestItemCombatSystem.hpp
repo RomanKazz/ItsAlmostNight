@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/GameEvent.hpp"
+#include "combat/AttackCollision.hpp"
 #include "enemies/EnemySystem.hpp"
 #include <array>
 #include <span>
@@ -50,6 +51,8 @@ private:
     std::vector<ItemPoisonCloud> clouds_;
     std::vector<HitCounter> counters_;
     std::uint64_t serial_{};
+    AttackCollisionQuery lightningQuery_;
+    bool lightningQueryReady_{};
     TargetState* target(EnemySystem& enemies, EntityId id);
     void ignite(EnemySystem& enemies, EntityId id, const GameEvent& hit, int copies);
     void lightning(EnemySystem& enemies, const GameEvent& hit, int copies, std::vector<GameEvent>& events);

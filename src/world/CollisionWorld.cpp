@@ -35,6 +35,8 @@ bool buildingBlocksPlayer(
     case BuildingType::CrystalMine:
     case BuildingType::Cannon:
     case BuildingType::Catapult:
+    case BuildingType::TeslaTower:
+    case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:

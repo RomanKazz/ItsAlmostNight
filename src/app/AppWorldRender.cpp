@@ -1080,6 +1080,16 @@ void App::drawWorldEntities(
                     0.0F, 1.55F, -0.55F, 0.18F, 0.18F,
                     1.0F, {50, 58, 67, 255});
             }
+        } else if (building.type == BuildingType::TeslaTower) {
+            static_cast<void>(renderer_->drawTeslaTower({x, groundY, z},
+                towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
+        } else if (building.type == BuildingType::MissileLauncher) {
+            static_cast<void>(renderer_->drawMissileLauncher({x, groundY, z},
+                towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
         } else if (building.type == BuildingType::Flamethrower) {
             static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
                 flamethrowerVisualYaw(building), WHITE, spawnScale));

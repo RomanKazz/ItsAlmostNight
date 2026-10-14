@@ -367,12 +367,16 @@ void AudioSystem::playEvent(
         }
         break;
     }
+    case GameEventType::TowerFired:
+        if(event.buildingType==BuildingType::MissileLauncher) playCue(AudioCue::FireShot,event.position,snapshot,0.26F,48.0F,0.09);
+        break;
     case GameEventType::CannonFired:
         playAt(
             rifleShot_, event.position, snapshot, 0.48F,
             variedPitch(0.03F) * 0.72F, 48.0F);
         break;
     case GameEventType::ProjectileHit:
+        if(event.buildingType==BuildingType::MissileLauncher || event.buildingType==BuildingType::TeslaTower) break;
         playAt(
             event.sourceId ? turretHit_ : enemyHit_,
             event.position, snapshot,
@@ -382,6 +386,7 @@ void AudioSystem::playEvent(
             variedPitch(0.06F));
         break;
     case GameEventType::ItemExplosion:
+    case GameEventType::MissileExplosion:
     case GameEventType::Explosion:
         playExplosion(explosion_, event.position, snapshot, 0.40F, 55.0F);
         break;

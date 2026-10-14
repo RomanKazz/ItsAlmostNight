@@ -75,6 +75,7 @@ void ChestItemCombatSystem::ignite(EnemySystem& enemies, EntityId id, const Game
 }
 void ChestItemCombatSystem::lightning(EnemySystem& enemies, const GameEvent& hit, int copies,
     std::vector<GameEvent>& events) {
+    if(!lightningQueryReady_) {lightningQuery_.rebuild(enemies);lightningQueryReady_=true;}
     std::array<EntityId, 9> visited{};
     std::size_t count = 1;
     visited[0] = *hit.entityId;
@@ -84,12 +85,12 @@ void ChestItemCombatSystem::lightning(EnemySystem& enemies, const GameEvent& hit
     for (int jump = 0; jump < jumps; ++jump) {
         std::optional<EntityId> next;
         double nearest = 6.5 * 6.5;
-        for (const auto& enemy : enemies.enemies()) {
-            if (!enemy.active || std::find(visited.begin(), visited.begin() + static_cast<std::ptrdiff_t>(count), enemy.id)
-                != visited.begin() + static_cast<std::ptrdiff_t>(count)) continue;
-            const double distance = distanceSquared(origin, enemy.position);
-            if (distance < nearest) { nearest = distance; next = enemy.id; }
-        }
+        lightningQuery_.nearby(enemies,origin,6.5,[&](const EnemyInstance& enemy) {
+            if(std::find(visited.begin(),visited.begin()+static_cast<std::ptrdiff_t>(count),enemy.id)
+                != visited.begin()+static_cast<std::ptrdiff_t>(count)) return;
+            const double distance=distanceSquared(origin,enemy.position);
+            if(distance<nearest) {nearest=distance;next=enemy.id;}
+        });
         if (!next) break;
         const auto result = enemies.damage(*next, damage);
         if (!result) break;
@@ -124,6 +125,7 @@ double ChestItemCombatSystem::gasMaskProtection(Vec3 player, const EnemySystem& 
 void ChestItemCombatSystem::tick(double seconds, EnemySystem& enemies,
     const std::array<int, LootUpgradeEffectCount>& stacks, std::vector<GameEvent>& events,
     std::size_t firstEvent, std::span<const BuildingInstance> buildings) {
+    lightningQueryReady_=false;
     seconds = std::isfinite(seconds) ? std::max(0.0, seconds) : 0.0;
     const auto copies = [&](LootUpgradeEffect e) { return std::clamp(stacks[lootUpgradeIndex(e)], 0, 1000); };
     if (!buildings.empty()) std::erase_if(counters_, [&](const HitCounter& counter) {

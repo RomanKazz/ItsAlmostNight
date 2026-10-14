@@ -35,7 +35,9 @@ enum class BuildingType {
     CrystalStorage,
     GunTurret,
     Catapult,
-    Flamethrower, // Append-only save ID; attack is intentionally not connected yet.
+    Flamethrower,
+    MissileLauncher, // Append-only save ID 16.
+    TeslaTower, // Append-only save ID 17.
 };
 
 enum class BuildingLimitCategory {

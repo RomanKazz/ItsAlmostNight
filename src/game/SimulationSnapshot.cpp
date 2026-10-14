@@ -260,6 +260,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::GunTurret),
             buildings_.configuredCost(BuildingType::Catapult),
             buildings_.configuredCost(BuildingType::Flamethrower),
+            buildings_.configuredCost(BuildingType::MissileLauncher),
+            buildings_.configuredCost(BuildingType::TeslaTower),
         },
         .unlockedBuildings = {
             buildingUnlocked(BuildingType::Core),
@@ -278,6 +280,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::GunTurret),
             buildingUnlocked(BuildingType::Catapult),
             buildingUnlocked(BuildingType::Flamethrower),
+            buildingUnlocked(BuildingType::MissileLauncher),
+            buildingUnlocked(BuildingType::TeslaTower),
         },
         .coreBuildRadius = sandboxMode_
             ? 0
@@ -309,6 +313,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .enemyProjectiles = enemies_.projectiles(),
         .towers = std::span<const TowerRuntime>{towers_.towers()},
+        .defenseProjectiles = towers_.projectiles(),
         .cannons = std::span<const CannonRuntime>{cannons_.cannons()},
         .traps = std::span<const TrapRuntime>{traps_.traps()},
         .cannonProjectiles =

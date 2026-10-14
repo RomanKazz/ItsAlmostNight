@@ -1,3 +1,4 @@
+#include "graphics/MissileLauncherModel.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/QuarryModel.hpp"
@@ -29,7 +30,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     std::span<const BuildingInstance> buildings, Ray ray,
     double maxDistance, float defensiveYaw,
     float cannonPitchRadians, float gateOpenAmount,
-    float /*spikeAnimationSeconds*/) {
+    float /*spikeAnimationSeconds*/, std::optional<float> defenseBaseYaw) {
     const Vec3 worldCenter =
         buildingWorldPosition(building);
     Vector3 position{
@@ -180,6 +181,12 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
+    case BuildingType::TeslaTower:
+        resource = &resources_.teslaTowerModel();
+        yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
+    case BuildingType::MissileLauncher:
+        resource = &resources_.missileLauncherModel();
+        yaw = defensiveYaw; break;
     case BuildingType::Flamethrower:
         resource = &resources_.flamethrowerModel();
         modelScale = 1.0F;
@@ -303,6 +310,18 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::MissileLauncher) {
+            std::optional<double> closest;
+            for (int index = 0; index < model.meshCount; ++index) {
+                const Matrix pose = MatrixMultiply(model.transform,
+                    missile_launcher_model::meshTransform(index, position,
+                        defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(
+                            building.type, building.rotation))), defensiveYaw, cannonPitchRadians));
+                const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], pose));
+                if (distance && (!closest || *distance < *closest)) closest = distance;
+            }
+            return closest;
+        }
         if (building.type == BuildingType::Wall &&
             model.meshCount >= wall_upgrade_model_detail::MeshCount) {
             const auto bounds = resource->meshBounds();

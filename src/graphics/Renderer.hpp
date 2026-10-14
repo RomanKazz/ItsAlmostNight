@@ -386,7 +386,8 @@ class Renderer {
         float defensiveYaw = 0.0F,
         float cannonPitch = 0.0F,
         float gateOpenAmount = 1.0F,
-        float spikeAnimationSeconds = -1.0F);
+        float spikeAnimationSeconds = -1.0F,
+        std::optional<float> defenseBaseYaw = std::nullopt);
     [[nodiscard]] std::optional<double>
     resourceRaycastDistance(
         ResourceType type, Vector3 position,
@@ -415,6 +416,12 @@ class Renderer {
                                   float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawTeslaTower(Vector3 position, float yawRadians, Color tint = WHITE,
+        float scale = 1.0F, float pitchRadians = 0.0F,
+        std::optional<float> headYaw = std::nullopt, int level = 1);
+    [[nodiscard]] bool drawMissileLauncher(Vector3 position, float yawRadians, Color tint = WHITE,
+        float scale = 1.0F, float pitchRadians = 0.0F,
+        std::optional<float> headYaw = std::nullopt, int level = 1);
     [[nodiscard]] bool drawFlamethrower(Vector3 position, float yawRadians,
                                               Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawCatapult(

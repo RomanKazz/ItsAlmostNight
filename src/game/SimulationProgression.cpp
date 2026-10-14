@@ -407,6 +407,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockTurret:
     case RunUpgradeEffect::UnlockCannon:
     case RunUpgradeEffect::UnlockCatapult:
+    case RunUpgradeEffect::UnlockTeslaTower:
+    case RunUpgradeEffect::UnlockMissileLauncher:
     case RunUpgradeEffect::UnlockFlamethrower:
     case RunUpgradeEffect::UnlockSpikeTrap:
     case RunUpgradeEffect::UnlockSlowTrap:
@@ -615,17 +617,18 @@ void Simulation::grantBlueprintInsightForType(
     if (unlimitedResources_ || blueprintStackOrdinal <= 0) {
         return;
     }
-    const std::uint64_t typeIndex =
-        static_cast<std::uint64_t>(type);
-    const std::uint64_t rewardKey =
-        static_cast<std::uint64_t>(blueprintStackOrdinal - 1) *
-            GameBalance::BuildingTypeCount +
-        typeIndex + 1U;
+    // Keep existing checkpoint reward keys stable when the building catalog grows.
+    constexpr std::uint64_t LegacyBuildingStride = 16U;
+    const std::uint64_t typeIndex = static_cast<std::uint64_t>(type);
+    const bool legacyType = typeIndex < LegacyBuildingStride;
+    const std::uint64_t rewardKey = legacyType
+        ? static_cast<std::uint64_t>(blueprintStackOrdinal - 1) * LegacyBuildingStride + typeIndex + 1U
+        : static_cast<std::uint64_t>(blueprintStackOrdinal);
     grantConfiguredInsight(
         insight_.config().firstBuildingTypeBonus,
         InsightSource::StructureBuilt,
         InsightCategory::Building,
-        {.eventId = insightIntegerEvent(0x501U, rewardKey),
+        {.eventId = insightIntegerEvent(legacyType ? 0x501U : 0x600U + typeIndex, rewardKey),
          .oneTime = true});
 }
 

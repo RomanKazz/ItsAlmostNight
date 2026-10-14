@@ -1,3 +1,5 @@
+#include "graphics/MissileLauncherModel.hpp"
+#include "buildings/TowerRig.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
 #include "graphics/CoreCrystalModel.hpp"
@@ -231,6 +233,45 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     prepareModelShader(model);
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
                 {scale, scale, scale}, tint);
+    return true;
+}
+
+bool Renderer::drawTeslaTower(Vector3 position, float yawRadians, Color tint,
+    float scale, float /*pitchRadians*/, std::optional<float> /*headYaw*/, int /*level*/) {
+    auto& resource = resources_.teslaTowerModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    prepareModelShader(model);
+    const auto savedMaterial=worldMaterial_;
+    for (int index = 0; index < model.meshCount; ++index) {
+        if(index==1) {auto energy=savedMaterial;energy.unlitAmount=0.85F;setWorldMaterial(energy);}
+        Material& material = model.materials[model.meshMaterial[index]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        const Matrix pose = missile_launcher_model::meshTransform(index, position,
+            yawRadians, yawRadians, 0, scale);
+        DrawMesh(model.meshes[index], material, MatrixMultiply(model.transform, pose));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    setWorldMaterial(savedMaterial);
+    return true;
+}
+
+bool Renderer::drawMissileLauncher(Vector3 position, float yawRadians, Color tint,
+    float scale, float pitchRadians, std::optional<float> headYaw, int /*level*/) {
+    auto& resource = resources_.missileLauncherModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    prepareModelShader(model);
+    for (int index = 0; index < model.meshCount; ++index) {
+        Material& material = model.materials[model.meshMaterial[index]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        const Matrix pose = missile_launcher_model::meshTransform(index, position,
+            yawRadians, headYaw.value_or(yawRadians), pitchRadians, scale);
+        DrawMesh(model.meshes[index], material, MatrixMultiply(model.transform, pose));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
     return true;
 }
 
@@ -553,6 +594,8 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::Turret: model = &resources_.crossbowModel(); break;
     case BuildingType::GunTurret: model = &resources_.gunTurretModel(); break;
     case BuildingType::Cannon: model = &resources_.cannonModel(); break;
+    case BuildingType::TeslaTower: return 1.44F;
+    case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;
     case BuildingType::CrystalMine: model = &resources_.mineModel(); scale = 1.05F; break;

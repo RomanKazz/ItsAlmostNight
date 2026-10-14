@@ -365,6 +365,8 @@ struct SimulationSnapshot {
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts;
     std::optional<BuildingPreview> buildingPreview;
+    std::optional<FinalAttackStats> buildingPreviewFinalAttackStats;
+    std::optional<FinalAttackStats> aimedFinalAttackStats;
     std::span<const BuildingInstance> buildings;
     std::span<const PlatformFrameInstance> platformFrames;
     std::span<const SharedSupport> sharedSupports;
@@ -381,6 +383,7 @@ struct SimulationSnapshot {
     std::span<const EnemyInstance> enemies;
     std::span<const EnemyProjectile> enemyProjectiles;
     std::span<const TowerRuntime> towers;
+    std::span<const AttackProjectile> defenseProjectiles;
     std::span<const CannonRuntime> cannons;
     std::span<const TrapRuntime> traps;
     std::span<const CannonProjectile> cannonProjectiles;

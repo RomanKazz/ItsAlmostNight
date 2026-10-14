@@ -1,3 +1,4 @@
+#include "graphics/ChainLightningEffect.hpp"
 #include "app/App.hpp"
 #include "ui/PlayerDeathOverlay.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -398,22 +399,20 @@ void App::processPresentationEvents(
                 event.position,
                 event.intensity > 0.0 ? event.intensity : 1.15,
                 1.0F, event.entityId);
+        } else if (event.type == GameEventType::MissileExplosion) {
+            addEffect(PresentationEffectType::Explosion,event.position,.55,static_cast<float>(event.intensity)*.55F,event.entityId);
         } else if (event.type == GameEventType::ChainLightningHit &&
             event.entityId && event.targetPosition) {
-            constexpr std::size_t MaxEffects = 128;
-            if (effects_.size() >= MaxEffects) {
-                effects_.erase(effects_.begin());
-            }
             // Lightning should connect through the enemies' torsos. The
             // damage-number anchor intentionally sits above the head and is
             // therefore unsuitable for a world-space electrical arc.
             const Vec3 target = enemyImpactAnchor(
                 *event.entityId, *event.targetPosition);
-            const Vec3 source = event.sourceId
+            const Vec3 source = event.sourceId && !event.buildingType
                 ? enemyImpactAnchor(
                       *event.sourceId, event.position)
                 : event.position;
-            effects_.push_back({
+            const PresentationEffect lightning{
                 .type = PresentationEffectType::ChainLightning,
                 .entityId = event.entityId,
                 .position = source,
@@ -421,13 +420,25 @@ void App::processPresentationEvents(
                 .remaining = 0.42,
                 .duration = 0.42,
                 .startDelayRemaining =
-                    static_cast<double>(event.amount) * 0.045,
+                    static_cast<double>(event.buildingType==BuildingType::TeslaTower ? std::min(event.amount,3) : event.amount) * 0.045,
                 .scale = 1.0F,
                 .variant = event.amount,
+            };
+            auto duplicate = std::find_if(effects_.begin(),effects_.end(),[&](const auto& existing) {
+                return existing.type==PresentationEffectType::ChainLightning && existing.entityId==event.entityId &&
+                    geometry::distanceSquared(existing.position,source)<0.01;
             });
-            addFloatingDamageNumber(
-                target, event.damage, false);
-            addCameraShake(
+            const auto count=std::ranges::count(effects_,PresentationEffectType::ChainLightning,&PresentationEffect::type);
+            if(duplicate!=effects_.end()) {
+                duplicate->position=source;duplicate->targetPosition=target;
+                duplicate->remaining=std::max(duplicate->remaining,0.18);
+                duplicate->startDelayRemaining=std::min(duplicate->startDelayRemaining,lightning.startDelayRemaining);
+            }
+            else if(count<chain_lightning_effect::MaximumVisibleArcs) effects_.push_back(lightning);
+            if (event.damage > 0) addFloatingDamageNumber(
+                enemyDamageAnchor(*event.entityId, target),
+                event.damage, false, 0.0, event.entityId);
+            if (event.buildingType != BuildingType::TeslaTower) addCameraShake(
                 0.10, event.amount == 0 ? 0.025 : 0.012);
         } else if (event.type == GameEventType::ResourceHit &&
             !event.sourceId) {

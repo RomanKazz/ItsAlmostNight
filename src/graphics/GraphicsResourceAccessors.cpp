@@ -307,6 +307,10 @@ ModelResource& GraphicsResources::gunTurretModel() {
     return gunTurretModel_;
 }
 
+ModelResource& GraphicsResources::teslaTowerModel() { return teslaTowerModel_; }
+
+ModelResource& GraphicsResources::missileLauncherModel() { return missileLauncherModel_; }
+
 ModelResource& GraphicsResources::flamethrowerModel() {
     return flamethrowerModel_;
 }
