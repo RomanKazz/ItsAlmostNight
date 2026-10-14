@@ -2,10 +2,20 @@
 
 #include "buildings/BuildingSystem.hpp"
 
+#include <raylib.h>
+
 #include <cmath>
 #include <optional>
 
 namespace ian {
+
+// Provider bounds include an elite's crown. Reserve a small proportional
+// margin for head movement/squash without moving the bar with every pose.
+[[nodiscard]] inline Vector3 enemyHealthBarWorldAnchor(BoundingBox bounds,bool elite) {
+    const float motionClearance=elite ? .08F+.06F*(bounds.max.y-bounds.min.y) : 0;
+    return {(bounds.min.x+bounds.max.x)*.5F,bounds.max.y+.12F+motionClearance,
+        (bounds.min.z+bounds.max.z)*.5F};
+}
 
 inline constexpr float BuildingUpgradePromptWorldHeight = 0.20F;
 inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;

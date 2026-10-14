@@ -143,10 +143,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 bounds->min.x <= bounds->max.x &&
                 bounds->min.y <= bounds->max.y &&
                 bounds->min.z <= bounds->max.z) {
-                return Vector3{
-                    (bounds->min.x + bounds->max.x) * 0.5F,
-                    bounds->max.y + 0.12F,
-                    (bounds->min.z + bounds->max.z) * 0.5F};
+                return enemyHealthBarWorldAnchor(*bounds,enemy.eliteAffixes!=0U);
             }
         }
         // Kept only for callers that do not have a renderer provider yet;

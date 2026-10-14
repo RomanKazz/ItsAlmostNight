@@ -27,6 +27,7 @@
 #include "graphics/FireWandEffect.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
+#include "ui/TargetHealthBarAnchor.hpp"
 #include "graphics/EnemyPresentation.hpp"
 #include "graphics/SplitterPresentation.hpp"
 #include "world/VisualBiomes.hpp"
@@ -287,6 +288,29 @@ bool checkElitePresentation(ian::Renderer& renderer) {
         const auto ordinaryBounds = renderer.enemyWorldBounds(model, {}, .25F, 1);
         const auto eliteBounds = renderer.enemyWorldBounds(model, {}, .25F, 1, true);
         valid = valid && eliteBounds.max.y > ordinaryBounds.max.y;
+        const auto ordinaryAnchor=ian::enemyHealthBarWorldAnchor(ordinaryBounds,false);
+        valid=valid && std::abs(ordinaryAnchor.y-ordinaryBounds.max.y-.12F)<.0001F;
+        const auto eliteAnchor=ian::enemyHealthBarWorldAnchor(eliteBounds,true);
+        const auto barBottom=GetWorldToScreenEx(
+            Vector3Subtract(eliteAnchor,Vector3Scale(Vector3Normalize(
+                Vector3CrossProduct(Vector3Normalize(Vector3CrossProduct(
+                    Vector3Normalize(Vector3Subtract(camera.target,camera.position)),camera.up)),
+                    Vector3Normalize(Vector3Subtract(camera.target,camera.position)))),.23F*.67F*.5F)),
+            camera,target.texture.width,target.texture.height);
+        for(const float time:{0.0F,.35F,.69F}) {
+            Image posed=render(model,true,false,true,time);
+            int crownTop=posed.height;
+            const Color* colors=LoadImageColors(posed);
+            for(int y=0;y<posed.height;++y) for(int x=0;x<posed.width;++x) {
+                const auto c=colors[y*posed.width+x];
+                if(c.r>140 && c.g>95 && c.b<c.g*.7F) crownTop=std::min(crownTop,y);
+            }
+            const bool clearsCrown=barBottom.y+2<=static_cast<float>(crownTop);
+            if(!clearsCrown) std::cerr<<"elite health bar/crown overlap: model="<<type<<" time="<<time
+                <<" barBottom="<<barBottom.y<<" crownTop="<<crownTop<<'\n';
+            valid=valid && clearsCrown;
+            UnloadImageColors(const_cast<Color*>(colors));UnloadImage(posed);
+        }
         const int gold = goldPixels(image);
         valid = valid && gold > 100;
         if (gold <= 100) std::cerr << "elite crown missing for type " << type << ": " << gold << '\n';

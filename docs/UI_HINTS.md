@@ -1,6 +1,6 @@
 # Gameplay hint style
 
-Interaction prompts use one compact chamfered dark panel with the existing menu colors, outlined faces and shared key badge (`UiHintStyle.hpp`). This covers trials, shrines, restored map producers, chests, breakable crates/barrels, loot, building upgrades, producer stock and modular repairs. Inventory descriptions, placement summaries/errors, repair mode and restart prompts share those visual tokens.
+Interaction prompts use one compact chamfered dark panel with the existing menu colors, outlined faces and shared key badge (`UiHintStyle.hpp`). This covers trials, shrines, restored map producers, chests, breakable crates/barrels, loot, building upgrades, producer stock and modular repairs. Inventory descriptions, placement errors, repair mode and restart prompts share those visual tokens. Resource prices above the hotbar and drag-placement summaries retain their original unframed presentation at the user's request.
 
 Copy is limited to the action and key, plus a price/stock row where needed. Only loot retains an item name and an available reroll instruction; repairs do not repeat copy/sell/close controls. Shrine prompts show `Player bonus` or `Building bonus` and wood/stone/crystal prices. Enough resources are light; missing resources are red. Existing coin purchases keep coin prices. Controls come from bindings, including remapped keys.
 

@@ -362,7 +362,7 @@ if (showWorldHud) {
                 static_cast<float>(enemy.yaw),
                 enemyVisualScale(enemy.type) *
                     (enemy.eliteAffixes != 0U
-                        ? 1.08F : 1.0F));
+                        ? 1.08F : 1.0F), enemy.eliteAffixes != 0U);
             return world_transforms::finite(bounds)
                 ? std::optional<BoundingBox>{bounds}
                 : std::nullopt;
