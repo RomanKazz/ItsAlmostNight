@@ -38,7 +38,7 @@ shader.inputs['Roughness'].default_value = 1
 texture = material.node_tree.nodes.new('ShaderNodeTexImage')
 texture.image = image
 material.node_tree.links.new(texture.outputs['Color'], shader.inputs['Base Color'])
-STEEL = (.84375, .025, .225)
+GOLD = (.65625, .285, .465) # Same accent swatch as the core.
 DARK = (.59375, .025, .225)
 ORANGE = (.84375, .275, .475)
 RED = (.96875, .275, .475)
@@ -105,32 +105,32 @@ for level in range(2,9):
     parts = {'base': [], 'yaw': [], 'pitch': []}
     def add(role,obj): parts[role].append(obj)
     # Level 2: structural foot strap, tank strap and a nozzle reinforcement.
-    add('base', ring('foot_steel', (0,0,0), 1, .145,.205,.592,.617,STEEL))
-    add('yaw', ring('tank_strap', (0,0,.50), 1, .805,.842,.178,.195,STEEL))
-    add('pitch', ring('nozzle_band', (0,.924,0), 2,-.543,-.500,.176,.198,STEEL))
+    add('base', ring('foot_steel', (0,0,0), 1, .145,.205,.592,.617,GOLD))
+    add('yaw', ring('tank_strap', (0,0,.50), 1, .805,.842,.178,.195,GOLD))
+    add('pitch', ring('nozzle_band', (0,.924,0), 2,-.543,-.500,.176,.198,GOLD))
     if level >= 3:
-        add('yaw', ring('tank_upper_strap',(0,0,.50),1,1.03,1.065,.178,.197,STEEL))
+        add('yaw', ring('tank_upper_strap',(0,0,.50),1,1.03,1.065,.178,.197,GOLD))
         for side in (-1,1):
             add('yaw',cube('tank_side_clip',(side*.195,.935,.50),(.045,.26,.15),RED))
     if level >= 4:
         for side in (-1,1):
-            add('base',cube('armored_shoulder',(side*.337,.425,.03),(.085,.35,.30),STEEL,.02))
+            add('base',cube('armored_shoulder',(side*.337,.425,.03),(.085,.35,.30),GOLD,.02))
             add('base',cube('shoulder_inlay',(side*.383,.44,.03),(.018,.21,.20),ORANGE,.008))
     if level >= 5:
-        add('pitch',ring('barrel_heat_guard',(0,.924,0),2,-.425,-.325,.158,.190,STEEL))
+        add('pitch',ring('barrel_heat_guard',(0,.924,0),2,-.425,-.325,.158,.190,GOLD))
         add('pitch',ring('orange_collar',(0,.924,0),2,-.408,-.345,.186,.212,ORANGE))
     if level >= 6:
         for side in (-1,1):
             add('yaw',cube('fuel_mount',(side*.235,.735,.5),(.22,.06,.16),DARK,.008))
             add('yaw',cylinder('side_fuel_cell',(side*.29,0,.50),1,.76,1.165,.101,RED))
-            add('yaw',cylinder('fuel_cap',(side*.29,0,.50),1,1.162,1.195,.108,STEEL))
-            add('yaw',ring('fuel_brace',(side*.29,0,.50),1,.88,.914,.10,.113,STEEL))
+            add('yaw',cylinder('fuel_cap',(side*.29,0,.50),1,1.162,1.195,.108,GOLD))
+            add('yaw',ring('fuel_brace',(side*.29,0,.50),1,.88,.914,.10,.113,GOLD))
     if level >= 7:
         for side in (-1,1):
-            add('yaw',cube('rear_guard',(side*.40,1.0,.64),(.054,.52,.05),STEEL,.01))
+            add('yaw',cube('rear_guard',(side*.40,1.0,.64),(.054,.52,.05),GOLD,.01))
         add('yaw',cube('guard_bridge',(0,1.26,.64),(.83,.06,.05),ORANGE,.012))
         add('yaw',cube('pressure_mount',(0,1.18,.54),(.07,.20,.05),DARK,.008))
-        add('yaw',cylinder('pressure_gauge',(0,1.30,0),2,.40,.49,.093,STEEL))
+        add('yaw',cylinder('pressure_gauge',(0,1.30,0),2,.40,.49,.093,GOLD))
         add('yaw',cylinder('pressure_face',(0,1.30,0),2,.390,.405,.075,LIGHT))
         needle = cube('pressure_needle',(0,1.323,.382),(.018,.075,.016),RED,.003)
         needle.rotation_euler.y = -.45
@@ -186,6 +186,7 @@ header += ''.join('    {'+vec(lo)+','+vec(hi)+'},\n' for lo,hi in bounds)+'}};\n
 header += 'inline constexpr std::array<float, 8> UpgradeHeights{'+','.join(f'{v:.6f}F' for v in heights)+'};\n}\n'
 (ROOT/'src/graphics/FlamethrowerUpgradeData.hpp').write_text(header)
 manifest={'base_sha256':BASE_HASH,'component_glb':str(output.relative_to(ROOT)),
+    'accent_swatch':{'name':'original gold, matching core','blender_uv':GOLD},
     'mesh_count':len(indices),'triangles_all_levels':triangles,'level_mesh_indices':rows,
     'level_heights':heights,'palette_sha256':hashlib.sha256((ROOT/'assets/models/buildings/Textures/colormap.png').read_bytes()).hexdigest(),
     'roles':['base','yaw','pitch'],'pitch_range_degrees':[-10,21],

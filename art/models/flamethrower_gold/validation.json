@@ -1,0 +1,14 @@
+{
+  "visible_meshes": 24,
+  "base_meshes": 3,
+  "overlay_meshes": 21,
+  "levels": 8,
+  "geometry_unchanged": true,
+  "palette_unchanged": true,
+  "loader_verified": true,
+  "native_playtest": false,
+  "runtime_checks": [
+    "ian_graphics_smoke: base rig, collider removal, embedded textures, 21 overlay meshes, all eight levels, raycast and muzzle transform",
+    "ian_flamethrower_tests: existing attack behavior passed"
+  ]
+}

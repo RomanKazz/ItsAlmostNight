@@ -1,0 +1,52 @@
+{
+  "gold_blender_uv": [
+    0.65625,
+    0.285,
+    0.465
+  ],
+  "gold_matches_core": true,
+  "assets": [
+    {
+      "asset": "assets/models/buildings/flamethrower.glb",
+      "before_sha256": "ca23959522a39a3f139e40b98872b39b06507a9223904bbcd9752b8e0942cb97",
+      "after_sha256": "559d05c6b0c665a0596407debc775a4fb227849ae95474a9068a2c81be08699b",
+      "uv_vertices": {
+        "base_mesh": 128,
+        "pitch_mesh": 40,
+        "yaw_mesh": 24
+      },
+      "geometry_and_nodes_byte_identical": true,
+      "embedded_palette_byte_identical": true
+    },
+    {
+      "asset": "assets/models/buildings/flamethrower_upgrades.glb",
+      "before_sha256": "5d5e238046609bd2a1474c1b045a2084eea2ff37086ae8ded692891a3318b38e",
+      "after_sha256": "b6e24957c5cf588876354697a1115f97693367742eb2369acdc19d5ea54c6e2a",
+      "uv_vertices": {
+        "upgrade_l2_base": 96,
+        "upgrade_l2_pitch": 96,
+        "upgrade_l2_yaw": 96,
+        "upgrade_l3_base": 96,
+        "upgrade_l3_pitch": 96,
+        "upgrade_l3_yaw": 192,
+        "upgrade_l4_base": 288,
+        "upgrade_l4_pitch": 96,
+        "upgrade_l4_yaw": 192,
+        "upgrade_l5_base": 288,
+        "upgrade_l5_pitch": 192,
+        "upgrade_l5_yaw": 192,
+        "upgrade_l6_base": 288,
+        "upgrade_l6_pitch": 192,
+        "upgrade_l6_yaw": 576,
+        "upgrade_l7_base": 288,
+        "upgrade_l7_pitch": 192,
+        "upgrade_l7_yaw": 864,
+        "upgrade_l8_base": 288,
+        "upgrade_l8_pitch": 192,
+        "upgrade_l8_yaw": 864
+      },
+      "geometry_and_nodes_byte_identical": true,
+      "embedded_palette_byte_identical": true
+    }
+  ]
+}

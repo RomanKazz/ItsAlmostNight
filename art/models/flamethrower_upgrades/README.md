@@ -1,6 +1,8 @@
 # Flamethrower upgrade components
 
-The user's original `assets/models/buildings/flamethrower.glb` is preserved.
+Base geometry and rig in `assets/models/buildings/flamethrower.glb` are preserved.
+Silver accent UVs now use the core's gold swatch; the original PNG is unchanged.
+Current recolored editable source/previews: `art/models/flamethrower_gold/`.
 `flamethrower_upgrades.glb` supplies one cumulative three-mesh overlay for each
 level 2–8: base, pitch, yaw. Only the chosen level is rendered: three additional
 draws, one palette material. Level 1 uses the original model alone.

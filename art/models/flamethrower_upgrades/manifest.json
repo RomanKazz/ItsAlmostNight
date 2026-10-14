@@ -1,5 +1,5 @@
 {
-  "base_sha256": "ca23959522a39a3f139e40b98872b39b06507a9223904bbcd9752b8e0942cb97",
+  "base_sha256": "559d05c6b0c665a0596407debc775a4fb227849ae95474a9068a2c81be08699b",
   "component_glb": "assets/models/buildings/flamethrower_upgrades.glb",
   "mesh_count": 21,
   "triangles_all_levels": 8056,
@@ -60,5 +60,14 @@
     -10,
     21
   ],
-  "base_geometry_preserved": true
+  "base_geometry_preserved": true,
+  "accent_swatch": {
+    "name": "original gold, matching core",
+    "blender_uv": [
+      0.65625,
+      0.285,
+      0.465
+    ]
+  },
+  "color_authoring_source": "art/models/flamethrower_gold/flamethrower_gold.blend"
 }
