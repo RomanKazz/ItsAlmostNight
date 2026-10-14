@@ -1,3 +1,4 @@
+#include "ToolLevelGraphicsChecks.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/QuarryModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
@@ -3262,6 +3263,10 @@ int main() {
         }
         if (!checkGunTurretLevelRendering(renderer)) {
             std::cerr << "gun turret levels, material restoration or rotated armor aiming failed\n";
+            result = 1;
+        }
+        if (!checkToolLevelRendering(renderer)) {
+            std::cerr << "tool upgrade levels or rigid swing restoration failed\n";
             result = 1;
         }
         if (!checkCannonLevelRendering(renderer)) {

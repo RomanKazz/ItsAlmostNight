@@ -470,7 +470,7 @@ class Renderer {
         const FirstPersonToolTuning& tuning,
         float iceChargeProgress = 0.0F,
         float iceRecoilProgress = 0.0F,
-        bool alternateHarvestSwing = false);
+        bool alternateHarvestSwing = false, int toolLevel = 1);
     void drawFirstPersonSwingTrail(
         FirstPersonToolVisual visual, float swingProgress,
         float movementPhase, float movementAmount,

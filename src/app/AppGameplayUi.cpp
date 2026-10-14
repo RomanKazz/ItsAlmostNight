@@ -301,7 +301,10 @@ if (showFirstPersonTool) {
             renderTuning,
             iceChargeProgress,
             iceRecoilProgress,
-            toolSwingAlternateAnimation_));
+            toolSwingAlternateAnimation_,
+            snapshot.weaponLevels[static_cast<std::size_t>(
+                toolVisual == FirstPersonToolVisual::Pickaxe
+                    ? PlayerWeapon::Pickaxe : PlayerWeapon::Axe)]));
         renderer_->endGpuTimer(
             RendererGpuStage::ViewModelTarget);
         EndMode3D();

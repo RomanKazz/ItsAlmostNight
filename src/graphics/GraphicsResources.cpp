@@ -1102,6 +1102,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coreModel_.load("assets/models/buildings/core_levels.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
+    axeLevelModel_.load("assets/models/tools/axe_levels.glb");
+    pickaxeLevelModel_.load("assets/models/tools/pickaxe_levels.glb");
     static_cast<void>(pickaxeAnimation_.load(
         "assets/models/tools/pickaxe.glb", "swing pivot"));
     static_cast<void>(pickaxeAlternateAnimation_.load(
@@ -1590,6 +1592,8 @@ void GraphicsResources::shutdown() {
     ironBarLootModel_.unload();
     breadLootModel_.unload();
     appleLootModel_.unload();
+    axeLevelModel_.unload();
+    pickaxeLevelModel_.unload();
     pickaxeModel_.unload();
     pickaxeAnimation_.unload();
     pickaxeAlternateAnimation_.unload();

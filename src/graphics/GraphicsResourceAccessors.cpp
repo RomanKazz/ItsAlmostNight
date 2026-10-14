@@ -327,6 +327,14 @@ ModelResource& GraphicsResources::pickaxeModel() {
     return pickaxeModel_;
 }
 
+ModelResource& GraphicsResources::axeLevelModel() {
+    return axeLevelModel_;
+}
+
+ModelResource& GraphicsResources::pickaxeLevelModel() {
+    return pickaxeLevelModel_;
+}
+
 const GlbNodeAnimation& GraphicsResources::pickaxeAnimation() const {
     return pickaxeAnimation_;
 }

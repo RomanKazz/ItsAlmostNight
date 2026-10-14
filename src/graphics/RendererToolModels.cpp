@@ -47,7 +47,7 @@ bool Renderer::drawFirstPersonTool(
     float movementPhase, float movementAmount,
     const FirstPersonToolTuning& tuning,
     float iceChargeProgress, float iceRecoilProgress,
-    bool alternateHarvestSwing) {
+    bool alternateHarvestSwing, int toolLevel) {
     ModelResource* resource = nullptr;
     const bool iceWand = visual == FirstPersonToolVisual::IceWand;
     const bool fireWand = visual == FirstPersonToolVisual::FireWand;
@@ -79,6 +79,17 @@ bool Renderer::drawFirstPersonTool(
         break;
     case FirstPersonToolVisual::Bomb:
         break;
+    }
+    const bool leveledTool = visual == FirstPersonToolVisual::Axe || pickaxe;
+    toolLevel = std::clamp(toolLevel, 1, 8);
+    if (leveledTool && toolLevel > 1) {
+        ModelResource& levels = pickaxe
+            ? resources_.pickaxeLevelModel() : resources_.axeLevelModel();
+        if (levels.valid() && levels.get().meshCount >= toolLevel) {
+            resource = &levels;
+        } else {
+            toolLevel = 1;
+        }
     }
     if (!bomb && (resource == nullptr || !resource->valid())) {
         return false;
@@ -221,12 +232,34 @@ bool Renderer::drawFirstPersonTool(
             const float padding = 4.0F + std::max(tuning.outlineWidth, 0.0F) *
                 static_cast<float>(GetScreenWidth()) /
                 static_cast<float>(std::max(GetRenderWidth(), 1));
+            BoundingBox bounds = leveledTool && toolLevel > 1
+                ? resource->meshBounds()[0] : resource->visualBounds();
+            if (leveledTool && toolLevel > 1) {
+                const BoundingBox overlay = resource->meshBounds()[
+                    static_cast<std::size_t>(toolLevel - 1)];
+                bounds.min = {std::min(bounds.min.x, overlay.min.x),
+                              std::min(bounds.min.y, overlay.min.y),
+                              std::min(bounds.min.z, overlay.min.z)};
+                bounds.max = {std::max(bounds.max.x, overlay.max.x),
+                              std::max(bounds.max.y, overlay.max.y),
+                              std::max(bounds.max.z, overlay.max.z)};
+            }
             firstPersonCompositeBounds_ = viewModelCompositeBounds(
-                resource->visualBounds(), modelViewProjection,
+                bounds, modelViewProjection,
                 GetScreenWidth(), GetScreenHeight(), padding);
         }
-        DrawModel(model, {}, 1.0F,
-                  fireWand ? Color{255, 193, 150, 255} : WHITE);
+        if (leveledTool && toolLevel > 1) {
+            // Only the selected cumulative overlay. All parts share the
+            // authored rigid swing, including the alternate harvesting clip.
+            for (const int mesh : {0, toolLevel - 1}) {
+                DrawMesh(model.meshes[mesh],
+                         model.materials[model.meshMaterial[mesh]],
+                         model.transform);
+            }
+        } else {
+            DrawModel(model, {}, 1.0F,
+                      fireWand ? Color{255, 193, 150, 255} : WHITE);
+        }
         model.transform = originalTransform;
     }
     if (fireWand) {

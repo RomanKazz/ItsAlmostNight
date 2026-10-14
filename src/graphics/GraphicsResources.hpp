@@ -275,6 +275,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& coreModel();
     [[nodiscard]] ModelResource& axeModel();
     [[nodiscard]] ModelResource& pickaxeModel();
+    [[nodiscard]] ModelResource& axeLevelModel();
+    [[nodiscard]] ModelResource& pickaxeLevelModel();
     [[nodiscard]] const GlbNodeAnimation& pickaxeAnimation() const;
     [[nodiscard]] const GlbNodeAnimation& pickaxeAlternateAnimation() const;
     [[nodiscard]] ModelResource& clubModel();
@@ -424,6 +426,8 @@ class GraphicsResources {
     ModelResource coreModel_;
     ModelResource axeModel_;
     ModelResource pickaxeModel_;
+    ModelResource axeLevelModel_;
+    ModelResource pickaxeLevelModel_;
     GlbNodeAnimation pickaxeAnimation_;
     GlbNodeAnimation pickaxeAlternateAnimation_;
     ModelResource clubModel_;

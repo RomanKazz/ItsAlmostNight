@@ -1,0 +1,88 @@
+{
+  "axe": {
+    "meshes": 8,
+    "selected_draws": 2,
+    "clean_import": "passed",
+    "overlay_geometry": [
+      {
+        "name": "upgrade_axe_L2",
+        "triangles": 128,
+        "vertices": 384
+      },
+      {
+        "name": "upgrade_axe_L3",
+        "triangles": 208,
+        "vertices": 624
+      },
+      {
+        "name": "upgrade_axe_L4",
+        "triangles": 352,
+        "vertices": 1056
+      },
+      {
+        "name": "upgrade_axe_L5",
+        "triangles": 472,
+        "vertices": 1416
+      },
+      {
+        "name": "upgrade_axe_L6",
+        "triangles": 600,
+        "vertices": 1800
+      },
+      {
+        "name": "upgrade_axe_L7",
+        "triangles": 796,
+        "vertices": 2388
+      },
+      {
+        "name": "upgrade_axe_L8",
+        "triangles": 1008,
+        "vertices": 3024
+      }
+    ]
+  },
+  "pickaxe": {
+    "meshes": 8,
+    "selected_draws": 2,
+    "clean_import": "passed",
+    "overlay_geometry": [
+      {
+        "name": "upgrade_pickaxe_L2",
+        "triangles": 128,
+        "vertices": 384
+      },
+      {
+        "name": "upgrade_pickaxe_L3",
+        "triangles": 208,
+        "vertices": 624
+      },
+      {
+        "name": "upgrade_pickaxe_L4",
+        "triangles": 376,
+        "vertices": 1128
+      },
+      {
+        "name": "upgrade_pickaxe_L5",
+        "triangles": 532,
+        "vertices": 1596
+      },
+      {
+        "name": "upgrade_pickaxe_L6",
+        "triangles": 660,
+        "vertices": 1980
+      },
+      {
+        "name": "upgrade_pickaxe_L7",
+        "triangles": 856,
+        "vertices": 2568
+      },
+      {
+        "name": "upgrade_pickaxe_L8",
+        "triangles": 944,
+        "vertices": 2832
+      }
+    ]
+  },
+  "packed_source": "passed",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+}
