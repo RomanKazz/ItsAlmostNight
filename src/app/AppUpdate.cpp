@@ -636,6 +636,10 @@ void App::update() {
         0.0, explosionShakeCooldownRemaining_ - frameSeconds);
     landingResponseRemaining_ = std::max(
         0.0, landingResponseRemaining_ - frameSeconds);
+    if (movementSnapshot.state != RunState::Paused) {
+        playerRespawnRevealRemaining_ = std::max(
+            0.0, playerRespawnRevealRemaining_ - frameSeconds);
+    }
     playerDamageFlashRemaining_ =
         std::max(0.0, playerDamageFlashRemaining_ - frameSeconds);
     damagedBuildingHealthBarRemaining_ = std::max(

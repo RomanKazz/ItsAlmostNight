@@ -3,6 +3,9 @@
   "languages": {
     "en": {},
     "ru": {
+      "YOU DIED": "ВЫ ПОГИБЛИ",
+      "RESPAWN IN": "ВОЗРОЖДЕНИЕ ЧЕРЕЗ",
+      "PROTECTED": "ЗАЩИТА",
       "Weapon upgraded to level ": "Оружие улучшено до уровня ",
       "CYCLE BUILD PART / RESTOCK BOMBS": "СМЕНИТЬ МОДУЛЬ / КУПИТЬ БОМБЫ",
       "CORE VOLLEY": "ОБСТРЕЛ ЯДРА",

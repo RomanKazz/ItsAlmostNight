@@ -146,6 +146,7 @@ void AudioSystem::shutdown() {
     unload(gate_);
     unload(crystals_);
     unload(playerHit_);
+    playerHitSoundCooldown_ = 0.0;
     unload(enemyHit_);
     unload(turretHit_);
     unload(uiError_);
@@ -191,6 +192,7 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         std::clamp((0.35 - healthRatio) / 0.25, 0.0, 1.0));
     const float frameSeconds = std::max(GetFrameTime(), 0.0F);
     explosionSoundBudget_.tick(frameSeconds);
+    playerHitSoundCooldown_ = std::max(0.0, playerHitSoundCooldown_ - frameSeconds);
     const float lowHealthBlend = 1.0F - std::exp(
         -(lowHealthTarget > lowHealthAmount_ ? 7.5F : 4.0F) *
         frameSeconds);
@@ -379,6 +381,7 @@ void AudioSystem::playEvent(
                 : 0.48F,
             variedPitch(0.06F));
         break;
+    case GameEventType::ItemExplosion:
     case GameEventType::Explosion:
         playExplosion(explosion_, event.position, snapshot, 0.40F, 55.0F);
         break;
@@ -461,9 +464,12 @@ void AudioSystem::playEvent(
     case GameEventType::ResourceGranted:
         break;
     case GameEventType::PlayerDamaged:
-        // Preserve fall damage feedback; enemy hits remain silent.
-        if (!event.sourceId) {
-            play(playerHit_, 0.72F, variedPitch(0.06F));
+        // One audible impact for a group of same-frame hits; never restart
+        // an occupied voice or turn a crowd into a continuous stutter.
+        if (playerHitSoundCooldown_ <= 0.0 && playerHit_.loaded &&
+            !IsSoundPlaying(playerHit_.sound)) {
+            play(playerHit_, 0.60F, variedPitch(0.05F), 0.5F, false);
+            playerHitSoundCooldown_ = 0.14;
         }
         break;
     case GameEventType::BossRamImpact:

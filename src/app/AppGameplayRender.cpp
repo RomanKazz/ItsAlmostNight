@@ -151,6 +151,15 @@ void App::renderGameplayFrame(
     bobCameraUp = Vector3RotateByAxisAngle(
         bobCameraUp, forward,
         static_cast<float>(arrivalCamera.roll) * motionLandingIntensity_);
+    if (snapshot.playerRespawning && cameraMotionScale > 0) {
+        const double elapsed = snapshot.playerRespawnDuration - snapshot.playerRespawnTimeRemaining;
+        const float amount = std::clamp(static_cast<float>(elapsed / .75), 0.0F, 1.0F);
+        const float curve = amount * amount * (3-2*amount) * cameraMotionScale * motionLandingIntensity_;
+        position.y -= .55F * curve;
+        forward.y -= .14F * curve;
+        forward = Vector3Normalize(forward);
+        bobCameraUp = Vector3RotateByAxisAngle(bobCameraUp, forward, -.055F * curve);
+    }
     const Camera3D camera = {
         .position = position,
         .target = Vector3Add(position, forward),

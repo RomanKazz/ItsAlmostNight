@@ -105,6 +105,7 @@ class AudioSystem {
     Clip gate_;
     Clip crystals_;
     Clip playerHit_;
+    double playerHitSoundCooldown_{};
     Clip enemyHit_;
     Clip turretHit_;
     Clip uiError_;

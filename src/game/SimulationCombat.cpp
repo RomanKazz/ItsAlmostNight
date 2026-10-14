@@ -344,6 +344,7 @@ void Simulation::updateCombat(double deltaSeconds) {
             const double feet=playerPosition_.y-1.7;
             const double verticalReach=action.attack==RoyalAttack::Dive ? .75 : 2.0;
             if (!playerRespawning_ && !unlimitedResources_ && !playerInvulnerable_ &&
+                playerRespawnProtectionRemaining_ <= 0.0 &&
                 distance <= action.radius && std::abs(feet-action.position.y)<=verticalReach) {
                 damagePlayer(
                     action.damage, action.bossId,

@@ -1523,6 +1523,36 @@ bool CollisionWorld::overlapsCircle(Vec3 position, double radius, const Collisio
     return (deltaX * deltaX) + (deltaZ * deltaZ) < radius * radius;
 }
 
+bool CollisionWorld::canOccupyCircle(Vec3 position, double radius) const {
+    if (std::abs(position.x) + radius >= worldLimit_ ||
+        std::abs(position.z) + radius >= worldLimit_) return false;
+    const auto nearby = [position, radius](const BroadphaseGrid& grid, auto&& blocked) {
+        for (int z = grid.cellCoordinate(position.z - radius);
+             z <= grid.cellCoordinate(position.z + radius); ++z) {
+            for (int x = grid.cellCoordinate(position.x - radius);
+                 x <= grid.cellCoordinate(position.x + radius); ++x) {
+                for (const auto index : grid.bucket(x, z)) {
+                    if (blocked(index)) return true;
+                }
+            }
+        }
+        return false;
+    };
+    if (nearby(colliderBroadphase_, [this, position, radius](std::size_t index) {
+        const auto& box = colliders_[index];
+        return position.y > box.minimumBlockingEyeY &&
+               position.y < box.maximumBlockingEyeY &&
+               overlapsCircle(position, radius, box);
+    })) return false;
+    return !nearby(resourceBroadphase_, [this, position, radius](std::size_t index) {
+        const auto& cylinder = resourceCylinders_[index];
+        return position.y > cylinder.minimumBlockingEyeY &&
+               position.y < cylinder.maximumBlockingEyeY &&
+               std::hypot(position.x - cylinder.centerX,
+                          position.z - cylinder.centerZ) < radius + cylinder.radius;
+    });
+}
+
 bool CollisionWorld::overlapsBox(const CollisionBox& candidate) const {
     if (candidate.minX < -worldLimit_ || candidate.maxX > worldLimit_ ||
         candidate.minZ < -worldLimit_ || candidate.maxZ > worldLimit_) {

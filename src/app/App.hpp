@@ -704,6 +704,7 @@ class App {
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
+    double playerRespawnRevealRemaining_{};
     double displayedPlayerHealthTrail_{-1.0};
     double displayedPlayerHealthMaximum_{};
     float lowHealthEffect_{};

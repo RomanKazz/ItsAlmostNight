@@ -185,41 +185,6 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             "R  RESTART     •     ESC  MENU",
             y + panelHeight - 47.0F, 18.0F,
             {238, 230, 210, 255});
-    } else if (snapshot.playerRespawning) {
-        constexpr int PanelWidth = 460;
-        constexpr int PanelHeight = 150;
-        const int panelX =
-            (GetScreenWidth() - PanelWidth) / 2;
-        const int panelY =
-            (GetScreenHeight() - PanelHeight) / 2;
-        DrawRectangleRounded(
-            {static_cast<float>(panelX),
-             static_cast<float>(panelY),
-             static_cast<float>(PanelWidth),
-             static_cast<float>(PanelHeight)},
-            0.12F, 8, {12, 14, 18, 224});
-
-        char respawnText[64]{};
-        std::snprintf(
-            respawnText, sizeof(respawnText),
-            "RESPAWN IN %.1f",
-            snapshot.playerRespawnTimeRemaining);
-        drawCenteredSdfUiText(
-            respawnText,
-            static_cast<float>(panelY + 30), 34.0F,
-            UiWhite);
-
-        char lossText[128]{};
-        std::snprintf(
-            lossText, sizeof(lossText),
-            "Lost  Wood %d   Stone %d   Crystals %d",
-            snapshot.deathLostWood,
-            snapshot.deathLostStone,
-            snapshot.deathLostCrystals);
-        drawCenteredSdfUiText(
-            lossText,
-            static_cast<float>(panelY + 91), 19.0F,
-            {235, 148, 112, 255});
     }
 }
 

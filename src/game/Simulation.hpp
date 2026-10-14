@@ -296,6 +296,7 @@ struct SimulationSnapshot {
     bool playerRespawning;
     double playerRespawnTimeRemaining;
     double playerRespawnDuration;
+    double playerRespawnProtectionRemaining{};
     int deathLostWood;
     int deathLostStone;
     int deathLostCrystals;
@@ -920,6 +921,7 @@ class Simulation {
     double playerHealth_{100.0};
     bool playerRespawning_{};
     double playerRespawnTimeRemaining_{};
+    double playerRespawnProtectionRemaining_{};
     int deathLostWood_{};
     int deathLostStone_{};
     int deathLostCrystals_{};

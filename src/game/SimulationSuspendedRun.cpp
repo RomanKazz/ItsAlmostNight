@@ -623,6 +623,7 @@ bool Simulation::loadSuspendedRunState(
         playerPermanentMaxHealth() + playerTemporaryHealth_);
     playerRespawning_ = false;
     playerRespawnTimeRemaining_ = 0.0;
+    playerRespawnProtectionRemaining_ = 0.0;
     enemies_.reset();
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0U;

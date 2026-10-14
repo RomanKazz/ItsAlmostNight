@@ -148,6 +148,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             playerRespawnTimeRemaining_,
         .playerRespawnDuration =
             gameplay_.playerRespawnSeconds,
+        .playerRespawnProtectionRemaining = playerRespawnProtectionRemaining_,
         .deathLostWood = deathLostWood_,
         .deathLostStone = deathLostStone_,
         .deathLostCrystals = deathLostCrystals_,
@@ -353,7 +354,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .coreId = core ? std::optional<EntityId>{core->id} : std::nullopt,
         .coreLevel = core ? core->level : static_cast<std::uint8_t>(0),
         .unlimitedResources = unlimitedResources_,
-        .playerInvulnerable = playerInvulnerable_,
+        .playerInvulnerable = playerInvulnerable_ || playerRespawnProtectionRemaining_ > 0.0,
         .automaticToolSwitch = true,
         .holdToGather = true,
         .unlockedWeapons = {

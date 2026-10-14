@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "game/PlayerRespawn.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,51 +9,19 @@
 namespace ian {
 
 void Simulation::respawnPlayer() {
-    constexpr std::array<GridPosition, 4> RespawnOffsets{{
-        {0, 3},
-        {3, 0},
-        {0, -3},
-        {-3, 0},
-    }};
-    Vec3 respawn{
-        map_.playerSpawn.x,
-        terrain_.getHeight(
-            map_.playerSpawn.x,
-            map_.playerSpawn.z) +
-            gameplay_.eyeHeight,
-        map_.playerSpawn.z};
     const auto core = buildings_.core();
-    if (core) {
-        for (const GridPosition offset : RespawnOffsets) {
-            Vec3 candidate{
-                static_cast<double>(
-                    core->gridPosition.x + offset.x),
-                0.0,
-                static_cast<double>(
-                    core->gridPosition.z + offset.z),
-            };
-            candidate.y = terrain_.getHeight(
-                              candidate.x, candidate.z) +
-                          gameplay_.eyeHeight;
-            const bool blocked = std::any_of(
-                collisionWorld_.colliders().begin(),
-                collisionWorld_.colliders().end(),
-                [this, candidate](
-                    const CollisionBox& collider) {
-                    return collisionWorld_.overlapsCircle(
-                        candidate,
-                        CollisionWorld::PlayerRadius,
-                        collider);
-                });
-            if (!blocked) {
-                respawn = candidate;
-                break;
-            }
-        }
-    }
+    const std::optional<Vec3> corePosition = core
+        ? std::optional<Vec3>{Vec3{static_cast<double>(core->gridPosition.x), 0,
+                                  static_cast<double>(core->gridPosition.z)}}
+        : std::nullopt;
+    const Vec3 respawn = findPlayerRespawn(map_.playerSpawn, corePosition,
+        terrain_, collisionWorld_, enemies_.enemies(), gameplay_.eyeHeight);
     playerPosition_ = respawn;
     playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
+    dashRemaining_ = 0.0;
+    dashCooldownRemaining_ = 0.0;
+    dashDirection_ = {};
     flightTapRemaining_ = 0.0;
     playerFlying_ = false;
     coyoteTimeRemaining_ = 0.0;
@@ -64,14 +33,21 @@ void Simulation::respawnPlayer() {
         playerPosition_.y - gameplay_.eyeHeight;
     playerGrounded_ = true;
     playerTemporaryHealth_ = 0.0;
+    classAbilityState_ = {};
+    refreshRunUpgradeRuntimeEffects();
     playerHealth_ = playerPermanentMaxHealth();
+    playerRecoverableArmor_ = playerArmorCapacity();
+    secondsSincePlayerDamage_ = 5.0;
+    playerPitch_ = 0.0;
+    playerRespawnProtectionRemaining_ = PlayerRespawnProtectionSeconds;
 }
 
 void Simulation::damagePlayer(
     double damage, std::optional<EntityId> attackerId,
     Vec3 attackPosition, bool ignoreArmor) {
     if (damage <= 0.0 || playerRespawning_ ||
-        unlimitedResources_ || playerInvulnerable_) {
+        unlimitedResources_ || playerInvulnerable_ ||
+        playerRespawnProtectionRemaining_ > 0.0) {
         return;
     }
     const double mitigatedDamage =
@@ -145,7 +121,8 @@ void Simulation::applyFallDamage(double landingSpeed) {
         0.0,
         landingSpeed - gameplay_.fallDamageSafeSpeed);
     if (excessSpeed <= 0.0 || playerRespawning_ ||
-        unlimitedResources_ || playerInvulnerable_) {
+        unlimitedResources_ || playerInvulnerable_ ||
+        playerRespawnProtectionRemaining_ > 0.0) {
         return;
     }
     int& ropeStacks = lootStacks_[
@@ -194,6 +171,7 @@ void Simulation::beginPlayerRespawn(
     wood_ -= deathLostWood_;
     stone_ -= deathLostStone_;
     crystals_ -= deathLostCrystals_;
+    playerRespawnProtectionRemaining_ = 0.0;
     playerRespawning_ = true;
     playerRespawnTimeRemaining_ =
         gameplay_.playerRespawnSeconds;
@@ -222,6 +200,8 @@ void Simulation::beginPlayerRespawn(
 }
 
 void Simulation::updatePlayerRespawn(double deltaSeconds) {
+    playerRespawnProtectionRemaining_ = std::max(
+        0.0, playerRespawnProtectionRemaining_ - deltaSeconds);
     if (!playerRespawning_) {
         return;
     }

@@ -328,6 +328,7 @@ void Simulation::resetRun(GameEventType eventType) {
     playerHealth_ = gameplay_.playerMaxHealth;
     playerRespawning_ = false;
     playerRespawnTimeRemaining_ = 0.0;
+    playerRespawnProtectionRemaining_ = 0.0;
     deathLostWood_ = 0;
     deathLostStone_ = 0;
     deathLostCrystals_ = 0;
@@ -554,7 +555,7 @@ void Simulation::togglePause() {
 }
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
-    if (runUpgradeChoicePending_ || runShop_.pending ||
+    if (((runUpgradeChoicePending_ || runShop_.pending) && !playerRespawning_) ||
         state_ == RunState::MainMenu || state_ == RunState::Paused ||
         state_ == RunState::StageClear || state_ == RunState::Victory ||
         state_ == RunState::Defeat || !std::isfinite(deltaSeconds) ||
@@ -575,9 +576,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
 
     updatePlayerRespawn(deltaSeconds);
     updateFortifications(deltaSeconds);
-    updatePlayer(
-        deltaSeconds,
-        playerRespawning_ ? PlayerCommand{} : command);
+    if (!playerRespawning_) updatePlayer(deltaSeconds, command);
     updateChallengeColumns(
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);

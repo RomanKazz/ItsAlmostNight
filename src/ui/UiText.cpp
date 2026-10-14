@@ -1225,6 +1225,12 @@ void endSdfUiTextBatch() {
     sdfTextBatch.clear();
 }
 
+void flushSdfUiTextBatch() {
+    if (!sdfTextBatchActive) return;
+    endSdfUiTextBatch();
+    beginSdfUiTextBatch();
+}
+
 void initializeUiText() {
     if (initialized) {
         return;

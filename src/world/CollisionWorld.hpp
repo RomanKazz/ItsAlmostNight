@@ -89,6 +89,7 @@ class CollisionWorld {
         double maximumHeadHeight) const;
     [[nodiscard]] bool overlapsCircle(Vec3 position, double radius,
                                       const CollisionBox& box) const;
+    [[nodiscard]] bool canOccupyCircle(Vec3 position, double radius) const;
     [[nodiscard]] bool overlapsBox(const CollisionBox& candidate) const;
     [[nodiscard]] bool overlapsRampBox(
         const CollisionBox& candidate) const;

@@ -54,6 +54,7 @@ void App::resetRunClientState(
     crystalHudBounceRemaining_ = 0.0;
     coinHudBounceRemaining_ = 0.0;
     playerDamageFlashRemaining_ = 0.0;
+    playerRespawnRevealRemaining_ = 0.0;
     recentlyDamagedBuilding_.reset();
     damagedBuildingHealthBarRemaining_ = 0.0;
     toolContactHoldRemaining_ = 0.0;

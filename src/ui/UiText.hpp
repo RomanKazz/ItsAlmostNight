@@ -63,6 +63,8 @@ void beginUiTextPerformanceFrame() noexcept;
 [[nodiscard]] UiTextPerformanceStats uiTextPerformanceStats() noexcept;
 void beginSdfUiTextBatch();
 void endSdfUiTextBatch();
+// Draw queued labels before a covering UI layer, retaining the caller's batch.
+void flushSdfUiTextBatch();
 
 void initializeUiText();
 void shutdownUiText();

@@ -1,6 +1,7 @@
 #include "ui/BossHealthBar.hpp"
 #include "ui/UiRenderLayer.hpp"
 #include "app/App.hpp"
+#include "ui/PlayerDeathOverlay.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -949,6 +950,7 @@ beginSdfUiTextBatch();
 if (showWorldHud && !unobscuredColorPreview) {
     drawRunStateOverlay(snapshot);
 }
+if (!snapshot.playerRespawning) {
 drawRunUpgradeOverlay(
     ui_, snapshot,
     runUpgradeOverlayEntranceSeconds_,
@@ -957,6 +959,13 @@ drawRunUpgradeOverlay(
     runUpgradeCardHoverAmounts_,std::nullopt,userSettings_.accessibility.reduceFlashes);
 drawRunShopOverlay(ui_, snapshot, runShopKeyboardFocus_,std::nullopt,runShopOverlayEntranceSeconds_,
     userSettings_.accessibility.reduceFlashes);
+}
+if (showGameplayHud && !unobscuredColorPreview) {
+    drawPlayerDeathOverlay(ui_, snapshot,
+        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())},
+        static_cast<float>(playerRespawnRevealRemaining_),
+        userSettings_.accessibility.reduceFlashes);
+}
 endSdfUiTextBatch();
 if (snapshot.state == RunState::Paused &&
     !renderer_->graphicsPanelVisible()) {

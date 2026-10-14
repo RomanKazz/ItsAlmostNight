@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "ui/PlayerDeathOverlay.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -1353,13 +1354,24 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::GateToggleRejected) {
             message = "Gate blocked or not under crosshair";
         } else if (event.type == GameEventType::PlayerDied) {
-            message = event.amount > 0
-                          ? "You died: " +
-                                std::to_string(event.amount) +
-                                " resources lost"
-                          : "You died";
+            toolSwingRemaining_ = 0.0;
+            toolSwingQueued_ = false;
+            toolQueuedSwingHasAttack_ = false;
+            toolQueuedResourceTarget_.reset();
+            weaponRecoilRemaining_ = 0.0;
+            playerRespawnRevealRemaining_ = 0.0;
+            cameraShakeRemaining_ = 0.0;
         } else if (event.type == GameEventType::PlayerRespawned) {
-            message = "Respawned at Core";
+            playerRespawnRevealRemaining_ = PlayerRespawnRevealSeconds;
+            playerDamageFlashRemaining_ = 0.0;
+            cameraImpulseOffset_ = {};
+            cameraShakeRemaining_ = 0.0;
+            cameraBobAmount_ = 0.0;
+            groundCameraSmoothingInitialized_ = false;
+            cameraBobPositionInitialized_ = false;
+            cameraInertiaInitialized_ = false;
+            toolSwapDuration_ = activeToolTuning().swapDuration;
+            toolSwapRemaining_ = toolSwapDuration_;
         } else if (event.type == GameEventType::RopeFallSaved) {
             message = "Safety Rope saved you from a fatal fall";
         } else if (event.type == GameEventType::BattlePotionActivated) {
