@@ -67,11 +67,11 @@ inline void emit(Vector3 start,Vector3 end,Vector3 camera,float seconds,float du
         const float wave=.6F+.4F*std::sin(t*PI);
         const float width=size*wave*flicker;
         // The wide halo fades sideways; there are no three solid neon bands.
-        softRibbon(points[static_cast<std::size_t>(i-1)],next,camera,.10F*width,
-            fire_wand_effect::opacity({103,125,255,85},pulse));
-        ribbon(points[static_cast<std::size_t>(i-1)],next,camera,.017F*width,
-            fire_wand_effect::opacity({70,221,255,220},pulse));
-        ribbon(points[static_cast<std::size_t>(i-1)],next,camera,.0045F*width,
+        softRibbon(points[static_cast<std::size_t>(i-1)],next,camera,.20F*width,
+            fire_wand_effect::opacity({120,190,255,155},pulse));
+        ribbon(points[static_cast<std::size_t>(i-1)],next,camera,.055F*width,
+            fire_wand_effect::opacity({105,235,255,250},pulse));
+        ribbon(points[static_cast<std::size_t>(i-1)],next,camera,.018F*width,
             fire_wand_effect::opacity({235,255,255,255},pulse));
     }
     // Short tapered forks grow and dissolve, rather than duplicating the main beam.
@@ -86,8 +86,8 @@ inline void emit(Vector3 start,Vector3 end,Vector3 camera,float seconds,float du
             const float t=static_cast<float>(step)/3;
             const Vector3 next=Vector3Add(points[static_cast<std::size_t>(index)],Vector3Add(Vector3Scale(fork,forkLength*t),
                 Vector3Scale(lift,static_cast<float>(unitRandom(sample+static_cast<std::uint64_t>(step)+frame)*2-1)*.10F)));
-            softRibbon(previous,next,camera,.03F*size*(1-t*.6F),fire_wand_effect::opacity({104,187,255,80},pulse*(1-t*.6F)));
-            ribbon(previous,next,camera,.007F*size*(1-t*.7F),fire_wand_effect::opacity({179,243,255,210},pulse*(1-t*.8F)),.6F);
+            softRibbon(previous,next,camera,.075F*size*(1-t*.6F),fire_wand_effect::opacity({130,215,255,145},pulse*(1-t*.6F)));
+            ribbon(previous,next,camera,.022F*size*(1-t*.7F),fire_wand_effect::opacity({215,252,255,250},pulse*(1-t*.8F)),.6F);
             previous=next;
         }
     }
