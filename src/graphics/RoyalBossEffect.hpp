@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics/EnemyMagicEffect.hpp"
+#include "graphics/SurfaceEffectPlane.hpp"
 
 namespace ian::royal_boss_effect {
 using enemy_magic_effect::Basis;
@@ -21,18 +22,23 @@ inline void feather(Vector3 center,Basis b,float size,float angle,Color color) {
         vertex(planePoint(center,side,direction,next.x*size,next.y*size),color);
     }
 }
-inline void marker(Vector3 center,float radius,float progress,double time,bool detailed) {
+inline void marker(Vector3 center,float radius,float progress,double time,bool detailed,
+                   SurfaceEffectPlane surface=SurfaceEffectPlane{}) {
     if(radius<=0 || progress<0 || progress>=1) return;
-    center.y+=.035F;
-    const Basis floor{{1,0,0},{0,0,1},{0,1,0}};
-    rlNormal3f(0,1,0);
+    const Basis floor{surface.right,surface.forward,surface.normal};
+    rlNormal3f(surface.normal.x,surface.normal.y,surface.normal.z);
     const float pulse=detailed ? .5F+.5F*static_cast<float>(std::sin(time*7)) : .5F;
     const float birth=fire_wand_effect::ease(progress/.12F);
-    disc(center,floor.right,floor.up,radius,opacity({255,217,93,32},birth),opacity({255,207,68,70},birth),40);
+    const auto point=[&](float angle,float r){return surface.point(center,std::cos(angle)*r,std::sin(angle)*r);};
+    for(int i=0;i<40;++i) {
+        const float a=static_cast<float>(i)*2*PI/40,b=static_cast<float>(i+1)*2*PI/40;
+        vertex(surface.point(center,0,0),opacity({255,217,93,32},birth));
+        vertex(point(a,radius),opacity({255,207,68,70},birth));
+        vertex(point(b,radius),opacity({255,207,68,70},birth));
+    }
     const float thickness=.05F+progress*.035F;
     for(int i=0;i<40;++i) {
         const float a=static_cast<float>(i)*2*PI/40,b=static_cast<float>(i+1)*2*PI/40;
-        const auto point=[&](float angle,float r){return planePoint(center,floor.right,floor.up,std::cos(angle)*r,std::sin(angle)*r);};
         const Color color=opacity({255,static_cast<unsigned char>(184+pulse*42),68,235},birth);
         vertex(point(a,radius),color);vertex(point(b,radius),color);vertex(point(a,radius-thickness),color);
         vertex(point(a,radius-thickness),color);vertex(point(b,radius),color);vertex(point(b,radius-thickness),color);
@@ -40,10 +46,9 @@ inline void marker(Vector3 center,float radius,float progress,double time,bool d
     for(int i=0;i<8;++i) {
         const float angle=static_cast<float>(i)*PI/4;
         const float travel=.20F*static_cast<float>(std::fmod(time*1.6+i*.13,1.0));
-        feather(planePoint(center,floor.right,floor.up,std::cos(angle)*(radius+.22F-travel),
-            std::sin(angle)*(radius+.22F-travel)),floor,.19F,angle-PI/2,opacity({255,244,167,230},birth));
+        feather(point(angle,radius+.22F-travel),floor,.19F,angle-PI/2,opacity({255,244,167,230},birth));
     }
-    star(Vector3Add(center,{0,.012F,0}),floor,.16F+progress*.10F,
+    star(surface.point(center,0,0,.06F),floor,.16F+progress*.10F,
          static_cast<float>(time*.7),opacity({255,246,181,220},birth));
 }
 inline void impact(Vector3 center,Vector3 camera,float progress,float scale,bool detailed) {

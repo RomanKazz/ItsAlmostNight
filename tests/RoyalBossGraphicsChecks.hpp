@@ -17,6 +17,11 @@ inline bool checkRoyalBossGraphics(ian::Renderer& renderer) {
         WorldLighting light{};light.cameraPosition=camera.position;
         if(night) {light.sunIntensity=.03F;light.ambientIntensity=.18F;}
         renderer.beginWorldShader(light);
+        if(mode==8 || mode==9) {
+            rlPushMatrix();rlRotatef(-30,0,0,1);
+            DrawPlane({0,0,0},{20,20},{63,87,65,255});
+            rlPopMatrix();
+        }
         if(mode==4 || mode==5) DrawCube({2,3,4},20,12,1,GREEN);
         if(mode==1) {
             DrawPlane({0,0,0},{20,20},{63,87,65,255});
@@ -31,6 +36,8 @@ inline bool checkRoyalBossGraphics(ian::Renderer& renderer) {
         material.inkOutlineEligible=false;material.inkOccluder=false;
         renderer.setWorldMaterial(material);renderer.beginColorOnlyWorldEffects();
         fire_wand_effect::beginBatch(false);
+        if(mode==8 || mode==9) royal_boss_effect::marker({0,0,0},2.7F,.7F,time,true,
+            mode==8 ? SurfaceEffectPlane{{.5F,.8660254F,0}} : SurfaceEffectPlane{});
         if(mode==1 || mode==2 || mode==5 || mode==7) {
             royal_boss_effect::aura({0,3,0},camera.position,time,3,.8F,true,mode!=7);
             royal_boss_effect::marker({0,0,0},2.7F,.7F,time,mode!=7);
@@ -63,16 +70,26 @@ inline bool checkRoyalBossGraphics(ian::Renderer& renderer) {
         shot=capture(6,.1F),low=capture(7,.1F);
     const int visible=difference(empty,warning),motion=difference(warning,next),
         blocked=difference(cover,hidden),lighting=difference(warning,night);
-    const bool valid=loaded && difference(models,moving)>200 && difference(empty,models)>10000 &&
+    Image slope=capture(8,.1F),flatOnSlope=capture(9,.1F);
+    const auto goldPixels=[](Image image) {
+        int count=0;const auto pixels=LoadImageColors(image);
+        for(int i=0;i<image.width*image.height;++i)
+            if(pixels[i].r>180 && pixels[i].g>140 && pixels[i].b<130) ++count;
+        UnloadImageColors(pixels);return count;
+    };
+    const bool slopeVisible=goldPixels(slope)>goldPixels(flatOnSlope)*1.35;
+    if(!slopeVisible) std::cerr<<"Boss slope ring "<<goldPixels(slope)<<" vs flat "<<goldPixels(flatOnSlope)<<'\n';
+    const bool valid=slopeVisible && loaded && difference(models,moving)>200 && difference(empty,models)>10000 &&
         visible>1000 && motion>100 && blocked==0 && lighting==0 &&
         difference(impact,later)>1000 && difference(empty,shot)>100 && difference(empty,low)>500;
     if(!valid) std::cerr<<"Royal boss visibility/motion/depth/night: "<<visible<<' '<<motion<<' '<<blocked<<' '<<lighting<<'\n';
     if(const char* directory=std::getenv("IAN_CAPTURE_ALPAKING")) {
         std::filesystem::create_directories(directory);
         for(auto view:{std::pair{"court",models},std::pair{"court-moving",moving},std::pair{"warning",warning},
-                       std::pair{"impact",impact},std::pair{"impact-late",later},std::pair{"shot",shot}})
+                       std::pair{"impact",impact},std::pair{"impact-late",later},std::pair{"shot",shot},std::pair{"warning-slope",slope},std::pair{"warning-flat-on-slope",flatOnSlope}})
             ExportImage(view.second,(std::filesystem::path(directory)/(std::string(view.first)+".png")).string().c_str());
     }
     for(Image image:{empty,models,moving,warning,next,night,impact,later,cover,hidden,shot,low}) UnloadImage(image);
+    UnloadImage(slope);UnloadImage(flatOnSlope);
     UnloadRenderTexture(target);return valid;
 }
