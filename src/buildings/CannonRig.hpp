@@ -6,7 +6,8 @@
 
 namespace ian {
 
-inline constexpr double CannonPitchPivotY = 0.14931100606918335;
+// Barrel axis in the authored neutral pose; keeps the breech clear when raised.
+inline constexpr double CannonPitchPivotY = 0.7001184225082397;
 inline constexpr Vec3 CannonAuthoredMuzzle{
     0.0, 0.7002042531967163, -0.5782914683222771};
 

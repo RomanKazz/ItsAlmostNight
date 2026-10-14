@@ -1,0 +1,160 @@
+{
+  "palette_matches": true,
+  "clean_import": true,
+  "meshes": [
+    {
+      "mesh": "upgrade_cannon_l2_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l2_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l3_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l3_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l4_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l4_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l5_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l5_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l6_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l6_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l7_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l7_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l8_base",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    },
+    {
+      "mesh": "upgrade_cannon_l8_barrel",
+      "finite": true,
+      "uv_in_palette": true,
+      "manifold_components": true,
+      "positive_volume": true
+    }
+  ],
+  "tested_pitches_deg": [
+    -15,
+    55
+  ],
+  "pitch_step_deg": 1,
+  "yaw_clearance": "common yaw preserves all relative clearances",
+  "baseline_cradle_contact_pitch_range": [
+    -15,
+    55
+  ],
+  "cradle_contacts_by_level": [
+    {
+      "level": 2,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 76
+    },
+    {
+      "level": 3,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 76
+    },
+    {
+      "level": 4,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 76
+    },
+    {
+      "level": 5,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 186
+    },
+    {
+      "level": 6,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 186
+    },
+    {
+      "level": 7,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 294
+    },
+    {
+      "level": 8,
+      "poses_with_contact": 71,
+      "max_triangle_contacts": 364
+    }
+  ],
+  "new_parts_intersect_each_other": false,
+  "barrel_intersects_new_carriage": false,
+  "new_parts_intersect_solid_foot": false,
+  "carriage_contacts_note": "Authored cradles contact the tube and its fitted armor; solid foot and new yaw armor are tested separately.",
+  "loader_verified": true,
+  "native_playtest": false,
+  "graphics_smoke": "passed: eight levels, pitch, raycast collar, tint restoration",
+  "debug_related_tests": "4/4 passed after final pivot correction",
+  "full_debug_tests": "21/22; existing run_menus text/scissor failure"
+}

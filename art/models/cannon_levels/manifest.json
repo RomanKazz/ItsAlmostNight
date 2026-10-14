@@ -1,0 +1,376 @@
+{
+  "levels": [
+    {
+      "level": 2,
+      "overlay_triangles": 192,
+      "yaw_bounds": [
+        [
+          -0.627,
+          0.066,
+          -0.627
+        ],
+        [
+          0.627,
+          0.144,
+          0.627
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.318,
+          0.38211842250823974,
+          0.225
+        ],
+        [
+          0.318,
+          1.0181184225082398,
+          0.29500000000000004
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.627,
+          0,
+          -0.627
+        ],
+        [
+          0.627,
+          1.0181184225082398,
+          0.627
+        ]
+      ],
+      "total_visible_triangles": 592
+    },
+    {
+      "level": 3,
+      "overlay_triangles": 272,
+      "yaw_bounds": [
+        [
+          -0.655,
+          0.066,
+          -0.627
+        ],
+        [
+          0.655,
+          0.835,
+          0.627
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.318,
+          0.38211842250823974,
+          0.225
+        ],
+        [
+          0.318,
+          1.0181184225082398,
+          0.29500000000000004
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.655,
+          0,
+          -0.627
+        ],
+        [
+          0.655,
+          1.0181184225082398,
+          0.627
+        ]
+      ],
+      "total_visible_triangles": 672
+    },
+    {
+      "level": 4,
+      "overlay_triangles": 624,
+      "yaw_bounds": [
+        [
+          -0.7034999999999999,
+          0.066,
+          -0.627
+        ],
+        [
+          0.7034999999999999,
+          0.835,
+          0.627
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.333,
+          0.36711842250823973,
+          -0.5760000000000001
+        ],
+        [
+          0.333,
+          1.0331184225082397,
+          0.29500000000000004
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.7034999999999999,
+          0,
+          -0.627
+        ],
+        [
+          0.7034999999999999,
+          1.0331184225082397,
+          0.627
+        ]
+      ],
+      "total_visible_triangles": 1024
+    },
+    {
+      "level": 5,
+      "overlay_triangles": 1024,
+      "yaw_bounds": [
+        [
+          -0.7034999999999999,
+          0.066,
+          -0.645
+        ],
+        [
+          0.7034999999999999,
+          0.835,
+          0.645
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.341,
+          0.3591184225082397,
+          -0.5760000000000001
+        ],
+        [
+          0.341,
+          1.0411184225082397,
+          0.29500000000000004
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.7034999999999999,
+          0,
+          -0.645
+        ],
+        [
+          0.7034999999999999,
+          1.0411184225082397,
+          0.645
+        ]
+      ],
+      "total_visible_triangles": 1424
+    },
+    {
+      "level": 6,
+      "overlay_triangles": 1176,
+      "yaw_bounds": [
+        [
+          -0.747,
+          0.066,
+          -0.645
+        ],
+        [
+          0.747,
+          0.835,
+          0.645
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.368,
+          0.33211842250823975,
+          -0.5760000000000001
+        ],
+        [
+          0.368,
+          1.0681184225082396,
+          0.29500000000000004
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.747,
+          0,
+          -0.645
+        ],
+        [
+          0.747,
+          1.0681184225082396,
+          0.645
+        ]
+      ],
+      "total_visible_triangles": 1576
+    },
+    {
+      "level": 7,
+      "overlay_triangles": 1552,
+      "yaw_bounds": [
+        [
+          -0.747,
+          0.066,
+          -0.645
+        ],
+        [
+          0.747,
+          0.835,
+          0.645
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.368,
+          0.33211842250823975,
+          -0.5760000000000001
+        ],
+        [
+          0.368,
+          1.0681184225082396,
+          0.325
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.747,
+          0,
+          -0.645
+        ],
+        [
+          0.747,
+          1.0681184225082396,
+          0.645
+        ]
+      ],
+      "total_visible_triangles": 1952
+    },
+    {
+      "level": 8,
+      "overlay_triangles": 1896,
+      "yaw_bounds": [
+        [
+          -0.747,
+          0.066,
+          -0.659
+        ],
+        [
+          0.747,
+          0.8955,
+          0.659
+        ]
+      ],
+      "pitch_bounds": [
+        [
+          -0.388,
+          0.31211842250823973,
+          -0.5760000000000001
+        ],
+        [
+          0.388,
+          1.0881184225082396,
+          0.325
+        ]
+      ],
+      "visible_bounds_glb": [
+        [
+          -0.747,
+          0,
+          -0.659
+        ],
+        [
+          0.747,
+          1.0881184225082396,
+          0.659
+        ]
+      ],
+      "total_visible_triangles": 2296
+    }
+  ],
+  "mode": "base L1 plus one complete overlay pair for L2-L8",
+  "render_mesh_order": [
+    "original pitch barrel",
+    "original yaw carriage",
+    "L2 yaw",
+    "L2 pitch",
+    "L3 yaw",
+    "L3 pitch",
+    "L4 yaw",
+    "L4 pitch",
+    "L5 yaw",
+    "L5 pitch",
+    "L6 yaw",
+    "L6 pitch",
+    "L7 yaw",
+    "L7 pitch",
+    "L8 yaw",
+    "L8 pitch"
+  ],
+  "runtime_meshes": 16,
+  "additional_draws": 2,
+  "footprint_m": [
+    2,
+    2
+  ],
+  "level_1_visible_bounds_glb": [
+    [
+      -0.6000000238418579,
+      0,
+      -0.6000000238418579
+    ],
+    [
+      0.6000000238418579,
+      0.9996384382247925,
+      0.6000000238418579
+    ]
+  ],
+  "collision_bounds_glb": [
+    [
+      -0.6016198992729187,
+      0,
+      -0.6016198992729187
+    ],
+    [
+      0.6016198992729187,
+      1.0150294303894043,
+      0.6016198992729187
+    ]
+  ],
+  "runtime_glb": "assets/models/buildings/cannon.glb",
+  "editable_source": "art/models/cannon_levels/cannon_levels.blend",
+  "overlay_nodes_glb": "root-level identity transforms; runtime selects one yaw/pitch pair",
+  "pitch_pivot_glb": [
+    0,
+    0.7001184225082397,
+    0
+  ],
+  "muzzle_glb": [
+    0,
+    0.7002042531967163,
+    -0.5782914683222771
+  ],
+  "muzzle_axes_glb": {
+    "forward": [
+      0,
+      0,
+      -1
+    ],
+    "up": [
+      0,
+      1,
+      0
+    ]
+  },
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "gold_swatch_blender_uv": [
+    0.65625,
+    0.285,
+    0.465
+  ],
+  "runtime_bytes": 776220,
+  "native_playtest": false,
+  "loader_verified": true,
+  "license": "Kenney original asset and palette CC0; project-authored upgrade geometry",
+  "graphics_smoke": "passed: eight levels, pitch, raycast collar, tint restoration"
+}
