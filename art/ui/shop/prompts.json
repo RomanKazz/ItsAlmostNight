@@ -1,0 +1,107 @@
+{
+  "tool": "built-in image_gen",
+  "style_reference": "assets/ui/building_turret.png",
+  "entries": [
+    {
+      "name": "silver_gain",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A small overflowing pouch holding three chunky silver coins, one silver coin prominently upright with a simple star stamp, warm orange leather pouch with gold clasp; silver coins must be silver-blue, not yellow.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-016d8c5a-7d14-4f21-8b64-da07eba1a89d.png",
+      "asset": "assets/ui/shop/silver_gain.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "rerolls",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: Two chunky curved cyan-blue arrows forming a circular refresh loop around a tiny golden four-point star. Simple large arrows, strong silhouette.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-bf412e13-5486-4254-92c3-58df41f00953.png",
+      "asset": "assets/ui/shop/rerolls.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "luck",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A vivid green four-leaf clover with thick plump rounded leaves and a small gold horseshoe behind it. Friendly lucky charm.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-49e0647a-34ed-43bd-a9d8-6a0f7a81f4bb.png",
+      "asset": "assets/ui/shop/luck.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "defense_damage",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A tiny orange cannon barrel with a golden armored rim, dark blue-gray muzzle hole, and one bold red-orange impact spark beside it. A compact damage emblem, not a full turret.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-a3dac7a0-f77b-4d88-8710-d6935b77c2f1.png",
+      "asset": "assets/ui/shop/defense_damage.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "defense_fire_rate",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: Three chunky gold cartridge bullets flying diagonally upward, with two broad cyan-blue speed streaks behind them. Speed and volley are instantly readable.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-a856dcd8-b1d0-4ef8-8cdd-5e8f636e0532.png",
+      "asset": "assets/ui/shop/defense_fire_rate.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "building_health",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A chunky blue-gray shield with a broad gold rim and a little orange fortress wall emblem in its center. Solid protection, no letters.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-0e0b1cdb-8074-47ee-919e-d44867b93bbd.png",
+      "asset": "assets/ui/shop/building_health.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "production_speed",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A chunky steel-blue gear with gold teeth and a bold cyan upward arrow in front. A small orange machine block at its base. Readable productivity symbol.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-6bb80741-c294-4245-9ae7-6c644be8d42f.png",
+      "asset": "assets/ui/shop/production_speed.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "resource_yield",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A chunky blue-gray pickaxe with orange wooden handle, two small faceted violet resource crystals and a wood block beside it. Simple gathering emblem.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-f2d4a79f-9e30-49a9-b526-bf0c45e3ed97.png",
+      "asset": "assets/ui/shop/resource_yield.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "tome_slots",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: Two closed plump spellbooks, one violet and one cyan, cream page edges, gold corner hardware, tilted in a loose stack, with a clear small gold plus symbol beside them.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-9b61fc27-5629-44dc-9bf9-21ae0573788c.png",
+      "asset": "assets/ui/shop/tome_slots.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "purchase",
+      "prompt": "Use case: stylized-concept. Asset type: transparent PNG UI icon for ItsAlmostNight. Input image is a style reference only, not an edit target. Match the existing building_turret.png icon: bold near-black contour, chunky toy-like 3D volume, broad clean cel shading, simple low-poly planes, saturated warm orange and gold hardware with blue-gray metal. Single centered compact object/emblem, mild three-quarter perspective, readable at 48px, generous transparent padding. No scene, no floor, no cast background shadow, no frame, no text, no watermark. Use genuinely transparent background. Subject: A chunky warm orange leather shopping pouch with a thick golden clasp and a small bright gold coin entering it, one bold downward cyan arrow above the coin. Compact purchase action emblem, no text.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-6ccb2ecb-5842-4226-b65f-94fe35eed590.png",
+      "asset": "assets/ui/shop/purchase.png",
+      "size": [
+        256,
+        256
+      ]
+    }
+  ],
+  "preparation": "Preserved alpha; transparent-padding crop; aspect-ratio-preserving Lanczos resize into centered 216x216 content area on 256x256 RGBA canvas."
+}
