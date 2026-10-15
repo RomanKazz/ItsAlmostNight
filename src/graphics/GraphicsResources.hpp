@@ -273,6 +273,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& teslaTowerModel();
     [[nodiscard]] ModelResource& laserTowerModel();
     [[nodiscard]] ModelResource& mortarModel();
+    [[nodiscard]] ModelResource& mortarUpgradeModel();
     [[nodiscard]] ModelResource& teslaUpgradeModel();
     [[nodiscard]] ModelResource& missileLauncherModel(int level = 1);
     [[nodiscard]] ModelResource& flamethrowerModel();
@@ -429,6 +430,7 @@ class GraphicsResources {
     ModelResource teslaTowerModel_;
     ModelResource laserTowerModel_;
     ModelResource mortarModel_;
+    ModelResource mortarUpgradeModel_;
     ModelResource teslaUpgradeModel_;
     std::array<ModelResource, 8> missileLauncherModels_;
     ModelResource flamethrowerModel_;

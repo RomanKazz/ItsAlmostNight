@@ -701,7 +701,7 @@ void App::drawWorldOverlays(
                  visualCenter.y},
                 range,
                 static_cast<float>(placementRotationYaw_),
-                type == BuildingType::TeslaTower ? 360.0F : static_cast<float>(defenseAttackArcDegrees(previewLevel)),
+                static_cast<float>(defenseAttackArcDegrees(type, previewLevel)),
                 {228, 239, 226, 92},
                 type == BuildingType::MissileLauncher ? static_cast<float>(MissileLauncherMinimumRange)
                     : artillery

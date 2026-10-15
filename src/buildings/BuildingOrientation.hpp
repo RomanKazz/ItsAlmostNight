@@ -66,6 +66,15 @@ inline constexpr double PiRadians = 3.14159265358979323846;
         PiRadians / 360.0;
 }
 
+[[nodiscard]] inline double defenseAttackArcDegrees(BuildingType type, std::uint8_t level) {
+    return type == BuildingType::Mortar || type == BuildingType::TeslaTower
+        ? 360.0 : defenseAttackArcDegrees(level);
+}
+
+[[nodiscard]] inline double defenseAttackHalfAngleRadians(BuildingType type, std::uint8_t level) {
+    return defenseAttackArcDegrees(type, level) * PiRadians / 360.0;
+}
+
 [[nodiscard]] inline double wrapBuildingAngle(double angle) {
     constexpr double TwoPi = PiRadians * 2.0;
     while (angle > PiRadians) angle -= TwoPi;
@@ -94,6 +103,12 @@ inline constexpr double PiRadians = 3.14159265358979323846;
     const double targetYaw = std::atan2(-deltaX, -deltaZ);
     return std::abs(wrapBuildingAngle(targetYaw - restYaw)) <=
         defenseAttackHalfAngleRadians(level) + 1e-9;
+}
+
+[[nodiscard]] inline bool directionInsideDefenseArc(BuildingType type,
+    Vec3 origin, Vec3 target, double restYaw, std::uint8_t level) {
+    return defenseAttackArcDegrees(type, level) >= 360.0 ||
+        directionInsideDefenseArc(origin, target, restYaw, level);
 }
 
 } // namespace ian

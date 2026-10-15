@@ -273,7 +273,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
                 if (distanceSquared > range * range ||
                     distanceSquared < deadZone * deadZone ||
                     !directionInsideDefenseArc(
-                        targetingOrigin, target->position, cannon.restYaw,
+                        building->type, targetingOrigin, target->position, cannon.restYaw,
                         building->level)) {
                     cannon.targetId.reset();
                 }
@@ -282,7 +282,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
         if (!cannon.targetId && cannon.targetSearchCooldownRemaining <= 0.0) {
             cannon.targetId = enemies.densestEnemyInArc(
                 targetingOrigin, range, ClusterRadius, cannon.restYaw,
-                defenseAttackHalfAngleRadians(building->level), deadZone);
+                defenseAttackHalfAngleRadians(building->type, building->level), deadZone);
             cannon.targetSearchCooldownRemaining = SearchInterval;
         }
 

@@ -1100,6 +1100,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     teslaTowerModel_.load("assets/models/buildings/tesla_tower.glb");
     laserTowerModel_.load("assets/models/buildings/laser.glb");
     mortarModel_.load("assets/models/buildings/mortar.glb");
+    mortarUpgradeModel_.load("assets/models/buildings/mortar_upgrades.glb");
     teslaUpgradeModel_.load("assets/models/buildings/tesla_upgrades.glb");
     for (std::size_t index = 0; index < missileLauncherModels_.size(); ++index) {
         const std::string path = "assets/models/buildings/missile_launcher_levels/missile_launcher_lvl0" +
@@ -1613,6 +1614,7 @@ void GraphicsResources::shutdown() {
     teslaTowerModel_.unload();
     laserTowerModel_.unload();
     mortarModel_.unload();
+    mortarUpgradeModel_.unload();
     teslaUpgradeModel_.unload();
     for (auto& model : missileLauncherModels_) model.unload();
     flamethrowerModel_.unload();

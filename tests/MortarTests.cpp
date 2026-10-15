@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "combat/MortarAttack.hpp"
 #include "combat/CannonSystem.hpp"
+#include "combat/DefenseTargeting.hpp"
 #include "combat/AttackStatCompatibility.hpp"
 #include "game/Simulation.hpp"
 #include <memory>
@@ -57,8 +58,23 @@ void combat() {
             require(idle.shots().empty(),"mortar respects near dead zone and outer range");
         }
     }
-    auto behind=crowd(-10);CannonSystem idle;idle.syncBuildings({Mortar});
-    for(int frame=0;frame<240;++frame) {idle.tick(Step,{Mortar},behind);require(idle.shots().empty(),"placement firing sector matters");}
+    for(Vec3 position:std::array<Vec3,4>{{{0,0,10},{10,0,0},{-10,0,0},{0,0,-10}}}) {
+        auto definitions=GameBalance::defaults().enemies;
+        for(auto& definition:definitions)definition.health=100000;
+        EnemySystem allAround(definitions);
+        allAround.spawnWave(std::vector<EnemySpawn>{{.type=EnemyType::Basic,.position=position}});
+        allAround.markTarget(allAround.enemies()[0].id,10,1.2);
+        require(markedDefenseTarget(allAround,BuildingType::Mortar,{},18,0,1,4).has_value(),
+            "marked-target preference also covers all mortar quadrants");
+        CannonSystem swivel;swivel.syncBuildings({Mortar});bool fired=false;
+        for(int frame=0;frame<360 && !fired;++frame) {
+            swivel.tick(Step,{Mortar},allAround);fired=!swivel.shots().empty();
+        }
+        require(fired,"mortar acquires and fires in every quadrant, including behind placement yaw");
+    }
+    for(std::uint8_t level=1;level<=8;++level)
+        require(defenseAttackArcDegrees(BuildingType::Mortar,level)==360 &&
+            defenseAttackArcDegrees(BuildingType::Cannon,level)<360,"only mortar gets circular artillery coverage");
 }
 void statsAndPooling() {
     auto enemies=crowd();CannonSystem cannons;AttackModifiers modifiers;

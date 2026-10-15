@@ -1304,8 +1304,7 @@ void drawBuildingTacticalOverlay(
                 TowerSystem::attackRange(
                     building->type, building->level)),
             towerBaseYaw(snapshot, *building),
-            building->type == BuildingType::TeslaTower ? 360.0F : static_cast<float>(defenseAttackArcDegrees(
-                building->level)),
+            static_cast<float>(defenseAttackArcDegrees(building->type, building->level)),
             {255, 252, 244, 190}, building->type == BuildingType::MissileLauncher
                 ? static_cast<float>(MissileLauncherMinimumRange) : 0.0F);
         const auto runtime = std::find_if(
@@ -1331,8 +1330,7 @@ void drawBuildingTacticalOverlay(
                     ? snapshot.aimedFinalAttackStats->range : CannonSystem::attackRange(
                     building->type, building->level)),
             cannonBaseYaw(snapshot, *building),
-            building->type == BuildingType::TeslaTower ? 360.0F : static_cast<float>(defenseAttackArcDegrees(
-                building->level)),
+            static_cast<float>(defenseAttackArcDegrees(building->type, building->level)),
             {255, 252, 244, 190},
             static_cast<float>(CannonSystem::minimumRange(
                 building->type, building->level)));

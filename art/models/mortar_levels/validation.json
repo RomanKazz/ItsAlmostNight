@@ -1,0 +1,137 @@
+{
+  "base_unchanged": true,
+  "exact_embedded_palette": true,
+  "packed_editable_source": true,
+  "round_trip": [
+    {
+      "mesh": "mortar_upgrade_l2_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l2_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l2_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l3_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l3_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l3_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l4_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l4_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l4_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l5_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l5_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l5_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l6_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l6_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l6_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l7_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l7_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l7_yaw",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l8_base",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l8_pitch",
+      "finite_unit_normals_uv_manifold": true
+    },
+    {
+      "mesh": "mortar_upgrade_l8_yaw",
+      "finite_unit_normals_uv_manifold": true
+    }
+  ],
+  "motion": [
+    {
+      "level": 2,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 3,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 4,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 5,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 6,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 7,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    },
+    {
+      "level": 8,
+      "full_yaw_at_35_45_75": true,
+      "pitch_sweep_step_degrees": 1,
+      "no_moving_fixed_collisions": true
+    }
+  ],
+  "poses_checked": 7847,
+  "native_playtest": false
+}

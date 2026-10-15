@@ -43,7 +43,7 @@ BuildingStats buildingStatsAtLevel(
             towerBonus * CombatDisplayScale;
         stats.attackRange = TowerSystem::attackRange(
             building.type, level);
-        stats.attackArcDegrees = building.type == BuildingType::TeslaTower ? 360.0 : defenseAttackArcDegrees(level);
+        stats.attackArcDegrees = defenseAttackArcDegrees(building.type, level);
         stats.attacksPerSecond =
             1.0 / TowerSystem::fireInterval(building.type, level);
         if (building.type == BuildingType::MissileLauncher) stats.effectRadius = 1.6;
@@ -59,7 +59,7 @@ BuildingStats buildingStatsAtLevel(
             towerBonus * CombatDisplayScale;
         stats.attackRange = CannonSystem::attackRange(
             building.type, level);
-        stats.attackArcDegrees = building.type == BuildingType::TeslaTower ? 360.0 : defenseAttackArcDegrees(level);
+        stats.attackArcDegrees = defenseAttackArcDegrees(building.type, level);
         stats.attacksPerSecond =
             1.0 / CannonSystem::fireInterval(building.type, level);
         stats.effectRadius = CannonSystem::explosionRadius(

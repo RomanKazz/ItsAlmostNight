@@ -28,7 +28,7 @@ inline constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
     for (const auto& enemy : enemies.enemies()) {
         if (!enemy.active || enemy.markRemaining <= 0 ||
             !projectileDefenseCanTarget(type, enemy, origin.y) ||
-            !directionInsideDefenseArc(origin, enemy.position, restYaw, level)) continue;
+            !directionInsideDefenseArc(type, origin, enemy.position, restYaw, level)) continue;
         const double x = enemy.position.x - origin.x, z = enemy.position.z - origin.z;
         const double distance = x*x + z*z;
         if (distance < nearest && distance >= minimumRange * minimumRange) {

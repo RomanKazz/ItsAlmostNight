@@ -240,7 +240,7 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
 }
 
 bool Renderer::drawMortar(Vector3 position, float yawRadians, Color tint,
-    float scale, float pitchRadians, std::optional<float> headYaw, int /*level*/) {
+    float scale, float pitchRadians, std::optional<float> headYaw, int level) {
     auto& resource=resources_.mortarModel();
     if (!resource.valid()) return false;
     Model& model=resource.get();prepareModelShader(model);
@@ -254,7 +254,23 @@ bool Renderer::drawMortar(Vector3 position, float yawRadians, Color tint,
             mortar_model::meshTransform(mesh,position,yawRadians,headYaw.value_or(yawRadians),pitchRadians,scale)));
         material.maps[MATERIAL_MAP_DIFFUSE].color=original;
     }
-    setWorldMaterial(saved);return true;
+    setWorldMaterial(saved);
+    auto& upgrades = resources_.mortarUpgradeModel();
+    if (upgrades.valid()) {
+        Model& extra = upgrades.get();
+        prepareModelShader(extra);
+        mortar_model::forEachUpgradePart(level, [&](int mesh, int role) {
+            if (mesh >= extra.meshCount) return;
+            Material& material = extra.materials[extra.meshMaterial[mesh]];
+            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+            DrawMesh(extra.meshes[mesh], material, MatrixMultiply(extra.transform,
+                mortar_model::meshTransform(role, position, yawRadians,
+                    headYaw.value_or(yawRadians), pitchRadians, scale)));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        });
+    }
+    return true;
 }
 
 bool Renderer::drawLaserTower(Vector3 position, float yawRadians, Color tint,

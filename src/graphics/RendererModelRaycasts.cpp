@@ -327,6 +327,19 @@ std::optional<double> Renderer::buildingRaycastDistance(
                 const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], pose));
                 if (distance && (!closest || *distance < *closest)) closest = distance;
             }
+            auto& upgrades = resources_.mortarUpgradeModel();
+            if (upgrades.valid()) {
+                auto& extra = upgrades.get();
+                mortar_model::forEachUpgradePart(building.level, [&](int mesh, int role) {
+                    if (mesh >= extra.meshCount) return;
+                    const Matrix pose = MatrixMultiply(extra.transform,
+                        mortar_model::meshTransform(role, position,
+                            defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(building.type, building.rotation))),
+                            defensiveYaw, cannonPitchRadians));
+                    const auto distance = acceptCollision(GetRayCollisionMesh(ray, extra.meshes[mesh], pose));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+            }
             return closest;
         }
         if (building.type == BuildingType::LaserTower) {
