@@ -684,10 +684,10 @@ void App::drawWorldOverlays(
                 snapshot.buildingPreview->type;
             const bool artillery =
                 type == BuildingType::Cannon ||
-                type == BuildingType::Catapult;
-            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower)
+                type == BuildingType::Catapult || type == BuildingType::Mortar;
+            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar)
                 ? std::max<std::uint8_t>(1, snapshot.buildingBlueprintLevels[static_cast<std::size_t>(type)]) : 1;
-            const float range = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower) && snapshot.buildingPreviewFinalAttackStats
+            const float range = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar) && snapshot.buildingPreviewFinalAttackStats
                 ? static_cast<float>(snapshot.buildingPreviewFinalAttackStats->range * (type == BuildingType::Flamethrower ? snapshot.buildingPreviewFinalAttackStats->size : 1.0))
                 : artillery
                 ? static_cast<float>(
@@ -1037,6 +1037,9 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::Mortar) {
+                    static_cast<void>(renderer_->drawMortar(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::LaserTower) {
                     static_cast<void>(renderer_->drawLaserTower(position, yaw, WHITE, 1, 0, {},
                         snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
@@ -1144,6 +1147,9 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::Mortar) {
+            static_cast<void>(renderer_->drawMortar({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::LaserTower) {
             static_cast<void>(renderer_->drawLaserTower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
                 snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));

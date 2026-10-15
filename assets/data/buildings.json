@@ -67,5 +67,9 @@
     "platform": {"wood": 20, "stone": 5, "crystals": 0},
     "wall": {"wood": 5, "stone": 10, "crystals": 0},
     "ramp": {"wood": 16, "stone": 4, "crystals": 0}
+  },
+  "mortar": {
+    "wood": 50, "stone": 40, "crystals": 20,
+    "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 64
   }
 }

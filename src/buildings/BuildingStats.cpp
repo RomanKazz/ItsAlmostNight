@@ -52,7 +52,7 @@ BuildingStats buildingStatsAtLevel(
                 TowerSystem::piercingCount(building.type, level));
         }
     } else if (building.type == BuildingType::Cannon ||
-               building.type == BuildingType::Catapult) {
+               building.type == BuildingType::Catapult || building.type == BuildingType::Mortar) {
         const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = CannonSystem::explosionDamage(
             building.type, level) *

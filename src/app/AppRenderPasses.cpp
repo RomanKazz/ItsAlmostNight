@@ -442,6 +442,11 @@ void App::drawShadowPass(
                               z - 0.55F}, 0.18F,
                              0.18F, 1.0F, WHITE);
                 }
+            } else if (building.type == BuildingType::Mortar) {
+                static_cast<void>(renderer_->drawMortar({x, groundY, z},
+                    cannonBaseYaw(snapshot, building), WHITE, spawnScale,
+                    cannonPitch(snapshot, building, interpolationAlpha),
+                    cannonYaw(snapshot, building, interpolationAlpha), building.level));
             } else if (building.type == BuildingType::LaserTower) {
                 static_cast<void>(renderer_->drawLaserTower({x, groundY, z},
                     towerBaseYaw(snapshot, building), WHITE, spawnScale,
@@ -992,7 +997,7 @@ void App::drawSelectionPass(
                         towerYaw(snapshot, *building, interpolationAlpha);
                 } else if (
                     building->type == BuildingType::Cannon ||
-                    building->type == BuildingType::Catapult) {
+                    building->type == BuildingType::Catapult || building->type == BuildingType::Mortar) {
                     defensiveYaw =
                         cannonYaw(snapshot, *building, interpolationAlpha);
                 }
@@ -1072,6 +1077,11 @@ void App::drawSelectionPass(
                              z - 0.55F}, 0.18F,
                             0.18F, 1.0F, WHITE);
                     }
+                } else if (building->type == BuildingType::Mortar) {
+                    static_cast<void>(renderer_->drawMortar({x, groundY, z},
+                        cannonBaseYaw(snapshot, *building), WHITE, spawnScale,
+                        cannonPitch(snapshot, *building, interpolationAlpha),
+                        cannonYaw(snapshot, *building, interpolationAlpha), building->level));
                 } else if (building->type == BuildingType::LaserTower) {
                     static_cast<void>(renderer_->drawLaserTower({x, groundY, z},
                         towerBaseYaw(snapshot, *building), WHITE, spawnScale,

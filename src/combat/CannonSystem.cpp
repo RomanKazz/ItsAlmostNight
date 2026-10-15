@@ -1,4 +1,5 @@
 #include "combat/CannonSystem.hpp"
+#include "combat/MortarAttack.hpp"
 #include "combat/DefenseRuntimeSupport.hpp"
 #include "combat/DefenseAiming.hpp"
 #include "buildings/BuildingModifiers.hpp"
@@ -77,6 +78,7 @@ double CannonSystem::attackRange(std::uint8_t level) {
 
 double CannonSystem::attackRange(
     BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::Mortar) return 18.0 + 0.5 * (std::clamp<int>(level,1,8)-1);
     if (type == BuildingType::Catapult) {
         return CatapultRange + 0.45 * static_cast<double>(level - 1);
     }
@@ -85,6 +87,7 @@ double CannonSystem::attackRange(
 
 double CannonSystem::minimumRange(
     BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::Mortar) return 4.0;
     if (type != BuildingType::Catapult) return 0.0;
     return std::max(
         3.25, CatapultMinimumRange -
@@ -98,6 +101,7 @@ double CannonSystem::fireInterval(std::uint8_t level) {
 
 double CannonSystem::fireInterval(
     BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::Mortar) return 4.0 / (1.0 + 0.06 * (std::clamp<int>(level,1,8)-1));
     if (type == BuildingType::Catapult) {
         return CatapultFireInterval /
             (1.0 + 0.045 * static_cast<double>(level - 1));
@@ -112,6 +116,7 @@ double CannonSystem::explosionRadius(std::uint8_t level) {
 
 double CannonSystem::explosionRadius(
     BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::Mortar) return 3.25 + 0.12 * (std::clamp<int>(level,1,8)-1);
     if (type == BuildingType::Catapult) {
         return CatapultExplosionRadius +
             0.15 * static_cast<double>(level - 1);
@@ -126,6 +131,7 @@ double CannonSystem::explosionDamage(std::uint8_t level) {
 
 double CannonSystem::explosionDamage(
     BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::Mortar) return 6.0 + 1.0 * (std::clamp<int>(level,1,8)-1);
     if (type == BuildingType::Catapult) {
         return CatapultExplosionDamage +
             0.45 * static_cast<double>(level - 1);
@@ -173,7 +179,7 @@ void CannonSystem::clearProjectiles() {
 void CannonSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
     defense_runtime::syncBuildings(cannons_, buildings, SearchInterval,
         [](BuildingType type) {
-            return type == BuildingType::Cannon || type == BuildingType::Catapult;
+            return type == BuildingType::Cannon || type == BuildingType::Catapult || type == BuildingType::Mortar;
         },
         [](const BuildingInstance& building, const CannonRuntime& runtime) {
             return building.type == runtime.type;
@@ -287,12 +293,19 @@ std::span<const CannonExplosion> CannonSystem::tick(
             if (target) {
                 const Vec3 origin = building->type == BuildingType::Catapult
                     ? targetingOrigin
+                    : building->type == BuildingType::Mortar
+                    ? mortarMuzzleWorldPosition(targetingOrigin,cannon.yaw,cannon.pitch)
                     : cannonMuzzleWorldPosition(
                         targetingOrigin, cannon.yaw, cannon.pitch);
                 const double deltaX = target->position.x - origin.x;
                 const double deltaZ = target->position.z - origin.z;
                 desiredYaw = std::atan2(-deltaX, -deltaZ);
-                if (building->type == BuildingType::Cannon) {
+                if (building->type == BuildingType::Mortar) {
+                    Vec3 impact=target->position;impact.y+=target->worldSurfaceHeight;
+                    const auto trajectory=mortarTrajectory(origin,impact,MortarHorizontalSpeed);
+                    if (!trajectory) {cannon.targetId.reset();continue;}
+                    desiredPitch=trajectory->pitch;
+                } else if (building->type == BuildingType::Cannon) {
                     const double horizontalDistance = std::hypot(deltaX, deltaZ);
                     const double flightTime = std::max(
                         0.2, horizontalDistance / ProjectileSpeed);
@@ -315,11 +328,12 @@ std::span<const CannonExplosion> CannonSystem::tick(
         } else {
             defense_runtime::holdAimWithoutTarget(cannon, deltaSeconds);
         }
-        if (building->type == BuildingType::Cannon && cannon.targetId) {
+        if ((building->type == BuildingType::Cannon || building->type == BuildingType::Mortar) && cannon.targetId) {
             cannon.pitch = advanceDefenseAim(
                 cannon.pitch, desiredPitch, cannon.pitchVelocity,
                 deltaSeconds, 10.0, PitchSpeed, false);
-            const double limitedPitch = std::clamp(cannon.pitch, MinimumPitch, MaximumPitch);
+            const double limitedPitch = std::clamp(cannon.pitch, building->type == BuildingType::Mortar ? MortarMinimumPitch : MinimumPitch,
+                building->type == BuildingType::Mortar ? MortarMaximumPitch : MaximumPitch);
             if (limitedPitch != cannon.pitch) cannon.pitchVelocity = 0.0;
             cannon.pitch = limitedPitch;
         }
@@ -387,6 +401,8 @@ void CannonSystem::launch(const BuildingInstance& cannon,
     const Vec3 origin = cannon.type == BuildingType::Catapult
         ? catapultMuzzleWorldPosition(
             buildingWorldPosition(cannon), yawRadians, pitchRadians)
+        : cannon.type == BuildingType::Mortar
+        ? mortarMuzzleWorldPosition(buildingWorldPosition(cannon),yawRadians,pitchRadians)
         : cannonMuzzleWorldPosition(
             buildingWorldPosition(cannon), yawRadians, pitchRadians);
     const auto profile = cannonAttackProfile(cannon.type == BuildingType::Cannon
@@ -408,6 +424,9 @@ void CannonSystem::launch(const BuildingInstance& cannon,
 
 void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
                                     Vec3 targetPosition, const CannonAttackProfile& profile, bool recordShot) {
+    const auto mortar = cannon.type == BuildingType::Mortar ? mortarTrajectory(origin,targetPosition,MortarHorizontalSpeed)
+        : std::optional<MortarTrajectory>{};
+    if (cannon.type == BuildingType::Mortar && !mortar) return;
     CannonProjectile* projectile = nullptr;
     for (auto& candidate : projectiles_) {
         if (!candidate.active) {
@@ -444,7 +463,8 @@ void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
         (targetPosition.y - origin.y + 0.5 * Gravity * flightTime * flightTime) / flightTime,
         deltaZ / flightTime,
     };
-    projectile->fuseRemaining = flightTime;
+    if(mortar) projectile->velocity=mortar->velocity;
+    projectile->fuseRemaining = mortar ? mortar->flightTime : flightTime;
     const double levelBonus = static_cast<double>(cannon.level - 1);
     projectile->explosionRadius = explosionRadius(
         cannon.type, cannon.level) *

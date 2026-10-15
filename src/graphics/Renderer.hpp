@@ -416,6 +416,9 @@ class Renderer {
                                   float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawMortar(Vector3 position, float yawRadians, Color tint = WHITE,
+        float scale = 1.0F, float pitchRadians = 0.0F,
+        std::optional<float> headYaw = std::nullopt, int level = 1);
     [[nodiscard]] bool drawLaserTower(Vector3 position, float yawRadians, Color tint = WHITE,
         float scale = 1.0F, float pitchRadians = 0.0F,
         std::optional<float> headYaw = std::nullopt, int level = 1);

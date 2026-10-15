@@ -42,6 +42,7 @@ inline constexpr std::array DefenseAttackCompatibility{
     AttackStatCompatibility{BuildingType::Turret, PhysicalAttackStats |
         attackStatMask({AttackStat::Spread, AttackStat::FanSpread, AttackStat::Homing})},
     AttackStatCompatibility{BuildingType::Cannon, PhysicalAttackStats},
+    AttackStatCompatibility{BuildingType::Mortar, PhysicalAttackStats},
     AttackStatCompatibility{BuildingType::Catapult, PhysicalAttackStats},
     AttackStatCompatibility{BuildingType::SpikeTrap, attackStatMask({
         AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Quantity,

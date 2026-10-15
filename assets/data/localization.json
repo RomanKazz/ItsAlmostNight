@@ -3,6 +3,10 @@
   "languages": {
     "en": {},
     "ru": {
+      "MORTAR": "МОРТИРА",
+      "Mortar": "Мортира",
+      "High-arc shells blast distant groups. Upgrade all copies.": "Навесные снаряды поражают дальние группы. Улучшает все копии.",
+      "High-arc shells. Blasts distant groups. Cannot aim within 4 m.": "Навесной огонь по группам. Слепая зона 4 м.",
       "LASER": "ЛАЗЕР",
       "Laser": "Лазер",
       "Sustained focus ramps damage. Upgrade all copies.": "Удержание цели усиливает урон. Улучшает все лазеры.",

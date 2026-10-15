@@ -1,6 +1,7 @@
 #include "graphics/MissileLauncherModel.hpp"
 #include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/LaserModel.hpp"
+#include "graphics/MortarModel.hpp"
 #include "buildings/TowerRig.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
@@ -236,6 +237,24 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
                 {scale, scale, scale}, tint);
     return true;
+}
+
+bool Renderer::drawMortar(Vector3 position, float yawRadians, Color tint,
+    float scale, float pitchRadians, std::optional<float> headYaw, int /*level*/) {
+    auto& resource=resources_.mortarModel();
+    if (!resource.valid()) return false;
+    Model& model=resource.get();prepareModelShader(model);
+    const auto saved=worldMaterial_;
+    for(int mesh=0;mesh<model.meshCount;++mesh) {
+        auto state=saved;setWorldMaterial(state);
+        auto& material=model.materials[model.meshMaterial[mesh]];
+        const auto original=material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color=ColorTint(original,tint);
+        DrawMesh(model.meshes[mesh],material,MatrixMultiply(model.transform,
+            mortar_model::meshTransform(mesh,position,yawRadians,headYaw.value_or(yawRadians),pitchRadians,scale)));
+        material.maps[MATERIAL_MAP_DIFFUSE].color=original;
+    }
+    setWorldMaterial(saved);return true;
 }
 
 bool Renderer::drawLaserTower(Vector3 position, float yawRadians, Color tint,
@@ -629,6 +648,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::Cannon: model = &resources_.cannonModel(); break;
     case BuildingType::TeslaTower: return 1.44F;
     case BuildingType::LaserTower: return 1.40F;
+    case BuildingType::Mortar: return 1.45F;
     case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;

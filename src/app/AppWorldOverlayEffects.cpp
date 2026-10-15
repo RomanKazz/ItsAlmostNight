@@ -203,6 +203,8 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::Mortar) {
+            static_cast<void>(renderer_->drawMortar({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::LaserTower) {
             static_cast<void>(renderer_->drawLaserTower({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::MissileLauncher) {
@@ -556,6 +558,9 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::Mortar) {
+        static_cast<void>(renderer_->drawMortar(modelPosition, yaw, WHITE, scale, 0, {},
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::LaserTower) {
         static_cast<void>(renderer_->drawLaserTower(modelPosition, yaw, WHITE, scale, 0, {},
             simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));

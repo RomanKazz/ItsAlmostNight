@@ -310,6 +310,7 @@ ModelResource& GraphicsResources::gunTurretModel() {
 
 ModelResource& GraphicsResources::teslaTowerModel() { return teslaTowerModel_; }
 ModelResource& GraphicsResources::laserTowerModel() { return laserTowerModel_; }
+ModelResource& GraphicsResources::mortarModel() { return mortarModel_; }
 ModelResource& GraphicsResources::teslaUpgradeModel() { return teslaUpgradeModel_; }
 
 ModelResource& GraphicsResources::missileLauncherModel(int level) {

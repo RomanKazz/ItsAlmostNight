@@ -566,7 +566,7 @@ std::optional<EntityId> preciseBuildingAim(
             }
         } else if (
             building.type == BuildingType::Cannon ||
-            building.type == BuildingType::Catapult) {
+            building.type == BuildingType::Catapult || building.type == BuildingType::Mortar) {
             yaw = cannonYaw(snapshot, building);
             pitch = cannonPitch(snapshot, building);
         }
@@ -586,7 +586,8 @@ std::optional<EntityId> preciseBuildingAim(
                     ? spikeTrapAnimationSeconds(snapshot, building.id)
                     : -1.0F,
                 (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower)
-                    ? std::optional<float>{towerBaseYaw(snapshot, building)} : std::nullopt);
+                    ? std::optional<float>{towerBaseYaw(snapshot, building)}
+                    : building.type == BuildingType::Mortar ? std::optional<float>{cannonBaseYaw(snapshot, building)} : std::nullopt);
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
             result = building.id;
@@ -1068,6 +1069,8 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::Mortar) {
+        static_cast<void>(renderer.drawMortar(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::LaserTower) {
         static_cast<void>(renderer.drawLaserTower(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::MissileLauncher) {
@@ -1318,13 +1321,14 @@ void drawBuildingTacticalOverlay(
             building->type == BuildingType::Flamethrower ? FlamethrowerPitchPivotY :
             building->type == BuildingType::GunTurret ? 0.69 : 1.42;
     } else if (building->type == BuildingType::Cannon ||
-               building->type == BuildingType::Catapult) {
+               building->type == BuildingType::Catapult || building->type == BuildingType::Mortar) {
         renderer.drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
-                CannonSystem::attackRange(
+                (building->type == BuildingType::Mortar && snapshot.aimedFinalAttackStats)
+                    ? snapshot.aimedFinalAttackStats->range : CannonSystem::attackRange(
                     building->type, building->level)),
             cannonBaseYaw(snapshot, *building),
             building->type == BuildingType::TeslaTower ? 360.0F : static_cast<float>(defenseAttackArcDegrees(

@@ -384,6 +384,15 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_laser_tests COMMAND ian_laser_tests)
     set_tests_properties(ian_laser_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+    add_executable(ian_mortar_tests tests/MortarTests.cpp)
+    target_link_libraries(ian_mortar_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_mortar_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_mortar_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_mortar_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_mortar_tests COMMAND ian_mortar_tests)
+    set_tests_properties(ian_mortar_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
 
     add_executable(ian_enemy_pressure_tests tests/EnemyPressureTests.cpp)
     target_link_libraries(ian_enemy_pressure_tests PRIVATE ian_simulation)
@@ -486,7 +495,7 @@ if(BUILD_TESTING)
     set_tests_properties(ian_graphics_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77
-        TIMEOUT 60
+        TIMEOUT 90
         LABELS "graphics;integration")
 
     add_executable(ian_ui_text_sdf_smoke

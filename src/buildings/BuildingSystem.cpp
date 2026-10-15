@@ -31,6 +31,7 @@ Footprint footprint(BuildingType type) {
     case BuildingType::Cannon:
     case BuildingType::TeslaTower:
     case BuildingType::LaserTower:
+    case BuildingType::Mortar:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -72,6 +73,7 @@ SelectionBounds selectionBounds(BuildingType type) {
         return {0.82, 0.82, 0.0, 2.05};
     case BuildingType::TeslaTower: return {0.6, 0.6, 0.0, 1.44};
     case BuildingType::LaserTower: return {0.6, 0.6, 0.0, 1.40};
+    case BuildingType::Mortar: return {0.6, 0.6, 0.0, 1.45};
     case BuildingType::MissileLauncher: return {0.6, 0.6, 0.0, 1.54};
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -141,7 +143,7 @@ bool isTowerType(BuildingType type) {
            type == BuildingType::GunTurret ||
            type == BuildingType::Cannon ||
            type == BuildingType::Catapult ||
-           type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower;
+           type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar;
 }
 
 const auto& defaultBuildingDefinitions() {
@@ -253,6 +255,7 @@ BuildingLimitCategory buildingLimitCategory(
     case BuildingType::Cannon:
     case BuildingType::TeslaTower:
     case BuildingType::LaserTower:
+    case BuildingType::Mortar:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
