@@ -1,0 +1,83 @@
+{
+  "original_base_housing_collider_sockets_preserved": true,
+  "exact_palette": true,
+  "render_meshes": 16,
+  "additional_draws": 2,
+  "clean_import": [
+    {
+      "mesh": "upgrade_l2_base",
+      "triangles": 92,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l2_head",
+      "triangles": 40,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l3_base",
+      "triangles": 172,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l3_head",
+      "triangles": 80,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l4_base",
+      "triangles": 172,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l4_head",
+      "triangles": 232,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l5_base",
+      "triangles": 264,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l5_head",
+      "triangles": 720,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l6_base",
+      "triangles": 264,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l6_head",
+      "triangles": 1008,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l7_base",
+      "triangles": 264,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l7_head",
+      "triangles": 1040,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l8_base",
+      "triangles": 356,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_l8_head",
+      "triangles": 1424,
+      "finite_normals_uv_manifold": true
+    }
+  ],
+  "yaw_recoil_poses": 7560,
+  "moving_fixed_collisions": 0,
+  "open_muzzle_channels": true,
+  "editable_packed_source": true,
+  "native_playtest": false
+}
