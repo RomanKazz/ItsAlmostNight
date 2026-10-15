@@ -85,6 +85,12 @@ for level in range(1,9):
     assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and v.z>=-.00234
                for v in pedestal_vertices), ('pedestal footprint',level)
     if level>=2:
+        # The 16-sided shoe is narrower between vertices than its circumradius.
+        # Keep low column/brace feet within every actual edge, not only r<=.5.
+        shoe_edge=.5*math.cos(math.pi/16)
+        assert all(v.x*math.cos(math.pi/16+i*math.tau/16)+
+                   v.y*math.sin(math.pi/16+i*math.tau/16)<=shoe_edge+1e-6
+                   for v in pedestal_vertices if v.z<=.055001 for i in range(16)), ('foot projects past shoe',level)
         points=KDTree(len(pedestal_vertices))
         for index,v in enumerate(pedestal_vertices):points.insert(v,index)
         points.balance()
@@ -119,6 +125,6 @@ for level in range(1,9):
                 assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and -.00234<=v.z<=top+.0001 for v in vertices(1,pose))
         frames+=1
 assert not collisions,collisions[:12]
-result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'pedestal_bounds_and_symmetry':True,'central_crystal_clearance':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8 if level==6 else 12 if level==7 else 14)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
+result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'column_feet_inside_shoe':True,'pedestal_bounds_and_symmetry':True,'central_crystal_clearance':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8 if level==6 else 12 if level==7 else 14)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
 (ART/'validation.json').write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result))

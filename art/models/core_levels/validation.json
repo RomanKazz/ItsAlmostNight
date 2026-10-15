@@ -120,6 +120,7 @@
   ],
   "palette_byte_identical": true,
   "original_preserved": true,
+  "column_feet_inside_shoe": true,
   "pedestal_bounds_and_symmetry": true,
   "central_crystal_clearance": true,
   "orbit_frames": 2880,

@@ -79,6 +79,8 @@ consistent outward winding. Explicit smooth-shoe/flat-cap normal checks pass.
 Original file and palette hashes match. **2880 sampled orbit poses**, no satellite
 contacts with body, central crystal or other satellites; envelopes contain motion.
 Pedestal footprint, fourfold symmetry and central-crystal clearance are checked.
+Low column/brace feet are recessed into the shoe and tested against all 16 actual
+polygon edges, preventing corner protrusions between the radial vertices.
 Game graphics smoke verifies real loading, selected level height/bounds, orbit,
 distinct rendered levels and shutdown/reinitialize. Native manual playtest is
 still separate from these automated shader captures.

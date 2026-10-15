@@ -169,22 +169,22 @@ for level in range(2,9):
         angle=math.pi*.25+i*math.pi*.5
         width=.075 if level==2 else .105 if level<5 else .13
         g.radial_prism(f'gold_armored_support_{i+1}',angle,
-            [(.395,.045),(.49,.045),(.49,.085),(.402,height-.035),
+            [(.375,.035),(.465,.035),(.465,.085),(.402,height-.035),
              (.365,height-.015),(.335,height-.035)],width,GOLD)
         if level>=3:
             # Orange inset is visibly seated on the thick gold armor. It is
             # a shallow solid, not a coplanar decal or a floating casing gem.
             g.radial_prism(f'orange_support_inset_{i+1}',angle,
-                [(.456,.087),(.478,.087),(.397,height-.052),
+                [(.445,.092),(.461,.092),(.397,height-.052),
                  (.382,height-.04),(.365,height-.052)],width*.56,ORANGE)
         if level>=4:
             # A proper short pedestal carries each corner pylon. Their caps
             # stay below the lowest orbiting crystal over the whole cycle.
             top=height-.032 if level<6 else height+.025
-            m=Matrix.Translation((.424*math.cos(angle),.424*math.sin(angle),0))
+            m=Matrix.Translation((.405*math.cos(angle),.405*math.sin(angle),0))
             g.lathe(f'corner_reactor_pylon_{i+1}',
-                [(.008,.065),(.062,.065),(.069,.082),(.069,.105),
-                 (.050,.12),(.044,top-.038),(.061,top-.038),
+                [(.008,.035),(.045,.035),(.055,.055),(.055,.085),
+                 (.050,.105),(.044,top-.038),(.061,top-.038),
                  (.065,top-.023),(.060,top),(.008,top)],
                 [DARK,GOLD,GOLD,GOLD,ORANGE,RED,GOLD,GOLD,GOLD,DARK],8,m)
     if level>=5:
