@@ -71,7 +71,10 @@ struct AppPresentationTestAccess {
             app->renderer_->endWorldPass();rlDrawRenderBatchActive();
             Image image=LoadImageFromScreen();auto* pixels=LoadImageColors(image);
             const auto center=GetWorldToScreenEx({0,.7F,-2},inkCamera,image.width,image.height);
-            for(int y=int(center.y)-100;y<=int(center.y)+100;++y)for(int x=int(center.x);x<=int(center.x)+1;++x) {
+            // Probe four columns across the silhouette: the arc uses a live
+            // animation clock, and a two-column sliver landed exactly on the
+            // ten-pixel cutoff for otherwise fully visible electrical cores.
+            for(int y=int(center.y)-100;y<=int(center.y)+100;++y)for(int x=int(center.x);x<=int(center.x)+3;++x) {
                 const auto pixel=pixels[y*image.width+x];bright[ink]+=pixel.r>180 && pixel.g>200 && pixel.b>200;
             }
             if(const char* capture=std::getenv("IAN_TESLA_CAPTURE")) {
