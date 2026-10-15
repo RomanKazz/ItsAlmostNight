@@ -425,6 +425,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .buildingArsenalCount = runBuildingArsenalCount(),
         .tomeCount = runTomeCount(runUpgradeStacks_),
         .tomeSlotLimit = runTomeSlotLimit(activeMetaBonuses_),
+        .weaponSlotLimit = runWeaponSlotLimit(activeMetaBonuses_),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runShop = runShop_,
         .runShopBuyable = [this] {

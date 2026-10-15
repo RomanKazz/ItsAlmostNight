@@ -414,6 +414,16 @@ if(BUILD_TESTING)
     add_test(NAME ian_night_encounter_tests COMMAND ian_night_encounter_tests)
     set_tests_properties(ian_night_encounter_tests PROPERTIES TIMEOUT 60)
 
+    add_executable(ian_weapon_arsenal_tests tests/WeaponArsenalTests.cpp)
+    target_link_libraries(ian_weapon_arsenal_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_weapon_arsenal_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_weapon_arsenal_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_weapon_arsenal_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_weapon_arsenal_tests COMMAND ian_weapon_arsenal_tests)
+    set_tests_properties(ian_weapon_arsenal_tests PROPERTIES TIMEOUT 60)
+
     add_executable(ian_tests
         tests/FixedStepTests.cpp
         tests/RunShopTests.cpp

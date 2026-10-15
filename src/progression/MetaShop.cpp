@@ -48,14 +48,16 @@ MetaRunBonuses metaRunBonuses(const MetaProgression& p) {
         .productionSpeed = 1 + percent(MetaShopUpgrade::ProductionSpeed),
         .resourceYield = 1 + percent(MetaShopUpgrade::ResourceYield),
         .rerolls = metaShopLevel(p, MetaShopUpgrade::Rerolls) + (p.quests.ownedUnlocks.contains("meta.refresh") ? 1 : 0),
-        .additionalTomeSlots = metaShopLevel(p, MetaShopUpgrade::TomeSlots)};
+        .additionalTomeSlots = metaShopLevel(p, MetaShopUpgrade::TomeSlots),
+        .additionalWeaponSlots = metaShopLevel(p, MetaShopUpgrade::WeaponSlots)};
 }
 bool validMetaRunBonuses(const MetaRunBonuses& b) {
     if (!std::isfinite(b.luck) || b.luck < 0 || b.luck > .20 || b.rerolls < 0 || b.rerolls > 6) return false;
     for (double value : {b.defenseDamage, b.defenseFireRate, b.buildingHealth, b.productionSpeed, b.resourceYield})
         if (!std::isfinite(value) || value < 1 || value > 1.5) return false;
     return b.defenseFireRate <= 1.3 && b.additionalTomeSlots >= 0 &&
-        b.additionalTomeSlots <= MaximumRunTomeSlots - BaseRunTomeSlots;
+        b.additionalTomeSlots <= MaximumRunTomeSlots - BaseRunTomeSlots &&
+        b.additionalWeaponSlots >= 0 && b.additionalWeaponSlots <= MaximumRunWeaponSlots - BaseRunWeaponSlots;
 }
 int creditMetaSilver(MetaProgression& p, int baseAmount) {
     if (baseAmount <= 0) return 0;

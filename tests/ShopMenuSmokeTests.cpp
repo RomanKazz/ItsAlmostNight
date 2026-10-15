@@ -57,6 +57,17 @@ int main(int argc,char** argv) {
                 "second tome slot costs fifteen silver");
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(!result.purchase&&profile.silver==25,"tome slot shop purchase stops at six total slots");
+            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1430,620),.click=true});
+            require(state.selected==MetaShopUpgrade::WeaponSlots,"tenth shop tile selects equipment slots");
+            profile.silver=50;
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(result.purchase&&profile.silver==40&&metaRunBonuses(profile).additionalWeaponSlots==1,
+                "first equipment slot costs ten silver");
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(result.purchase&&profile.silver==25&&metaRunBonuses(profile).additionalWeaponSlots==2,
+                "second equipment slot costs fifteen silver");
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(!result.purchase&&profile.silver==25,"equipment slots stop at six total");
             result=drawShopMenu(ui,profile,state,viewport,{.close=true});require(result.close,"close input works");
             profile.shopLevels={4,2,3,1,0,0,0,0};profile.silver=38;state.selected=MetaShopUpgrade::SilverGain;
             ClearBackground({61,82,66,255});

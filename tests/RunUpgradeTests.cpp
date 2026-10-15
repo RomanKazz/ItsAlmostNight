@@ -157,17 +157,27 @@ void runRunUpgradeTests() {
             require(runUpgradeMaximumLevel(effect) == (weapon==PlayerWeapon::Bomb?1:MaxBuildingLevel) && fixedRunUpgradePower(effect) &&
                 fixedRunUpgradeRarity(effect) == RunUpgradeRarity::Common,
                 "weapon cards have fixed power and leveled weapons extend to eight");
-            // Exercise the normal selection command through a saved pending offer.
-            auto offer = weaponRun->saveSuspendedRunState();
-            offer.runUpgradeChoicePending = true;
-            offer.runUpgradeChoiceCount = 4;
-            offer.runUpgradeSelectionsRemaining = 1;
-            offer.runUpgradeChoices = {effect, RunUpgradeEffect::Damage,
-                RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
-            offer.runUpgradeRarities.fill(RunUpgradeRarity::Common);
-            weaponRun->returnToMainMenu();
-            require(weaponRun->loadSuspendedRunState(offer) && weaponRun->selectRunUpgrade(0),
-                "normal card selection acquires a player weapon");
+            const auto inventory = weaponRun->snapshot().unlockedWeapons;
+            const auto count = std::ranges::count_if(PlayerWeaponHotbarOrder,
+                [&](auto entry) { return inventory[static_cast<std::size_t>(entry)]; });
+            if (count >= weaponRun->snapshot().weaponSlotLimit) {
+                // The remaining catalog becomes an explicit over-cap legacy/debug
+                // fixture; normal acquisition is covered by WeaponArsenalTests.
+                require(weaponRun->grantDebugRunUpgradeBatch(effect, 1),
+                    "complete weapon catalog uses explicit debug access beyond its slot cap");
+            } else {
+                // Exercise the normal selection command through a saved pending offer.
+                auto offer = weaponRun->saveSuspendedRunState();
+                offer.runUpgradeChoicePending = true;
+                offer.runUpgradeChoiceCount = 4;
+                offer.runUpgradeSelectionsRemaining = 1;
+                offer.runUpgradeChoices = {effect, RunUpgradeEffect::Damage,
+                    RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
+                offer.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+                weaponRun->returnToMainMenu();
+                require(weaponRun->loadSuspendedRunState(offer) && weaponRun->selectRunUpgrade(0),
+                    "normal card selection acquires a player weapon");
+            }
             require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)] &&
                 weaponRun->snapshot().buildingArsenalCount == 1 &&
                 !weaponRun->grantDebugRunUpgrade(effect),
@@ -733,7 +743,10 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::UnlockClub, RunUpgradeEffect::UnlockRifle,
                 RunUpgradeEffect::UnlockIceWand, RunUpgradeEffect::UnlockFireWand,
                 RunUpgradeEffect::CannonHeavyShell})
-            require(exhausted->grantDebugRunUpgrade(acquiredEffect), "exhaustion fixture fills arsenals and specialization");
+            require(runUpgradeWeapon(acquiredEffect)
+                    ? exhausted->grantDebugRunUpgradeBatch(acquiredEffect, 1)
+                    : exhausted->grantDebugRunUpgrade(acquiredEffect),
+                "exhaustion fixture explicitly fills weapon slots beyond the normal limit");
         for (const auto card : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::UnlockTurret,
                 RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockSpikeTrap})
             require(exhausted->grantDebugRunUpgradeBatch(card, MaxBuildingLevel),

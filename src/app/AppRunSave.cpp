@@ -652,6 +652,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
                 {"resourceYield", saved.metaBonuses.resourceYield},
                 {"rerolls", saved.metaBonuses.rerolls},
                 {"additionalTomeSlots", saved.metaBonuses.additionalTomeSlots},
+                {"additionalWeaponSlots", saved.metaBonuses.additionalWeaponSlots},
             }},
             {"insight", insightJson(saved.insight)},
             {"objectives", objectivesJson(saved.objectives)},
@@ -824,6 +825,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
             .resourceYield = meta.at("resourceYield").get<double>(),
             .rerolls = meta.at("rerolls").get<int>(),
             .additionalTomeSlots = meta.value("additionalTomeSlots", 0),
+            .additionalWeaponSlots = meta.value("additionalWeaponSlots", 0),
         };
     }
     saved.insight = readInsight(progression.at("insight"));

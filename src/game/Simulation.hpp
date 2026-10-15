@@ -452,6 +452,7 @@ struct SimulationSnapshot {
     std::size_t buildingArsenalCount{};
     int tomeCount{};
     int tomeSlotLimit{BaseRunTomeSlots};
+    int weaponSlotLimit{BaseRunWeaponSlots};
     bool runUpgradeChoicePending{};
     RunShopState runShop{};
     std::array<bool, RunShopSlotCount> runShopBuyable{};
@@ -750,6 +751,7 @@ class Simulation {
     [[nodiscard]] bool buildingUnlocked(BuildingType type) const;
     [[nodiscard]] bool ownsRunBuilding(BuildingType type) const;
     [[nodiscard]] std::size_t runBuildingArsenalCount() const;
+    [[nodiscard]] std::size_t runWeaponArsenalCount() const;
     [[nodiscard]] bool runUpgradeAvailable(RunUpgradeEffect effect) const;
     [[nodiscard]] bool playerWeaponUnlocked(PlayerWeapon weapon) const;
     [[nodiscard]] int playerWeaponLevel(PlayerWeapon weapon) const;

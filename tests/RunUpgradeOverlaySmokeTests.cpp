@@ -3,6 +3,7 @@
 #include "RewardBackdropChecks.hpp"
 #include "ShrinePromptChecks.hpp"
 #include "NightForecastChecks.hpp"
+#include "WeaponInventoryGraphicsChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
 #include "ui/DebugUpgradeMenu.hpp"
@@ -63,6 +64,7 @@ int main(int argc, char** argv) {
     ian::GameUi ui;
     ui.initialize();
     checkNightForecast(ui,argc>1 ? argv[1] : nullptr);
+    checkWeaponInventory(ui,argc>1 ? argv[1] : nullptr);
     checkShrineResourcePrompt(ui,argc>1 ? argv[1] : nullptr);
     const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");
@@ -211,8 +213,10 @@ int main(int argc, char** argv) {
         before.runUpgradeChoices[0] = effect;
         before.runUpgradeRarities[0] = ian::RunUpgradeRarity::Rare;
         const auto projected = ian::app_detail::previewRunUpgrade(before, 0);
-        require(simulation->grantDebugRunUpgrade(effect, ian::RunUpgradeRarity::Rare),
-            "preview fixture applies the real card");
+        require(ian::runUpgradeWeapon(effect)
+                ? simulation->grantDebugRunUpgradeBatch(effect, 1, ian::RunUpgradeRarity::Rare)
+                : simulation->grantDebugRunUpgrade(effect, ian::RunUpgradeRarity::Rare),
+            "preview fixture applies the real card, using explicit debug access for the complete weapon catalog");
         const auto actual = simulation->snapshot();
         requireNear(projected.playerDamageMultiplier, actual.playerDamageMultiplier, 1e-9, "damage preview matches simulation");
         requireNear(projected.playerMoveSpeedMultiplier, actual.playerMoveSpeedMultiplier, 1e-9, "movement preview matches simulation");

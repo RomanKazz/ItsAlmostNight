@@ -29,6 +29,7 @@ int main() {
         const int balance=profile.silver;
         require(purchaseMetaShopUpgrade(profile,d.upgrade)==MetaShopPurchaseResult::MaximumLevel && profile.silver==balance,"level cap cannot charge again");
     }
+    require(metaRunBonuses(profile).additionalWeaponSlots == 2, "two permanent ranks expand equipment capacity to six");
     require(metaRunBonuses(profile).additionalTomeSlots == 2, "two purchased ranks expand tome capacity to six");
     require(validMetaRunBonuses(metaRunBonuses(profile)),"catalog caps yield valid runtime bonuses");
     profile.silver=0;
@@ -53,6 +54,12 @@ int main() {
     {std::ofstream output(path);output << oldShop;}
     require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalTomeSlots == 0,
         "pre-tome shop profiles default to four slots without disturbing other purchases");
+    auto oldEquipment = saved;
+    oldEquipment["shop"]["levels"].erase("weapon_slots");
+    {std::ofstream output(path);output << oldEquipment;}
+    require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalWeaponSlots == 0 &&
+        metaRunBonuses(loaded).additionalTomeSlots == 2,
+        "pre-equipment shop profiles keep existing purchases and default equipment capacity to four");
     {std::ofstream output(path);output << saved;}
     require(loadMetaProgression(path.string(), loaded) && loaded == profile, "new slot purchases reload by stable string ID");
     saved["shop"]["levels"]["silver_gain"]=21;
@@ -85,9 +92,11 @@ int main() {
     const double oldDamage=sim->snapshot().upgradeStats.defenseDamage;
     require(sim->configureNextRunBonuses(bonuses),"valid bonuses configure next run");
     requireNear(sim->snapshot().upgradeStats.defenseDamage,oldDamage,1e-9,"buying does not alter an ongoing run");
+    require(sim->snapshot().weaponSlotLimit == 4, "equipment purchases do not alter an ongoing run");
     require(sim->snapshot().tomeSlotLimit == 4, "shop slots do not alter an ongoing run");
     sim->restartRun();
     const auto boosted=sim->snapshot();
+    require(boosted.weaponSlotLimit == 6, "equipment slot ranks activate on the next run");
     require(boosted.tomeSlotLimit == 6, "shop slot ranks activate on the next run");
     requireNear(boosted.upgradeStats.defenseDamage,1.25*1.1,1e-9,"defense bonus combines with class");
     requireNear(boosted.upgradeStats.buildingHealth,1.35*1.1,1e-9,"building health bonus combines with class");
@@ -105,6 +114,7 @@ int main() {
     auto resumed=std::make_unique<Simulation>(balance,map,world);
     require(resumed->loadSuspendedRunState(checkpoint),"boosted run checkpoint restores");
     const auto restored=resumed->snapshot();
+    require(restored.weaponSlotLimit == 6, "resume retains purchased equipment capacity");
     require(restored.tomeSlotLimit == 6, "resume retains active tome slot purchases");
     requireNear(restored.upgradeStats.resourceYield,1.1,1e-9,"resume retains resource bonus");
     requireNear(restored.upgradeStats.luck,.04,1e-9,"resume retains luck");

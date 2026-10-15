@@ -27,6 +27,11 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
     const auto unlock = weaponRunUpgrade(weapon);
     return unlock && runUpgradeStacks_[runUpgradeIndex(*unlock)] > 0;
 }
+std::size_t Simulation::runWeaponArsenalCount() const {
+    return static_cast<std::size_t>(std::ranges::count_if(PlayerWeaponHotbarOrder,
+        [this](PlayerWeapon weapon) { return playerWeaponUnlocked(weapon); }));
+}
+
 namespace {
 
 constexpr std::uint64_t InsightHashSeed = 0x9e3779b97f4a7c15ULL;
@@ -183,6 +188,8 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
         runTomeCount(runUpgradeStacks_) >= runTomeSlotLimit(activeMetaBonuses_)) return false;
     if (const auto weapon = runUpgradeWeapon(effect)) {
         if (sandboxMode_ || unlimitedResources_) return false;
+        if (!playerWeaponUnlocked(*weapon) && runWeaponArsenalCount() >=
+            static_cast<std::size_t>(runWeaponSlotLimit(activeMetaBonuses_))) return false;
         const auto core=buildings_.core();
         return runWeaponLevelCard(effect)
             ? playerWeaponLevel(*weapon) < runDefenseLevelLimit(core?core->level:0U)
@@ -334,6 +341,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         } else if (ownsRunBuilding(*building)) return false;
     }
     if (const auto weapon=runUpgradeWeapon(effect)) {
+        if (!playerWeaponUnlocked(*weapon) && runWeaponArsenalCount() >=
+            static_cast<std::size_t>(runWeaponSlotLimit(activeMetaBonuses_))) return false;
         if (!runWeaponLevelCard(effect) && playerWeaponUnlocked(*weapon)) return false;
         const auto core=buildings_.core();
         if (runWeaponLevelCard(effect) &&

@@ -46,10 +46,10 @@ inline void checkNightForecast(ian::GameUi& ui, const char* captureDirectory) {
         const auto pill = GetImageColor(image, 455, 79);
         const auto aboveIcon = GetImageColor(image, 480, 58);
         const auto outside = GetImageColor(image, 455, 58);
-        require(pill.r >= 30 && pill.r <= 33 && pill.g >= 51 && pill.g <= 54 &&
-                pill.b >= 58 && pill.b <= 61 && aboveIcon.r == pill.r &&
+        require(pill.r >= 24 && pill.r <= 26 && pill.g >= 40 && pill.g <= 43 &&
+                pill.b >= 46 && pill.b <= 49 && aboveIcon.r == pill.r &&
                 aboveIcon.g == pill.g && outside.r == 45 && outside.g == 75,
-            "forecast uses a rounded 30-percent black pill without a title or border");
+            "forecast uses a rounded 45-percent black pill without a title or border");
         if (captureDirectory) {
             std::filesystem::create_directories(captureDirectory);
             const auto file = std::filesystem::path(captureDirectory) /

@@ -3,6 +3,8 @@
   "languages": {
     "en": {},
     "ru": {
+      "EQUIPMENT SLOTS": "СЛОТЫ ОРУДИЙ",
+      "Start with 4 tools and weapons. Add one slot per rank, up to 6.": "4 слота для орудий. Каждый ранг даёт ещё один, до 6.",
       "MORTAR": "МОРТИРА",
       "Mortar": "Мортира",
       "High-arc shells blast distant groups. Upgrade all copies.": "Навесные снаряды поражают дальние группы. Улучшает все копии.",

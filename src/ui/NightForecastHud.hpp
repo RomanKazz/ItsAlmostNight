@@ -11,7 +11,7 @@ namespace ian {
 }
 
 inline void drawNightForecast(GameUi& ui, const NightForecast& forecast, Rectangle bounds) {
-    DrawRectangleRounded(bounds, 1.0F, 16, {0, 0, 0, 77});
+    DrawRectangleRounded(bounds, 1.0F, 16, {0, 0, 0, 115});
     const auto count = std::count_if(forecast.enemies.begin(), forecast.enemies.end(), [](int n) { return n > 0; });
     float x = bounds.x + (bounds.width - static_cast<float>(count) * 42.0F) * .5F;
     for (std::size_t type = 0; type < forecast.enemies.size(); ++type) {

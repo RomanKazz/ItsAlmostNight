@@ -73,7 +73,7 @@ void levels(Rectangle r, int current, int max) {
         i<current?Blue:Color{76,87,89,255});
 }
 std::string bonusLabel(const MetaShopDefinition& d, int level) {
-    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots)?"":"%");
+    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots)?"":"%");
 }
 }
 Rectangle shopMenuPanelBounds(Vector2 viewport) { return UiMenuLayout::fromViewport(viewport).rect(340,130,1240,820); }

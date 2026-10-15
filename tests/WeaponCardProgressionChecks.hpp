@@ -67,7 +67,7 @@ inline void checkWeaponCardProgression() {
         !run->grantDebugRunUpgrade(RunUpgradeEffect::UpgradePickaxe),"tools are level one before the core");
     for(const auto effect:{RunUpgradeEffect::UnlockClub,RunUpgradeEffect::UnlockRifle,
             RunUpgradeEffect::UnlockIceWand,RunUpgradeEffect::UnlockFireWand})
-        require(run->grantDebugRunUpgrade(effect),"weapon acquisition is still possible without the core");
+        require(run->grantDebugRunUpgradeBatch(effect,1),"explicit bulk debug access acquires the complete weapon test loadout without the core");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};
     run->tick(0,god);
     PlayerCommand place;place.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};run->tick(0,place);
