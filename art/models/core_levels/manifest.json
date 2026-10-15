@@ -4,7 +4,8 @@
   "glb": "assets/models/buildings/core_levels.glb",
   "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
   "runtime_scale": 1.76,
-  "authoring": "Blender MCP; isolated IAN_CORE_LEVELS scene",
+  "authoring": "Reproducible bpy generator; isolated IAN_CORE_LEVELS scene",
+  "revision": "Armored reactor: stepped gold shoe, inset buttresses, corner pylons, crown clamps",
   "axes": "Blender +Z up, GLB +Y up; symmetric core, no directional front",
   "mesh_order": [
     "core_crystal",
@@ -24,6 +25,7 @@
   "levels": {
     "1": {
       "pedestal_mesh": 5,
+      "components": [],
       "pedestal_min": [
         -0.5,
         -0.002237983513623476,
@@ -45,6 +47,13 @@
     },
     "2": {
       "pedestal_mesh": 6,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "gold_armored_support_2",
+        "gold_armored_support_3",
+        "gold_armored_support_4"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -52,7 +61,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.2427619993686676,
+        0.2507619857788086,
         0.5
       ],
       "crystal_lift": 0.035,
@@ -60,12 +69,23 @@
       "satellites": 4,
       "upper_satellites": 0,
       "draws": 6,
-      "runtime_triangles": 808,
+      "runtime_triangles": 840,
       "visible_width_game": 1.76,
       "visible_height_game": 1.543762
     },
     "3": {
       "pedestal_mesh": 7,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -73,7 +93,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.2777619957923889,
+        0.2857620120048523,
         0.5
       ],
       "crystal_lift": 0.07,
@@ -81,12 +101,27 @@
       "satellites": 6,
       "upper_satellites": 0,
       "draws": 8,
-      "runtime_triangles": 920,
+      "runtime_triangles": 1016,
       "visible_width_game": 1.76,
       "visible_height_game": 1.6487240000000003
     },
     "4": {
       "pedestal_mesh": 8,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "corner_reactor_pylon_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "corner_reactor_pylon_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "corner_reactor_pylon_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4",
+        "corner_reactor_pylon_4"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -94,7 +129,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.31276199221611023,
+        0.3207620084285736,
         0.5
       ],
       "crystal_lift": 0.10500000000000001,
@@ -102,12 +137,28 @@
       "satellites": 6,
       "upper_satellites": 0,
       "draws": 8,
-      "runtime_triangles": 1240,
+      "runtime_triangles": 1656,
       "visible_width_game": 1.76,
       "visible_height_game": 1.7536860000000003
     },
     "5": {
       "pedestal_mesh": 9,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "corner_reactor_pylon_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "corner_reactor_pylon_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "corner_reactor_pylon_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4",
+        "corner_reactor_pylon_4",
+        "lower_reactor_armor_belt"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -115,7 +166,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.34776198863983154,
+        0.3557620048522949,
         0.5
       ],
       "crystal_lift": 0.14,
@@ -123,12 +174,32 @@
       "satellites": 6,
       "upper_satellites": 0,
       "draws": 8,
-      "runtime_triangles": 1368,
+      "runtime_triangles": 1848,
       "visible_width_game": 1.76,
       "visible_height_game": 1.8586480000000003
     },
     "6": {
       "pedestal_mesh": 10,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "corner_reactor_pylon_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "corner_reactor_pylon_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "corner_reactor_pylon_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4",
+        "corner_reactor_pylon_4",
+        "lower_reactor_armor_belt",
+        "crown_crystal_clamp_1",
+        "crown_crystal_clamp_2",
+        "crown_crystal_clamp_3",
+        "crown_crystal_clamp_4"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -136,7 +207,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.41776201128959656,
+        0.44276198744773865,
         0.5
       ],
       "crystal_lift": 0.17500000000000002,
@@ -144,12 +215,40 @@
       "satellites": 8,
       "upper_satellites": 0,
       "draws": 10,
-      "runtime_triangles": 1800,
+      "runtime_triangles": 2040,
       "visible_width_game": 1.76,
       "visible_height_game": 1.9636100000000003
     },
     "7": {
       "pedestal_mesh": 11,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "corner_reactor_pylon_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "corner_reactor_pylon_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "corner_reactor_pylon_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4",
+        "corner_reactor_pylon_4",
+        "lower_reactor_armor_belt",
+        "crown_crystal_clamp_1",
+        "crown_crystal_clamp_2",
+        "crown_crystal_clamp_3",
+        "crown_crystal_clamp_4",
+        "cooling_cartridge_1",
+        "cartridge_gold_cap_1",
+        "cooling_cartridge_2",
+        "cartridge_gold_cap_2",
+        "cooling_cartridge_3",
+        "cartridge_gold_cap_3",
+        "cooling_cartridge_4",
+        "cartridge_gold_cap_4"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -157,7 +256,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.45276200771331787,
+        0.47776201367378235,
         0.5
       ],
       "crystal_lift": 0.21000000000000002,
@@ -165,12 +264,41 @@
       "satellites": 8,
       "upper_satellites": 4,
       "draws": 14,
-      "runtime_triangles": 2024,
+      "runtime_triangles": 2904,
       "visible_width_game": 1.76,
       "visible_height_game": 2.068572
     },
     "8": {
       "pedestal_mesh": 12,
+      "components": [
+        "reactor_shoe_body_and_basin",
+        "gold_armored_support_1",
+        "orange_support_inset_1",
+        "corner_reactor_pylon_1",
+        "gold_armored_support_2",
+        "orange_support_inset_2",
+        "corner_reactor_pylon_2",
+        "gold_armored_support_3",
+        "orange_support_inset_3",
+        "corner_reactor_pylon_3",
+        "gold_armored_support_4",
+        "orange_support_inset_4",
+        "corner_reactor_pylon_4",
+        "lower_reactor_armor_belt",
+        "crown_crystal_clamp_1",
+        "crown_crystal_clamp_2",
+        "crown_crystal_clamp_3",
+        "crown_crystal_clamp_4",
+        "cooling_cartridge_1",
+        "cartridge_gold_cap_1",
+        "cooling_cartridge_2",
+        "cartridge_gold_cap_2",
+        "cooling_cartridge_3",
+        "cartridge_gold_cap_3",
+        "cooling_cartridge_4",
+        "cartridge_gold_cap_4",
+        "master_crown"
+      ],
       "pedestal_min": [
         -0.5,
         0.0,
@@ -178,7 +306,7 @@
       ],
       "pedestal_max": [
         0.5,
-        0.4917620122432709,
+        0.5127620100975037,
         0.5
       ],
       "crystal_lift": 0.24500000000000002,
@@ -186,7 +314,7 @@
       "satellites": 8,
       "upper_satellites": 6,
       "draws": 16,
-      "runtime_triangles": 2456,
+      "runtime_triangles": 3208,
       "visible_width_game": 1.76,
       "visible_height_game": 2.1735340000000005
     }

@@ -8,6 +8,7 @@ import hashlib,json,math,struct
 import bpy,bmesh
 from mathutils import Matrix,Vector
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 
 ROOT=Path(__file__).resolve().parents[1]
 ART=ROOT/'art/models/core_levels'
@@ -80,8 +81,23 @@ for level in range(1,9):
     p=level-1;lift=p*.035;growth=1+p*.045
     count=4 if level<3 else 6 if level<6 else 8
     pedestal=tree(level+4)
+    pedestal_vertices=vertices(level+4)
+    assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and v.z>=-.00234
+               for v in pedestal_vertices), ('pedestal footprint',level)
+    if level>=2:
+        points=KDTree(len(pedestal_vertices))
+        for index,v in enumerate(pedestal_vertices):points.insert(v,index)
+        points.balance()
+        assert all(points.find(Vector((-v.y,v.x,v.z)))[2]<1e-6
+                   for v in pedestal_vertices), ('fourfold symmetry',level)
+        groups=manifest['levels'][str(level)]['components']
+        assert all(f'gold_armored_support_{i}' in groups for i in range(1,5))
+        if level>=4:assert all(f'corner_reactor_pylon_{i}' in groups for i in range(1,5))
+        if level>=6:assert all(f'crown_crystal_clamp_{i}' in groups for i in range(1,5))
+        if level==8:assert 'master_crown' in groups
     center_pose=Matrix.Translation((0,0,.267762+lift))@Matrix.Diagonal((1+(growth-1)*.5,1+(growth-1)*.5,growth,1))@Matrix.Translation((0,0,-.267762))
     center=tree(0,center_pose)
+    assert not pedestal.overlap(center), ('central crystal intersects pedestal',level)
     for degree in range(360):
         # Sample a complete orbit and bob cycle with phased satellites.
         seconds=degree*math.pi/180/.28
@@ -103,6 +119,6 @@ for level in range(1,9):
                 assert all(-.5001<=v.x<=.5001 and -.5001<=v.y<=.5001 and -.00234<=v.z<=top+.0001 for v in vertices(1,pose))
         frames+=1
 assert not collisions,collisions[:12]
-result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8 if level==6 else 12 if level==7 else 14)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
+result={'geometry':checks,'palette_byte_identical':True,'original_preserved':True,'pedestal_bounds_and_symmetry':True,'central_crystal_clearance':True,'orbit_frames':frames,'orbit_collisions':collisions,'triangles_per_level':[checks[0]['triangles']+checks[level+4]['triangles']+(4 if level<3 else 6 if level<6 else 8 if level==6 else 12 if level==7 else 14)*checks[1]['triangles'] for level in range(1,9)],'loader_check':'C++ graphics smoke test (separate)','native_playtest':False}
 (ART/'validation.json').write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result))

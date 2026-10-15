@@ -113,11 +113,8 @@ class Geometry:
                           swatches[band] if isinstance(swatches, list) else swatches, smooth)
         self.groups[name] = list(range(start, len(self.vertices)))
 
-    def brace(self, name, angle, bottom, top, width, swatch):
-        # Radial gold petals rise from the shoe into the collar. Six-sided
-        # profile, bevelled shoulder; no coplanar orange/metal overlays.
-        profile = [(.40, bottom), (.51, bottom), (.48, bottom+.045),
-                   (.35, top), (.31, top), (.35, bottom+.055)]
+    def radial_prism(self, name, angle, profile, width, swatch):
+        """Closed bevelled radial plate; broad faces retain hard normals."""
         start = len(self.vertices)
         rot = Matrix.Rotation(angle, 4, 'Z')
         for tangent in (-width*.5, width*.5):
@@ -159,33 +156,68 @@ pedestals=[originals['core_pedestal_l1']]
 for level in range(2,9):
     g=Geometry()
     height=.207762+.035*(level-1)
-    # One substantial tapered body, a wide gold shoe and a real basin. Not
-    # repeated copies of the original pedestal. The inner bowl is open above.
+    # A seated lower shoe, recessed reactor drum and wide crystal cradle.
+    # Successive tiers gain structural silhouette, rather than only height.
     profile=[(.015,0),(.48,0),(.50,.025),(.50,.055),(.45,.075),
-             (.40,.09),(.34,height-.065),(.36,height-.065),
-             (.365,height-.045),(.365,height-.015),(.35,height),
-             (.285,height),(.275,height-.055),(.015,height-.075)]
-    colors=[DARK,GOLD,GOLD,GOLD,DARK,RED,ORANGE,ORANGE,GOLD,GOLD,GOLD,DARK,DARK,DARK]
+             (.40,.09),(.335,height-.075),(.335,height-.055),
+             (.375,height-.055),(.385,height-.035),(.385,height-.012),
+             (.365,height+.008),(.285,height+.008),(.275,height-.055),
+             (.015,height-.075)]
+    colors=[DARK,GOLD,GOLD,GOLD,DARK,RED,ORANGE,DARK,GOLD,GOLD,GOLD,GOLD,DARK,DARK,DARK]
     g.lathe('reactor_shoe_body_and_basin',profile,colors)
     for i in range(4):
         angle=math.pi*.25+i*math.pi*.5
-        g.brace(f'gold_support_{i+1}',angle,.035,height-.035,.055 if level<4 else .085,GOLD)
-    if level>=4:
-        for i in range(4):
-            angle=math.pi*.25+i*math.pi*.5
-            m=Matrix.Translation((.485*math.cos(angle),.485*math.sin(angle),.085)) @ Matrix.Rotation(angle,4,'Z') @ Matrix.Rotation(math.pi*.5,4,'Y')
-            g.lathe(f'anchor_bolt_{i+1}',[(.007,-.009),(.022,-.009),(.024,.004),(.019,.012),(.007,.012)],DARK,8,m)
+        width=.075 if level==2 else .105 if level<5 else .13
+        g.radial_prism(f'gold_armored_support_{i+1}',angle,
+            [(.395,.045),(.49,.045),(.49,.085),(.402,height-.035),
+             (.365,height-.015),(.335,height-.035)],width,GOLD)
+        if level>=3:
+            # Orange inset is visibly seated on the thick gold armor. It is
+            # a shallow solid, not a coplanar decal or a floating casing gem.
+            g.radial_prism(f'orange_support_inset_{i+1}',angle,
+                [(.456,.087),(.478,.087),(.397,height-.052),
+                 (.382,height-.04),(.365,height-.052)],width*.56,ORANGE)
+        if level>=4:
+            # A proper short pedestal carries each corner pylon. Their caps
+            # stay below the lowest orbiting crystal over the whole cycle.
+            top=height-.032 if level<6 else height+.025
+            m=Matrix.Translation((.424*math.cos(angle),.424*math.sin(angle),0))
+            g.lathe(f'corner_reactor_pylon_{i+1}',
+                [(.008,.065),(.062,.065),(.069,.082),(.069,.105),
+                 (.050,.12),(.044,top-.038),(.061,top-.038),
+                 (.065,top-.023),(.060,top),(.008,top)],
+                [DARK,GOLD,GOLD,GOLD,ORANGE,RED,GOLD,GOLD,GOLD,DARK],8,m)
     if level>=5:
-        # Two restrained gold waist bands support the taller reactor.
-        g.lathe('waist_band',[(.35,.14),(.407,.14),(.407,.169),(.35,.169)],GOLD)
+        # Raised, nested armor belt follows the tapered drum: no loose ring.
+        g.lathe('lower_reactor_armor_belt',
+            [(.355,.112),(.418,.112),(.433,.128),(.433,.154),
+             (.407,.17),(.355,.17)], [DARK,GOLD,GOLD,GOLD,ORANGE,DARK])
     if level>=6:
         for i in range(4):
             angle=i*math.pi*.5
-            m=Matrix.Translation((.30*math.cos(angle),.30*math.sin(angle),height))
-            g.lathe(f'collar_terminal_{i+1}',[(.012,-.03),(.041,-.03),(.044,.008),(.028,.035),(.012,.035)],ORANGE,8,m)
+            # Crown clamps point outward, leaving the bowl and moving shards
+            # clear. Broad shapes read at the actual game camera distance.
+            g.radial_prism(f'crown_crystal_clamp_{i+1}',angle,
+                [(.30,height-.043),(.375,height-.043),
+                 (.415,height+.025),(.405,height+.06),
+                 (.375,height+.06),(.345,height+.012)],.075,GOLD)
+    if level>=7:
+        for i in range(4):
+            angle=i*math.pi*.5
+            # Small dark cooling cartridges break the plain orange panels.
+            m=Matrix.Translation((.365*math.cos(angle),.365*math.sin(angle),0))
+            g.lathe(f'cooling_cartridge_{i+1}',
+                [(.007,.185),(.034,.185),(.041,.201),(.041,height-.083),
+                 (.032,height-.067),(.007,height-.067)],DARK,8,m)
+            g.lathe(f'cartridge_gold_cap_{i+1}',
+                [(.007,height-.092),(.044,height-.092),
+                 (.044,height-.069),(.007,height-.069)],GOLD,8,m)
     if level==8:
-        g.lathe('master_collar',[(.278,height-.012),(.36,height-.012),(.379,height+.012),(.368,height+.039),(.30,height+.039),(.278,height+.016)],GOLD)
-        g.lathe('orange_collar_crown',[(.365,height+.01),(.386,height+.01),(.386,height+.025),(.365,height+.025)],ORANGE)
+        # Final tier gets a double stepped crown with a warm orange separator.
+        g.lathe('master_crown',
+            [(.28,height-.005),(.382,height-.005),(.399,height+.011),
+             (.399,height+.034),(.379,height+.052),(.285,height+.052)],
+            [DARK,GOLD,ORANGE,GOLD,GOLD,DARK])
     obj=g.object(f'core_pedestal_l{level}')
     obj['core_level']=level
     pedestals.append(obj)
@@ -272,12 +304,13 @@ except TypeError:pass
 bpy.data.libraries.write(str(ART/'core_levels.blend'),{scene},fake_user=True)
 manifest={'source':'core.glb (original preserved)','source_sha256':hashlib.sha256(BASE.read_bytes()).hexdigest(),
           'glb':str(OUTPUT.relative_to(ROOT)),'palette_sha256':hashlib.sha256(PALETTE.read_bytes()).hexdigest(),
-          'runtime_scale':1.76,'authoring':'Blender MCP; isolated IAN_CORE_LEVELS scene',
+          'runtime_scale':1.76,'authoring':'Reproducible bpy generator; isolated IAN_CORE_LEVELS scene',
+          'revision':'Armored reactor: stepped gold shoe, inset buttresses, corner pylons, crown clamps',
           'axes':'Blender +Z up, GLB +Y up; symmetric core, no directional front',
           'mesh_order':names,'levels':{},'license':'Kenney source geometry/palette CC0; new authored geometry project-owned'}
 for level,obj in enumerate(pedestals,1):
     coords=[v.co for v in obj.data.vertices]
-    manifest['levels'][str(level)]={'pedestal_mesh':level+4,'pedestal_min':[min(v[i] for v in coords) for i in (0,2,1)],
+    manifest['levels'][str(level)]={'pedestal_mesh':level+4,'components':list(obj.vertex_groups.keys()),'pedestal_min':[min(v[i] for v in coords) for i in (0,2,1)],
         'pedestal_max':[max(v[i] for v in coords) for i in (0,2,1)],'crystal_lift':(level-1)*.035,'crystal_growth':1+(level-1)*.045,
         'satellites':4 if level<3 else 6 if level<6 else 8,
         'upper_satellites':6 if level==8 else 4 if level==7 else 0,

@@ -1,24 +1,27 @@
 # Core: eight authored visual levels
 
-Created through Blender MCP in the isolated `IAN_CORE_LEVELS` scene. The user's
-open `LASER` scene/file was preserved. The runtime now loads
-`assets/models/buildings/core_levels.glb` instead of stacking scaled copies of
-`core.glb`. Original `core.glb` remains byte-identical.
+Authored with the reproducible bpy generator in the isolated `IAN_CORE_LEVELS`
+scene; available in Blender MCP without replacing the user's open file.
+Runtime uses `assets/models/buildings/core_levels.glb`. Original `core.glb`,
+crystal meshes, crystal animations and gameplay parameters remain unchanged.
 
 ## Visual progression
 
 1. Original Kenney pedestal/crystal identity.
-2. New tapered reactor, gold shoe, four diagonal support petals, open basin.
-3. Six orbiting crystals with alternating large/small sizes.
-4. Wider supports and octagonal anchor bolts.
-5. Taller body and structural waist band.
-6. Four collar terminals and eight orbiting crystals.
-7. Small counter-rotating upper crystal ring; clean reactor casing.
-8. Reinforced gold crown collar and six upper orbiting crystals.
+2. Wider bevelled gold cradle, recessed orange reactor and four armored buttresses.
+3. Orange insets seated in the gold armor; six alternating orbiting crystals.
+4. Four substantial corner pylons with gold caps and orange reactor cartridges.
+5. Stepped lower armor belt ties the pylons into the taller casing.
+6. Raised corner pylons, four outward crown clamps and eight orbiting crystals.
+7. Dark cooling cartridges with gold collars; counter-rotating upper crystals.
+8. Double stepped gold crown with an orange separator and six upper crystals.
 
-Round sidewalls have smooth radial normals. Caps, ledges and brace edges are
-hard. The embedded PNG is the original Kenney `colormap.png`, byte-identical;
-no new palette, solid-color override, baked shadows or emissive material.
+The upgrade adds structural silhouette instead of stretching the same casing.
+No decorative casing gems, floating bolts or coplanar overlays. Pillars and
+clamps sit below the lowest moving crystal across the complete orbit.
+Round sidewalls have smooth radial normals; caps and armor edges remain hard.
+The embedded original Kenney PNG is byte-identical. No baked lighting or new
+materials. Component names are preserved as editable vertex groups.
 
 ## Runtime contract
 
@@ -39,12 +42,12 @@ no new palette, solid-color override, baked shadows or emissive material.
 - Existing 0.28 rad/s orbit and six-second bob remain. Growth/lift matches the
   authored body. Small upper shards return at L7/L8, counter-rotating at -0.20 rad/s.
   Lower shards alternate full/72% sizes from L3, with small shards lifted 0.04 m.
-  Gold accents sample the original palette at U=0.65625. Removed decorative
-  casing crystals and moved anchor bolts outward to seat visibly on the supports.
+  Gold accents sample the original palette at U=0.65625. No decorative casing
+  crystals; fourfold symmetric structural upgrades.
 - No new collision meshes, attack rig, sockets or gameplay stats. Core movement
   blocking uses existing game rules; hover uses the level envelope, not decorative
   geometry. HP, costs, level IDs, saves and upgrades retain existing behavior.
-- 6/6/8/8/8/10/14/16 draws, 688–2456 triangles per visible level. No geometry,
+- 6/6/8/8/8/10/14/16 draws, 688–3208 triangles per visible level. No geometry,
   buffers or runtime containers created per frame.
 
 ## Files and regeneration
@@ -75,6 +78,7 @@ Clean import: all 13 meshes have finite unit normals, UV, closed manifold topolo
 consistent outward winding. Explicit smooth-shoe/flat-cap normal checks pass.
 Original file and palette hashes match. **2880 sampled orbit poses**, no satellite
 contacts with body, central crystal or other satellites; envelopes contain motion.
+Pedestal footprint, fourfold symmetry and central-crystal clearance are checked.
 Game graphics smoke verifies real loading, selected level height/bounds, orbit,
 distinct rendered levels and shutdown/reinitialize. Native manual playtest is
 still separate from these automated shader captures.

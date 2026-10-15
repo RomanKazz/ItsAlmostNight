@@ -61,7 +61,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 528
+      "triangles": 560
     },
     {
       "mesh": "core_pedestal_l3",
@@ -70,7 +70,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 528
+      "triangles": 624
     },
     {
       "mesh": "core_pedestal_l4",
@@ -79,7 +79,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 848
+      "triangles": 1264
     },
     {
       "mesh": "core_pedestal_l5",
@@ -88,7 +88,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 976
+      "triangles": 1456
     },
     {
       "mesh": "core_pedestal_l6",
@@ -97,7 +97,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1296
+      "triangles": 1536
     },
     {
       "mesh": "core_pedestal_l7",
@@ -106,7 +106,7 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1296
+      "triangles": 2176
     },
     {
       "mesh": "core_pedestal_l8",
@@ -115,22 +115,24 @@
       "manifold": true,
       "outward_winding": true,
       "unit_normals": true,
-      "triangles": 1616
+      "triangles": 2368
     }
   ],
   "palette_byte_identical": true,
   "original_preserved": true,
+  "pedestal_bounds_and_symmetry": true,
+  "central_crystal_clearance": true,
   "orbit_frames": 2880,
   "orbit_collisions": [],
   "triangles_per_level": [
     688,
-    808,
-    920,
-    1240,
-    1368,
-    1800,
-    2024,
-    2456
+    840,
+    1016,
+    1656,
+    1848,
+    2040,
+    2904,
+    3208
   ],
   "loader_check": "C++ graphics smoke test (separate)",
   "native_playtest": false
