@@ -70,8 +70,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
                 preview, crystalMines_, MaxBuildingLevel),
         };
     }
-    const WaveDefinition upcomingComposition =
-        waveDirector_.composition(saturatingAdd(wave_, 1));
+    const NightForecast upcomingNight =
+        waveDirector_.forecast(saturatingAdd(wave_, 1), terrain_.seed());
     std::optional<Vec3> nearestChestPosition;
     double nearestChestDistance =
         std::numeric_limits<double>::infinity();
@@ -336,16 +336,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .activeEnemyCount = enemies_.activeCount(),
         .pendingEnemyCount = waveSpawnQueue_.size() - nextWaveSpawnIndex_ +
             (waveBossSpawn_ ? 1U : 0U),
-        .upcomingEnemyCounts = {
-            upcomingComposition.basic,
-            upcomingComposition.fast,
-            upcomingComposition.heavy,
-            upcomingComposition.boss ? 1 : 0,
-            upcomingComposition.ranged,
-            upcomingComposition.sapper,
-            upcomingComposition.flying,
-        },
-        .upcomingWaveHasBoss = upcomingComposition.boss,
+        .upcomingEnemyCounts = upcomingNight.enemies,
+        .upcomingWaveHasBoss = upcomingNight.enemies[static_cast<std::size_t>(EnemyType::Boss)] > 0,
+        .upcomingNightPattern = upcomingNight.pattern,
+        .currentNightPattern = wavePattern_,
+        .currentNightAct = waveEncounterAct_,
         .upcomingAttackDirection = upcomingAttackDirection_,
         .upcomingAttackDirections = upcomingAttackDirections_,
         .attackPortalPositions = wavePortalsActive_

@@ -117,7 +117,7 @@ void Simulation::updateRunPhase(
                 const WavePlan plan =
                     waveDirector_.buildWave(
                         saturatingAdd(wave_, 1),
-                        core->gridPosition, firstAnchor);
+                        core->gridPosition, firstAnchor, {.runSeed = terrain_.seed()});
                 prepareWave(plan, core->gridPosition, firstAnchor);
                 events_.push_back({
                     .type = GameEventType::AttackDirectionWarned,

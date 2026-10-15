@@ -404,6 +404,16 @@ if(BUILD_TESTING)
     add_test(NAME ian_enemy_pressure_tests COMMAND ian_enemy_pressure_tests)
     set_tests_properties(ian_enemy_pressure_tests PROPERTIES TIMEOUT 60)
 
+    add_executable(ian_night_encounter_tests tests/NightEncounterTests.cpp)
+    target_link_libraries(ian_night_encounter_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_night_encounter_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_night_encounter_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_night_encounter_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_night_encounter_tests COMMAND ian_night_encounter_tests)
+    set_tests_properties(ian_night_encounter_tests PROPERTIES TIMEOUT 60)
+
     add_executable(ian_tests
         tests/FixedStepTests.cpp
         tests/RunShopTests.cpp

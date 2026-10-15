@@ -748,8 +748,9 @@ void runSimulationTests() {
             fastClearNight.tick(0.0, lightning);
         };
         killEnemies(3);
-        require(fastClearNight.snapshot().activeEnemyCount == 0U,
-                "opening group can be cleared before reinforcements");
+        require(fastClearNight.snapshot().activeEnemyCount == 3U &&
+                    fastClearNight.snapshot().pendingEnemyCount == 9U,
+                "clearing the opening group immediately admits one replacement group");
         fastClearNight.tick(1.61);
         require(fastClearNight.snapshot().activeEnemyCount >= 3U &&
                     fastClearNight.snapshot().pendingEnemyCount < 12U,

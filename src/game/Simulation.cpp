@@ -516,6 +516,7 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnTimeRemaining_ = 0.0;
     waveSpawnGroupsDue_ = 0U;
     waveSpawnCycle_ = 0U;
+    resetNightEncounter();
     waveBossSpawn_.reset();
     waveSurgeWarningMask_ = 0U;
     waveHealthScale_ = 1.0;

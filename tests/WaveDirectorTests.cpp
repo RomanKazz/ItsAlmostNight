@@ -107,29 +107,12 @@ void runWaveDirectorTests() {
     const auto finalWave = director.buildWave(6, {0, 0});
     require(finalWave.spawns.size() <= 200,
             "sixth configured wave stays inside enemy pool budget");
-    require(
-        std::any_of(
-            finalWave.spawns.begin(), finalWave.spawns.end(),
-            [](const ian::EnemySpawn& spawn) {
-                return spawn.type == ian::EnemyType::Ranged;
-            }) &&
-            std::any_of(
-                finalWave.spawns.begin(),
-                finalWave.spawns.end(),
-                [](const ian::EnemySpawn& spawn) {
-                    return spawn.type ==
-                           ian::EnemyType::Sapper;
-                }) &&
-            std::any_of(
-                finalWave.spawns.begin(),
-                finalWave.spawns.end(),
-                [](const ian::EnemySpawn& spawn) {
-                    return spawn.type ==
-                           ian::EnemyType::Flying;
-                }),
-        "late waves contain ranged, sapper and flying roles");
-    const std::size_t sixthWaveSize =
-        finalWave.spawns.size();
+    const auto lateForecast = director.forecast(6, 0);
+    require(lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Ranged)] > 0 &&
+                lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Sapper)] > 0 &&
+                lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Flying)] > 0,
+            "boss-night acts collectively contain ranged, sapper and flying roles");
+    const int sixthWaveBudget = finalWave.regularBudget;
     const double sixthWaveHealthMultiplier =
         finalWave.spawns.front().healthMultiplier;
     const double sixthWaveDamageMultiplier =
@@ -146,7 +129,7 @@ void runWaveDirectorTests() {
     const auto seventhWave = director.buildWave(7, {0, 0});
     require(
         seventhWave.wave == 7 && !seventhWave.hasBoss &&
-            seventhWave.spawns.size() > sixthWaveSize,
+            seventhWave.regularBudget > sixthWaveBudget,
         "wave generation continues and grows after configured waves");
     require(
         seventhWave.spawns.front().healthMultiplier >
@@ -189,15 +172,9 @@ void runWaveDirectorTests() {
     require(twoFrontWave.spawns[0].position.z < -20.0 &&
                 twoFrontWave.spawns[4].position.x > 20.0,
             "second wave introduces exactly a second attack front");
-    require(
-        std::any_of(
-            twoFrontWave.spawns.begin() + 1,
-            twoFrontWave.spawns.begin() + twoFrontWave.groupSize,
-            [first = twoFrontWave.spawns.front().type](
-                const ian::EnemySpawn& spawn) {
-                return spawn.type != first;
-            }),
-        "unlocked enemy roles mix within a single group");
+    require(std::count_if(twoFrontWave.spawns.begin(), twoFrontWave.spawns.end(),
+                [](const auto& spawn) { return spawn.type == ian::EnemyType::Fast; }) > 0,
+            "second night retains unlocked fast attackers in coherent groups");
 
     constexpr std::array<ian::Vec3, 3> Anchors{{
         {0.0, 0.0, -20.0},

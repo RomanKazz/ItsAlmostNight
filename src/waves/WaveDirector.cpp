@@ -89,13 +89,32 @@ WaveDirector::WaveDirector(
                                         : std::move(spawnAnchors)),
       definitions_(definitions) {
     spawnBuffer_.reserve(MaximumWaveEnemies);
+    scratchBuffer_.reserve(MaximumWaveEnemies);
 }
 
 WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
-                                 std::size_t firstAnchorIndex) {
+                                 std::size_t firstAnchorIndex, WaveContext context) {
     const int normalizedWave = std::max(1, wave);
-    const WaveDefinition composition =
-        this->composition(normalizedWave);
+    const WaveDefinition base = this->composition(normalizedWave);
+    const NightPattern pattern = nightPattern(base, normalizedWave, context.runSeed);
+    WaveDefinition composition = nightComposition(base, pattern, context.act);
+    // Proportionally bound very late rosters before append, so a large basic
+    // contingent cannot consume the pool and erase all specialized roles.
+    const auto requested = waveEnemyCounts(composition);
+    const std::size_t populationLimit = MaximumWaveEnemies - static_cast<std::size_t>(composition.boss);
+    std::int64_t population = 0;
+    for (std::size_t role = 0; role < requested.size(); ++role)
+        if (role != static_cast<std::size_t>(EnemyType::Boss)) population += std::max(0, requested[role]);
+    if (population > static_cast<std::int64_t>(populationLimit)) {
+        const auto bounded = [&](int count) {
+            return count <= 0 ? 0 : std::max(1, static_cast<int>(
+                static_cast<std::int64_t>(count) * static_cast<std::int64_t>(populationLimit - 8) / population));
+        };
+        composition.basic = bounded(composition.basic); composition.fast = bounded(composition.fast);
+        composition.heavy = bounded(composition.heavy); composition.ranged = bounded(composition.ranged);
+        composition.sapper = bounded(composition.sapper); composition.flying = bounded(composition.flying);
+        composition.splitter = bounded(composition.splitter);
+    }
     const double waveIndex =
         static_cast<double>(normalizedWave - 1);
     const double healthMultiplier =
@@ -125,35 +144,41 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Splitter, composition.splitter, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
-    // Keep the existing spawn slots/fronts, but distribute roles across
-    // groups instead of sending a long block of each enemy type.
-    if (!spawnBuffer_.empty()) {
-        constexpr std::size_t RoleCount =
-            static_cast<std::size_t>(EnemyType::Splitling) + 1U;
-        std::array<std::vector<EnemySpawn>, RoleCount> roles;
-        for (const EnemySpawn& spawn : spawnBuffer_) {
-            roles[static_cast<std::size_t>(spawn.type)].push_back(spawn);
-        }
-        std::array<std::size_t, RoleCount> used{};
-        const std::vector<EnemySpawn> slots = spawnBuffer_;
-        for (std::size_t slot = 0; slot < slots.size(); ++slot) {
-            std::size_t chosen = 0U;
-            double greatestDeficit = -1e9;
-            for (std::size_t role = 0; role < roles.size(); ++role) {
-                if (used[role] >= roles[role].size()) continue;
-                const double deficit =
-                    static_cast<double>((slot + 1U) * roles[role].size()) /
-                        static_cast<double>(slots.size()) -
-                    static_cast<double>(used[role]);
-                if (deficit > greatestDeficit) {
-                    greatestDeficit = deficit;
-                    chosen = role;
-                }
+    // Coherent role groups replace the old per-enemy uniform mixture. Choose
+    // batches by remaining threat budget; reuse storage across every refill.
+    scratchBuffer_.assign(spawnBuffer_.begin(), spawnBuffer_.end());
+    constexpr std::size_t RoleCount = GameBalance::EnemyTypeCount;
+    std::array<std::size_t, RoleCount> begins{}, counts{}, used{};
+    for (std::size_t i = 0; i < scratchBuffer_.size(); ++i) {
+        const auto role = static_cast<std::size_t>(scratchBuffer_[i].type);
+        if (counts[role]++ == 0) begins[role] = i;
+    }
+    std::uint64_t random = mixBits64(static_cast<std::uint64_t>(context.runSeed) ^
+        static_cast<std::uint64_t>(normalizedWave) * 0x9e3779b97f4a7c15ULL ^
+        static_cast<std::uint64_t>(context.cycle) * 0xd1b54a32d192ed03ULL ^
+        static_cast<std::uint64_t>(std::clamp(context.act, 0, 2)) * 0x94d049bb133111ebULL);
+    std::size_t output = 0;
+    while (output < spawnBuffer_.size()) {
+        const auto end = std::min(spawnBuffer_.size(), output + static_cast<std::size_t>(std::max(1, composition.groupSize)));
+        while (output < end) {
+            std::size_t remainingBudget = 0;
+            for (std::size_t role = 0; role < RoleCount; ++role)
+                remainingBudget += (counts[role] - used[role]) * static_cast<std::size_t>(enemyBudgetCost(static_cast<EnemyType>(role)));
+            if (remainingBudget == 0) break;
+            random = mixBits64(random + 0x9e3779b97f4a7c15ULL);
+            std::size_t pick = random % remainingBudget, chosen = 0;
+            for (; chosen < RoleCount; ++chosen) {
+                const auto weight = (counts[chosen] - used[chosen]) * static_cast<std::size_t>(enemyBudgetCost(static_cast<EnemyType>(chosen)));
+                if (pick < weight) break;
+                pick -= weight;
             }
-            EnemySpawn spawn = roles[chosen][used[chosen]++];
-            spawn.position.x = slots[slot].position.x;
-            spawn.position.z = slots[slot].position.z;
-            spawnBuffer_[slot] = spawn;
+            const auto batch = std::min(end - output, counts[chosen] - used[chosen]);
+            for (std::size_t i = 0; i < batch; ++i, ++output) {
+                EnemySpawn spawn = scratchBuffer_[begins[chosen] + used[chosen]++];
+                spawn.position.x = scratchBuffer_[output].position.x;
+                spawn.position.z = scratchBuffer_[output].position.z;
+                spawnBuffer_[output] = spawn;
+            }
         }
     }
     if (composition.boss) {
@@ -193,7 +218,18 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         .groupInterval = composition.groupInterval,
         .eliteCount = eliteCount,
         .spawns = std::span<const EnemySpawn>{spawnBuffer_},
+        .pattern = pattern,
     };
+}
+
+NightForecast WaveDirector::forecast(int wave, std::uint32_t runSeed) const {
+    const auto base = composition(wave);
+    NightForecast result{.pattern = nightPattern(base, wave, runSeed)};
+    for (int act = 0; act < 3; ++act) {
+        const auto counts = waveEnemyCounts(nightComposition(base, result.pattern, act));
+        for (std::size_t i = 0; i < counts.size(); ++i) result.enemies[i] = std::max(result.enemies[i], counts[i]);
+    }
+    return result;
 }
 
 int WaveDirector::applyEliteUpgrades(int wave) {

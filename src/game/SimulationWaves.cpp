@@ -173,17 +173,28 @@ void routeSpawnsThroughPortals(
     }
 }
 
-std::size_t surgePortalIndex(
-    const std::array<std::optional<Vec3>, 4>& portals,
-    std::optional<AttackDirection> primary, int surge) {
-    const std::size_t start = primary
-        ? attackDirectionIndex(*primary) : 0U;
-    for (std::size_t step = 0; step < portals.size(); ++step) {
-        const std::size_t index =
-            (start + step + (surge == 1 ? 1U : 0U)) % portals.size();
-        if (portals[index]) return index;
+template<std::size_t PortalCount>
+std::size_t encounterPortalIndex(
+    const std::array<std::optional<Vec3>, PortalCount>& portals,
+    std::optional<AttackDirection> primary, NightPattern pattern, int act, std::uint32_t serial) {
+    std::array<std::size_t, PortalCount> available{};
+    std::size_t count = 0;
+    const auto start = primary ? attackDirectionIndex(*primary) : 0U;
+    for (std::size_t step = 0; step < 4; ++step) {
+        const auto index = (start + step) % 4;
+        if (index < PortalCount && portals[index]) available[count++] = index;
     }
-    return start;
+    for (std::size_t step = 0; step < 4; ++step) {
+        const auto index = (start + step) % 4 + 4;
+        if (index < PortalCount && portals[index]) available[count++] = index;
+    }
+    if (count == 0) return start;
+    if (act == 0 || (pattern == NightPattern::Siege && act == 1)) return available[0];
+    if (pattern == NightPattern::Crossfire)
+        return available[(serial % 2 == 0 ? 0U : std::min(std::size_t{2}, count - 1))];
+    if (pattern == NightPattern::Blitz && act == 1)
+        return available[(1 + serial % 2) % count];
+    return available[(static_cast<std::size_t>(act) + serial) % count];
 }
 
 void moveGroupToPortal(
@@ -208,10 +219,22 @@ void moveGroupToPortal(
 
 } // namespace
 
+void Simulation::resetNightEncounter() {
+    wavePattern_ = NightPattern::Horde;
+    waveEncounterAct_ = 0;
+    waveCombatElapsed_ = 0;
+    waveReplacementTime_ = 0;
+    waveObservedActive_ = 0;
+    waveReplacementDemand_ = 0;
+    waveGroupSerial_ = 0;
+}
+
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
                              std::size_t firstAnchorIndex,
                              double healthScale,
                              double damageScale) {
+    resetNightEncounter();
+    wavePattern_ = plan.pattern;
     waveSpawnQueue_.assign(plan.spawns.begin(), plan.spawns.end());
     healthScale = std::max(0.05, healthScale);
     damageScale = std::max(0.05, damageScale);
@@ -243,7 +266,7 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
             waveSpawnQueue_.erase(boss);
         }
     }
-    waveSpawnGroupSize_ = plan.groupSize;
+    waveSpawnGroupSize_ = std::clamp(plan.groupSize, 1, 10);
     waveSpawnInterval_ = plan.groupInterval;
     nextWaveSpawnIndex_ = 0;
     waveSpawnTimeRemaining_ = std::clamp(
@@ -252,10 +275,11 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
         attackDirection(
             map_.enemySpawnAnchors[waveFirstAnchorIndex_], corePosition);
     upcomingAttackDirections_.fill(false);
-    for (const EnemySpawn& spawn : plan.spawns) {
-        const AttackDirection direction =
-            attackDirection(spawn.position, corePosition);
-        upcomingAttackDirections_[attackDirectionIndex(direction)] = true;
+    for (int act = 0; act < 3; ++act) {
+        for (std::uint32_t group = 0; group < wavePortalPositions_.size(); ++group) {
+            const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, act, group);
+            if (wavePortalPositions_[portal]) upcomingAttackDirections_[portal % 4] = true;
+        }
     }
     currentWaveHasBoss_ = std::ranges::any_of(
         plan.spawns, [](const EnemySpawn& spawn) { return spawn.type == EnemyType::Boss; });
@@ -276,6 +300,8 @@ void Simulation::beginPreparedWave() {
     enemies_.spawnWave(
         std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
+    waveObservedActive_ = enemies_.activeCount();
+    waveGroupSerial_ = 1;
     waveSpawnGroupsDue_ = 0U;
     wavePortalsActive_ = true;
 }
@@ -286,7 +312,8 @@ void Simulation::refillWaveSpawnQueue() {
 
     ++waveSpawnCycle_;
     const WavePlan plan = waveDirector_.buildWave(
-        wave_, core->gridPosition, waveFirstAnchorIndex_);
+        wave_, core->gridPosition, waveFirstAnchorIndex_,
+        {.runSeed = terrain_.seed(), .act = waveEncounterAct_, .cycle = waveSpawnCycle_});
     waveSpawnQueue_.clear();
     waveSpawnQueue_.reserve(plan.spawns.size());
     for (EnemySpawn spawn : plan.spawns) {
@@ -300,131 +327,95 @@ void Simulation::refillWaveSpawnQueue() {
     routeSpawnsThroughPortals(
         waveSpawnQueue_, wavePortalPositions_, core->gridPosition,
         plan.groupSize);
-    if (waveSpawnQueue_.size() > 1U) {
-        const std::size_t offset =
-            (static_cast<std::size_t>(waveSpawnCycle_) * 7U +
-             static_cast<std::size_t>(std::max(1, wave_)) * 5U) %
-            waveSpawnQueue_.size();
-        std::rotate(
-            waveSpawnQueue_.begin(),
-            waveSpawnQueue_.begin() +
-                static_cast<std::ptrdiff_t>(offset),
-            waveSpawnQueue_.end());
-    }
     nextWaveSpawnIndex_ = 0U;
 }
 
 void Simulation::tickWaveSpawning(double deltaSeconds) {
-    constexpr std::size_t TechnicalActiveEnemyLimit = 96U;
+    if (forceWaveCompletion_) return;
+    waveCombatElapsed_ += deltaSeconds;
     const double progress = phaseDuration_ > 0.0
-        ? std::clamp(
-              1.0 - phaseTimeRemaining_ / phaseDuration_, 0.0, 1.0)
-        : 0.0;
+        ? std::clamp(1.0 - phaseTimeRemaining_ / phaseDuration_, 0.0, 1.0)
+        : std::min(.99, waveCombatElapsed_ / 60.0);
+    const int act = nightAct(progress);
+    if (act != waveEncounterAct_) {
+        waveEncounterAct_ = act;
+        waveGroupSerial_ = 0;
+        refillWaveSpawnQueue();
+    }
     if (!finalNight_) {
-        constexpr std::array<double, 2> WarningProgress{0.36, 0.76};
-        for (int surge = 0; surge < 2; ++surge) {
-            const std::uint8_t bit =
-                static_cast<std::uint8_t>(1U << surge);
-            if (progress < WarningProgress[
-                    static_cast<std::size_t>(surge)] ||
-                (waveSurgeWarningMask_ & bit) != 0U) continue;
+        constexpr std::array<double, 2> WarningProgress{.36, .76};
+        for (int warning = 0; warning < 2; ++warning) {
+            const auto bit = static_cast<std::uint8_t>(1U << warning);
+            if (progress < WarningProgress[static_cast<std::size_t>(warning)] || (waveSurgeWarningMask_ & bit) != 0U) continue;
             waveSurgeWarningMask_ |= bit;
-            const std::size_t portalIndex = surgePortalIndex(
-                wavePortalPositions_, upcomingAttackDirection_, surge);
-            events_.push_back({
-                .type = GameEventType::AttackDirectionWarned,
-                .position = wavePortalPositions_[portalIndex].value_or(Vec3{}),
-                .amount = static_cast<int>(portalIndex),
-                .critical = true,
-            });
+            const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, warning + 1, 0);
+            events_.push_back({.type = GameEventType::AttackDirectionWarned,
+                .position = wavePortalPositions_[portal].value_or(Vec3{}),
+                .amount = static_cast<int>(portal % 4), .critical = true});
         }
     }
-    const bool firstSurge = !finalNight_ &&
-        progress >= 0.40 && progress < 0.55;
-    const bool finalSurge = !finalNight_ && progress >= 0.80;
-    const int surge = firstSurge ? 0 : finalSurge ? 1 : -1;
+    const std::size_t activeBefore = enemies_.activeCount();
+    if (waveObservedActive_ > activeBefore)
+        waveReplacementDemand_ = std::min(MaximumActiveEnemies, waveReplacementDemand_ + waveObservedActive_ - activeBefore);
+    waveReplacementTime_ = std::max(0.0, waveReplacementTime_ - deltaSeconds);
+    // Telegraphs are real brief regrouping windows, not an accrued spawn debt.
+    if (!finalNight_ && nightRegrouping(progress)) {
+        waveReplacementDemand_ = 0;
+        waveSpawnGroupsDue_ = 0;
+        waveSpawnTimeRemaining_ = .15;
+        waveObservedActive_ = activeBefore;
+        return;
+    }
     const OvertimeDifficulty overtime = overtimeDifficulty(overtimeSeconds_, gameplay_.overtime);
-    const std::size_t baseTargetActive = static_cast<std::size_t>(
-        std::min(34, 7 + std::min(wave_, 9) * 3 +
-                 static_cast<int>(progress * 5.0)) +
-        (firstSurge ? 5 : finalSurge ? 9 : 0));
-    const std::size_t targetActive = std::min(MaximumActiveEnemies,
-        static_cast<std::size_t>(std::ceil(static_cast<double>(baseTargetActive) * overtime.spawnRate)));
-    const double baseInterval = std::clamp(
-        waveSpawnInterval_, 0.35, 2.0) / overtime.spawnRate;
-    const double interval = surge >= 0
-        ? baseInterval * 0.6 : baseInterval;
-
-    if (finalSurge && waveBossSpawn_ &&
-        enemies_.activeCount() < TechnicalActiveEnemyLimit) {
+    const bool surge = act == 2 || (act == 1 && progress < .55);
+    const auto baseTarget = static_cast<std::size_t>(std::min(34, 7 + std::min(wave_, 9) * 3 + static_cast<int>(progress * 5))) +
+        (act == 2 ? 9U : surge ? 5U : 0U);
+    const auto targetActive = std::min(MaximumActiveEnemies, static_cast<std::size_t>(std::ceil(
+        static_cast<double>(baseTarget) * nightPopulationScale(wavePattern_, wave_) * overtime.spawnRate)));
+    const double interval = std::clamp(waveSpawnInterval_, .35, 2.0) /
+        overtime.spawnRate * (surge ? .6 : 1.0);
+    if (act == 2 && waveBossSpawn_ && activeBefore < MaximumActiveEnemies) {
         EnemySpawn boss = *waveBossSpawn_;
-        if (const auto core = buildings_.core()) {
-            const std::size_t portalIndex = surgePortalIndex(
-                wavePortalPositions_, upcomingAttackDirection_, 1);
-            if (wavePortalPositions_[portalIndex]) {
-                moveGroupToPortal(
-                    std::span<EnemySpawn>{&boss, 1U},
-                    *wavePortalPositions_[portalIndex],
-                    core->gridPosition);
-            }
-        }
-        enemies_.spawnGroup(std::span<const EnemySpawn>{&boss, 1U});
+        const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, 2, 0);
+        if (const auto core = buildings_.core(); core && wavePortalPositions_[portal])
+            moveGroupToPortal(std::span<EnemySpawn>{&boss, 1}, *wavePortalPositions_[portal], core->gridPosition);
+        enemies_.spawnGroup(std::span<const EnemySpawn>{&boss, 1});
         waveBossSpawn_.reset();
     }
-
     waveSpawnTimeRemaining_ -= deltaSeconds;
-    while (waveSpawnTimeRemaining_ <= 0.0) {
-        waveSpawnGroupsDue_ = std::min(
-            std::size_t{32}, waveSpawnGroupsDue_ + 1U);
+    while (waveSpawnTimeRemaining_ <= 0) {
+        waveSpawnGroupsDue_ = std::min(std::size_t{2}, waveSpawnGroupsDue_ + 1);
         waveSpawnTimeRemaining_ += interval;
     }
-    while (waveSpawnGroupsDue_ > 0U &&
-           enemies_.activeCount() < targetActive) {
+    if (waveReplacementDemand_ > 0 && waveReplacementTime_ <= 0)
+        waveSpawnGroupsDue_ = std::max(std::size_t{1}, waveSpawnGroupsDue_);
+    while (waveSpawnGroupsDue_ > 0 && enemies_.activeCount() < targetActive) {
         if (nextWaveSpawnIndex_ >= waveSpawnQueue_.size()) {
             refillWaveSpawnQueue();
-            if (waveSpawnQueue_.empty()) return;
+            if (waveSpawnQueue_.empty()) break;
         }
-        const std::size_t active = enemies_.activeCount();
-        const std::size_t remaining =
-            waveSpawnQueue_.size() - nextWaveSpawnIndex_;
-        const std::size_t groupSize = std::min(
-            static_cast<std::size_t>(waveSpawnGroupSize_),
-            remaining);
-        const std::size_t technicalLimit = std::min(
-            MaximumActiveEnemies, TechnicalActiveEnemyLimit);
-        if (groupSize == 0U || active + groupSize > technicalLimit) break;
-        const std::span<const EnemySpawn> queuedGroup{
-            waveSpawnQueue_.data() + nextWaveSpawnIndex_, groupSize};
-        if (surge >= 0) {
-            const std::size_t portalIndex = surgePortalIndex(
-                wavePortalPositions_, upcomingAttackDirection_, surge);
-            if (wavePortalPositions_[portalIndex]) {
-                if (const auto core = buildings_.core()) {
-                    std::vector<EnemySpawn> group(
-                        queuedGroup.begin(), queuedGroup.end());
-                    moveGroupToPortal(
-                        group, *wavePortalPositions_[portalIndex],
-                        core->gridPosition);
-                    enemies_.spawnGroup(group);
-                } else {
-                    enemies_.spawnGroup(queuedGroup);
-                }
-            } else {
-                enemies_.spawnGroup(queuedGroup);
-            }
-        } else {
-            enemies_.spawnGroup(queuedGroup);
-        }
-        nextWaveSpawnIndex_ += groupSize;
+        const auto count = std::min({static_cast<std::size_t>(waveSpawnGroupSize_),
+            waveSpawnQueue_.size() - nextWaveSpawnIndex_, targetActive - enemies_.activeCount()});
+        // Bounded stack formation replaces the old per-group heap allocation.
+        std::array<EnemySpawn, 10> group{};
+        std::copy_n(waveSpawnQueue_.begin() + static_cast<std::ptrdiff_t>(nextWaveSpawnIndex_), count, group.begin());
+        const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, act, waveGroupSerial_++);
+        if (const auto core = buildings_.core(); core && wavePortalPositions_[portal])
+            moveGroupToPortal(std::span<EnemySpawn>{group}.first(count), *wavePortalPositions_[portal], core->gridPosition);
+        enemies_.spawnGroup(std::span<const EnemySpawn>{group}.first(count));
+        nextWaveSpawnIndex_ += count;
+        waveReplacementDemand_ -= std::min(waveReplacementDemand_, count);
+        waveReplacementTime_ = .22 / overtime.spawnRate;
         --waveSpawnGroupsDue_;
     }
-    // Do not bank old groups while the arena is full: they would all arrive
-    // at once after a strong attack clears it.
-    waveSpawnGroupsDue_ = 0U;
+    if (enemies_.activeCount() >= targetActive) waveReplacementDemand_ = 0;
+    waveObservedActive_ = enemies_.activeCount();
+    waveSpawnGroupsDue_ = 0;
 }
 
 void Simulation::completeWave() {
     const bool completedBossWave = currentWaveHasBoss_;
+    resetNightEncounter();
     waveStartCheckpoint_.reset();
     enemies_.clearProjectiles();
     cannons_.clearProjectiles();
@@ -522,7 +513,7 @@ bool Simulation::beginNextFinalNightWave() {
     const std::size_t firstAnchor = leastVisibleSpawnAnchor(
         map_.enemySpawnAnchors, playerPosition_, horizontalView);
     const WavePlan plan = waveDirector_.buildWave(
-        nextWave, core->gridPosition, firstAnchor);
+        nextWave, core->gridPosition, firstAnchor, {.runSeed = terrain_.seed()});
     const int finalNightDepth = std::max(
         1, nextWave - StageClearWave);
     const double healthScale =

@@ -13,6 +13,7 @@
 #include "ui/UiText.hpp"
 #include "ui/RunHammerUi.hpp"
 #include "ui/RunDefenseInventory.hpp"
+#include "ui/NightForecastHud.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -1304,12 +1305,21 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
+    const bool forecastVisible = !snapshot.sandboxMode && snapshot.coreMaxHealth > 0 &&
+        (phaseState == RunState::BuildPhase || phaseState == RunState::Sunset);
+    if (forecastVisible) {
+        const NightForecast forecast{snapshot.upcomingNightPattern, snapshot.upcomingEnemyCounts};
+        const float width = nightForecastWidth(forecast);
+        drawNightForecast(ui, forecast,
+            {static_cast<float>(uiScreenWidth()) * .5F - width * .5F, 96, width, 48});
+    }
+
     const bool attackWarningVisible =
         snapshot.state == RunState::Sunset &&
         hasAttackDirections(snapshot);
     if (attackWarningVisible) {
         const float attackWarningY =
-            chestCompassVisible ? 213.0F : 162.0F;
+            chestCompassVisible ? 213.0F : forecastVisible ? 184.0F : 162.0F;
         const std::string directions =
             attackDirectionNames(snapshot);
         const float elapsed = static_cast<float>(std::max(

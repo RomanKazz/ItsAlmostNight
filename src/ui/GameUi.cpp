@@ -1,6 +1,7 @@
 #include "ui/UiRenderLayer.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiTomeIcon.hpp"
+#include "enemies/EnemySystem.hpp"
 
 #include "combat/PlayerWeaponSystem.hpp"
 #include "buildings/BuildingSystem.hpp"
@@ -179,6 +180,13 @@ void GameUi::initialize() {
         modularBuildingIcons_[index] =
             loadTexture(ModularBuildingIconPaths[index]);
         smoothHudIcon(modularBuildingIcons_[index]);
+    }
+    constexpr std::array EnemyIconPaths{
+        "assets/ui/enemies/basic.png", "assets/ui/enemies/fast.png", "assets/ui/enemies/heavy.png", "assets/ui/enemies/boss.png",
+        "assets/ui/enemies/ranged.png", "assets/ui/enemies/sapper.png", "assets/ui/enemies/flying.png", "assets/ui/enemies/splitter.png"};
+    for (std::size_t index = 0; index < enemyIcons_.size(); ++index) {
+        enemyIcons_[index] = loadTexture(EnemyIconPaths[index]);
+        smoothHudIcon(enemyIcons_[index]);
     }
     constexpr std::array BuildingIconPaths{
         "assets/ui/building_ballista.png",
@@ -360,6 +368,7 @@ void GameUi::shutdown() {
     unloadTexture(extraUpgradeIcon_);
     unloadTexture(armorUpgradeIcon_);
     for (auto& icon : buildingIcons_) unloadTexture(icon);
+    for (auto& icon : enemyIcons_) unloadTexture(icon);
     for (auto& icon : weaponIcons_) unloadTexture(icon);
     unloadTexture(arrowRight_);
     unloadTexture(arrowLeft_);
@@ -638,6 +647,12 @@ void GameUi::drawResourceIcon(Rectangle bounds,
         {0.0F, 0.0F, static_cast<float>(texture.width),
          static_cast<float>(texture.height)},
         bounds, {0.0F, 0.0F}, 0.0F, tint);
+}
+
+Texture2D GameUi::enemyTexture(EnemyType type) const {
+    if (type == EnemyType::Splitling) type = EnemyType::Splitter;
+    const auto index = static_cast<std::size_t>(type);
+    return index < enemyIcons_.size() ? enemyIcons_[index] : Texture2D{};
 }
 
 Texture2D GameUi::buildingTexture(BuildingType type) const {

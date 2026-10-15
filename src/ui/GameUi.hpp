@@ -4,10 +4,12 @@
 #include "progression/RunUpgrade.hpp"
 
 #include <string_view>
+#include <cstdint>
 #include <array>
 
 namespace ian {
 enum class BuildingType;
+enum class EnemyType : std::uint8_t;
 enum class ModularBuildPiece;
 enum class PlayerWeapon;
 enum class RunUpgradeEffect;
@@ -73,6 +75,7 @@ class GameUi {
     [[nodiscard]] Texture2D resourceTexture(
         UiResourceIcon icon) const;
     [[nodiscard]] Texture2D buildingTexture(BuildingType type) const;
+    [[nodiscard]] Texture2D enemyTexture(EnemyType type) const;
     [[nodiscard]] Texture2D modularBuildingTexture(
         ModularBuildPiece piece) const;
     [[nodiscard]] Texture2D weaponTexture(PlayerWeapon weapon) const;
@@ -159,6 +162,7 @@ class GameUi {
     std::array<Texture2D, 3> modularBuildingIcons_{};
     std::array<Texture2D, 14> buildingIcons_{};
     std::array<Texture2D, 7> weaponIcons_{};
+    std::array<Texture2D, 8> enemyIcons_{};
     Texture2D armorUpgradeIcon_{};
     Texture2D extraUpgradeIcon_{};
     Texture2D heartUpgradeIcon_{};

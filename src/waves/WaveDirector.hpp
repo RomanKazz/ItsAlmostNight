@@ -3,6 +3,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "game/GameBalance.hpp"
+#include "waves/NightEncounter.hpp"
 
 #include <span>
 #include <vector>
@@ -17,6 +18,7 @@ struct WavePlan {
     double groupInterval;
     int eliteCount{};
     std::span<const EnemySpawn> spawns;
+    NightPattern pattern{NightPattern::Horde};
 };
 
 class WaveDirector {
@@ -30,8 +32,9 @@ class WaveDirector {
         std::vector<Vec3> spawnAnchors = {});
 
     WavePlan buildWave(int wave, GridPosition corePosition,
-                       std::size_t firstAnchorIndex = 0);
+                       std::size_t firstAnchorIndex = 0, WaveContext context = {});
     [[nodiscard]] WaveDefinition composition(int wave) const;
+    [[nodiscard]] NightForecast forecast(int wave, std::uint32_t runSeed) const;
 
   private:
     void append(
@@ -42,6 +45,7 @@ class WaveDirector {
     int applyEliteUpgrades(int wave);
 
     std::vector<EnemySpawn> spawnBuffer_;
+    std::vector<EnemySpawn> scratchBuffer_;
     std::vector<Vec3> spawnAnchors_;
     std::size_t firstAnchorIndex_{};
     std::size_t attackFrontCount_{1};

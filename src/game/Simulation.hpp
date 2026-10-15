@@ -402,6 +402,9 @@ struct SimulationSnapshot {
     std::array<int, GameBalance::EnemyTypeCount>
         upcomingEnemyCounts;
     bool upcomingWaveHasBoss;
+    NightPattern upcomingNightPattern{NightPattern::Horde};
+    NightPattern currentNightPattern{NightPattern::Horde};
+    int currentNightAct{};
     std::optional<AttackDirection> upcomingAttackDirection;
     std::array<bool, 4> upcomingAttackDirections{};
     std::array<std::optional<Vec3>, 4> attackPortalPositions{};
@@ -812,6 +815,7 @@ class Simulation {
     void beginPreparedWave();
     [[nodiscard]] bool beginNextFinalNightWave();
     void refillWaveSpawnQueue();
+    void resetNightEncounter();
     void tickWaveSpawning(double deltaSeconds);
     void completeWave();
     void cycleUnlockedTool();
@@ -1023,6 +1027,13 @@ class Simulation {
     double waveSpawnTimeRemaining_{};
     std::size_t waveSpawnGroupsDue_{};
     std::uint32_t waveSpawnCycle_{};
+    NightPattern wavePattern_{NightPattern::Horde};
+    int waveEncounterAct_{};
+    double waveCombatElapsed_{};
+    double waveReplacementTime_{};
+    std::size_t waveObservedActive_{};
+    std::size_t waveReplacementDemand_{};
+    std::uint32_t waveGroupSerial_{};
     std::optional<EnemySpawn> waveBossSpawn_;
     std::uint8_t waveSurgeWarningMask_{};
     double waveHealthScale_{1.0};
