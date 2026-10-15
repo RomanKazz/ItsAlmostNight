@@ -1,0 +1,89 @@
+{
+  "original_base_housing_collider_sockets_preserved": true,
+  "exact_palette": true,
+  "render_meshes": 16,
+  "additional_draws": 2,
+  "clean_import": [
+    {
+      "mesh": "upgrade_crossbow_l2_base",
+      "triangles": 96,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l2_bow",
+      "triangles": 28,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l3_base",
+      "triangles": 176,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l3_bow",
+      "triangles": 28,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l4_base",
+      "triangles": 176,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l4_bow",
+      "triangles": 80,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l5_base",
+      "triangles": 176,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l5_bow",
+      "triangles": 128,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l6_base",
+      "triangles": 272,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l6_bow",
+      "triangles": 512,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l7_base",
+      "triangles": 272,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l7_bow",
+      "triangles": 564,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l8_base",
+      "triangles": 464,
+      "finite_normals_uv_manifold": true
+    },
+    {
+      "mesh": "upgrade_crossbow_l8_bow",
+      "triangles": 616,
+      "finite_normals_uv_manifold": true
+    }
+  ],
+  "yaw_pitch_poses": 9086,
+  "pitch_sweep_degrees": [
+    -90,
+    90
+  ],
+  "both_side_insets_visible_orange": true,
+  "new_bow_and_carriage_armor_collisions": 0,
+  "legacy_extreme_pitch_note": "Original stock/pedestal contacts remain at steep angles; attached foot belts share that existing joint",
+  "open_muzzle_channels": true,
+  "editable_packed_source": true,
+  "native_playtest": false
+}
