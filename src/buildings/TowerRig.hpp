@@ -40,3 +40,16 @@ inline constexpr double MissileLauncherMaximumPitch = 30.0 * 3.14159265358979323
         position.z - x * std::sin(yaw) + z * std::cos(yaw)};
 }
 } // namespace ian
+
+namespace ian {
+inline constexpr double LaserPitchPivotY = 1.020;
+inline constexpr double LaserPitchPivotZ = .170;
+inline constexpr double LaserMinimumPitch = -12.0 * 3.14159265358979323846 / 180.0;
+inline constexpr double LaserMaximumPitch = 20.0 * 3.14159265358979323846 / 180.0;
+[[nodiscard]] inline Vec3 laserMuzzleWorldPosition(Vec3 position, double yaw, double pitch) {
+    constexpr double SocketFromPivotZ = -.629;
+    const double y = LaserPitchPivotY - SocketFromPivotZ * std::sin(pitch);
+    const double z = LaserPitchPivotZ + SocketFromPivotZ * std::cos(pitch);
+    return {position.x + z * std::sin(yaw), position.y + y, position.z + z * std::cos(yaw)};
+}
+}

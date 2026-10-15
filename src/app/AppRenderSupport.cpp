@@ -559,9 +559,9 @@ std::optional<EntityId> preciseBuildingAim(
         float pitch = 0.0F;
         if (building.type == BuildingType::Turret ||
             building.type == BuildingType::GunTurret ||
-            building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher) {
+            building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower) {
             yaw = towerYaw(snapshot, building);
-            if (building.type == BuildingType::Turret || building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher) {
+            if (building.type == BuildingType::Turret || building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower) {
                 pitch = towerPitch(snapshot, building);
             }
         } else if (
@@ -585,7 +585,7 @@ std::optional<EntityId> preciseBuildingAim(
                 building.type == BuildingType::SpikeTrap
                     ? spikeTrapAnimationSeconds(snapshot, building.id)
                     : -1.0F,
-                (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher)
+                (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower)
                     ? std::optional<float>{towerBaseYaw(snapshot, building)} : std::nullopt);
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
@@ -1068,6 +1068,28 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::LaserTower) {
+        static_cast<void>(renderer.drawLaserTower(position, yawRadians, WHITE, 1, 0, {}, level));
+    } else if (type == BuildingType::MissileLauncher) {
+        static_cast<void>(renderer.drawMissileLauncher(position, yawRadians, WHITE, 1, 0, {}, level));
+    } else if (type == BuildingType::Flamethrower) {
+        static_cast<void>(renderer.drawFlamethrower(position, yawRadians, WHITE, 1, 0, {}, level));
+    } else if (type == BuildingType::GunTurret) {
+        if (!renderer.drawGunTurret(
+                position, yawRadians, yawRadians)) {
+            DrawCube({x, y + 0.55F, z}, 1.1F, 1.1F, 1.1F, WHITE);
+        }
+    } else if (type == BuildingType::Cannon) {
+        if (!renderer.drawCannon(position, yawRadians, 0.0F)) {
+            DrawCube({x, y + 0.6F, z}, 1.0F, 1.2F, 1.0F, WHITE);
+            DrawSphere({x, y + 1.35F, z}, 0.48F, WHITE);
+            DrawCube({x, y + 1.45F, z - 0.75F}, 0.28F,
+                     0.28F, 1.4F, WHITE);
+        }
+    } else if (type == BuildingType::Catapult) {
+        if (!renderer.drawCatapult(position, yawRadians, 0.0F, false)) {
+            DrawCube({x, y + 0.45F, z}, 1.2F, 0.9F, 1.2F, WHITE);
+        }
     } else if (type == BuildingType::TeslaTower) {
         static_cast<void>(renderer.drawTeslaTower(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::MissileLauncher) {
@@ -1265,9 +1287,9 @@ void drawBuildingTacticalOverlay(
     Vec3 center = buildingWorldPosition(*building);
     std::optional<EntityId> targetId;
     if (building->type == BuildingType::Turret ||
-        building->type == BuildingType::GunTurret || building->type == BuildingType::Flamethrower || building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower) {
+        building->type == BuildingType::GunTurret || building->type == BuildingType::Flamethrower || building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower) {
         double range = TowerSystem::attackRange(building->type, building->level);
-        if ((building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower) && snapshot.aimedFinalAttackStats) range = snapshot.aimedFinalAttackStats->range;
+        if ((building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower) && snapshot.aimedFinalAttackStats) range = snapshot.aimedFinalAttackStats->range;
         if (building->type == BuildingType::Flamethrower && snapshot.aimedFinalAttackStats) {
             range = snapshot.aimedFinalAttackStats->range * snapshot.aimedFinalAttackStats->size;
         }
@@ -1291,7 +1313,8 @@ void drawBuildingTacticalOverlay(
         if (runtime != snapshot.towers.end()) {
             targetId = runtime->targetId;
         }
-        center.y += building->type == BuildingType::MissileLauncher ? MissileLauncherPitchPivotY :
+        center.y += building->type == BuildingType::LaserTower ? LaserPitchPivotY :
+            building->type == BuildingType::MissileLauncher ? MissileLauncherPitchPivotY :
             building->type == BuildingType::Flamethrower ? FlamethrowerPitchPivotY :
             building->type == BuildingType::GunTurret ? 0.69 : 1.42;
     } else if (building->type == BuildingType::Cannon ||

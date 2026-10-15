@@ -22,12 +22,12 @@ enum class BuildingHotbarCategory : std::uint8_t {
 };
 
 inline constexpr std::size_t BuildingHotbarCategoryCount = 4U;
-inline constexpr std::size_t MaximumBuildingHotbarSlots = 10U;
+inline constexpr std::size_t MaximumBuildingHotbarSlots = 11U;
 
 inline constexpr std::array<BuildingType, 1> BaseBuildingOrder{
         BuildingType::Core,
     };
-inline constexpr std::array<BuildingType, 10> DefenseBuildingOrder{
+inline constexpr std::array<BuildingType, 11> DefenseBuildingOrder{
         BuildingType::GunTurret,
         BuildingType::Turret,
         BuildingType::Cannon,
@@ -35,6 +35,7 @@ inline constexpr std::array<BuildingType, 10> DefenseBuildingOrder{
         BuildingType::Flamethrower,
         BuildingType::MissileLauncher,
         BuildingType::TeslaTower,
+        BuildingType::LaserTower,
         BuildingType::Wall,
         BuildingType::SpikeTrap,
         BuildingType::SlowTrap,

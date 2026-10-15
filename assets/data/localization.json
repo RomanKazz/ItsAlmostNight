@@ -3,6 +3,10 @@
   "languages": {
     "en": {},
     "ru": {
+      "LASER": "ЛАЗЕР",
+      "Laser": "Лазер",
+      "Sustained focus ramps damage. Upgrade all copies.": "Удержание цели усиливает урон. Улучшает все лазеры.",
+      "Focused beam. Damage ramps up while holding the same target.": "Луч усиливается, пока удерживает одну цель.",
       "TESLA": "ТЕСЛА",
       "Tesla": "Тесла",
       "Chain lightning jumps between enemies. Upgrade all copies.": "Цепные молнии. Улучшает все теслы.",

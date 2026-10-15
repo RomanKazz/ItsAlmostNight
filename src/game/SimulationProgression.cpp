@@ -408,6 +408,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockCannon:
     case RunUpgradeEffect::UnlockCatapult:
     case RunUpgradeEffect::UnlockTeslaTower:
+    case RunUpgradeEffect::UnlockLaserTower:
     case RunUpgradeEffect::UnlockMissileLauncher:
     case RunUpgradeEffect::UnlockFlamethrower:
     case RunUpgradeEffect::UnlockSpikeTrap:

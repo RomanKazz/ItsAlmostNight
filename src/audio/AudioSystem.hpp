@@ -112,6 +112,7 @@ class AudioSystem {
     Clip uiConfirm_;
     Clip waveWarning_;
     std::array<MusicTrack, 3> musicTracks_;
+    MusicTrack laserLoop_;
     std::optional<std::size_t> currentMusicTrack_;
     std::optional<Vec3> previousPlayerPosition_;
     std::deque<PendingBuildingPlacedSound>

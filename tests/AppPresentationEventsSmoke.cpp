@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <rlgl.h>
 
 namespace ian {
 struct AppPresentationTestAccess {
@@ -50,6 +51,38 @@ struct AppPresentationTestAccess {
         // Duplicate discharges must stay bounded, alive and animated.
         for(int i=0;i<200;++i)app->processPresentationEvents({events.data(),1},snapshot);
         okay &= count(PresentationEffectType::ChainLightning)==2;
+        // Exercise the actual App effect pass through postprocessing. Rear ink must
+        // not darken the opaque electrical core where it crosses prop silhouettes.
+        app->renderer_->settings().postProcessing=true;
+        app->renderer_->settings().ssao=true;
+        app->renderer_->settings().bloom=false;
+        app->renderer_->settings().outlineWidth=3;
+        app->renderer_->settings().outlineStrength=1;
+        const Camera3D inkCamera{{0,1,-6},{0,1,-1},{0,1,0},4.5F,CAMERA_ORTHOGRAPHIC};
+        int bright[2]{};
+        for(int ink=0;ink<2;++ink) {
+            app->renderer_->settings().inkOutlines=ink!=0;
+            for(auto& effect:app->effects_)effect.remaining=effect.duration-.08;
+            app->renderer_->beginFrame();app->renderer_->beginWorldPass({29,47,57,255},inkCamera);
+            BeginMode3D(inkCamera);app->renderer_->beginWorldShader(lighting);
+            WorldMaterialState prop{};prop.unlitAmount=1;app->renderer_->setWorldMaterial(prop);
+            DrawCube({-.25F,.9F,-.5F},.50F,2.6F,.2F,{90,105,110,255});
+            app->renderer_->endWorldShader();app->drawPresentationEffects(inkCamera,lighting);EndMode3D();
+            app->renderer_->endWorldPass();rlDrawRenderBatchActive();
+            Image image=LoadImageFromScreen();auto* pixels=LoadImageColors(image);
+            const auto center=GetWorldToScreenEx({0,.7F,-2},inkCamera,image.width,image.height);
+            for(int y=int(center.y)-100;y<=int(center.y)+100;++y)for(int x=int(center.x);x<=int(center.x)+1;++x) {
+                const auto pixel=pixels[y*image.width+x];bright[ink]+=pixel.r>180 && pixel.g>200 && pixel.b>200;
+            }
+            if(const char* capture=std::getenv("IAN_TESLA_CAPTURE")) {
+                const auto file=std::filesystem::path(capture)/(ink?"lightning-ink-on.png":"lightning-ink-off.png");
+                ExportImage(image,file.string().c_str());
+            }
+            UnloadImageColors(pixels);UnloadImage(image);app->renderer_->endFrame();
+        }
+        okay &= bright[0]>10 && bright[1]>bright[0]*.65;
+        if(!(bright[0]>10 && bright[1]>bright[0]*.65))
+            std::cerr<<"Rear world ink covers electrical core: "<<bright[0]<<" / "<<bright[1]<<"\n";
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }

@@ -119,7 +119,7 @@ void towerChecks() {
     require(static_cast<int>(building.type)==16 && static_cast<int>(RunUpgradeEffect::UnlockMissileLauncher)==61,"append-only save IDs");
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto hotbar=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(hotbar.count==10 && hotbar.types[5]==building.type && hotbar.types[9]==BuildingType::SlowTrap,"new slot before walls and traps");
+    require(hotbar.count==11 && hotbar.types[5]==building.type && hotbar.types[7]==BuildingType::LaserTower && hotbar.types[10]==BuildingType::SlowTrap,"new slot before walls and traps");
     const Vec3 socket=missileLauncherMuzzleWorldPosition({},0,0,0);
     requireNear(socket.x,-.113,1e-10,"socket x");requireNear(socket.y,1.203,1e-10,"socket y");requireNear(socket.z,-.4388,1e-10,"socket z");
     const Vec3 raised=missileLauncherMuzzleWorldPosition({},0,MissileLauncherMaximumPitch,0);

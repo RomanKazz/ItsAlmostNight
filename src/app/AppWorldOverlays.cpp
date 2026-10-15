@@ -685,9 +685,9 @@ void App::drawWorldOverlays(
             const bool artillery =
                 type == BuildingType::Cannon ||
                 type == BuildingType::Catapult;
-            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower)
+            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower)
                 ? std::max<std::uint8_t>(1, snapshot.buildingBlueprintLevels[static_cast<std::size_t>(type)]) : 1;
-            const float range = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower) && snapshot.buildingPreviewFinalAttackStats
+            const float range = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower) && snapshot.buildingPreviewFinalAttackStats
                 ? static_cast<float>(snapshot.buildingPreviewFinalAttackStats->range * (type == BuildingType::Flamethrower ? snapshot.buildingPreviewFinalAttackStats->size : 1.0))
                 : artillery
                 ? static_cast<float>(
@@ -1037,6 +1037,18 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::LaserTower) {
+                    static_cast<void>(renderer_->drawLaserTower(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+                } else if (preview.type == BuildingType::MissileLauncher) {
+                    static_cast<void>(renderer_->drawMissileLauncher(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+                } else if (preview.type == BuildingType::Flamethrower) {
+                    static_cast<void>(renderer_->drawFlamethrower(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+                } else if (preview.type == BuildingType::GunTurret) {
+                    static_cast<void>(renderer_->drawGunTurret(
+                        position, yaw, yaw));
                 } else if (preview.type == BuildingType::TeslaTower) {
                     static_cast<void>(renderer_->drawTeslaTower(position, yaw, WHITE, 1, 0, {},
                         snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
@@ -1131,6 +1143,35 @@ void App::drawWorldOverlays(
                              0.7F, 8, WHITE);
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
+            }
+        } else if (preview.type == BuildingType::LaserTower) {
+            static_cast<void>(renderer_->drawLaserTower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+        } else if (preview.type == BuildingType::MissileLauncher) {
+            static_cast<void>(renderer_->drawMissileLauncher({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+        } else if (preview.type == BuildingType::Flamethrower) {
+            static_cast<void>(renderer_->drawFlamethrower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
+        } else if (preview.type == BuildingType::GunTurret) {
+            if (!renderer_->drawGunTurret(
+                    {x, 0.0F, z}, yaw, yaw)) {
+                DrawCube({x, 0.55F, z}, 1.1F, 1.1F, 1.1F,
+                         WHITE);
+            }
+        } else if (preview.type == BuildingType::Cannon) {
+            if (!renderer_->drawCannon({x, 0.0F, z}, yaw, 0.0F)) {
+                DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
+                         WHITE);
+                DrawSphere({x, 1.35F, z}, 0.48F, WHITE);
+                DrawCube({x, 1.45F, z - 0.75F}, 0.28F,
+                         0.28F, 1.4F, WHITE);
+            }
+        } else if (preview.type == BuildingType::Catapult) {
+            if (!renderer_->drawCatapult(
+                    {x, 0.0F, z}, yaw, 0.0F)) {
+                DrawCube({x, 0.45F, z}, 1.2F, 0.9F,
+                         1.2F, WHITE);
             }
         } else if (preview.type == BuildingType::TeslaTower) {
             static_cast<void>(renderer_->drawTeslaTower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},

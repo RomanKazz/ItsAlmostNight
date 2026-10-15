@@ -50,8 +50,8 @@ inline void checkFlamethrowerBuilding() {
     auto allUnlocked = simulation->snapshot().unlockedBuildings;
     allUnlocked.fill(true);
     const auto complete = makeBuildingHotbarLayout(allUnlocked, BuildingHotbarCategory::Defense, true, 8, true);
-    require(complete.count == 10 && complete.types[4] == BuildingType::Flamethrower &&
-        complete.types[5] == BuildingType::MissileLauncher && complete.types[6] == BuildingType::TeslaTower && complete.types[7] == BuildingType::Wall && complete.types[8] == BuildingType::SpikeTrap && complete.types[9] == BuildingType::SlowTrap,
+    require(complete.count == 11 && complete.types[4] == BuildingType::Flamethrower &&
+        complete.types[5] == BuildingType::MissileLauncher && complete.types[6] == BuildingType::TeslaTower && complete.types[7] == BuildingType::LaserTower && complete.types[8] == BuildingType::Wall && complete.types[9] == BuildingType::SpikeTrap && complete.types[10] == BuildingType::SlowTrap,
         "defense hotbar places weapons first and traps in the final slots");
     place.placeBuilding=PlaceBuildingCommand{BuildingType::Flamethrower,{3,0},3};
     simulation->tick(0,place);

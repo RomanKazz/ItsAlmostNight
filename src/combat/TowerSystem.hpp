@@ -38,6 +38,24 @@ struct TowerRuntime {
     double flameAge{};
     double flameTailRemaining{};
     Vec3 flameOrigin{};
+    std::optional<EntityId> laserFocusTarget;
+    double laserFocusSeconds{};
+    double laserRemaining{};
+    Vec3 laserOrigin{};
+    Vec3 laserEnd{};
+};
+
+inline constexpr std::size_t MaximumLaserVisualSegments = 256;
+struct LaserBeamSegment {
+    EntityId sourceId;
+    std::optional<EntityId> fromTarget;
+    EntityId targetId;
+    Vec3 origin;
+    Vec3 end;
+    double focus{};
+    double remaining{};
+    int ray{};
+    int rayCount{1};
 };
 
 struct TowerShot {
@@ -92,6 +110,7 @@ class TowerSystem {
     [[nodiscard]] std::size_t activeFlameBurns() const { return flameBurns_.size(); }
     void setShrapnelCount(int count) { shrapnelCount_ = std::max(0, count); }
     [[nodiscard]] std::span<const TowerLaunch> launches() const { return launches_; }
+    [[nodiscard]] std::span<const LaserBeamSegment> laserBeams() const { return laserBeams_; }
     [[nodiscard]] std::span<const ProjectileBlast> blasts() const { return projectiles_.blasts(); }
     void clearProjectiles();
     void reset();
@@ -121,6 +140,7 @@ class TowerSystem {
     int shrapnelCount_{};
     AttackCollisionQuery shrapnelQuery_;
     std::vector<TowerLaunch> launches_;
+    std::vector<LaserBeamSegment> laserBeams_;
     struct FlameBurn {
         EntityId targetId;
         EntityId sourceId;

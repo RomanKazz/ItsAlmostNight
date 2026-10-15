@@ -22,6 +22,7 @@ std::string_view buildingDisplayName(BuildingType type) {
     case BuildingType::Catapult:
         return "Catapult";
     case BuildingType::TeslaTower: return "Tesla";
+    case BuildingType::LaserTower: return "Laser";
     case BuildingType::MissileLauncher: return "Missile Launcher";
     case BuildingType::Flamethrower:
         return "Flamethrower";

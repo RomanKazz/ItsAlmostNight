@@ -38,6 +38,7 @@ enum class BuildingType {
     Flamethrower,
     MissileLauncher, // Append-only save ID 16.
     TeslaTower, // Append-only save ID 17.
+    LaserTower, // Append-only save ID 18.
 };
 
 enum class BuildingLimitCategory {

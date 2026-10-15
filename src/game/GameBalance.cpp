@@ -482,6 +482,7 @@ GameBalance GameBalance::defaults() {
             {35, 25, 10, 160.0, 1, 64},
             {50, 40, 25, 180.0, 1, 64},
             {40, 30, 20, 170.0, 1, 64},
+            {45, 35, 25, 160.0, 1, 64},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -616,6 +617,9 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             buildings.contains("teslaTower")
                 ? parseBuilding(buildings.at("teslaTower"))
                 : result.balance.buildings[17],
+            buildings.contains("laserTower")
+                ? parseBuilding(buildings.at("laserTower"))
+                : result.balance.buildings[18],
         }};
         if (parsed[0].maxCount != 1 || parsed[0].unlockCoreLevel != 0) {
             throw std::runtime_error("core must be unique and unlocked");

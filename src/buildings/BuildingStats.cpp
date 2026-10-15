@@ -36,7 +36,7 @@ BuildingStats buildingStatsAtLevel(
         stats.crystalCapacity = static_cast<double>(
             coreResourceCapacity(ResourceCapacityType::Crystal, level));
     } else if (building.type == BuildingType::Turret ||
-               building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower) {
+               building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
         const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = TowerSystem::attackDamage(
             building.type, level) *

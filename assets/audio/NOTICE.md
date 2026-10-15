@@ -11,3 +11,5 @@
 - `temporary/*.ogg`: user-provided Mega Bonk gamerip (2025), used temporarily
   for local testing. These files are separate from the licensed original sounds;
   see `temporary/README.md` and `temporary/manifest.json` for sources and replacement.
+
+`laser_loop.wav`: procedural loop authored for this project; no external samples.

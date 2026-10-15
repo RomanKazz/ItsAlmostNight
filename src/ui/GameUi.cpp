@@ -193,6 +193,7 @@ void GameUi::initialize() {
         "assets/ui/building_flamethrower.png",
         "assets/ui/building_missile_launcher.png",
         "assets/ui/building_tesla.png",
+        "assets/ui/building_laser.png",
     };
     for (std::size_t index = 0; index < buildingIcons_.size(); ++index) {
         buildingIcons_[index] = loadTexture(BuildingIconPaths[index]);
@@ -655,6 +656,7 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     case BuildingType::Flamethrower: return buildingIcons_[9];
     case BuildingType::MissileLauncher: return buildingIcons_[10];
     case BuildingType::TeslaTower: return buildingIcons_[11];
+    case BuildingType::LaserTower: return buildingIcons_[12];
     default: return {};
     }
 }

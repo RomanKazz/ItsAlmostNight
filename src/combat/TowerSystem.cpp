@@ -5,6 +5,7 @@
 #include "combat/AttackPattern.hpp"
 #include "combat/FlamethrowerAttack.hpp"
 #include "combat/TeslaAttack.hpp"
+#include "combat/LaserAttack.hpp"
 #include "combat/AttackStatCompatibility.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -25,11 +26,12 @@ constexpr double PitchSpeed = 8.0;
 constexpr double AimTolerance = 0.08726646259971647;
 bool isTower(BuildingType type) {
     return type == BuildingType::Turret || type == BuildingType::GunTurret ||
-        type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower;
+        type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower;
 }
 
 double attackRange(BuildingType type, std::uint8_t level) {
     level = std::clamp<std::uint8_t>(level, 1, MaxBuildingLevel);
+    if (type == BuildingType::LaserTower) return 10.0 + .4 * (level - 1);
     if (type == BuildingType::TeslaTower) return 8.0 + 0.35 * (level - 1);
     if (type == BuildingType::MissileLauncher) return 15.0 + 0.5 * (level - 1);
     if (type == BuildingType::Flamethrower) return 4.0 + 0.2 * (level - 1);
@@ -38,6 +40,7 @@ double attackRange(BuildingType type, std::uint8_t level) {
 }
 
 double attackDamage(BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::LaserTower) return .18 + .045 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     if (type == BuildingType::TeslaTower) return 1.2 + 0.3 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     if (type == BuildingType::MissileLauncher) return 2.0 + 0.45 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     constexpr std::array<double, MaxBuildingLevel> FlameDamage{
@@ -56,6 +59,7 @@ double attackDamage(BuildingType type, std::uint8_t level) {
 
 double fireInterval(BuildingType type, std::uint8_t level) {
     const double levelBonus = static_cast<double>(std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
+    if (type == BuildingType::LaserTower) return .15 / (1.0 + .04 * levelBonus);
     if (type == BuildingType::TeslaTower) return 1.2 / (1.0 + 0.06 * levelBonus);
     if (type == BuildingType::MissileLauncher) return 1.8 / (1.0 + 0.06 * levelBonus);
     if (type == BuildingType::Flamethrower) return 0.2 / (1.0 + 0.04 * levelBonus);
@@ -75,6 +79,7 @@ int piercingCount(BuildingType type, std::uint8_t level) {
 
 Vec3 towerPosition(const BuildingInstance& building) {
     Vec3 position = buildingWorldPosition(building);
+    if (building.type == BuildingType::LaserTower) { position.y += LaserPitchPivotY; return position; }
     if (building.type == BuildingType::MissileLauncher) { position.y += MissileLauncherPitchPivotY; return position; }
     if (building.type == BuildingType::Flamethrower) {
         position.y += FlamethrowerPitchPivotY;
@@ -94,6 +99,7 @@ bool withinRange(Vec3 origin, Vec3 target, double range) {
 
 TowerSystem::TowerSystem() {
     towers_.reserve(64);
+    laserBeams_.reserve(MaximumLaserVisualSegments);
     teslaVisited_.reserve(EnemySystem::MaxEnemies);
     shotBuffer_.reserve(256);
     flameBurns_.reserve(EnemySystem::MaxEnemies);
@@ -150,6 +156,9 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
         stats.duration = 4.5; stats.homing = 4.0; stats.spreadDegrees = 1.0;
         stats.burstInterval = 0.18; stats.knockback = 1.2;
     }
+    if (type == BuildingType::LaserTower) {
+        stats.projectileSpeed = 0; stats.spreadDegrees = 0; stats.knockback = 0; stats.bounceRange=4.5;
+    }
     if (type == BuildingType::TeslaTower) {
         stats.projectileSpeed = 0; stats.spreadDegrees = 0; stats.knockback = 0.18;
         stats.bounces = 2 + (level - 1) / 3; stats.bounceRange = 4.5; stats.burstInterval = 0.12;
@@ -158,7 +167,7 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
 }
 
 FinalAttackStats TowerSystem::finalStats(const BuildingInstance& building) const {
-    if (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower) {
+    if (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
         return resolveBuildingAttackStats(baseStats(building.type, building.level), building,
             compatibleAttackModifiers(building.type, modifiers_), bonusType_,
             compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_);
@@ -169,11 +178,13 @@ FinalAttackStats TowerSystem::finalStats(const BuildingInstance& building) const
 
 void TowerSystem::clearProjectiles() {
     projectiles_.reset();
+    laserBeams_.clear();
     flameBurns_.clear();
     teslaVisited_.clear();
     flameBurnSlots_.fill(-1);
     for (auto& tower : towers_) {
         tower.flameRemaining = tower.flameAge = tower.flameTailRemaining = 0.0;
+        tower.laserFocusTarget.reset(); tower.laserFocusSeconds = tower.laserRemaining = 0;
     }
     for (auto& tower : towers_) { tower.sequenceRemaining = 0; tower.sequenceDelay = 0.0; tower.sequenceInterval = 0.0; }
 }
@@ -205,6 +216,9 @@ void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) 
     defense_runtime::syncBuildings(towers_, buildings, SearchInterval,
         isTower,
         [](const BuildingInstance&, const TowerRuntime&) { return true; });
+    std::erase_if(laserBeams_,[&](const auto& beam) {
+        return std::ranges::none_of(buildings,[&](const auto& building){return building.id==beam.sourceId;});
+    });
 }
 
 std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
@@ -213,6 +227,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
     shotBuffer_.clear();
     attackBuffer_.clear();
     launches_.clear();
+    for(auto& beam:laserBeams_)beam.remaining-=deltaSeconds;
+    std::erase_if(laserBeams_,[](const auto& beam){return beam.remaining<=0;});
     updateFlameBurns(deltaSeconds, enemies);
     bool flameQueryReady = false;
     bool teslaQueryReady = false;
@@ -237,6 +253,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const bool crossbow = building->type == BuildingType::Turret;
         const bool missile = building->type == BuildingType::MissileLauncher;
         const bool flame = building->type == BuildingType::Flamethrower;
+        const bool laser = building->type == BuildingType::LaserTower;
+        tower.laserRemaining = std::max(0.0, tower.laserRemaining - deltaSeconds);
         if (tower.flameTailRemaining > 0) tower.flameAge += deltaSeconds;
         tower.flameRemaining = std::max(0.0, tower.flameRemaining - deltaSeconds);
         tower.flameTailRemaining = std::max(0.0, tower.flameTailRemaining - deltaSeconds);
@@ -353,7 +371,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             }
         }
 
-        if (preferMarkedTargets_ && tower.targetSearchCooldownRemaining <= 0.0) {
+        if (preferMarkedTargets_ && (!laser || !tower.targetId) && tower.targetSearchCooldownRemaining <= 0.0) {
             Vec3 search = origin; search.y = building->baseHeight;
             if (auto marked = markedDefenseTarget(enemies, building->type, search, range,
                     tower.restYaw, building->level, missile ? MissileLauncherMinimumRange : 0.0)) {
@@ -380,6 +398,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         }
         if (!tower.targetId) {
             tower.flameRemaining = 0.0;
+            tower.laserFocusTarget.reset(); tower.laserFocusSeconds = 0;
             defense_runtime::holdAimWithoutTarget(tower, deltaSeconds);
             continue;
         }
@@ -397,6 +416,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const double desiredYaw = std::atan2(-deltaX, -deltaZ);
         const double desiredPitch = missile
             ? MissileLauncherMaximumPitch
+            : laser
+            ? std::clamp(std::atan2(deltaY, std::hypot(deltaX, deltaZ)), LaserMinimumPitch, LaserMaximumPitch)
             : flame
             ? std::clamp(std::atan2(deltaY, std::hypot(deltaX, deltaZ)),
                 FlamethrowerMinimumPitch, FlamethrowerMaximumPitch)
@@ -407,6 +428,52 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         tower.pitch = advanceDefenseAim(
             tower.pitch, desiredPitch, tower.pitchVelocity,
             deltaSeconds, 10.0, aimPitchSpeed, false);
+        if (laser) {
+            const bool aligned = std::abs(wrapBuildingAngle(desiredYaw - tower.yaw)) <= AimTolerance &&
+                std::abs(desiredPitch - tower.pitch) <= AimTolerance;
+            if (!aligned || tower.laserFocusTarget != tower.targetId) {
+                tower.laserFocusTarget = aligned ? tower.targetId : std::nullopt;
+                tower.laserFocusSeconds = 0;
+            }
+            if (!aligned) continue;
+            tower.laserFocusSeconds = std::min(LaserFocusRampSeconds, tower.laserFocusSeconds + deltaSeconds);
+            tower.laserOrigin = laserMuzzleWorldPosition(buildingWorldPosition(*building), tower.yaw, tower.pitch);
+            tower.laserEnd = aimPosition;
+            tower.laserRemaining = .12;
+            for(auto& beam:laserBeams_)if(beam.sourceId==tower.buildingId) {
+                beam.remaining=.12;beam.focus=tower.laserFocusSeconds/LaserFocusRampSeconds;
+            }
+            if (tower.fireCooldownRemaining > 0) continue;
+            auto focused = stats;
+            focused.damage *= laserFocusMultiplier(tower.laserFocusSeconds);
+            tower.attack = {tower.buildingId, focused};
+            attackBuffer_.push_back(tower.attack);
+            tower.fireCooldownRemaining = stats.attackInterval + cooldownOvershoot;
+            if (!teslaQueryReady) {teslaQuery_.rebuild(enemies);teslaQueryReady=true;}
+            std::erase_if(laserBeams_,[&](const auto& beam){return beam.sourceId==tower.buildingId;});
+            const int rays=effectiveAttackCount(focused.quantity,1);
+            const EntityId primary=*tower.targetId;
+            bool primaryKilled=false;
+            for(int ray=0;ray<rays && enemies.enemy(primary);++ray) {
+                std::optional<EntityId> fromTarget;
+                applyTeslaChain(enemies,teslaQuery_,primary,tower.laserOrigin,focused,
+                    ++shotSerial_ ^ tower.buildingId.index,teslaVisited_,
+                    [&](const AttackHit& hit,Vec3 origin,Vec3 end,int jump) {
+                        shotBuffer_.push_back({.towerId=tower.buildingId,.targetId=hit.result.id,
+                            .targetType=hit.result.type,.targetEliteAffixes=hit.result.eliteAffixes,
+                            .origin=origin,.hitPosition=end,.type=BuildingType::LaserTower,
+                            .damage=hit.result.damage,.payloadDamage=focused.damage,
+                            .secondaryImpact=jump>0,.critical=hit.critical,.killed=hit.result.killed,.stats=focused});
+                        if(laserBeams_.size()<MaximumLaserVisualSegments)
+                            laserBeams_.push_back({tower.buildingId,fromTarget,hit.result.id,origin,end,
+                                tower.laserFocusSeconds/LaserFocusRampSeconds,.12,ray,rays});
+                        fromTarget=hit.result.id;
+                        primaryKilled|=hit.result.id==primary && hit.result.killed;
+                    },&teslaTargetCache_);
+            }
+            if(primaryKilled) {tower.laserFocusTarget.reset();tower.laserFocusSeconds=0;}
+            continue;
+        }
         if (std::abs(wrapBuildingAngle(
                 desiredYaw - tower.yaw)) >
                 AimTolerance ||

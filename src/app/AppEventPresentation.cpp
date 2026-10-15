@@ -112,7 +112,7 @@ void App::processPresentationEvents(
             event.type == GameEventType::ProjectileHit &&
             event.sourceId && event.buildingType &&
             (*event.buildingType == BuildingType::Turret ||
-             *event.buildingType == BuildingType::GunTurret);
+             *event.buildingType == BuildingType::GunTurret || *event.buildingType == BuildingType::LaserTower);
         bool towerShotVisualScheduled = false;
         double towerDamageNumberDelay = 0.0;
         const bool enemyHit =

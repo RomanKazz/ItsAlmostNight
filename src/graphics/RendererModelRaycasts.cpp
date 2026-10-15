@@ -1,3 +1,4 @@
+#include "graphics/LaserModel.hpp"
 #include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/MissileLauncherModel.hpp"
 #include "graphics/Renderer.hpp"
@@ -182,6 +183,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
+    case BuildingType::LaserTower:
+        resource = &resources_.laserTowerModel(); yaw=defensiveYaw; break;
     case BuildingType::TeslaTower:
         resource = &resources_.teslaTowerModel();
         yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
@@ -311,6 +314,18 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::LaserTower) {
+            std::optional<double> closest;
+            for (int index = 0; index < model.meshCount; ++index) {
+                const Matrix pose = MatrixMultiply(model.transform,
+                    laser_model::meshTransform(index, position,
+                        defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(
+                            building.type, building.rotation))), defensiveYaw, cannonPitchRadians));
+                const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], pose));
+                if (distance && (!closest || *distance < *closest)) closest = distance;
+            }
+            return closest;
+        }
         if (building.type == BuildingType::MissileLauncher) {
             std::optional<double> closest;
             for (int index = 0; index < model.meshCount; ++index) {

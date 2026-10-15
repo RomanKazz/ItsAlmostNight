@@ -1,4 +1,8 @@
 #include "graphics/ChainLightningEffect.hpp"
+#include "graphics/LaserBeamEffect.hpp"
+#include "combat/LaserAttack.hpp"
+#include "combat/AttackCollision.hpp"
+#include "buildings/TowerRig.hpp"
 #include "graphics/RoyalBossEffect.hpp"
 #include "graphics/EnemyMagicEffect.hpp"
 #include "graphics/PropBreakEffect.hpp"
@@ -727,7 +731,7 @@ void App::drawPresentationEffects(
         })) {
         renderer_->beginWorldShader(lighting);
         WorldMaterialState material{}; material.unlitAmount=1;material.screenAoAmount=0;
-        material.inkOutlineEligible=false;renderer_->setWorldMaterial(material);
+        material.inkOutlineEligible=false;material.inkOccluder=true;renderer_->setWorldMaterial(material);
         renderer_->beginColorOnlyWorldEffects();
         fire_wand_effect::beginBatch();
         int remaining=chain_lightning_effect::MaximumVisibleArcs;
@@ -739,6 +743,59 @@ void App::drawPresentationEffects(
             chain_lightning_effect::emit(chain_lightning_effect::point(effect.position),
                 chain_lightning_effect::point(*effect.targetPosition),camera.position,
                 static_cast<float>(effect.duration-effect.remaining),static_cast<float>(effect.duration),seed,effect.scale,static_cast<float>(GetTime()));
+        }
+        fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->endWorldShader();
+    }
+    if (!itemSnapshot.laserBeams.empty()) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState material{};material.unlitAmount=1;material.screenAoAmount=0;
+        material.inkOutlineEligible=false;material.inkOccluder=true;renderer_->setWorldMaterial(material);
+        renderer_->beginColorOnlyWorldEffects();fire_wand_effect::beginBatch();
+        int budget=laser_beam_effect::MaximumVisibleBeams;
+        const float interpolation=static_cast<float>(fixedStep_.interpolationAlpha());
+        const auto targetPoint=[&](EntityId id,Vec3 fallback) {
+            const auto enemy=std::ranges::find(itemSnapshot.enemies,id,&EnemyInstance::id);
+            return enemy!=itemSnapshot.enemies.end() && enemy->active ? attackTargetPosition(*enemy) : fallback;
+        };
+        // First show every active tower, then spend the remaining budget on
+        // extra parallel rays and chains. A dense volley cannot hide other towers.
+        for(const auto& tower:itemSnapshot.towers) {
+            if(tower.type!=BuildingType::LaserTower || tower.laserRemaining<=0 || budget<=0)continue;
+            const auto building=std::ranges::find(itemSnapshot.buildings,tower.buildingId,&BuildingInstance::id);
+            if(building==itemSnapshot.buildings.end())continue;
+            const auto start=laserMuzzleWorldPosition(buildingWorldPosition(*building),
+                towerYaw(itemSnapshot,*building,interpolation),towerPitch(itemSnapshot,*building,interpolation));
+            auto end=tower.targetId?targetPoint(*tower.targetId,tower.laserEnd):tower.laserEnd;
+            auto origin=chain_lightning_effect::point(start);
+            auto finish=chain_lightning_effect::point(end);
+            if(Vector3DistanceSqr(origin,camera.position)>lighting.fogEnd*lighting.fogEnd)continue;
+            if(effectiveAttackCount(tower.attack.stats.quantity,1)>1) {
+                origin=laser_beam_effect::parallelPoint(origin,camera.position,-.5F,.16F);
+                finish=laser_beam_effect::parallelPoint(finish,camera.position,-.5F,.36F);
+            }
+            --budget;
+            laser_beam_effect::emit(origin,finish,
+                camera.position,float(tower.laserFocusSeconds/LaserFocusRampSeconds),
+                float(itemSnapshot.elapsedSeconds),float(std::min(1.0,tower.laserRemaining/.08)));
+        }
+        for(int priority=0;priority<2;++priority)for(const auto& beam:itemSnapshot.laserBeams) {
+            if(!beam.fromTarget && beam.ray==0)continue;
+            if((priority==0 && beam.fromTarget) || (priority==1 && !beam.fromTarget))continue;
+            if(beam.remaining<=0 || budget<=0)continue;
+            const auto building=std::ranges::find(itemSnapshot.buildings,beam.sourceId,&BuildingInstance::id);
+            if(building==itemSnapshot.buildings.end()) continue;
+            const auto start=beam.fromTarget ? targetPoint(*beam.fromTarget,beam.origin)
+                : laserMuzzleWorldPosition(buildingWorldPosition(*building),
+                    towerYaw(itemSnapshot,*building,interpolation),towerPitch(itemSnapshot,*building,interpolation));
+            auto origin=chain_lightning_effect::point(start);
+            auto end=chain_lightning_effect::point(targetPoint(beam.targetId,beam.end));
+            if(Vector3DistanceSqr(origin,camera.position)>lighting.fogEnd*lighting.fogEnd) continue;
+            --budget;
+            const float lane=beam.rayCount<=1?0:float(beam.ray)/float(beam.rayCount-1)-.5F;
+            origin=laser_beam_effect::parallelPoint(origin,camera.position,lane,beam.fromTarget?.36F:.16F);
+            end=laser_beam_effect::parallelPoint(end,camera.position,lane,.36F);
+            laser_beam_effect::emit(origin,end,camera.position,float(beam.focus),
+                float(itemSnapshot.elapsedSeconds)+float(beam.ray)*.1F,float(std::min(1.0,beam.remaining/.08)));
         }
         fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->endWorldShader();
     }

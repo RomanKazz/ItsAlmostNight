@@ -442,6 +442,26 @@ void App::drawShadowPass(
                               z - 0.55F}, 0.18F,
                              0.18F, 1.0F, WHITE);
                 }
+            } else if (building.type == BuildingType::LaserTower) {
+                static_cast<void>(renderer_->drawLaserTower({x, groundY, z},
+                    towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
+            } else if (building.type == BuildingType::MissileLauncher) {
+                static_cast<void>(renderer_->drawMissileLauncher({x, groundY, z},
+                    towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
+            } else if (building.type == BuildingType::Flamethrower) {
+                static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
+                    towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
+            } else if (building.type == BuildingType::GunTurret) {
+                static_cast<void>(renderer_->drawGunTurret(
+                    {x, groundY, z},
+                    towerBaseYaw(snapshot, building),
+                    towerYaw(snapshot, building, interpolationAlpha), WHITE, spawnScale, {}, building.level));
             } else if (building.type == BuildingType::TeslaTower) {
                 static_cast<void>(renderer_->drawTeslaTower({x, groundY, z},
                     towerBaseYaw(snapshot, building), WHITE, spawnScale,
@@ -1052,6 +1072,27 @@ void App::drawSelectionPass(
                              z - 0.55F}, 0.18F,
                             0.18F, 1.0F, WHITE);
                     }
+                } else if (building->type == BuildingType::LaserTower) {
+                    static_cast<void>(renderer_->drawLaserTower({x, groundY, z},
+                        towerBaseYaw(snapshot, *building), WHITE, spawnScale,
+                        towerPitch(snapshot, *building, interpolationAlpha),
+                        towerYaw(snapshot, *building, interpolationAlpha), building->level));
+                } else if (building->type == BuildingType::MissileLauncher) {
+                    static_cast<void>(renderer_->drawMissileLauncher({x, groundY, z},
+                        towerBaseYaw(snapshot, *building), WHITE, spawnScale,
+                        towerPitch(snapshot, *building, interpolationAlpha),
+                        towerYaw(snapshot, *building, interpolationAlpha), building->level));
+                } else if (building->type == BuildingType::Flamethrower) {
+                    static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
+                        towerBaseYaw(snapshot, *building), WHITE, spawnScale,
+                        towerPitch(snapshot, *building, interpolationAlpha),
+                        towerYaw(snapshot, *building, interpolationAlpha), building->level));
+                } else if (building->type == BuildingType::GunTurret) {
+                    static_cast<void>(renderer_->drawGunTurret(
+                        {x, groundY, z},
+                        towerBaseYaw(snapshot, *building),
+                        defensiveYaw, WHITE, spawnScale,
+                        shotRecoil, building->level));
                 } else if (building->type == BuildingType::TeslaTower) {
                     static_cast<void>(renderer_->drawTeslaTower({x, groundY, z},
                         towerBaseYaw(snapshot, *building), WHITE, spawnScale,

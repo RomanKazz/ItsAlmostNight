@@ -78,6 +78,7 @@ void AudioSystem::initialize() {
     load(stoneBreak_, "assets/audio/stone_hit_4.ogg");
     load(critical_, "assets/audio/critical.ogg");
     load(rifleShot_, "assets/audio/rifle_shot.wav");
+    load(laserLoop_, "assets/audio/laser_loop.wav");
     load(explosion_, "assets/audio/explosion.wav");
     if (explosion_.loaded) {
         for (Clip& alias : explosionAliases_) {
@@ -134,6 +135,7 @@ void AudioSystem::shutdown() {
         if (alias.loaded) UnloadSoundAlias(alias.sound);
         alias = {};
     }
+    unload(laserLoop_);
     unload(explosion_);
     explosionSoundBudget_.reset();
     unload(buildPlace_);
@@ -224,6 +226,38 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
             variedPitch(0.05F));
         buildingPlacedSoundCooldown_ = 0.10;
         playedBuildingPlacedSound = true;
+    }
+    if (laserLoop_.loaded) {
+        float targetGain = 0.0F;
+        float nearestPan = 0.5F;
+        if (activeRun && snapshot.state != RunState::Paused &&
+            !snapshot.runUpgradeChoicePending && !snapshot.runShop.pending) {
+            for (const auto& tower : snapshot.towers) {
+                if (tower.type != BuildingType::LaserTower || tower.laserRemaining <= 0.0) continue;
+                const auto center = tower.laserOrigin;
+                const double x = center.x - snapshot.playerPosition.x;
+                const double z = center.z - snapshot.playerPosition.z;
+                const float distance = static_cast<float>(std::hypot(x, z));
+                const float gain = 0.16F * std::pow(std::clamp(1.0F - distance / 22.0F, 0.0F, 1.0F), 2.0F);
+                if (gain > targetGain) {
+                    targetGain = gain;
+                    nearestPan = std::clamp(0.5F + static_cast<float>(
+                        (x * std::cos(snapshot.playerYaw) + z * std::sin(snapshot.playerYaw)) /
+                        std::max(1.0, static_cast<double>(distance))) * 0.28F, 0.0F, 1.0F);
+                }
+            }
+        }
+        // One shared loop, regardless of tower count. No per-heat-pulse voices.
+        laserLoop_.volume += (targetGain - laserLoop_.volume) *
+            (1.0F - std::exp(-12.0F * frameSeconds));
+        if (targetGain > 0.001F || laserLoop_.volume > 0.001F) {
+            if (!IsMusicStreamPlaying(laserLoop_.music)) PlayMusicStream(laserLoop_.music);
+            UpdateMusicStream(laserLoop_.music);
+            SetMusicVolume(laserLoop_.music, laserLoop_.volume * settings_.sfxVolume);
+            SetMusicPan(laserLoop_.music, nearestPan);
+        } else if (IsMusicStreamPlaying(laserLoop_.music)) {
+            StopMusicStream(laserLoop_.music);
+        }
     }
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
@@ -376,7 +410,7 @@ void AudioSystem::playEvent(
             variedPitch(0.03F) * 0.72F, 48.0F);
         break;
     case GameEventType::ProjectileHit:
-        if(event.buildingType==BuildingType::MissileLauncher || event.buildingType==BuildingType::TeslaTower) break;
+        if(event.buildingType==BuildingType::MissileLauncher || event.buildingType==BuildingType::TeslaTower || event.buildingType==BuildingType::LaserTower) break;
         playAt(
             event.sourceId ? turretHit_ : enemyHit_,
             event.position, snapshot,

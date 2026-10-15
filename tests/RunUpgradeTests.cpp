@@ -860,8 +860,8 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 49 && activeHammers == 22,
-        "streamlined pool contains 22 tomes and 27 blueprint, weapon or tool cards");
+    require(activeCount == 50 && activeHammers == 22,
+        "streamlined pool contains 22 tomes and 28 blueprint, weapon or tool cards");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
             retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight, overkill and high stakes are retired");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
