@@ -1,4 +1,5 @@
 #include "graphics/GraphicsResources.hpp"
+#include <algorithm>
 
 namespace ian {
 
@@ -308,8 +309,11 @@ ModelResource& GraphicsResources::gunTurretModel() {
 }
 
 ModelResource& GraphicsResources::teslaTowerModel() { return teslaTowerModel_; }
+ModelResource& GraphicsResources::teslaUpgradeModel() { return teslaUpgradeModel_; }
 
-ModelResource& GraphicsResources::missileLauncherModel() { return missileLauncherModel_; }
+ModelResource& GraphicsResources::missileLauncherModel(int level) {
+    return missileLauncherModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
+}
 
 ModelResource& GraphicsResources::flamethrowerModel() {
     return flamethrowerModel_;

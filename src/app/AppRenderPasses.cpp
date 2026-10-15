@@ -966,7 +966,8 @@ void App::drawSelectionPass(
                     buildingImpactOffsetAt(building->id);
                 float defensiveYaw = 0.0F;
                 if (building->type == BuildingType::Turret ||
-                    building->type == BuildingType::GunTurret) {
+                    building->type == BuildingType::GunTurret ||
+                    building->type == BuildingType::MissileLauncher) {
                     defensiveYaw =
                         towerYaw(snapshot, *building, interpolationAlpha);
                 } else if (

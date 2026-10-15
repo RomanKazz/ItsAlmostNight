@@ -178,7 +178,6 @@ ctest --preset sanitizers
 | `J` | скрыть только нижний HUD |
 | `B` | меню создания от 1 до 1000 врагов |
 | `O` | god mode |
-| `T` | замедление времени |
 | `Ctrl+F6` | terrain wireframe |
 | `Ctrl+F7`, `Ctrl+F9` | регенерация terrain |
 | `Ctrl+F10` | структурное разрушение |

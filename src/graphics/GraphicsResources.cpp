@@ -1098,7 +1098,12 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     crossbowModel_.load("assets/models/weapons/crossbow.glb");
     gunTurretModel_.load("assets/models/buildings/gun_turret.glb");
     teslaTowerModel_.load("assets/models/buildings/tesla_tower.glb");
-    missileLauncherModel_.load("assets/models/buildings/missile_launcher.glb");
+    teslaUpgradeModel_.load("assets/models/buildings/tesla_upgrades.glb");
+    for (std::size_t index = 0; index < missileLauncherModels_.size(); ++index) {
+        const std::string path = "assets/models/buildings/missile_launcher_levels/missile_launcher_lvl0" +
+            std::to_string(index + 1) + ".glb";
+        missileLauncherModels_[index].load(path.c_str());
+    }
     flamethrowerModel_.load("assets/models/buildings/flamethrower.glb");
     turretBulletModel_.load("assets/models/projectiles/turret_bullet.glb");
     coreModel_.load("assets/models/buildings/core_levels.glb");
@@ -1604,7 +1609,8 @@ void GraphicsResources::shutdown() {
     crossbowModel_.unload();
     gunTurretModel_.unload();
     teslaTowerModel_.unload();
-    missileLauncherModel_.unload();
+    teslaUpgradeModel_.unload();
+    for (auto& model : missileLauncherModels_) model.unload();
     flamethrowerModel_.unload();
     turretBulletModel_.unload();
     sawBladeModel_.unload();

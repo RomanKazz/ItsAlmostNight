@@ -1,0 +1,50 @@
+{
+  "meshes": [
+    {
+      "mesh": "tesla_upgrade_l2",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l3",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l4",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l5",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l6",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l7",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.288864870866983e-16
+    },
+    {
+      "mesh": "tesla_upgrade_l8",
+      "manifold": true,
+      "normals_uv_valid": true,
+      "symmetry_max_error_m": 2.343973893206532e-16
+    }
+  ],
+  "base_unchanged": true,
+  "embedded_palette_exact": true,
+  "source_packed": true,
+  "round_trip_verified": true
+}

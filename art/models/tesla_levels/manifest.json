@@ -1,0 +1,159 @@
+{
+  "mode": "L1 unchanged base; L2-L8 base + one complete static overlay",
+  "base_sha256": "70ece4cbbefe19861cee14c4ada395c2bc4a0e1554b5fbffb1ab3141a1b26bb1",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "footprint_m": [
+    2,
+    2
+  ],
+  "levels": [
+    {
+      "level": 2,
+      "mesh": 0,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.0679999589920044,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 192
+    },
+    {
+      "level": 3,
+      "mesh": 1,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.0679999589920044,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 640
+    },
+    {
+      "level": 4,
+      "mesh": 2,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.0679999589920044,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 1024
+    },
+    {
+      "level": 5,
+      "mesh": 3,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.0679999589920044,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 2512
+    },
+    {
+      "level": 6,
+      "mesh": 4,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.0679999589920044,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 3072
+    },
+    {
+      "level": 7,
+      "mesh": 5,
+      "bounds_glb": [
+        [
+          -0.6230000257492065,
+          0.1550000011920929,
+          -0.6230000257492065
+        ],
+        [
+          0.6230000257492065,
+          1.2350000143051147,
+          0.6230000257492065
+        ]
+      ],
+      "triangles": 3280
+    },
+    {
+      "level": 8,
+      "mesh": 6,
+      "bounds_glb": [
+        [
+          -0.6380000114440918,
+          0.09300000220537186,
+          -0.6380000114440918
+        ],
+        [
+          0.6380000114440918,
+          1.2350000143051147,
+          0.6380000114440918
+        ]
+      ],
+      "triangles": 3680
+    }
+  ],
+  "additional_draws": 1,
+  "overlay_materials": 1,
+  "base_bounds_glb": [
+    [
+      -0.6,
+      0,
+      -0.6
+    ],
+    [
+      0.6,
+      1.44,
+      0.6
+    ]
+  ],
+  "collision": "unchanged base COL_BOX_BODY",
+  "energy_center_glb": [
+    0,
+    1.26,
+    0
+  ],
+  "muzzle_glb": [
+    0,
+    1.26,
+    -0.2
+  ],
+  "motion": "static C4 symmetric; root transforms identity; no added pivots",
+  "integration": "renderer selects current level; same draw path for preview, shadows and outline",
+  "license": "Kenney colormap CC0; original project upgrade geometry",
+  "native_playtest": false
+}

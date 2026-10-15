@@ -1,3 +1,4 @@
+#include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/MissileLauncherModel.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
@@ -185,7 +186,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         resource = &resources_.teslaTowerModel();
         yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
     case BuildingType::MissileLauncher:
-        resource = &resources_.missileLauncherModel();
+        resource = &resources_.missileLauncherModel(building.level);
         yaw = defensiveYaw; break;
     case BuildingType::Flamethrower:
         resource = &resources_.flamethrowerModel();
@@ -319,6 +320,23 @@ std::optional<double> Renderer::buildingRaycastDistance(
                             building.type, building.rotation))), defensiveYaw, cannonPitchRadians));
                 const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], pose));
                 if (distance && (!closest || *distance < *closest)) closest = distance;
+            }
+            return closest;
+        }
+        if (building.type == BuildingType::TeslaTower) {
+            auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
+            auto& upgrades = resources_.teslaUpgradeModel();
+            const int mesh = tesla_upgrade_model::meshIndex(building.level);
+            if (upgrades.valid() && mesh >= 0 && mesh < upgrades.get().meshCount) {
+                const Matrix pose = MatrixMultiply(upgrades.get().transform,
+                    MatrixMultiply(scale, MatrixMultiply(MatrixRotateY(yaw),
+                        MatrixTranslate(position.x, position.y, position.z))));
+                const auto broad = acceptCollision(GetRayCollisionBox(ray,
+                    world_transforms::transformBounds(upgrades.meshBounds()[static_cast<std::size_t>(mesh)], pose)));
+                if (broad && (!closest || *broad < *closest)) {
+                    const auto distance = acceptCollision(GetRayCollisionMesh(ray, upgrades.get().meshes[mesh], pose));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                }
             }
             return closest;
         }

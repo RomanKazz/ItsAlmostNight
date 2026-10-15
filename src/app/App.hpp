@@ -748,7 +748,6 @@ class App {
     double buildingStatsUpgradeDuration_{0.9};
     EnemyType debugSpawnType_{EnemyType::Basic};
     EliteAffix debugSpawnEliteAffix_{EliteAffix::None};
-    bool slowMotion_{};
     bool showColliders_{};
     bool showFlowField_{};
     bool showSpatialHash_{};

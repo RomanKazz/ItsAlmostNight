@@ -1,0 +1,58 @@
+[
+  {
+    "level": 1,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5111063718795776,
+    "round_trip": true
+  },
+  {
+    "level": 2,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5111063718795776,
+    "round_trip": true
+  },
+  {
+    "level": 3,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5111063718795776,
+    "round_trip": true
+  },
+  {
+    "level": 4,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5179967880249023,
+    "round_trip": true
+  },
+  {
+    "level": 5,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5179967880249023,
+    "round_trip": true
+  },
+  {
+    "level": 6,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5179967880249023,
+    "round_trip": true
+  },
+  {
+    "level": 7,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5179967880249023,
+    "round_trip": true
+  },
+  {
+    "level": 8,
+    "poses": 1119,
+    "unintended_motion_contacts": 0,
+    "max_moving_height": 1.5179967880249023,
+    "round_trip": true
+  }
+]

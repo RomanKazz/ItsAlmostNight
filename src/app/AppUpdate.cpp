@@ -623,7 +623,7 @@ void App::update() {
     const double resourceAnimationSeconds =
         !movementSnapshot.runUpgradeChoicePending &&
                 acceptsGameplayInput(frameState)
-            ? (slowMotion_ ? frameSeconds * 0.2 : frameSeconds)
+            ? frameSeconds
             : 0.0;
     statusMessageRemaining_ =
         std::max(0.0, statusMessageRemaining_ - frameSeconds);
@@ -792,7 +792,7 @@ void App::update() {
     }
     bool consumedTransientInput = false;
     const double simulationFrameSeconds =
-        slowMotion_ ? frameSeconds * 0.2 : frameSeconds;
+        frameSeconds;
     const auto simulationStart = PerformanceClock::now();
     performanceStats_.fixedTicks = fixedStep_.advance(
         simulationFrameSeconds,

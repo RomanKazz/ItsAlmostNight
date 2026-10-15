@@ -659,10 +659,6 @@ void App::processInput() {
                 0x9e3779b9U);
             rebuildTerrainGraphics();
         }
-        if (IsKeyPressed(KEY_T)) {
-            slowMotion_ = !slowMotion_;
-            fixedStep_.reset();
-        }
         if (controlDown &&
             IsKeyPressed(KEY_F8)) {
             showColliders_ = !showColliders_;

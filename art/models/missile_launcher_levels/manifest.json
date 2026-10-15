@@ -1,0 +1,392 @@
+{
+  "levels": [
+    {
+      "level": 1,
+      "file": "missile_launcher_lvl01.glb",
+      "visible_triangles": 1744,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.3580000400543213,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.3580000400543213,
+          1.2000000476837158
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 2,
+      "file": "missile_launcher_lvl02.glb",
+      "visible_triangles": 1904,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "max": [
+          0.625,
+          1.3580000400543213,
+          0.625
+        ],
+        "size": [
+          1.25,
+          1.3580000400543213,
+          1.25
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 3,
+      "file": "missile_launcher_lvl03.glb",
+      "visible_triangles": 1952,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "max": [
+          0.625,
+          1.3580000400543213,
+          0.625
+        ],
+        "size": [
+          1.25,
+          1.3580000400543213,
+          1.25
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 4,
+      "file": "missile_launcher_lvl04.glb",
+      "visible_triangles": 2400,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "max": [
+          0.625,
+          1.3580000400543213,
+          0.625
+        ],
+        "size": [
+          1.25,
+          1.3580000400543213,
+          1.25
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 5,
+      "file": "missile_launcher_lvl05.glb",
+      "visible_triangles": 2544,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.6359999775886536,
+          0.0,
+          -0.6359999775886536
+        ],
+        "max": [
+          0.6359999775886536,
+          1.378999948501587,
+          0.6359999775886536
+        ],
+        "size": [
+          1.2719999551773071,
+          1.378999948501587,
+          1.2719999551773071
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 6,
+      "file": "missile_launcher_lvl06.glb",
+      "visible_triangles": 2688,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.6359999775886536,
+          0.0,
+          -0.6359999775886536
+        ],
+        "max": [
+          0.6359999775886536,
+          1.378999948501587,
+          0.6359999775886536
+        ],
+        "size": [
+          1.2719999551773071,
+          1.378999948501587,
+          1.2719999551773071
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 7,
+      "file": "missile_launcher_lvl07.glb",
+      "visible_triangles": 2736,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.6359999775886536,
+          0.0,
+          -0.6359999775886536
+        ],
+        "max": [
+          0.6359999775886536,
+          1.4704999923706055,
+          0.6359999775886536
+        ],
+        "size": [
+          1.2719999551773071,
+          1.4704999923706055,
+          1.2719999551773071
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    },
+    {
+      "level": 8,
+      "file": "missile_launcher_lvl08.glb",
+      "visible_triangles": 2968,
+      "visible_meshes": 3,
+      "mode": "complete replacement model",
+      "visible_bounds_glb": {
+        "min": [
+          -0.6359999775886536,
+          0.0,
+          -0.6359999775886536
+        ],
+        "max": [
+          0.6359999775886536,
+          1.4704999923706055,
+          0.6359999775886536
+        ],
+        "size": [
+          1.2719999551773071,
+          1.4704999923706055,
+          1.2719999551773071
+        ]
+      },
+      "collision_bounds_glb": {
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "max": [
+          0.6000000238418579,
+          1.5399999618530273,
+          0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5399999618530273,
+          1.2000000476837158
+        ]
+      },
+      "render_order": [
+        "base_mesh",
+        "pitch_mesh",
+        "yaw_mesh"
+      ]
+    }
+  ],
+  "base_sha256": "1d2c6015a28e9b2af4833adf48fa5b71ddef24125e450106b05cb0a7bc875972",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "integration": "Connected: level-selected resources, render, shadows, outlines, preview and raycast",
+  "pitch_pivot_glb": [
+    0,
+    1.09,
+    0
+  ],
+  "yaw_pivot_glb": [
+    0,
+    0.6,
+    0
+  ],
+  "footprint_m": [
+    2,
+    2
+  ],
+  "license": "Kenney palette CC0; project geometry",
+  "native_playtest": false,
+  "validation_file": "validation.json"
+}

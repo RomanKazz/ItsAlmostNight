@@ -14,6 +14,10 @@ inline bool checkMissileLauncherGraphics(ian::Renderer& renderer) {
     if (asset.colliders.size()!=1 || std::ranges::count_if(asset.sockets, [](const auto& socket){return socket.name.starts_with("MUZZLE_");})!=4) return false;
     GraphicsResources resources; resources.initialize({});
     if (!resources.missileLauncherModel().valid() || resources.missileLauncherModel().get().meshCount!=3) return false;
+    for (int level = 1; level <= 8; ++level) {
+        auto& model = resources.missileLauncherModel(level);
+        if (!model.valid() || model.get().meshCount != 3 || model.collisionAsset().sockets.size() != 4) return false;
+    }
     GameUi ui;ui.initialize();
     if (ui.buildingTexture(BuildingType::MissileLauncher).id==0) return false;
     const RenderTexture2D target=LoadRenderTexture(800,600);
@@ -46,6 +50,35 @@ inline bool checkMissileLauncherGraphics(ian::Renderer& renderer) {
         const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
         if(!renderer.buildingRaycastDistance(building,{&building,1},ray,10,yaw,pitch,0,-1,0)) return false;
     }
+    Color* previousLevel = nullptr;
+    bool distinctLevels = true;
+    for (int level = 1; level <= 8; ++level) {
+        renderer.beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});BeginMode3D(camera);
+        WorldLighting lighting{};lighting.cameraPosition=camera.position;renderer.beginWorldShader(lighting);
+        const bool drawn = renderer.drawMissileLauncher({},0,WHITE,1,.35F,.4F,level);
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        Image image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);
+        if (previousLevel) {
+            int differences=0;
+            for(int i=0;i<800*600;++i)
+                differences+=std::abs(int(pixels[i].r)-int(previousLevel[i].r))>15 ||
+                    std::abs(int(pixels[i].g)-int(previousLevel[i].g))>15;
+            distinctLevels = distinctLevels && differences>30;
+            UnloadImageColors(previousLevel);
+        }
+        distinctLevels = distinctLevels && drawn;
+        previousLevel=pixels;
+        if(const char* output=std::getenv("IAN_MISSILE_CAPTURE")) {
+            const auto path=std::filesystem::path(output)/("launcher-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImage(image);
+        BuildingInstance building{.type=BuildingType::MissileLauncher,.gridPosition={0,0},.level=static_cast<std::uint8_t>(level)};
+        const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
+        distinctLevels = distinctLevels && renderer.buildingRaycastDistance(building,{&building,1},ray,10,.4F,.35F).has_value();
+    }
+    UnloadImageColors(previousLevel);
     int colored=0, changed=0;
     Image rocketImages[2]{};
     for(int frame=0;frame<2;++frame) {
@@ -77,5 +110,5 @@ inline bool checkMissileLauncherGraphics(ian::Renderer& renderer) {
     UnloadImageColors(first);UnloadImageColors(second);
     for(auto image:rocketImages) UnloadImage(image);
     UnloadRenderTexture(target);ui.shutdown();resources.shutdown();
-    return counts[0]>10000 && counts[1]>10000 && colored>100 && changed>10;
+    return distinctLevels && counts[0]>10000 && counts[1]>10000 && colored>100 && changed>10;
 }

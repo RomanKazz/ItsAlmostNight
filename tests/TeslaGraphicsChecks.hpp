@@ -3,6 +3,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/ChainLightningEffect.hpp"
+#include "graphics/TeslaUpgradeModel.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "ui/GameUi.hpp"
 #include <cstdlib>
@@ -14,6 +15,7 @@ inline bool checkTeslaGraphics(ian::Renderer& renderer) {
     if(std::abs(collision.sockets[0].position.y-1.26)>1e-5) return false;
     GraphicsResources resources;resources.initialize({});GameUi ui;ui.initialize();
     if(!resources.teslaTowerModel().valid() || resources.teslaTowerModel().get().meshCount!=2 ||
+        !resources.teslaUpgradeModel().valid() || resources.teslaUpgradeModel().get().meshCount!=7 ||
         ui.buildingTexture(BuildingType::TeslaTower).id==0) return false;
     const RenderTexture2D texture=LoadRenderTexture(800,600);
     const Camera3D camera{{3,2.8F,-5},{0,.9F,0},{0,1,0},4.5F,CAMERA_ORTHOGRAPHIC};
@@ -44,6 +46,33 @@ inline bool checkTeslaGraphics(ian::Renderer& renderer) {
     }
     UnloadImageColors(first);UnloadImageColors(second);UnloadImageColors(covered);
     for(auto image:images)UnloadImage(image);
+    // Exercise the actual level selector/render path: every tier must change visibly.
+    Color* previousLevel = nullptr;
+    bool distinctLevels = true;
+    for (int level = 1; level <= 8; ++level) {
+        renderer.beginFrame();BeginTextureMode(texture);ClearBackground({29,47,57,255});BeginMode3D(camera);
+        WorldLighting lighting{};lighting.cameraPosition=camera.position;renderer.beginWorldShader(lighting);
+        const bool drawn = renderer.drawTeslaTower({},0,WHITE,1,0,{},level);
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        Image image=LoadImageFromTexture(texture.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);
+        if (previousLevel) {
+            int differences=0;
+            for(int i=0;i<800*600;++i)
+                differences+=std::abs(int(pixels[i].r)-int(previousLevel[i].r))>15 ||
+                    std::abs(int(pixels[i].g)-int(previousLevel[i].g))>15;
+            distinctLevels = distinctLevels && differences>50;
+            UnloadImageColors(previousLevel);
+        }
+        distinctLevels = distinctLevels && drawn;
+        previousLevel=pixels;
+        if(const char* output=std::getenv("IAN_TESLA_CAPTURE")) {
+            const auto path=std::filesystem::path(output)/("tesla-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImage(image);
+    }
+    UnloadImageColors(previousLevel);
     const BuildingInstance building{.type=BuildingType::TeslaTower,.gridPosition={0,0}};
     const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
     const bool cast=renderer.buildingRaycastDistance(building,{&building,1},ray,10,0,0).has_value();
@@ -61,5 +90,5 @@ inline bool checkTeslaGraphics(ian::Renderer& renderer) {
     };
     const bool circle=rangeRender(true)>rangeRender(false)+1000;
     UnloadRenderTexture(texture);ui.shutdown();resources.shutdown();
-    return orange>1000 && blue>100 && changed>100 && hidden==0 && cast && circle;
+    return distinctLevels && orange>1000 && blue>100 && changed>100 && hidden==0 && cast && circle;
 }

@@ -1,4 +1,5 @@
 #include "graphics/MissileLauncherModel.hpp"
+#include "graphics/TeslaUpgradeModel.hpp"
 #include "buildings/TowerRig.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
@@ -237,7 +238,7 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
 }
 
 bool Renderer::drawTeslaTower(Vector3 position, float yawRadians, Color tint,
-    float scale, float /*pitchRadians*/, std::optional<float> /*headYaw*/, int /*level*/) {
+    float scale, float /*pitchRadians*/, std::optional<float> /*headYaw*/, int level) {
     auto& resource = resources_.teslaTowerModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
@@ -254,12 +255,25 @@ bool Renderer::drawTeslaTower(Vector3 position, float yawRadians, Color tint,
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     }
     setWorldMaterial(savedMaterial);
+    auto& upgrades = resources_.teslaUpgradeModel();
+    const int mesh = tesla_upgrade_model::meshIndex(level);
+    if (upgrades.valid() && mesh >= 0 && mesh < upgrades.get().meshCount) {
+        Model& extra = upgrades.get();
+        prepareModelShader(extra);
+        Material& material = extra.materials[extra.meshMaterial[mesh]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        const Matrix pose = missile_launcher_model::meshTransform(0, position,
+            yawRadians, yawRadians, 0, scale);
+        DrawMesh(extra.meshes[mesh], material, MatrixMultiply(extra.transform, pose));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
     return true;
 }
 
 bool Renderer::drawMissileLauncher(Vector3 position, float yawRadians, Color tint,
-    float scale, float pitchRadians, std::optional<float> headYaw, int /*level*/) {
-    auto& resource = resources_.missileLauncherModel();
+    float scale, float pitchRadians, std::optional<float> headYaw, int level) {
+    auto& resource = resources_.missileLauncherModel(level);
     if (!resource.valid()) return false;
     Model& model = resource.get();
     prepareModelShader(model);
