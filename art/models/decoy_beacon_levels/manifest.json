@@ -1,0 +1,2277 @@
+{
+  "asset": "decoy_beacon_levels",
+  "central_radial_scales": [
+    1,
+    1,
+    1,
+    1.18,
+    1.18,
+    1.18,
+    1.35,
+    1.35
+  ],
+  "coordinates": "GLB +Y up, -Z forward; Blender +Z up, +Y forward; metres",
+  "effect_socket_glb": [
+    0,
+    0.6536,
+    0
+  ],
+  "footprint_m": [
+    2,
+    2
+  ],
+  "hanging_lamp_scales": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1.14,
+    1.14,
+    1.27
+  ],
+  "integration": {
+    "gameplay_changed": false,
+    "loader_verified": true,
+    "playtested": false,
+    "renderer_connected": false
+  },
+  "levels": [
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6399999856948853,
+          1.4700000286102295,
+          0.6399999856948853
+        ],
+        "min": [
+          -0.6399999856948853,
+          0.0,
+          -0.6399999856948853
+        ],
+        "size": [
+          1.2799999713897705,
+          1.4700000286102295,
+          1.2799999713897705
+        ]
+      },
+      "description": "Original five-lantern beacon",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl01.glb",
+      "fresh_import_verified": true,
+      "level": 1,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": false,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "86041025ae07df87070ffb511b810e518a1ce34574e61f00b6f64fce88015f5b",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2720,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6049000024795532,
+          1.451941728591919,
+          0.6049000024795532
+        ],
+        "min": [
+          -0.6049000024795532,
+          0.0,
+          -0.6049000024795532
+        ],
+        "size": [
+          1.2098000049591064,
+          1.451941728591919,
+          1.2098000049591064
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3180
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Gold lantern caps, lifting eye and base belt",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl02.glb",
+      "fresh_import_verified": true,
+      "level": 2,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": false,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "973b3d483a445f82f40e9362ec65069b2fcd7ef488c51e1cf55d6436eebd0f2c",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2816,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6049000024795532,
+          1.451941728591919,
+          0.6049000024795532
+        ],
+        "min": [
+          -0.6049000024795532,
+          0.0,
+          -0.6049000024795532
+        ],
+        "size": [
+          1.2098000049591064,
+          1.451941728591919,
+          1.2098000049591064
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3276
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Gold structural feet with exposed orange inlays",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl03.glb",
+      "fresh_import_verified": true,
+      "level": 3,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": false,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "7117a6b7a3a14eddc190f8c064e0de0394f9c37013d879991c0a7f3cdd09e75b",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2816,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6049000024795532,
+          1.451941728591919,
+          0.6049000024795532
+        ],
+        "min": [
+          -0.6049000024795532,
+          0.0,
+          -0.6049000024795532
+        ],
+        "size": [
+          1.2098000049591064,
+          1.451941728591919,
+          1.2098000049591064
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3276
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Wider central lamp and lower protective collar",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl04.glb",
+      "fresh_import_verified": true,
+      "level": 4,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": false,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "2b4edd09afa5ee5a0c72dd184ae11e261e7861f596ca2d30a7b70cc49fb2d2c0",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2912,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6049000024795532,
+          1.451941728591919,
+          0.6049000024795532
+        ],
+        "min": [
+          -0.6049000024795532,
+          0.0,
+          -0.6049000024795532
+        ],
+        "size": [
+          1.2098000049591064,
+          1.451941728591919,
+          1.2098000049591064
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3372
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Broad crown housing and reinforced cross arms",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl05.glb",
+      "fresh_import_verified": true,
+      "level": 5,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": false,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "fb0d4ecd9ca96ab340c426fdf8c0e5a4a69fb2379a845401c108a40499eabb88",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6704999804496765,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6704999804496765,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 3056,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6049000024795532,
+          1.451941728591919,
+          0.6049000024795532
+        ],
+        "min": [
+          -0.6049000024795532,
+          0.0,
+          -0.6049000024795532
+        ],
+        "size": [
+          1.2098000049591064,
+          1.451941728591919,
+          1.2098000049591064
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3516
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Larger hanging lamps with protective corner bars",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl06.glb",
+      "fresh_import_verified": true,
+      "level": 6,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": true,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "6cfb91c88a1f6bf8ccc496eebbee9648e532220e36674f14b3d47dbba5a4f2a6",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6509699821472168,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6509699821472168,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6509699821472168,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6509699821472168,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 3248,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6188859939575195,
+          1.451941728591919,
+          0.6188859939575195
+        ],
+        "min": [
+          -0.6188859939575195,
+          0.0,
+          -0.6188859939575195
+        ],
+        "size": [
+          1.237771987915039,
+          1.451941728591919,
+          1.237771987915039
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3708
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Four red pulse capacitors and a larger central lantern",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl07.glb",
+      "fresh_import_verified": true,
+      "level": 7,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": true,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "abfd8e7614e916e03ac2b027d6598232224d86724ec9e54bbf8b9d1484e4959a",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6509699821472168,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6509699821472168,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6509699821472168,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6509699821472168,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 3904,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6188859939575195,
+          1.451941728591919,
+          0.6188859939575195
+        ],
+        "min": [
+          -0.6188859939575195,
+          0.0,
+          -0.6188859939575195
+        ],
+        "size": [
+          1.237771987915039,
+          1.451941728591919,
+          1.237771987915039
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 4364
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6700000166893005,
+          1.5299999713897705,
+          0.6700000166893005
+        ],
+        "min": [
+          -0.6700000166893005,
+          0.0,
+          -0.6700000166893005
+        ],
+        "size": [
+          1.340000033378601,
+          1.5299999713897705,
+          1.340000033378601
+        ]
+      },
+      "description": "Oversized lanterns, master crown and double base band",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl08.glb",
+      "fresh_import_verified": true,
+      "level": 8,
+      "mechanical": {
+        "clearance_above_feet": true,
+        "cross_arms_attached": true,
+        "exposed_bolts": true,
+        "guard_connections_checked": true,
+        "lamps_attached": true,
+        "open_lifting_eye": true,
+        "packed_palette": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "light_mesh": 1
+      },
+      "sha256": "a32053e663dcb4a846bb82afa4b6a45ee0579b07559771f6b84a36d012aa1115",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "light_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_attract": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6535999774932861,
+            0
+          ]
+        },
+        "socket_light_01": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6328349709510803,
+            -0.5049999952316284
+          ]
+        },
+        "socket_light_02": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            -0.5049999952316284,
+            0.6328349709510803,
+            0
+          ]
+        },
+        "socket_light_03": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6328349709510803,
+            0.5049999952316284
+          ]
+        },
+        "socket_light_04": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0.5049999952316284,
+            0.6328349709510803,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.6200000047683716,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 4240,
+        "light_mesh": 460
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6318730115890503,
+          1.4739301204681396,
+          0.6318730115890503
+        ],
+        "min": [
+          -0.6318730115890503,
+          0.0,
+          -0.6318730115890503
+        ],
+        "size": [
+          1.2637460231781006,
+          1.4739301204681396,
+          1.2637460231781006
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 4700
+    }
+  ],
+  "license": "Kenney Tower Defense Kit 2.1 palette CC0; original project geometry",
+  "light_mesh_index": 1,
+  "mode": "Eight complete replacement models; draw one level, not additive overlays",
+  "motion": "Static; no pivots, muzzle, recoil, rig or animation clips",
+  "original_base_sha256": "5fd3b088e8b1966ac9517e47747418c10ffd75b2cc1f9394a7942f5a968a2cc8",
+  "palette": {
+    "embedded_glb": true,
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "source_blend_sha256": "ca1fe9ee6a700d1f23bee1a754f0a297b56fe79774fecf1092d81acbc45fb350"
+}
