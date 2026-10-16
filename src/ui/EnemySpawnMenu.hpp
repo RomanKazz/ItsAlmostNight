@@ -3,6 +3,7 @@
 #include "enemies/EnemySystem.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiMenuStyle.hpp"
+#include "ui/GameUi.hpp"
 
 #include <array>
 #include <cmath>
@@ -28,18 +29,17 @@ struct Entry {
     const char* name;
     const char* role;
     const char* description;
-    Color color;
 };
 inline constexpr std::array<Entry, 9> Enemies{{
-    {EnemyType::Basic, "BASIC", "THE HORDE", "Classic crowd. Perfect for\ntrying out a full wave.", {222, 105, 171, 255}},
-    {EnemyType::Fast, "FAST", "QUICK FEET", "Fast runners that close\nthe distance quickly.", {196, 116, 66, 255}},
-    {EnemyType::Heavy, "HEAVY", "TOUGH TARGET", "A sturdy front line for\ntesting sustained damage.", {114, 157, 192, 255}},
-    {EnemyType::Boss, "BOSS", "BIG TROUBLE", "A boss encounter with powerful\nattacks and abilities.", {176, 96, 196, 255}},
-    {EnemyType::Ranged, "RANGED", "KEEP YOUR DISTANCE", "Ranged attackers for testing\nincoming projectiles.", {143, 110, 203, 255}},
-    {EnemyType::Sapper, "SAPPER", "EXPLOSIVE", "An explosive visitor.\nKeep an eye on your buildings.", {226, 134, 67, 255}},
-    {EnemyType::Flying, "FLYING", "ABOVE THE GROUND", "Airborne enemies for testing\nanti-air defenses.", {103, 182, 199, 255}},
-    {EnemyType::Splitter, "SPLITTER", "THREE LITTLE SURPRISES", "Splits into three little enemies\nwhen defeated.", {121, 170, 101, 255}},
-    {EnemyType::Splitling, "SPLITLING", "SMALL BUT LIVELY", "The little splitter offspring,\nspawned directly.", {143, 191, 103, 255}},
+    {EnemyType::Basic, "BASIC", "THE HORDE", "Classic crowd. Perfect for\ntrying out a full wave."},
+    {EnemyType::Fast, "FAST", "QUICK FEET", "Fast runners that close\nthe distance quickly."},
+    {EnemyType::Heavy, "HEAVY", "TOUGH TARGET", "A sturdy front line for\ntesting sustained damage."},
+    {EnemyType::Boss, "BOSS", "BIG TROUBLE", "A boss encounter with powerful\nattacks and abilities."},
+    {EnemyType::Ranged, "RANGED", "KEEP YOUR DISTANCE", "Ranged attackers for testing\nincoming projectiles."},
+    {EnemyType::Sapper, "SAPPER", "EXPLOSIVE", "An explosive visitor.\nKeep an eye on your buildings."},
+    {EnemyType::Flying, "FLYING", "ABOVE THE GROUND", "Airborne enemies for testing\nanti-air defenses."},
+    {EnemyType::Splitter, "SPLITTER", "THREE LITTLE SURPRISES", "Splits into three little enemies\nwhen defeated."},
+    {EnemyType::Splitling, "SPLITLING", "SMALL BUT LIVELY", "The little splitter offspring,\nspawned directly."},
 }};
 inline constexpr std::array<EliteAffix, 4> Variants{
     EliteAffix::None, EliteAffix::Berserker, EliteAffix::Warden, EliteAffix::Volatile};
@@ -104,65 +104,23 @@ inline Layout layout(Vector2 screen) {
     return l;
 }
 
-// Lightweight vector portraits; no per-frame model targets or asset loading.
-inline void portrait(EnemyType type, Rectangle bounds, Color pigment, bool elite = false) {
-    const float u = std::min(bounds.width, bounds.height);
-    const Vector2 c{bounds.x + bounds.width * .5F, bounds.y + bounds.height * .54F};
-    const auto ellipse = [&](float x, float y, float rx, float ry, Color color) {
-        DrawEllipse(static_cast<int>(std::lround(c.x + x * u)),
-            static_cast<int>(std::lround(c.y + y * u)), rx * u, ry * u, color);
-    };
-    const auto triangle = [&](Vector2 a, Vector2 b, Vector2 d, Color color) {
-        std::array<Vector2, 3> vertices{{{c.x + a.x * u, c.y + a.y * u},
-            {c.x + b.x * u, c.y + b.y * u}, {c.x + d.x * u, c.y + d.y * u}}};
-        drawSolidTriangleFan(vertices.data(), 3, color);
-    };
-    if (type == EnemyType::Flying) {
-        triangle({-.15F, -.04F}, {-.48F, -.30F}, {-.40F, .12F}, pigment);
-        triangle({.15F, -.04F}, {.40F, .12F}, {.48F, -.30F}, pigment);
-    }
-    if (type == EnemyType::Splitter || type == EnemyType::Splitling) {
-        for (int i = 0; i < 5; ++i) {
-            const float x = -.28F + static_cast<float>(i) * .14F;
-            triangle({x - .06F, -.18F}, {x + .06F, -.18F}, {x, type == EnemyType::Splitter ? -.52F : -.35F},
-                {200, 218, 206, 255});
-        }
-    }
-    ellipse(0, .04F, .35F, .32F, {17, 23, 19, 255});
-    ellipse(0, .025F, .32F, .30F, pigment);
-    ellipse(-.13F, -.105F, .15F, .08F, ColorBrightness(pigment, .14F));
-    if (type == EnemyType::Heavy) {
-        menuStyle::panel({c.x - .38F * u, c.y + .04F * u, .76F * u, .20F * u}, u / 180,
-            {91, 117, 141, 255});
-    }
-    ellipse(0, -.08F, .16F, .15F, {23, 28, 25, 255});
-    ellipse(0, -.09F, .14F, .13F, {248, 245, 224, 255});
-    ellipse(.025F, -.09F, .068F, type == EnemyType::Fast ? .027F : .045F, {26, 32, 27, 255});
-    ellipse(-.02F, -.12F, .02F, .018F, WHITE);
-    if (type == EnemyType::Fast) {
-        DrawLineEx({c.x - .27F * u, c.y - .07F * u}, {c.x + .28F * u, c.y - .07F * u}, .05F * u, {73, 47, 41, 255});
-    }
-    if (type == EnemyType::Ranged) {
-        triangle({-.28F, -.26F}, {.28F, -.26F}, {-.03F, -.54F}, {103, 73, 172, 255});
-        ellipse(0, -.24F, .31F, .04F, {238, 196, 89, 255});
-    }
-    if (type == EnemyType::Sapper) {
-        DrawCircleV({c.x + .28F * u, c.y + .18F * u}, .13F * u, {35, 40, 36, 255});
-        DrawLineEx({c.x + .30F * u, c.y + .06F * u}, {c.x + .34F * u, c.y}, .025F * u, menuStyle::Gold);
-        DrawCircleV({c.x + .34F * u, c.y}, .04F * u, {255, 163, 62, 255});
-    }
-    if (type == EnemyType::Boss || elite) {
-        const Color crown = menuStyle::Gold;
-        triangle({-.25F, -.25F}, {-.07F, -.25F}, {-.27F, -.46F}, crown);
-        triangle({-.12F, -.25F}, {.12F, -.25F}, {0, -.50F}, crown);
-        triangle({.07F, -.25F}, {.25F, -.25F}, {.27F, -.46F}, crown);
-        DrawLineEx({c.x - .24F * u, c.y - .25F * u}, {c.x + .24F * u, c.y - .25F * u}, .07F * u, crown);
-    }
+// Reuse the cached portraits shown in the night forecast.
+inline void portrait(const GameUi& ui, EnemyType type, Rectangle bounds) {
+    const auto texture = ui.enemyTexture(type);
+    if (!IsTextureValid(texture)) return;
+    const float scale = std::min(bounds.width / static_cast<float>(texture.width),
+        bounds.height / static_cast<float>(texture.height));
+    const float width = static_cast<float>(texture.width) * scale;
+    const float height = static_cast<float>(texture.height) * scale;
+    DrawTexturePro(texture,
+        {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+        {bounds.x + (bounds.width - width) * .5F, bounds.y + (bounds.height - height) * .5F,
+            width, height}, {}, 0, WHITE);
 }
 
 } // namespace enemy_spawn_menu
 
-inline EnemySpawnMenuResult drawEnemySpawnCatalog(EnemyType& selected, EliteAffix& variant, int& count,
+inline EnemySpawnMenuResult drawEnemySpawnCatalog(const GameUi& ui, EnemyType& selected, EliteAffix& variant, int& count,
     int activeEnemies, Vector2 screen, const EnemySpawnMenuInput& input = {}) {
     namespace es = enemy_spawn_menu;
     namespace ms = menuStyle;
@@ -191,15 +149,14 @@ inline EnemySpawnMenuResult drawEnemySpawnCatalog(EnemyType& selected, EliteAffi
         const bool chosen = selected == enemy.type;
         if (chosen) focused = &enemy;
         ms::panel(card, s, ms::selectionFill(chosen, hovered));
-        es::portrait(enemy.type, {card.x + 16 * s, card.y + 6 * s, card.width - 32 * s, card.height - 64 * s}, enemy.color);
+        es::portrait(ui, enemy.type, {card.x + 16 * s, card.y + 6 * s, card.width - 32 * s, card.height - 64 * s});
         label(enemy.name, {card.x + 12 * s, card.y + card.height - 57 * s, card.width - 24 * s, 28 * s}, 21, ms::Cream, UiFontRole::Display, 1);
         label(enemy.role, {card.x + 10 * s, card.y + card.height - 27 * s, card.width - 20 * s, 18 * s},
             11, chosen ? Color{67, 61, 38, 255} : ms::Muted, UiFontRole::BodyBold, 1);
     }
     ms::panel(l.details, s, ms::Inset);
     const float dw = l.details.width;
-    es::portrait(selected, {l.details.x + 20 * s, l.details.y + 18 * s, 84 * s, 84 * s},
-        focused->color, variant != EliteAffix::None);
+    es::portrait(ui, selected, {l.details.x + 20 * s, l.details.y + 18 * s, 84 * s, 84 * s});
     label(focused->name, {l.details.x + 112 * s, l.details.y + 20 * s, dw - 132 * s, 38 * s}, 25, ms::Gold);
     label(focused->role, {l.details.x + 112 * s, l.details.y + 64 * s, dw - 132 * s, 28 * s}, 12, ms::Muted, UiFontRole::BodyBold);
     label(focused->description, {l.details.x + 20 * s, l.details.y + 110 * s, dw - 40 * s, 42 * s},

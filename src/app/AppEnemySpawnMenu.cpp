@@ -21,7 +21,7 @@ void App::drawEnemySpawnMenu() {
         .fastStep = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT),
         .wheel = GetMouseWheelMove(),
     };
-    const auto result = drawEnemySpawnCatalog(debugSpawnType_, debugSpawnEliteAffix_,
+    const auto result = drawEnemySpawnCatalog(ui_, debugSpawnType_, debugSpawnEliteAffix_,
         debugSpawnCount_, active,
         {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
     if (result.summon) {
