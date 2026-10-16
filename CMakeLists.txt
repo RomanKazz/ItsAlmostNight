@@ -357,6 +357,16 @@ if(BUILD_TESTING)
     add_test(NAME ian_presentation_events_smoke COMMAND its_almost_night --test-presentation-events)
     set_tests_properties(ian_presentation_events_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "graphics;integration" TIMEOUT 60)
 
+    add_executable(ian_enemy_contact_tests tests/EnemyContactTests.cpp)
+    target_link_libraries(ian_enemy_contact_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_enemy_contact_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_enemy_contact_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_enemy_contact_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_enemy_contact_tests COMMAND ian_enemy_contact_tests)
+    set_tests_properties(ian_enemy_contact_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
     add_executable(ian_wind_blower_tests tests/WindBlowerTests.cpp)
     target_link_libraries(ian_wind_blower_tests PRIVATE ian_simulation)
     ian_set_warnings(ian_wind_blower_tests)
@@ -549,6 +559,11 @@ if(BUILD_TESTING)
         SKIP_RETURN_CODE 77
         TIMEOUT 90
         LABELS "graphics;integration")
+    if(IAN_ENABLE_SANITIZERS)
+        # Instrumented model loading and teardown exceed 90s on macOS; GPU
+        # performance has a separate smoke test with its own assertions.
+        set_tests_properties(ian_graphics_smoke PROPERTIES TIMEOUT 180)
+    endif()
 
     add_executable(ian_ui_text_sdf_smoke
         tests/UiTextSdfSmokeTests.cpp

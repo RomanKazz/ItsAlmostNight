@@ -1,4 +1,6 @@
 #include "combat/TrapSystem.hpp"
+#include "enemies/EnemyCollision.hpp"
+#include <cmath>
 
 #include <algorithm>
 
@@ -97,6 +99,7 @@ std::span<const TrapActivation> TrapSystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings, EnemySystem& enemies) {
     activationBuffer_.clear();
     hitBuffer_.clear();
+    query_.rebuild(enemies);
     for (auto& trap : traps_) {
         trap.cooldownRemaining = std::max(0.0, trap.cooldownRemaining - deltaSeconds);
         trap.activationRemaining = std::max(
@@ -119,15 +122,23 @@ std::span<const TrapActivation> TrapSystem::tick(
         if (building->type == BuildingType::SpikeTrap) {
             const double heightBonus = building->platformStorey > 0
                 ? highGroundDamageMultiplier_ : 1.0;
-            const auto hits = enemies.damageInRadius(
-                position, spikeTriggerRadius(building->level) *
-                    radiusMultiplier_,
-                spikeDamage(building->level) * damageMultiplier_ *
-                    heightBonus * (building->type == bonusType_ ? typeDamageMultiplier_ : 1.0));
-            affectedCount = static_cast<int>(hits.size());
-            for (const EnemyDamageResult& hit : hits) {
-                hitBuffer_.push_back({trap.buildingId, hit, building->type});
-            }
+            const double radius = spikeTriggerRadius(building->level) * radiusMultiplier_;
+            const double damage = spikeDamage(building->level) * damageMultiplier_ *
+                heightBonus * (building->type == bonusType_ ? typeDamageMultiplier_ : 1.0);
+            query_.nearby(enemies, position, radius * std::sqrt(2.0) + 4.0,
+                [&](const EnemyInstance& enemy) {
+                    const auto body = enemyCollisionCylinder(enemy);
+                    const double bottom = body.center.y - body.halfHeight;
+                    const double top = body.center.y + body.halfHeight;
+                    if (bottom > position.y + .35 || top < position.y - .05) return;
+                    const double dx = std::max(0.0, std::abs(body.center.x-position.x)-radius);
+                    const double dz = std::max(0.0, std::abs(body.center.z-position.z)-radius);
+                    if (dx*dx + dz*dz > body.radius*body.radius) return;
+                    if (const auto hit = enemies.damage(enemy.id,damage)) {
+                        ++affectedCount;
+                        hitBuffer_.push_back({trap.buildingId,*hit,building->type});
+                    }
+                });
             if (affectedCount == 0) {
                 continue;
             }

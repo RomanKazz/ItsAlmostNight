@@ -113,7 +113,7 @@ constexpr int CollisionCellCount =
     if (enemy.type != EnemyType::Flying) {
         const double maximumCollisionHeight =
             maximumGroundStructureInteractionHeight(
-                enemy.type, enemy.position.y);
+                enemy.type, enemy.position.y + enemy.worldSurfaceHeight);
         if (structure.position.y >
             maximumCollisionHeight) {
             return false;

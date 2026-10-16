@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/AttackCollision.hpp"
 #include "core/Types.hpp"
 #include "enemies/EnemySystem.hpp"
 
@@ -60,6 +61,7 @@ class TrapSystem {
     [[nodiscard]] std::span<const TrapHit> hits() const;
 
   private:
+    AttackCollisionQuery query_;
     std::vector<TrapRuntime> traps_;
     std::vector<TrapActivation> activationBuffer_;
     std::vector<TrapHit> hitBuffer_;

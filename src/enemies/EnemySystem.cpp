@@ -23,7 +23,7 @@ bool berserkerActive(const EnemyInstance& enemy) {
         enemy.health / enemy.maxHealth <= 0.5;
 }
 
-constexpr double AttackRange = 0.55;
+constexpr double AttackRange = 0.15;
 constexpr double PlayerAttackRange = 1.0;
 constexpr double AttackInterval = 1.0;
 constexpr double BuildingLookAhead = 2.5;
@@ -46,35 +46,9 @@ constexpr int BuildingGridCellCount =
     return std::max(step, std::round(safeHealth / step) * step);
 }
 
-std::optional<double> lockedAttackSurfaceHeight(
-    const EnemyInstance& enemy,
-    std::span<const EnemyStructureTarget> structures) {
-    if (!enemy.target ||
-        (enemy.state != EnemyState::AttackCore &&
-         enemy.state != EnemyState::AttackBuilding &&
-         enemy.state != EnemyState::BossRamWindup)) {
-        return std::nullopt;
-    }
-    const auto target = std::ranges::find(
-        structures, *enemy.target, &EnemyStructureTarget::id);
-    if (target == structures.end() ||
-        !target->attackSurfaceHeight) {
-        return std::nullopt;
-    }
-    // Only stabilize a platform the navigation system has already reached;
-    // horizontal proximity alone must never lift a ground enemy upstairs.
-    constexpr double SurfaceLockTolerance = 0.5;
-    if (enemy.worldSurfaceHeight + SurfaceLockTolerance <
-        *target->attackSurfaceHeight) {
-        return std::nullopt;
-    }
-    return target->attackSurfaceHeight;
-}
-
 void updateEnemySurface(
     EnemyInstance& enemy, const TerrainHeightfield* terrain,
-    EnemyNavigationView navigation, double deltaSeconds,
-    std::optional<double> lockedSurfaceHeight = std::nullopt) {
+    EnemyNavigationView navigation, double deltaSeconds) {
     if (terrain == nullptr) {
         return;
     }
@@ -89,44 +63,16 @@ void updateEnemySurface(
     if (navigation.collisionWorld == nullptr) return;
     const double terrainHeight = terrain->getHeight(
         enemy.position.x, enemy.position.z);
-    if (lockedSurfaceHeight) {
-        enemy.surfaceHeightOffset = std::max(
-            0.0, *lockedSurfaceHeight - terrainHeight);
-        enemy.worldSurfaceHeight =
-            terrainHeight + enemy.surfaceHeightOffset;
-        return;
-    }
-    const double currentHeight =
-        terrainHeight + enemy.surfaceHeightOffset;
-    // Ground-storey frames can sit above nearby uneven terrain. Enemies hop
-    // onto them, while higher floors still require a ramp.
+    const double currentHeight = terrainHeight + enemy.surfaceHeightOffset;
+    // Support comes from the body footprint, independent of yaw or AI state.
+    // The small margin starts a step before the collision sweep reaches the
+    // edge and keeps partial support while fighting beside it. Upper floors
+    // still require a ramp: they cannot be sampled through the step limit.
     constexpr double MaximumStepUp = 1.15;
-    auto surface =
-        navigation.collisionWorld->modularSurfaceHeight(
-            enemy.position.x, enemy.position.z,
-            currentHeight + MaximumStepUp);
-    if (enemyUsesForwardSurfaceProbe(enemy.state)) {
-        // Begin the hop before the capsule reaches a platform edge. Sampling
-        // ahead also lets a ramp user finish the last step onto an upper
-        // floor while its centre is still on the slope. Attack states are
-        // intentionally excluded: their yaw follows a target while the
-        // capsule is stationary, so probing along it would pull the enemy
-        // between unrelated surface heights.
-        const double probeDistance =
-            enemyPhysicalCapsule(enemy.type).radius + 0.20;
-        const double probeX = enemy.position.x +
-            std::sin(enemy.yaw) * probeDistance;
-        const double probeZ = enemy.position.z +
-            std::cos(enemy.yaw) * probeDistance;
-        const auto aheadSurface =
-            navigation.collisionWorld->modularSurfaceHeight(
-                probeX, probeZ,
-                currentHeight + MaximumStepUp);
-        if (aheadSurface &&
-            (!surface || *aheadSurface > *surface)) {
-            surface = aheadSurface;
-        }
-    }
+    const double supportRadius = enemyCollisionCylinder(enemy).radius + .15;
+    const auto surface = navigation.collisionWorld->enemySupportHeight(
+        enemy.position.x, enemy.position.z, supportRadius,
+        currentHeight + MaximumStepUp);
     const double targetOffset = surface
         ? std::max(0.0, *surface - terrainHeight)
         : 0.0;
@@ -404,8 +350,8 @@ double wanderStrength(EnemyType type) {
     return 0.14;
 }
 
-double enemyRadius(EnemyType type) {
-    return enemyPhysicalCapsule(type).radius;
+double enemyRadius(const EnemyInstance& enemy) {
+    return enemyCollisionCylinder(enemy).radius;
 }
 
 double attackRange(EnemyType type) {
@@ -465,7 +411,7 @@ bool structureIsVerticallyReachable(
     const double maximumAttackHeight =
         maximumGroundStructureInteractionHeight(
             enemy.type,
-            enemy.position.y + enemy.surfaceHeightOffset);
+            enemy.position.y + enemy.worldSurfaceHeight);
     return structure.position.y <= maximumAttackHeight;
 }
 
@@ -477,19 +423,19 @@ struct StructureTargetSelection {
 StructureTargetSelection selectStructureTarget(
     const EnemyInstance& enemy,
     const BuildingQueryGrid& buildingGrid,
-    double directionX, double directionZ, bool lureApproach = false) {
+    double directionX, double directionZ, Vec3 combatGoal, bool lureApproach = false) {
     const EnemyStructureTarget* blocker = nullptr;
     double closestContactDistance = std::numeric_limits<double>::max();
     std::size_t greatestStructuralImpact = 0U;
-    // Ranged enemies should acquire a structure anywhere inside their
-    // firing radius. The narrow forward corridor below is suitable for
-    // melee path blockers, but made ranged units walk almost into the
-    // target whenever steering was even slightly off-center.
-    if (enemy.type == EnemyType::Ranged && !lureApproach) {
+    // Acquire actual close contacts on every side. Path headings can run
+    // tangent to a wall; a touching melee enemy must turn and hit that wall
+    // instead of orbiting it. Ranged units retain their firing distance.
+    const double contactReach = lureApproach ? AttackRange : attackRange(enemy.type);
+    {
         buildingGrid.forEachNearby(
             enemy.position,
-            attackRange(enemy.type) +
-                enemyRadius(enemy.type) + 1.6,
+            contactReach +
+                enemyRadius(enemy) + 1.6,
             [&](const EnemyStructureTarget& building) {
                 if (!structureIsVerticallyReachable(
                         enemy, building)) {
@@ -499,12 +445,21 @@ StructureTargetSelection selectStructureTarget(
                     building.position.x - enemy.position.x;
                 const double offsetZ =
                     building.position.z - enemy.position.z;
+                if (enemy.type != EnemyType::Ranged || lureApproach) {
+                    const double gx = combatGoal.x-enemy.position.x, gz = combatGoal.z-enemy.position.z;
+                    const double length = std::hypot(gx,gz);
+                    if (length > 1e-9) {
+                        const double projection = (offsetX*gx+offsetZ*gz)/length;
+                        const double perpendicular = std::abs(offsetX*gz-offsetZ*gx)/length;
+                        if (projection < 0 || perpendicular > building.radius+enemyRadius(enemy)) return;
+                    }
+                }
                 const double contactDistance = std::max(
                     0.0,
                     std::hypot(offsetX, offsetZ) -
                         building.radius -
-                        enemyRadius(enemy.type));
-                if (contactDistance <= attackRange(enemy.type) &&
+                        enemyRadius(enemy));
+                if (contactDistance <= contactReach + 1e-6 &&
                     contactDistance < closestContactDistance) {
                     blocker = &building;
                     closestContactDistance = contactDistance;
@@ -550,8 +505,7 @@ StructureTargetSelection selectStructureTarget(
                             0.0,
                             distance -
                                 building.radius -
-                                enemyRadius(
-                                    enemy.type));
+                                enemyRadius(enemy));
                 }
             });
     }
@@ -583,12 +537,12 @@ StructureTargetSelection selectStructureTarget(
         const double perpendicularDistance =
             std::sqrt((perpendicularX * perpendicularX) + (perpendicularZ * perpendicularZ));
         const double combinedRadius =
-            building.radius + enemyRadius(enemy.type);
+            building.radius + enemyRadius(enemy);
         if (perpendicularDistance > combinedRadius) {
             return;
         }
 
-        const double contactDistance = std::max(0.0, projection - combinedRadius);
+        const double contactDistance = std::max(0.0, std::hypot(offsetX, offsetZ) - combinedRadius);
         const bool sapperPriority =
             !lureApproach && enemy.type == EnemyType::Sapper &&
             building.structuralImpact >
@@ -618,7 +572,7 @@ bool buildingIsInAttackRange(
     bool found = false;
     const double searchRadius =
         attackRange(enemy.type) +
-        enemyRadius(enemy.type) + 1.6;
+        enemyRadius(enemy) + 1.6;
     buildingGrid.forEachNearby(
         enemy.position, searchRadius,
         [&enemy, &found](
@@ -636,7 +590,7 @@ bool buildingIsInAttackRange(
         const double contactDistance =
             std::sqrt(offsetX * offsetX + offsetZ * offsetZ) -
             building.radius -
-            enemyRadius(enemy.type);
+            enemyRadius(enemy);
         if (contactDistance <= attackRange(enemy.type)) {
             found = true;
         }
@@ -701,7 +655,7 @@ bool buildingBlocksPathToPlayer(
         const double distanceZ = center.z - nearestZ;
         const double collisionRadius =
             building.radius +
-            enemyRadius(enemy.type);
+            enemyRadius(enemy);
         if (distanceX * distanceX + distanceZ * distanceZ <=
             collisionRadius * collisionRadius) {
             blocked = true;
@@ -731,12 +685,11 @@ double buildingDamage(const EnemyInstance& enemy,
 }
 
 double buildingRadius(BuildingType type) {
-    if (type == BuildingType::Core) {
-        return 1.6;
-    }
-    return buildingFootprintHalfExtent(type) == 1.0
-               ? 1.1
-               : 0.55;
+    // A collider wider than the platform makes the building push attackers
+    // completely off their own support. Core used to reserve a 1.6m radius
+    // on a floor with only a 1m half-width, causing endless climb/fall loops.
+    const double footprint = buildingFootprintHalfExtent(type);
+    return footprint == 1.0 ? .85 : .5;
 }
 
 } // namespace
@@ -940,7 +893,7 @@ bool EnemySystem::refreshStructureTargets(
             .traversable = false,
             .minimumEnemySurfaceHeight =
                 building.platformStorey >= 0
-                    ? building.baseHeight - 0.45
+                    ? building.baseHeight - 0.05
                     : -std::numeric_limits<double>::infinity(),
             .maximumEnemySurfaceHeight =
                 building.baseHeight +
@@ -1091,9 +1044,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
 
         updateEnemySurface(
-            enemy, terrain, navigation, deltaSeconds,
-            lockedAttackSurfaceHeight(
-                enemy, structureBuffer_));
+            enemy, terrain, navigation, deltaSeconds);
 
         updateEnemyTimers(enemy, deltaSeconds);
         if (enemyHasStatus(enemy, StatusEffectType::Freeze)) {
@@ -1534,9 +1485,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
         const StructureTargetSelection targetSelection =
             selectStructureTarget(
-                enemy, buildingGrid, directionX, directionZ, lured);
+                enemy, buildingGrid, directionX, directionZ, {coreX,0,coreZ}, lured);
         const double lureContactDistance=lured
-            ? std::max(0.0,coreDistance-lureTarget->radius-enemyRadius(enemy.type)) : 0;
+            ? std::max(0.0,coreDistance-lureTarget->radius-enemyRadius(enemy)) : 0;
         const bool approachBlocked=lured && enemy.type!=EnemyType::Flying && targetSelection.target &&
             targetSelection.contactDistance<=lureContactDistance;
         const EnemyStructureTarget* blocker = lured && !approachBlocked ? &*lureTarget : targetSelection.target;
@@ -1556,8 +1507,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
             continue;
         }
 
-        if (enemy.type == EnemyType::Sapper &&
-            blocker->structuralImpact > 0U) {
+        if ((enemy.type == EnemyType::Sapper && blocker->structuralImpact > 0U) ||
+            ((enemy.type != EnemyType::Ranged || lured) &&
+             closestContactDistance <= AttackRange + .75)) {
             const double offsetX =
                 blocker->position.x - enemy.position.x;
             const double offsetZ =
@@ -1569,18 +1521,20 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     enemy,
                     std::atan2(offsetX, offsetZ),
                     aiTurnDeltaSeconds);
-                directionX = std::sin(enemy.yaw);
-                directionZ = std::cos(enemy.yaw);
+                // Once a real blocker is close, close the gap toward its
+                // body instead of orbiting a path waypoint beside the wall.
+                directionX = offsetX / distance;
+                directionZ = offsetZ / distance;
                 closestContactDistance = std::max(
                     0.0,
                     distance - blocker->radius -
-                        enemyRadius(enemy.type));
+                        enemyRadius(enemy));
             }
         }
 
         const double enemyAttackRange = lured ? AttackRange :
             attackRange(enemy.type);
-        if (closestContactDistance > enemyAttackRange + (lured ? 1e-6 : 0.0)) {
+        if (closestContactDistance > enemyAttackRange + 1e-6) {
             const double movement =
                 std::min(movementSpeed * deltaSeconds,
                          closestContactDistance -
@@ -1688,9 +1642,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             if(enemy.arrivalPortal && enemy.portalArrivalRemaining<=0)
                 enemy.arrivalPortal.reset();
             updateEnemySurface(
-                enemy, terrain, navigation, deltaSeconds,
-                lockedAttackSurfaceHeight(
-                    enemy, structureBuffer_));
+                enemy, terrain, navigation, deltaSeconds);
         }
     }
     performanceStats_.collision.sample(

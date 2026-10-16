@@ -77,6 +77,8 @@ class CollisionWorld {
     playerSupportHeight(
         double worldX, double worldZ, double radius,
         double maximumSurfaceHeight) const;
+    [[nodiscard]] std::optional<double>
+    enemySupportHeight(double worldX, double worldZ, double radius, double maximumSurfaceHeight) const;
     [[nodiscard]] std::optional<PlayerSurfaceLanding>
     sweptPlayerLanding(
         Vec3 startPosition, Vec3 endPosition,
@@ -121,6 +123,7 @@ class CollisionWorld {
         double undersideOffset{};
         Rotation rotation{Rotation::Deg0};
         SurfaceKind kind{SurfaceKind::Flat};
+        bool supportsGroundEnemies{true};
     };
 
     struct PhysicalCylinder {
@@ -152,6 +155,8 @@ class CollisionWorld {
         std::vector<std::vector<std::size_t>> buckets_;
     };
 
+    [[nodiscard]] std::optional<double> supportHeight(double worldX, double worldZ,
+        double radius, double maximumSurfaceHeight, bool groundEnemy) const;
     void rebuildColliders();
     void rebuildResourceBroadphase();
     void rebuildSurfaceBroadphases();

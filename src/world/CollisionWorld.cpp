@@ -464,6 +464,7 @@ void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& building
                     .bottomHeight = building.baseHeight,
                     .topHeight = building.baseHeight + FenceTopHeight,
                     .kind = SurfaceKind::Flat,
+                    .supportsGroundEnemies = false,
                 });
             }
         } else {
@@ -1089,14 +1090,25 @@ std::optional<double>
 CollisionWorld::playerSupportHeight(
     double worldX, double worldZ, double radius,
     double maximumSurfaceHeight) const {
-    std::optional<double> result =
-        modularSurfaceHeight(
-            worldX, worldZ, maximumSurfaceHeight);
+    return supportHeight(worldX, worldZ, radius, maximumSurfaceHeight, false);
+}
+
+std::optional<double> CollisionWorld::enemySupportHeight(
+    double worldX, double worldZ, double radius, double maximumSurfaceHeight) const {
+    return supportHeight(worldX, worldZ, radius, maximumSurfaceHeight, true);
+}
+
+std::optional<double> CollisionWorld::supportHeight(
+    double worldX, double worldZ, double radius,
+    double maximumSurfaceHeight, bool groundEnemy) const {
+    std::optional<double> result = groundEnemy ? std::nullopt :
+        modularSurfaceHeight(worldX, worldZ, maximumSurfaceHeight);
     constexpr double EdgeEpsilon = 1e-6;
     const auto sampleSupport =
         [worldX, worldZ, radius,
-         maximumSurfaceHeight, &result](
+         maximumSurfaceHeight, groundEnemy, &result](
             const WalkableSurface& surface) {
+            if (groundEnemy && !surface.supportsGroundEnemies) return;
             double closestX = worldX;
             double closestZ = worldZ;
             if (surface.kind == SurfaceKind::Disc) {
@@ -1187,7 +1199,7 @@ CollisionWorld::playerSupportHeight(
         };
     sampleNearby(buildingSurfaceBroadphase_, buildingSurfaces_);
     sampleNearby(modularSurfaceBroadphase_, modularSurfaces_);
-    sampleNearby(pondLilySurfaceBroadphase_, pondLilySurfaces_);
+    if (!groundEnemy) sampleNearby(pondLilySurfaceBroadphase_, pondLilySurfaces_);
     return result;
 }
 
