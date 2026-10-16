@@ -12,6 +12,10 @@
 
 inline bool checkWandPresentation(ian::Renderer& renderer) {
     using namespace ian::wand_presentation;
+    // Measure the held silhouette, not wall-clock charge motes which may
+    // briefly touch an edge depending on how long earlier GPU tests took.
+    const bool particles = renderer.settings().particles;
+    renderer.settings().particles = false;
     bool valid = chargeProgress(0, .4) == 0 && chargeProgress(.4, .4) == 0 &&
         std::abs(chargeProgress(.1, .4) - .75F) < .00001F;
     for (const bool fire : {false, true}) {
@@ -78,5 +82,6 @@ inline bool checkWandPresentation(ian::Renderer& renderer) {
     }
     for (const auto image : idle) UnloadImage(image);
     UnloadRenderTexture(target); SetWindowSize(oldWidth, oldHeight);
+    renderer.settings().particles = particles;
     return valid;
 }
