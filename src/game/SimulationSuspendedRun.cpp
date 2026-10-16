@@ -76,6 +76,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .lootStacks = lootStacks_,
         .runUpgradeStacks = runUpgradeStacks_,
         .runUpgradePower = runUpgradePower_,
+        .repairStationCycleRemaining = repairStationCycleRemaining_,
         .buildings = buildings_.buildings(),
         .resourceNodes = resources_.nodes(),
         .lootChests = lootChests_.chests(),
@@ -166,6 +167,8 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
 
 bool Simulation::loadSuspendedRunState(
     const SuspendedRunState& saved) {
+    if (!std::isfinite(saved.repairStationCycleRemaining) || saved.repairStationCycleRemaining <= 0 ||
+        saved.repairStationCycleRemaining > RepairStationInterval) return false;
     if (!validMetaRunBonuses(saved.metaBonuses)) return false;
     const auto invalidMultiplier = [](double value) {
         return !std::isfinite(value) || value <= 0.0 || value > 1000.0;
@@ -242,8 +245,6 @@ bool Simulation::loadSuspendedRunState(
                         buildingRotationStepCount(building.type) ||
                     building.level == 0U ||
                     building.level > MaxBuildingLevel ||
-                    !std::isfinite(building.repairDelayRemaining) ||
-                    building.repairDelayRemaining < 0 || building.repairDelayRemaining > RepairStationDamagePause ||
                     !std::isfinite(building.health) ||
                     !std::isfinite(building.maxHealth) ||
                     building.health <= 0.0 || building.maxHealth <= 0.0 ||
@@ -546,6 +547,7 @@ bool Simulation::loadSuspendedRunState(
     runStatistics_ = saved.runStatistics;
 
     refreshRunUpgradeRuntimeEffects();
+    repairStationCycleRemaining_ = saved.repairStationCycleRemaining;
     repairStationSources_.clear();
     repairStationLinks_.clear();
     if (!buildings_.restoreBuildings(

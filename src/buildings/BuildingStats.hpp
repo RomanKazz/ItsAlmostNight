@@ -22,7 +22,7 @@ struct BuildingStats {
     std::optional<double> effectDuration;
     std::optional<double> cooldown;
     std::optional<double> repairPerSecond;
-    std::optional<double> repairDelay;
+    std::optional<double> repairInterval;
     std::optional<double> defenseBuildingLimit;
     std::optional<double> producerPerTypeLimit;
     std::optional<double> woodCapacity;

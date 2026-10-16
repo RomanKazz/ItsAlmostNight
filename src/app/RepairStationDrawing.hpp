@@ -17,7 +17,6 @@ inline void drawPulses(const SimulationSnapshot& snapshot, const Camera3D& camer
     constexpr std::array<float, 5> Bands{-1, -.5F, 0, .5F, 1};
     constexpr std::array<float, 5> Opacity{0, .4F, 1, .4F, 0};
     const Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
-    const float time = static_cast<float>(snapshot.elapsedSeconds);
     int visible = 0;
     rlBegin(RL_TRIANGLES);
     for (const auto& station : snapshot.buildings) {
@@ -31,8 +30,7 @@ inline void drawPulses(const SimulationSnapshot& snapshot, const Camera3D& camer
         const float range = static_cast<float>(repairStationRadius(station.level));
         if (Vector3LengthSqr(offset) > 50 * 50 || Vector3DotProduct(offset, forward) < -range) continue;
         if (++visible > 16) break;
-        const float phase = float(station.id.index % 19U) * .071F;
-        const float progress = std::fmod(time / 1.8F + phase, 1.0F);
+        const float progress = std::clamp(static_cast<float>(snapshot.repairStationPulseAge / RepairStationVisualDuration), 0.0F, 1.0F);
         const auto smooth = [](float value) {
             const float t = std::clamp(value, 0.0F, 1.0F);
             return t * t * (3 - 2 * t);
@@ -84,8 +82,10 @@ inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera, boo
     rlSetTexture(0);
     drawPulses(snapshot, camera, terrain, reduceFlashes);
     rlBegin(RL_QUADS);
+    const float pulseFade = std::clamp(static_cast<float>(snapshot.repairStationPulseAge / .12), 0.0F, 1.0F) *
+        std::clamp(static_cast<float>((RepairStationVisualDuration - snapshot.repairStationPulseAge) / .3), 0.0F, 1.0F);
     const auto rectangle = [&](Vector3 center, float halfWidth, float halfHeight, Color color) {
-        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlColor4ub(color.r, color.g, color.b, static_cast<unsigned char>(color.a * pulseFade));
         for (const auto corner : std::array<Vector2, 4>{{{-1,-1},{1,-1},{1,1},{-1,1}}}) {
             const auto point = Vector3Add(center, Vector3Add(
                 Vector3Scale(right, corner.x * halfWidth), Vector3Scale(up, corner.y * halfHeight)));

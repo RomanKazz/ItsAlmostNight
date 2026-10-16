@@ -84,7 +84,6 @@ struct BuildingInstance {
     double foundationBottomHeight{};
     bool anvilEnhanced{};
     std::uint8_t anvilStacks{};
-    double repairDelayRemaining{};
 };
 
 enum class PlacementError {
@@ -262,7 +261,6 @@ class BuildingSystem {
                                                   double maxDistance) const;
     [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals) const;
     RepairResult repair(EntityId id, int wood, int stone, int crystals);
-    void advanceRepairDelays(double deltaSeconds);
     double restoreHealth(EntityId id, double amount);
     SellResult sell(EntityId id);
     [[nodiscard]] ResourceCost configuredCost(BuildingType type) const;

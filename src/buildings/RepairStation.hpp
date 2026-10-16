@@ -7,7 +7,8 @@
 
 namespace ian {
 
-inline constexpr double RepairStationDamagePause = 6.0;
+inline constexpr double RepairStationInterval = 2.0;
+inline constexpr double RepairStationVisualDuration = 1.8;
 inline constexpr std::size_t MaximumRepairStationVisualLinks = 64;
 
 [[nodiscard]] inline double repairStationRadius(int level) {
@@ -37,7 +38,6 @@ struct RepairStationSource {
     EntityId id;
     Vec3 position;
     int level{1};
-    double delayRemaining{};
 };
 struct RepairStationLink {
     EntityId stationId;
@@ -51,10 +51,10 @@ struct RepairStationDose {
 };
 
 // Choose the strongest effective source; overlapping stations never stack.
-// Only the part of this tick after both damage pauses can restore health.
+// A shared run-wide pulse means overlapping stations cannot alternate to stack.
 [[nodiscard]] inline RepairStationDose repairStationDose(
     std::span<const RepairStationSource> sources, Vec3 target,
-    double targetDelay, double deltaSeconds) {
+    double pulseCount = 1) {
     RepairStationDose result;
     for (const auto& source : sources) {
         const double x = source.position.x - target.x;
@@ -62,9 +62,7 @@ struct RepairStationDose {
         const double z = source.position.z - target.z;
         const double radius = repairStationRadius(source.level);
         if (x*x + y*y + z*z > radius*radius + 1e-9) continue;
-        const double activeSeconds = std::max(0.0, deltaSeconds -
-            std::max(targetDelay, source.delayRemaining));
-        const double healing = repairStationRate(source.level) * activeSeconds;
+        const double healing = repairStationRate(source.level) * RepairStationInterval * pulseCount;
         if (healing > result.healing) result = {&source, healing};
     }
     return result;

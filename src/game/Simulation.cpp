@@ -450,6 +450,7 @@ void Simulation::resetRun(GameEventType eventType) {
               insightRewardedEnemyIds_.end(), EntityId{});
     activeFortifications_.clear();
     activeRepairCooldowns_.clear();
+    repairStationCycleRemaining_ = RepairStationInterval;
     repairStationSources_.clear();
     repairStationLinks_.clear();
     bombs_.reset();

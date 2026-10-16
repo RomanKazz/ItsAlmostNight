@@ -76,7 +76,7 @@ BuildingStats buildingStatsAtLevel(
     } else if (building.type == BuildingType::RepairStation) {
         stats.effectRadius = repairStationRadius(level);
         stats.repairPerSecond = repairStationRate(level);
-        stats.repairDelay = RepairStationDamagePause;
+        stats.repairInterval = RepairStationInterval;
     } else if (building.type == BuildingType::SlowTrap) {
         stats.slowPercent = TrapSystem::slowPercent(level);
         stats.effectRadius = TrapSystem::triggerRadius(level);

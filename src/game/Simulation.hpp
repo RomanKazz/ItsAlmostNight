@@ -383,6 +383,7 @@ struct SimulationSnapshot {
         defenseBlueprints;
     std::span<const EnemyInstance> enemies;
     std::span<const EnemyProjectile> enemyProjectiles;
+    double repairStationPulseAge{};
     std::span<const RepairStationLink> repairStationLinks;
     std::span<const TowerRuntime> towers;
     std::span<const LaserBeamSegment> laserBeams;
@@ -505,6 +506,7 @@ struct SuspendedRunState {
     std::array<int, LootUpgradeEffectCount> lootStacks{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
     std::array<double, RunUpgradeEffectCount> runUpgradePower{};
+    double repairStationCycleRemaining{RepairStationInterval};
     std::vector<BuildingInstance> buildings;
     std::vector<PlatformFrameInstance> platformFrames;
     std::vector<WallInstance> modularWalls;
@@ -1106,6 +1108,7 @@ class Simulation {
     std::vector<ActiveFortification> activeFortifications_;
     struct ActiveRepairCooldown { EntityId id; double remaining; };
     std::vector<ActiveRepairCooldown> activeRepairCooldowns_;
+    double repairStationCycleRemaining_{RepairStationInterval};
     std::vector<RepairStationSource> repairStationSources_;
     std::vector<RepairStationLink> repairStationLinks_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;

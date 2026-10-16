@@ -318,6 +318,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .defenseBlueprints = defenseBlueprints,
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .enemyProjectiles = enemies_.projectiles(),
+        .repairStationPulseAge = RepairStationInterval - repairStationCycleRemaining_,
         .repairStationLinks = repairStationLinks_,
         .towers = std::span<const TowerRuntime>{towers_.towers()},
         .laserBeams = towers_.laserBeams(),

@@ -1,5 +1,4 @@
 #include "buildings/FoundationSystem.hpp"
-#include "buildings/RepairStation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -164,8 +163,6 @@ bool FoundationSystem::restoreStructures(
             wall.anchor.yLevel != static_cast<int>(std::lround(
                 wall.bottomHeight / config.verticalGridStep)) ||
             !validStructureHealth(wall.health, wall.maxHealth) ||
-            !std::isfinite(wall.repairDelayRemaining) || wall.repairDelayRemaining < 0 ||
-            wall.repairDelayRemaining > RepairStationDamagePause ||
             !validSupportState(wall.supportState)) {
             return false;
         }

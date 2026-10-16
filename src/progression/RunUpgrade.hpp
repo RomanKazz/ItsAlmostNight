@@ -277,7 +277,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockTeslaTower, "TESLA", "Chain lightning jumps between enemies. Upgrade all copies."},
         {RunUpgradeEffect::UnlockLaserTower, "LASER", "Sustained focus ramps damage. Upgrade all copies."},
         {RunUpgradeEffect::UnlockMortar, "MORTAR", "High-arc shells blast distant groups. Upgrade all copies."},
-        {RunUpgradeEffect::UnlockRepairStation, "REPAIR STATION", "Repairs nearby walls and weapons after 6s without damage. Upgrade all copies."},
+        {RunUpgradeEffect::UnlockRepairStation, "REPAIR STATION", "Repairs nearby walls and weapons every 2s. Upgrade all copies."},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(

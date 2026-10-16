@@ -32,6 +32,7 @@ inline bool checkRepairStationGraphics(ian::Renderer& renderer) {
         if (!renderer.drawRepairStation({},0)) return false;
         renderer.endWorldShader();
         snapshot.elapsedSeconds=.27+frame*.25;
+        snapshot.repairStationPulseAge=snapshot.elapsedSeconds;
         repair_station_drawing::draw(snapshot,camera,false,terrain);
         EndMode3D();EndTextureMode();
         auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);

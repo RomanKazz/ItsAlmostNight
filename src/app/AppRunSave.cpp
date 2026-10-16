@@ -89,7 +89,6 @@ Json buildingJson(const BuildingInstance& building) {
         {"foundationBottomHeight", building.foundationBottomHeight},
         {"anvilEnhanced", building.anvilEnhanced},
         {"anvilStacks", building.anvilStacks},
-        {"repairDelayRemaining", building.repairDelayRemaining},
     };
 }
 
@@ -112,7 +111,6 @@ BuildingInstance readBuilding(const Json& value) {
         .anvilEnhanced = value.value("anvilEnhanced", false),
         .anvilStacks = static_cast<std::uint8_t>(
             value.value("anvilStacks", 0U)),
-        .repairDelayRemaining = value.value("repairDelayRemaining", RepairStationDamagePause),
     };
 }
 
@@ -156,7 +154,6 @@ Json wallJson(const WallInstance& wall) {
         {"storey", wall.storey},
         {"health", wall.health},
         {"maxHealth", wall.maxHealth},
-        {"repairDelayRemaining", wall.repairDelayRemaining},
         {"supportState", static_cast<int>(wall.supportState)},
     };
 }
@@ -176,7 +173,6 @@ WallInstance readWall(const Json& value) {
         .storey = value.at("storey").get<int>(),
         .health = value.at("health").get<double>(),
         .maxHealth = value.at("maxHealth").get<double>(),
-        .repairDelayRemaining = value.value("repairDelayRemaining", RepairStationDamagePause),
         .supportState = static_cast<StructuralSupportState>(
             value.at("supportState").get<int>()),
     };
@@ -575,6 +571,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"lootStacks", saved.lootStacks},
         {"runUpgradeStacks", saved.runUpgradeStacks},
         {"runUpgradePower", saved.runUpgradePower},
+        {"repairStationCycleRemaining", saved.repairStationCycleRemaining},
         {"buildings", std::move(buildings)},
         {"modularStructures", {
             {"platformFrames", std::move(platformFrames)},
@@ -707,6 +704,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.selectedWeapon = static_cast<PlayerWeapon>(
         document.at("selectedWeapon").get<int>());
     saved.rifleLevel = document.at("rifleLevel").get<int>();
+    saved.repairStationCycleRemaining = document.value("repairStationCycleRemaining", RepairStationInterval);
     if (!readFixedArray(document, "lootStacks", saved.lootStacks) ||
         !readExpandableFixedArray(
             document, "runUpgradeStacks",

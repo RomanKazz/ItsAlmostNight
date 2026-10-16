@@ -1,6 +1,5 @@
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingModifiers.hpp"
-#include "buildings/RepairStation.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 
@@ -529,9 +528,7 @@ bool BuildingSystem::restoreBuildings(
         const std::uint64_t key =
             (static_cast<std::uint64_t>(building.id.generation) << 32U) |
             static_cast<std::uint64_t>(building.id.index);
-        if (!std::isfinite(building.repairDelayRemaining) || building.repairDelayRemaining < 0 ||
-            building.repairDelayRemaining > RepairStationDamagePause ||
-            building.id.index < FirstBuildingId ||
+        if (building.id.index < FirstBuildingId ||
             building.id.index >=
                 std::numeric_limits<std::uint32_t>::max() -
                     ReservedIdHeadroom ||
@@ -834,7 +831,6 @@ std::optional<BuildingDamageResult> BuildingSystem::damage(EntityId id, double a
         return std::nullopt;
     }
 
-    iterator->repairDelayRemaining = RepairStationDamagePause;
     iterator->health = std::max(0.0, iterator->health - amount);
     const BuildingDamageResult result{
         .id = iterator->id,
@@ -977,11 +973,6 @@ double BuildingSystem::restoreHealth(EntityId id, double amount) {
     return healing;
 }
 
-void BuildingSystem::advanceRepairDelays(double deltaSeconds) {
-    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0) return;
-    for (auto& building : buildings_)
-        building.repairDelayRemaining = std::max(0.0, building.repairDelayRemaining - deltaSeconds);
-}
 
 SellResult BuildingSystem::sell(EntityId id) {
     const auto iterator = std::find_if(buildings_.begin(), buildings_.end(),

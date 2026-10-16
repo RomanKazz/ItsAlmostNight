@@ -48,7 +48,6 @@ struct WallInstance {
     int storey{};
     double health{ModularWallMaxHealth};
     double maxHealth{ModularWallMaxHealth};
-    double repairDelayRemaining{};
     StructuralSupportState supportState{
         StructuralSupportState::Supported};
 };
@@ -162,7 +161,6 @@ class FoundationSystem {
     [[nodiscard]] bool remove(EntityId id);
     [[nodiscard]] std::optional<ModularBuildingDamageResult>
     damage(EntityId id, double amount);
-    void advanceWallRepairDelays(double deltaSeconds);
     double restoreWallHealth(EntityId id, double amount);
     [[nodiscard]] ModularBuildingRepairResult repair(
         EntityId id, int wood, int stone);
