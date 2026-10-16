@@ -271,7 +271,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& crossbowModel();
     [[nodiscard]] ModelResource& gunTurretModel();
     [[nodiscard]] ModelResource& teslaTowerModel();
-    [[nodiscard]] ModelResource& laserTowerModel();
+    [[nodiscard]] ModelResource& laserTowerModel(int level = 1);
     [[nodiscard]] ModelResource& mortarModel();
     [[nodiscard]] ModelResource& repairStationModel(int level = 1);
     [[nodiscard]] ModelResource& decoyBeaconModel(int level = 1);
@@ -432,7 +432,7 @@ class GraphicsResources {
     ModelResource crossbowModel_;
     ModelResource gunTurretModel_;
     ModelResource teslaTowerModel_;
-    ModelResource laserTowerModel_;
+    std::array<ModelResource, 8> laserTowerModels_;
     ModelResource mortarModel_;
     std::array<ModelResource, 8> repairStationModels_;
     std::array<ModelResource, 8> decoyBeaconModels_;

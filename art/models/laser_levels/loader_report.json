@@ -1,0 +1,82 @@
+[
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 1,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 2,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 3,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 4,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 5,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 6,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 7,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  },
+  {
+    "colliders": 1,
+    "collision_asset_valid": true,
+    "embedded_palette_loaded": true,
+    "level": 8,
+    "model_resource_valid": true,
+    "muzzles": 1,
+    "playtested": false,
+    "visible_meshes": 4
+  }
+]

@@ -53,7 +53,39 @@ inline bool checkLaserGraphics(ian::Renderer& renderer) {
     const BuildingInstance building{.type=BuildingType::LaserTower,.gridPosition={0,0}};
     const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
     const bool aim=renderer.buildingRaycastDistance(building,{&building,1},ray,10,.25F,.15F).has_value();
+    bool levelsValid=&resources.laserTowerModel(0)==&resources.laserTowerModel(1) &&
+        &resources.laserTowerModel(99)==&resources.laserTowerModel(8);
+    std::uint64_t previousHash=0;
+    for(int level=1;level<=8;++level) {
+        auto& variant=resources.laserTowerModel(level);
+        levelsValid=levelsValid && variant.valid() && variant.get().meshCount==4 &&
+            variant.collisionAsset().colliders.size()==1 && variant.collisionAsset().sockets.size()==1 &&
+            renderer.buildingVisualHeight(BuildingType::LaserTower,level)==(level==1?1.4F:1.5F);
+        if(!levelsValid) break;
+        const auto& muzzle=variant.collisionAsset().sockets.front();
+        levelsValid=std::abs(muzzle.position.x-neutral.x)<1e-5 &&
+            std::abs(muzzle.position.y-neutral.y)<1e-5 && std::abs(muzzle.position.z-neutral.z)<1e-5;
+        renderer.beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});BeginMode3D(camera);
+        WorldLighting lighting{};lighting.cameraPosition=camera.position;renderer.beginWorldShader(lighting);
+        levelsValid=renderer.drawLaserTower({},0,WHITE,1,.15F,.25F,level) && levelsValid;
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        auto image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);std::uint64_t hash=1469598103934665603ULL;
+        for(int i=0;i<image.width*image.height;++i) {
+            hash=(hash^pixels[i].r)*1099511628211ULL;
+            hash=(hash^pixels[i].g)*1099511628211ULL;
+        }
+        levelsValid=levelsValid && (level==1 || hash!=previousHash);previousHash=hash;
+        if(const char* output=std::getenv("IAN_LASER_CAPTURE")) {
+            const auto path=std::filesystem::path(output)/("laser-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImageColors(pixels);UnloadImage(image);
+        BuildingInstance upgraded{.type=BuildingType::LaserTower,.gridPosition={0,0},
+            .level=static_cast<std::uint8_t>(level)};
+        levelsValid=levelsValid && renderer.buildingRaycastDistance(upgraded,{&upgraded,1},ray,10,.25F,.15F).has_value();
+    }
     for(auto image:frames)UnloadImage(image);
     UnloadRenderTexture(target);ui.shutdown();resources.shutdown();
-    return colors[0]>200 && colors[1]>colors[0] && colors[2]==0 && colors[3]>colors[1]*1.3 && aim;
+    return levelsValid && colors[0]>200 && colors[1]>colors[0] && colors[2]==0 && colors[3]>colors[1]*1.3 && aim;
 }

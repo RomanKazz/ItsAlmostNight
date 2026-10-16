@@ -1098,7 +1098,11 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     crossbowModel_.load("assets/models/weapons/crossbow.glb");
     gunTurretModel_.load("assets/models/buildings/gun_turret.glb");
     teslaTowerModel_.load("assets/models/buildings/tesla_tower.glb");
-    laserTowerModel_.load("assets/models/buildings/laser.glb");
+    for (std::size_t index = 0; index < laserTowerModels_.size(); ++index) {
+        const std::string path = "assets/models/buildings/laser_levels/laser_lvl0" +
+            std::to_string(index + 1) + ".glb";
+        laserTowerModels_[index].load(path.c_str());
+    }
     mortarModel_.load("assets/models/buildings/mortar.glb");
     for (std::size_t index = 0; index < windBlowerModels_.size(); ++index) {
         const std::string suffix = std::to_string(index + 1) + ".glb";
@@ -1623,7 +1627,7 @@ void GraphicsResources::shutdown() {
     crossbowModel_.unload();
     gunTurretModel_.unload();
     teslaTowerModel_.unload();
-    laserTowerModel_.unload();
+    for (auto& model : laserTowerModels_) model.unload();
     mortarModel_.unload();
     for (auto& model : repairStationModels_) model.unload();
     for (auto& model : decoyBeaconModels_) model.unload();

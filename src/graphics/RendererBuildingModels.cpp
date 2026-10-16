@@ -323,8 +323,8 @@ bool Renderer::drawMortar(Vector3 position, float yawRadians, Color tint,
 }
 
 bool Renderer::drawLaserTower(Vector3 position, float yawRadians, Color tint,
-    float scale, float pitchRadians, std::optional<float> headYaw, int /*level*/) {
-    auto& resource=resources_.laserTowerModel();
+    float scale, float pitchRadians, std::optional<float> headYaw, int level) {
+    auto& resource=resources_.laserTowerModel(level);
     if (!resource.valid()) return false;
     Model& model=resource.get();prepareModelShader(model);
     const auto saved=worldMaterial_;
@@ -712,7 +712,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::GunTurret: model = &resources_.gunTurretModel(); break;
     case BuildingType::Cannon: model = &resources_.cannonModel(); break;
     case BuildingType::TeslaTower: return 1.44F;
-    case BuildingType::LaserTower: return 1.40F;
+    case BuildingType::LaserTower: return level > 1 ? 1.50F : 1.40F;
     case BuildingType::Mortar: return 1.45F;
     case BuildingType::DecoyBeacon: model = &resources_.decoyBeaconModel(level); break;
     case BuildingType::WindBlower: model = &resources_.windBlowerModel(level); break;

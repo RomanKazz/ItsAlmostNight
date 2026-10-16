@@ -309,7 +309,9 @@ ModelResource& GraphicsResources::gunTurretModel() {
 }
 
 ModelResource& GraphicsResources::teslaTowerModel() { return teslaTowerModel_; }
-ModelResource& GraphicsResources::laserTowerModel() { return laserTowerModel_; }
+ModelResource& GraphicsResources::laserTowerModel(int level) {
+    return laserTowerModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
+}
 ModelResource& GraphicsResources::mortarModel() { return mortarModel_; }
 ModelResource& GraphicsResources::repairStationModel(int level) {
     return repairStationModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];

@@ -1,0 +1,2917 @@
+{
+  "asset": "laser_levels",
+  "coordinates": "GLB +Y up, -Z forward; Blender +Z up, +Y forward; metres",
+  "footprint_m": [
+    2,
+    2
+  ],
+  "integration": {
+    "gameplay_changed": false,
+    "loader_verified": true,
+    "native_graphics_smoke": true,
+    "playtested": false,
+    "renderer_connected": true,
+    "sanitizers_checked": true
+  },
+  "levels": [
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6000000238418579,
+          1.399999976158142,
+          0.6000000238418579
+        ],
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.399999976158142,
+          1.2000000476837158
+        ]
+      },
+      "description": "Original laser",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl01.glb",
+      "fresh_import_verified": true,
+      "level": 1,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.368511438369751,
+        "maximum_moving_radius": 0.4846693418254991,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "e894c461ed35747388bc1dc4eaff2308cb48031a590039e49f89dcf2ec08044b",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 424,
+        "energy_mesh": 128,
+        "pitch_mesh": 632,
+        "yaw_mesh": 328
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6000000238418579,
+          1.3179999589920044,
+          0.6000000238418579
+        ],
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.3179999589920044,
+          1.2000000476837158
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 1512
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Gold lens rim, reactor frame and foot belt",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl02.glb",
+      "fresh_import_verified": true,
+      "level": 2,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.368511438369751,
+        "maximum_moving_radius": 0.4846693418254991,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "a58ed2496c409439318deb70219d51c8a9adcd69852602dc0a7d73ea5c845682",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 520,
+        "energy_mesh": 128,
+        "pitch_mesh": 632,
+        "yaw_mesh": 328
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3179999589920044,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3179999589920044,
+          1.25
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 1608
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Gold braces and yoke with raised orange inlays",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl03.glb",
+      "fresh_import_verified": true,
+      "level": 3,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.368511438369751,
+        "maximum_moving_radius": 0.4846693418254991,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "69013bdbf66c83cac8f90b823ebf6111bc6471d518b33c7db8ddc010bed61eac",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 520,
+        "energy_mesh": 128,
+        "pitch_mesh": 632,
+        "yaw_mesh": 448
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3179999589920044,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3179999589920044,
+          1.25
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 1728
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Four focusing rails and reinforced emitter collar",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl04.glb",
+      "fresh_import_verified": true,
+      "level": 4,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.3756182193756104,
+        "maximum_moving_radius": 0.4846693418254991,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "6fdd2283b36cb425d0d86c58135324104536c448fe9800ca824ae93e3ede7b61",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 520,
+        "energy_mesh": 128,
+        "pitch_mesh": 744,
+        "yaw_mesh": 448
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3179999589920044,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3179999589920044,
+          1.25
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 1840
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Twin capacitor banks with cyan terminals",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl05.glb",
+      "fresh_import_verified": true,
+      "level": 5,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.3756182193756104,
+        "maximum_moving_radius": 0.52635973791488,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "51d4a92172848a8101ae3989f3995e1f9d5e4627b3f070cdc83289da4e428f3f",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 520,
+        "energy_mesh": 216,
+        "pitch_mesh": 1232,
+        "yaw_mesh": 448
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3179999589920044,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3179999589920044,
+          1.25
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 2416
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Extended capacitor banks and cooling fins",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl06.glb",
+      "fresh_import_verified": true,
+      "level": 6,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.3756182193756104,
+        "maximum_moving_radius": 0.6359209391728287,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "4112db6745bd275c323bd4d067eee8e6eda079cb12c631e2cfbe408856b85d36",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 616,
+        "energy_mesh": 216,
+        "pitch_mesh": 1472,
+        "yaw_mesh": 448
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3179999589920044,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3179999589920044,
+          1.25
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 2752
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Rear reactor cage and double pedestal belt",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl07.glb",
+      "fresh_import_verified": true,
+      "level": 7,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.3756182193756104,
+        "maximum_moving_radius": 0.6359209391728287,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "212f3e62120977948239f2b2cc6ccba3c372cbdd9d4ab837c5afcf1c385eab7b",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 712,
+        "energy_mesh": 216,
+        "pitch_mesh": 1520,
+        "yaw_mesh": 448
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.3179999589920044,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.6380000114440918
+        ],
+        "size": [
+          1.2760000228881836,
+          1.3179999589920044,
+          1.2760000228881836
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 2896
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.699999988079071,
+          1.5,
+          0.699999988079071
+        ],
+        "min": [
+          -0.699999988079071,
+          0.0,
+          -0.699999988079071
+        ],
+        "size": [
+          1.399999976158142,
+          1.5,
+          1.399999976158142
+        ]
+      },
+      "description": "Master reactor collar and reinforced emitter cage",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/laser_levels/laser_lvl08.glb",
+      "fresh_import_verified": true,
+      "level": 8,
+      "maximum_mirror_vertex_deviation_m": 0.0029999911785125732,
+      "motion": {
+        "maximum_moving_height": 1.385543704032898,
+        "maximum_moving_radius": 0.6359209391728287,
+        "original_lens_crystal_and_muzzle": true,
+        "pitch_step_degrees": 1,
+        "poses": 1320,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "energy_mesh": 1,
+        "pitch_mesh": 2,
+        "yaw_mesh": 3
+      },
+      "sha256": "f038b1291a825ad1aabf37300d32282bf3f9b72fc411a51255c335641c9e7410",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            -0.45899999141693115
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            -0.6290000081062317
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_mesh": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "pitch_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.17000000178813934
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3799999952316284,
+            0.17000000178813934
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_energy": {
+          "parent": "pitch_pivot",
+          "position_relative_to_root": [
+            0.0,
+            1.0199999809265137,
+            0.38499999046325684
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0.2149999886751175
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.6399999856948853,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6399999856948853,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 808,
+        "energy_mesh": 216,
+        "pitch_mesh": 1652,
+        "yaw_mesh": 520
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.3179999589920044,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.6380000114440918
+        ],
+        "size": [
+          1.2760000228881836,
+          1.3179999589920044,
+          1.2760000228881836
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 4,
+      "visible_primitives": 4,
+      "visible_triangles": 3196
+    }
+  ],
+  "license": "Kenney Tower Defense Kit 2.1 palette CC0; original project geometry",
+  "mode": "Eight complete replacement models; draw one level, not additive overlays",
+  "motion": "Full yaw; pitch -12 to +20 degrees; no recoil",
+  "original_base_sha256": "5bf29c493d5a7aec9a0882c79a89f17d155ce3f5c7c9929018ed536de6124d56",
+  "palette": {
+    "embedded_glb": true,
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "source_blend_sha256": "412df9db6eacf2efc1cbcac91b747cadab719ac2dc012ef8ac353a6f0c231198"
+}
