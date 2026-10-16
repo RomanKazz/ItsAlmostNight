@@ -1,0 +1,26 @@
+{
+  "generator": "tools/create_wand_models.py",
+  "units": "metres",
+  "game_up": "+Y",
+  "origin": "unchanged KayKit hand-grip origin",
+  "socket_game": [
+    0,
+    0.35,
+    0
+  ],
+  "palette": "assets/models/weapons/ice_wand/weapons_bits_texture.png",
+  "models": {
+    "ice": "assets/models/weapons/elemental_wands/ice_wand.glb",
+    "fire": "assets/models/weapons/elemental_wands/fire_wand.glb"
+  },
+  "reference_order": [
+    "new ice",
+    "new fire",
+    "old wand",
+    "club"
+  ],
+  "source_collections": [
+    "ICE_WAND",
+    "FIRE_WAND"
+  ]
+}

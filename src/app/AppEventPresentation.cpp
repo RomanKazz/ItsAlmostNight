@@ -251,11 +251,10 @@ void App::processPresentationEvents(
         }
         if (event.type == GameEventType::IceWandChargeStarted ||
             event.type == GameEventType::FireWandChargeStarted) {
-            // Use the same authored tool-swing timeline as the other
-            // first-person tools; the wand's charge glow runs in parallel.
+            // Casting follows the actual charge/release, not a melee swing.
             toolSwingUsesAxe_ = false;
-            toolSwingDuration_ = activeToolTuning().swingDuration;
-            toolSwingRemaining_ = toolSwingDuration_;
+            toolSwingRemaining_ = 0.0;
+            iceWandRecoilRemaining_ = 0.0;
             toolSwingAttackPending_ = false;
             toolSwingQueued_ = false;
             toolQueuedSwingHasAttack_ = false;
@@ -268,7 +267,11 @@ void App::processPresentationEvents(
             addCameraImpulse({0.0, 0.008, -0.012});
         } else if (event.type == GameEventType::IceWandFired ||
                    event.type == GameEventType::FireWandFired) {
-            iceWandRecoilDuration_ = 0.20;
+            iceWandRecoilDuration_ = event.type == GameEventType::FireWandFired
+                ? 0.34 : 0.27;
+            const double cooldown = event.type == GameEventType::FireWandFired
+                ? eventSnapshot.fireWandCooldownRemaining : eventSnapshot.iceWandCooldownRemaining;
+            if (cooldown > 0.0) iceWandRecoilDuration_ = std::min(iceWandRecoilDuration_, cooldown);
             iceWandRecoilRemaining_ = iceWandRecoilDuration_;
             addCameraImpulse({0.0, 0.006, -0.018});
         } else if (event.type == GameEventType::IceWandImpact) {

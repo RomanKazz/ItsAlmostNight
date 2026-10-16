@@ -1123,7 +1123,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/tools/pickaxe_anim2.glb", "swing pivot.001"));
     clubModel_.load("assets/models/tools/club.glb");
     hammerModel_.load("assets/models/tools/hammer.glb");
-    iceWandModel_.load("assets/models/weapons/ice_wand/wand.glb");
+    iceWandModel_.load("assets/models/weapons/elemental_wands/ice_wand.glb");
+    fireWandModel_.load("assets/models/weapons/elemental_wands/fire_wand.glb");
     woodenChestModel_.load(
         "assets/models/buildings/chests/wooden_chest.glb");
     stoneChestModel_.load(
@@ -1578,6 +1579,7 @@ void GraphicsResources::shutdown() {
     platformModel_.unload();
     hammerModel_.unload();
     iceWandModel_.unload();
+    fireWandModel_.unload();
     clubModel_.unload();
     stoneChestModel_.unload();
     challengeColumnModel_.unload();

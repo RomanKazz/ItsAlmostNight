@@ -369,6 +369,10 @@ ModelResource& GraphicsResources::iceWandModel() {
     return iceWandModel_;
 }
 
+ModelResource& GraphicsResources::fireWandModel() {
+    return fireWandModel_;
+}
+
 ModelResource& GraphicsResources::woodenChestModel() {
     return woodenChestModel_;
 }

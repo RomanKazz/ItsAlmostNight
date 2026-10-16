@@ -13,7 +13,8 @@ bounded 128-event explosion batch handles fire, bombs and artillery. Extra
 detail remains limited to the four newest visible blasts and respects particles.
 The fire-specific radial petals have been removed.
 
-The staff retains its small idle flame, charge fire and recoil flash. Enemy
+The held staff now uses a distinct gold-and-ember model, converging charge
+motes and a smooth cast/recoil sequence; see `WAND_PRESENTATION.md`. Enemy
 burning retains its existing animated flames. Gameplay damage, charge timing,
 velocity, physical radius, burn rules, pooling, save IDs and audio are unchanged.
 

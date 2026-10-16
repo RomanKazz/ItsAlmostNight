@@ -1,3 +1,4 @@
+#include "graphics/WandPresentation.hpp"
 #include "ui/BossHealthBar.hpp"
 #include "ui/UiRenderLayer.hpp"
 #include "app/App.hpp"
@@ -235,12 +236,9 @@ if (showFirstPersonTool) {
     const double wandChargeRemaining = fireWand
         ? snapshot.fireWandChargeRemaining
         : snapshot.iceWandChargeRemaining;
-    const float iceChargeProgress =
-        elementalWand && (!fireWand || wandChargeRemaining > 0.0) && wandChargeDuration > 0.0
-            ? std::clamp(static_cast<float>(
-                  1.0 - wandChargeRemaining /
-                      wandChargeDuration), 0.0F, 1.0F)
-            : 0.0F;
+    const float iceChargeProgress = elementalWand
+        ? wand_presentation::chargeProgress(wandChargeRemaining, wandChargeDuration)
+        : 0.0F;
     const float iceRecoilProgress =
         elementalWand &&
                 iceWandRecoilDuration_ > 0.0

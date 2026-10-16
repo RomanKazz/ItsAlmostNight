@@ -291,6 +291,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& clubModel();
     [[nodiscard]] ModelResource& hammerModel();
     [[nodiscard]] ModelResource& iceWandModel();
+    [[nodiscard]] ModelResource& fireWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& challengeColumnModel();
@@ -451,6 +452,7 @@ class GraphicsResources {
     ModelResource clubModel_;
     ModelResource hammerModel_;
     ModelResource iceWandModel_;
+    ModelResource fireWandModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
     ModelResource challengeColumnModel_;

@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/FireWandEffect.hpp"
+#include "graphics/WandHeadEffect.hpp"
 #include "graphics/BombDrawing.hpp"
 #include "graphics/IceWandEffect.hpp"
 #include "graphics/ViewModelCompositeBounds.hpp"
@@ -71,8 +72,10 @@ bool Renderer::drawFirstPersonTool(
         resource = &resources_.clubModel();
         break;
     case FirstPersonToolVisual::IceWand:
-    case FirstPersonToolVisual::FireWand:
         resource = &resources_.iceWandModel();
+        break;
+    case FirstPersonToolVisual::FireWand:
+        resource = &resources_.fireWandModel();
         break;
     case FirstPersonToolVisual::Hammer:
         resource = &resources_.hammerModel();
@@ -102,16 +105,16 @@ bool Renderer::drawFirstPersonTool(
     };
     float swingPitch = 0.0F;
     float swingPush = 0.0F;
-    if (!authoredHarvestSwing && progress > 0.0F && progress < 0.22F) {
+    if (!authoredHarvestSwing && !wand && progress > 0.0F && progress < 0.22F) {
         const float phase = smoothStep(progress / 0.22F);
         swingPitch = tuning.windupDegrees * phase;
-    } else if (!authoredHarvestSwing && progress >= 0.22F &&
+    } else if (!authoredHarvestSwing && !wand && progress >= 0.22F &&
                progress < 0.53F) {
         const float phase = smoothStep((progress - 0.22F) / 0.31F);
         swingPitch = tuning.windupDegrees +
                      (tuning.strikeDegrees - tuning.windupDegrees) * phase;
         swingPush = std::sin(phase * PI) * tuning.depthPush;
-    } else if (!authoredHarvestSwing && progress >= 0.53F) {
+    } else if (!authoredHarvestSwing && !wand && progress >= 0.53F) {
         const float phase = smoothStep((progress - 0.53F) / 0.47F);
         swingPitch = tuning.strikeDegrees * (1.0F - phase);
     }
@@ -121,9 +124,7 @@ bool Renderer::drawFirstPersonTool(
     const float bobX = std::sin(movementPhase) * 0.012F * bob;
     const float bobY =
         std::abs(std::cos(movementPhase)) * 0.014F * bob;
-    const float charge = smoothStep(std::clamp(iceChargeProgress, 0.0F, 1.0F));
-    const float recoil = std::sin(
-        std::clamp(iceRecoilProgress, 0.0F, 1.0F) * PI);
+    const auto cast = wand_presentation::pose(fireWand, iceChargeProgress, iceRecoilProgress);
     rlPushMatrix();
     constexpr Vector3 LegacyPickaxePosition{
         0.55401313F, -0.349843F, -0.7427701F};
@@ -135,17 +136,22 @@ bool Renderer::drawFirstPersonTool(
         ? LegacyAxePosition : LegacyPickaxePosition;
     const float wandX = authoredHarvestSwing
         ? tuning.position.x - authoredPosition.x + bobX
-        : (wand ? tuning.position.x + 0.035F + bobX
+        : (wand ? tuning.position.x - .12F + cast.offset.x + bobX
                 : tuning.position.x + bobX);
     const float wandY = authoredHarvestSwing
         ? tuning.position.y - authoredPosition.y - bobY
-        : (wand ? tuning.position.y - bobY + charge * 0.045F
+        : (wand ? tuning.position.y - bobY + cast.offset.y
                 : tuning.position.y - bobY);
     const float wandZ = authoredHarvestSwing
         ? tuning.position.z - authoredPosition.z
-        : (wand ? tuning.position.z + recoil * 0.075F
+        : (wand ? tuning.position.z + cast.offset.z
                 : tuning.position.z + swingPush);
     rlTranslatef(wandX, wandY, wandZ);
+    if (wand) {
+        rlRotatef(cast.rotation.x, 1, 0, 0);
+        rlRotatef(cast.rotation.y, 0, 1, 0);
+        rlRotatef(cast.rotation.z, 0, 0, 1);
+    }
     // Swing in camera space. Applying this before the model's local pose
     // keeps the strike aimed forward even when the tool is yawed in-hand.
     if (!authoredHarvestSwing) {
@@ -257,13 +263,12 @@ bool Renderer::drawFirstPersonTool(
                          model.transform);
             }
         } else {
-            DrawModel(model, {}, 1.0F,
-                      fireWand ? Color{255, 193, 150, 255} : WHITE);
+            DrawModel(model, {}, 1.0F, WHITE);
         }
         model.transform = originalTransform;
     }
-    if (fireWand) {
-        const Vector3 tip{0, .365F, 0};
+    if (wand) {
+        const Vector3 tip{0, .35F, 0};
         const Matrix inverseTool = MatrixInvert(rlGetMatrixTransform());
         const Vector3 localCamera = Vector3Transform({}, inverseTool);
         const Vector3 right = fire_wand_effect::normalized(Vector3Subtract(
@@ -272,37 +277,8 @@ bool Renderer::drawFirstPersonTool(
             Vector3Transform({0, 1, 0}, inverseTool), localCamera), {0, 1, 0});
         const Vector3 front = fire_wand_effect::normalized(
             Vector3Subtract(localCamera, tip), {0, 0, 1});
-        fire_wand_effect::beginBatch();
-        fire_wand_effect::emitStaff(tip, GetTime(), charge,
-            iceRecoilProgress, settings_.particles, right, up, front);
-        fire_wand_effect::endBatch();
-    } else if (iceWand) {
-        constexpr float CrystalHeight = 0.365F;
-        const float crystalPulse = 0.42F + charge * 0.28F +
-            0.035F * std::sin(static_cast<float>(GetTime()) * 5.0F);
-        drawIceMagicSphere(
-            {0.0F, CrystalHeight, 0.0F},
-            0.052F + charge * 0.012F,
-            static_cast<float>(GetTime()), crystalPulse,
-            fireWand ? Color{255, 104, 24, 165}
-                     : Color{142, 229, 255, 145});
-        if (charge > 0.01F && settings_.particles) {
-            BeginBlendMode(BLEND_ADDITIVE);
-            for (int particle = 0; particle < 5; ++particle) {
-                const float phase = static_cast<float>(GetTime()) *
-                    (2.6F + static_cast<float>(particle) * 0.37F) +
-                    static_cast<float>(particle) * 1.2566F;
-                const float orbit = 0.18F * charge;
-                DrawSphereEx(
-                    {std::cos(phase) * orbit,
-                     CrystalHeight + std::sin(phase * 1.3F) * orbit,
-                     std::sin(phase) * orbit},
-                    0.008F + charge * 0.005F, 4, 4,
-                    fireWand ? Color{255, 128, 32, 155}
-                             : Color{142, 229, 255, 135});
-            }
-            EndBlendMode();
-        }
+        wand_presentation::drawHead(fireWand, static_cast<float>(GetTime()),
+            iceChargeProgress, iceRecoilProgress, settings_.particles, right, up, front);
     }
     rlPopMatrix();
     return true;

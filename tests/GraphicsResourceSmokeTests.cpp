@@ -14,6 +14,7 @@
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
+#include "WandGraphicsChecks.hpp"
 #include "EnemyCylinderGraphicsChecks.hpp"
 #include "WizardGraphicsChecks.hpp"
 #include "RoyalBossGraphicsChecks.hpp"
@@ -2927,6 +2928,16 @@ int main() {
         return 77;
     }
 
+    if (std::getenv("IAN_WANDS_ONLY")) {
+        int result = 0;
+        {
+            ian::Renderer renderer;
+            renderer.initialize();
+            result = checkWandPresentation(renderer) ? 0 : 1;
+        }
+        CloseWindow();
+        return result;
+    }
     int result = 0;
     if (!checkDefenseInventoryGraphics()) {
         std::cerr << "defense inventory icons or row spacing failed\n";
@@ -3026,6 +3037,7 @@ int main() {
             !resources.clubModel().valid() ||
             !resources.hammerModel().valid() ||
             !resources.iceWandModel().valid() ||
+            !resources.fireWandModel().valid() ||
             !resources.iceMagicShader().valid() ||
             !resources.coinOutlineShader().valid() ||
             !resources.heartOutlineShader().valid() ||
@@ -3194,6 +3206,10 @@ int main() {
         }
         if (!checkFireSelection(renderer)) {
             std::cerr << "fire foreground selection checks failed\n";
+            return 1;
+        }
+        if (!checkWandPresentation(renderer)) {
+            std::cerr << "wand head palette, cast continuity or viewmodel visibility failed\n";
             return 1;
         }
         if (!checkFireWandAttack(renderer)) {

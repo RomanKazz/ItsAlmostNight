@@ -24,8 +24,27 @@ struct AppPresentationTestAccess {
             GameEvent{.type=GameEventType::SawSplinterLaunched,.position={0,1,0},.targetPosition=Vec3{1,1,1}},
             GameEvent{.type=GameEventType::BossRoyalImpact,.position={3,0,0},.intensity=1}};
         app->processPresentationEvents(events,snapshot);
+        bool wandEvents = true;
+        for (const auto charge : {GameEventType::IceWandChargeStarted, GameEventType::FireWandChargeStarted}) {
+            app->toolSwingRemaining_ = .3;
+            app->iceWandRecoilRemaining_ = .1;
+            const std::array start{GameEvent{.type=charge}};
+            app->processPresentationEvents(start, snapshot);
+            wandEvents &= app->toolSwingRemaining_ == 0 && app->iceWandRecoilRemaining_ == 0;
+            const std::array shot{GameEvent{.type=charge == GameEventType::IceWandChargeStarted
+                ? GameEventType::IceWandFired : GameEventType::FireWandFired}};
+            app->processPresentationEvents(shot, snapshot);
+            wandEvents &= app->iceWandRecoilRemaining_ == app->iceWandRecoilDuration_ &&
+                app->iceWandRecoilDuration_ >= .26;
+        }
+        auto fastSnapshot = snapshot;
+        fastSnapshot.fireWandCooldownRemaining = .06;
+        const std::array fastCast{GameEvent{.type=GameEventType::FireWandFired}};
+        app->processPresentationEvents(fastCast, fastSnapshot);
+        wandEvents &= std::abs(app->iceWandRecoilDuration_ - .06) < 1e-6;
+        if (!wandEvents) std::cerr << "Wand events did not drive independent charge/release presentation\n";
         const auto count=[&](PresentationEffectType type){return std::ranges::count(app->effects_,type,&PresentationEffect::type);};
-        bool okay=count(PresentationEffectType::ChainLightning)==2 && count(PresentationEffectType::Explosion)==1 &&
+        bool okay=wandEvents && count(PresentationEffectType::ChainLightning)==2 && count(PresentationEffectType::Explosion)==1 &&
             count(PresentationEffectType::SawSplinter)==1 && count(PresentationEffectType::RoyalImpact)==1;
         if(!okay) std::cerr<<"Gameplay events did not queue their own independent presentation effects\n";
         std::erase_if(app->effects_,[](const auto& effect){return effect.type!=PresentationEffectType::ChainLightning;});

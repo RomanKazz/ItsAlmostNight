@@ -1,0 +1,40 @@
+{
+  "palette_sha256": "c153429a49928594b00b53c07c4ab3d6352087b7f5df6c272d4aedfdb99a40be",
+  "models": {
+    "ice": {
+      "bounds_game": {
+        "min": [
+          -0.05629165098071098,
+          -0.1613469123840332,
+          -0.07710641622543335
+        ],
+        "max": [
+          0.08355000615119934,
+          0.4569999873638153,
+          0.07710641622543335
+        ]
+      },
+      "primitives": 1,
+      "triangles": 550,
+      "clean_import": "passed"
+    },
+    "fire": {
+      "bounds_game": {
+        "min": [
+          -0.06706907600164413,
+          -0.1613469123840332,
+          -0.06706907600164413
+        ],
+        "max": [
+          0.06706907600164413,
+          0.44699999690055847,
+          0.06706907600164413
+        ]
+      },
+      "primitives": 1,
+      "triangles": 566,
+      "clean_import": "passed"
+    }
+  },
+  "editable_source": "packed, original grip, manifold new parts"
+}
