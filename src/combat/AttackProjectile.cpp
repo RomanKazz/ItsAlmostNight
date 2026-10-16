@@ -2,19 +2,22 @@
 
 namespace ian {
 namespace {
-Vec3 steerMissile(Vec3 current, Vec3 desired, double maximumAngle) {
+Vec3 steerMissile(Vec3 current, Vec3 desired, double response, double maximumRate, double seconds) {
     const Vec3 from = geometry::normalizedOr(current), to = geometry::normalizedOr(desired);
     const double cosine = std::clamp(geometry::dot(from,to), -1.0, 1.0);
     const double angle = std::acos(cosine);
-    if (angle <= maximumAngle) return to;
+    // Ease out as the heading converges instead of snapping onto the last straight
+    // segment. The angular cap keeps the opening turn broad and readable.
+    const double turn = std::min(angle * -std::expm1(-response * seconds), maximumRate * seconds);
+    if (turn <= 1e-12) return from;
     Vec3 axis = geometry::cross(from,to);
     if (geometry::lengthSquared(axis) < 1e-12) {
         axis = geometry::cross(from, std::abs(from.y)<.9 ? Vec3{0,1,0} : Vec3{1,0,0});
     }
     axis = geometry::normalizedOr(axis);
     // Rodrigues rotation also handles a target exactly behind the rocket.
-    return geometry::normalizedOr(geometry::add(geometry::scale(from,std::cos(maximumAngle)),
-        geometry::scale(geometry::cross(axis,from),std::sin(maximumAngle))));
+    return geometry::normalizedOr(geometry::add(geometry::scale(from,std::cos(turn)),
+        geometry::scale(geometry::cross(axis,from),std::sin(turn))));
 }
 }
 bool AttackProjectileSystem::spawn(EntityId source, BuildingType type, Vec3 origin,
@@ -66,14 +69,13 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
             // Rockets first leave raised tubes, then converge along distinct arcs.
             // Ordinary bullets keep their existing optional homing behavior.
             const bool rocket = projectile.type == BuildingType::MissileLauncher;
-            const double boostSeconds = 0.18 + 0.025 * projectile.muzzleIndex;
-            if (stats.homing > 0.0 && state.currentTarget && (!rocket || state.elapsedLifetime > boostSeconds)) {
+            if (stats.homing > 0.0 && state.currentTarget) {
                 const auto target = enemies.enemy(*state.currentTarget);
                 if (target) {
                     Vec3 aim = attackTargetPosition(*target);
                     if (rocket) {
-                        const double arcProgress = std::clamp((state.elapsedLifetime - boostSeconds) / 0.60, 0.0, 1.0);
-                        const double envelope = (1.0-arcProgress)*(1.0-arcProgress);
+                        const double arcProgress = std::clamp(state.elapsedLifetime / 1.05, 0.0, 1.0);
+                        const double envelope = 1.0 - arcProgress * arcProgress * (3.0 - 2.0 * arcProgress);
                         const auto seed = (static_cast<std::uint64_t>(projectile.id.index) << 32U) ^ projectile.id.generation;
                         const double variation = unitRandom(seed);
                         const Vec3 toTarget = geometry::subtract(aim, projectile.launchOrigin);
@@ -85,10 +87,23 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
                     }
                     const auto desired = geometry::scale(geometry::normalizedOr(
                         geometry::subtract(aim, projectile.position)), stats.projectileSpeed);
-                    const Vec3 heading = rocket
-                        ? steerMissile(state.velocity, desired, stats.homing * 2.0 * remainingTime *
-                            std::max(1.0, stats.projectileSpeed/12.0))
-                        : geometry::normalizedOr(geometry::lerpClamped(state.velocity, desired, stats.homing * remainingTime));
+                    Vec3 heading;
+                    if (rocket) {
+                        const double launchProgress = std::clamp((state.elapsedLifetime - 0.04) /
+                            (0.42 + 0.025 * projectile.muzzleIndex), 0.0, 1.0);
+                        const double guidance = launchProgress * launchProgress * (3.0 - 2.0 * launchProgress);
+                        const double distance = geometry::length(geometry::subtract(aim, projectile.position));
+                        // Tighten continuously on approach so nearby/moving targets
+                        // are intercepted rather than orbited, including at high speed.
+                        const double turnRate = std::max(stats.projectileSpeed / 4.0,
+                            stats.projectileSpeed / (0.8 + 0.6 * distance));
+                        const double response = stats.homing * std::max(1.0, stats.projectileSpeed / 12.0) *
+                            std::max(1.0, 4.0 / (0.4 + distance));
+                        heading = steerMissile(state.velocity, desired, response * guidance,
+                            turnRate * guidance, remainingTime);
+                    } else {
+                        heading = geometry::normalizedOr(geometry::lerpClamped(state.velocity, desired, stats.homing * remainingTime));
+                    }
                     state.velocity = geometry::scale(heading, stats.projectileSpeed);
                 }
             }

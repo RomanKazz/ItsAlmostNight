@@ -67,6 +67,63 @@ void projectileChecks() {
     pool.spawn({999,1},BuildingType::GunTurret,{0,.56,0},{0,0,-1},stats,0);
     require(!pool.projectiles()[0].runtime.currentTarget,"reuse clears homing target on ordinary bullet");
 }
+void curvedFlightChecks() {
+    const auto stats = resolveAttackStats(TowerSystem::baseStats(BuildingType::MissileLauncher,1));
+    auto enemies = crowd({{0,0,-14}});
+    const auto target = enemies.enemies()[0].id;
+    std::array<Vec3,3> sampledPositions{};
+    for (int sample=0; sample<3; ++sample) {
+        const double step = 1.0 / (60 << sample);
+        AttackProjectileSystem pool;
+        pool.spawn({999,1},BuildingType::MissileLauncher,{0,1.2,0},{0,.5,-.8660254},stats,0,0,false,target);
+        Vec3 previous = geometry::normalizedOr(pool.projectiles()[0].runtime.velocity);
+        int curvedSteps=0;
+        double earlyTurn=0, laterTurn=0;
+        for(int frame=0;frame<(60 << sample)*3/5;++frame) {
+            pool.tick(step,enemies);
+            const auto& rocket = pool.projectiles()[0];
+            require(rocket.active,"opening arc remains in flight");
+            const Vec3 heading = geometry::normalizedOr(rocket.runtime.velocity);
+            const double turn = std::acos(std::clamp(geometry::dot(previous,heading),-1.0,1.0));
+            require(turn < 3.2*step,"opening turn stays broad without a sharp corner");
+            if(rocket.runtime.elapsedLifetime<=.12) earlyTurn+=turn;
+            else laterTurn+=turn;
+            if(turn>.05*step) ++curvedSteps;
+            requireNear(geometry::length(rocket.runtime.velocity),stats.projectileSpeed,1e-9,"arc preserves flight speed");
+            previous=heading;
+        }
+        require(earlyTurn < laterTurn*.1,"guidance turns on gradually after leaving the tube");
+        require(curvedSteps > (60 << sample)/3,"turn is distributed along the arc");
+        sampledPositions[static_cast<std::size_t>(sample)]=pool.projectiles()[0].position;
+    }
+    require(geometry::length(geometry::subtract(sampledPositions[0],sampledPositions[2]))<.09 &&
+        geometry::length(geometry::subtract(sampledPositions[1],sampledPositions[2]))<.04,
+        "arc remains consistent at 60, 120 and 240 Hz");
+    // Broad launch arcs must still intercept close targets and boosted projectiles.
+    for(double speed : {6.0,12.0,30.0}) for(double distance : {2.6,8.0,18.0}) {
+        auto nearby=crowd({{0,0,-distance}});
+        auto tuned=stats;tuned.projectileSpeed=speed;
+        for(std::uint8_t muzzle=0;muzzle<4;++muzzle) {
+            AttackProjectileSystem pool;
+            pool.spawn({999,1},BuildingType::MissileLauncher,{0,1.2,0},{0,.5,-.8660254},tuned,0,muzzle,false,nearby.enemies()[0].id);
+            bool hit=false;
+            for(int frame=0;frame<540;++frame) hit |= !pool.tick(Step,nearby).empty();
+            require(hit,"all four arcs intercept close/far targets with speed modifiers");
+        }
+    }
+    auto changed=crowd({{0,0,-14},{5,0,-5}});
+    AttackProjectileSystem retarget;
+    retarget.spawn({999,1},BuildingType::MissileLauncher,{0,1.2,0},{0,.5,-.8660254},stats,0,0,false,changed.enemies()[0].id);
+    for(int frame=0;frame<60;++frame) retarget.tick(Step,changed);
+    const auto before=geometry::normalizedOr(retarget.projectiles()[0].runtime.velocity);
+    changed.damage(changed.enemies()[0].id,1000000);
+    retarget.tick(Step,changed);
+    const auto after=geometry::normalizedOr(retarget.projectiles()[0].runtime.velocity);
+    require(std::acos(std::clamp(geometry::dot(before,after),-1.0,1.0))<.04,"retargeting keeps a continuous heading");
+    bool hit=false;
+    for(int frame=0;frame<480;++frame) hit |= !retarget.tick(Step,changed).empty();
+    require(hit,"curved retargeting reaches replacement enemy");
+}
 void towerChecks() {
     const BuildingInstance building{.id={870,1},.type=BuildingType::MissileLauncher,.gridPosition={0,0},.level=1};
     for (int quantity : {2,3,10,30}) {
@@ -156,4 +213,4 @@ void progressionChecks() {
     require(restored->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher),"restored launcher can reach level three core");
     require(!restored->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher),"restored launcher respects core cap");
 }
-int main(){projectileChecks();towerChecks();progressionChecks();}
+int main(){projectileChecks();curvedFlightChecks();towerChecks();progressionChecks();}
