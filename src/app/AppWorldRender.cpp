@@ -1081,6 +1081,9 @@ void App::drawWorldEntities(
                     0.0F, 1.55F, -0.55F, 0.18F, 0.18F,
                     1.0F, {50, 58, 67, 255});
             }
+        } else if (building.type == BuildingType::RepairStation) {
+            static_cast<void>(renderer_->drawRepairStation({x, groundY, z},
+                static_cast<float>(buildingRotationYaw(building.type, building.rotation)), WHITE, spawnScale));
         } else if (building.type == BuildingType::Mortar) {
             static_cast<void>(renderer_->drawMortar({x, groundY, z},
                 cannonBaseYaw(snapshot, building), WHITE, spawnScale,

@@ -184,6 +184,9 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
+    case BuildingType::RepairStation:
+        resource = &resources_.repairStationModel();
+        yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
     case BuildingType::Mortar:
         resource = &resources_.mortarModel(); yaw=defensiveYaw; break;
     case BuildingType::LaserTower:

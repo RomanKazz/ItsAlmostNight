@@ -183,6 +183,8 @@ Simulation::Simulation(
     recentPlayerHitBuffer_.reserve(128U);
     activeFortifications_.reserve(64U);
     activeRepairCooldowns_.reserve(64U);
+    repairStationSources_.reserve(64U);
+    repairStationLinks_.reserve(MaximumRepairStationVisualLinks);
     modularTargetBuffer_.reserve(512U);
     pendingEliteExplosions_.reserve(64U);
 }
@@ -448,6 +450,8 @@ void Simulation::resetRun(GameEventType eventType) {
               insightRewardedEnemyIds_.end(), EntityId{});
     activeFortifications_.clear();
     activeRepairCooldowns_.clear();
+    repairStationSources_.clear();
+    repairStationLinks_.clear();
     bombs_.reset();
     iceWand_.reset();
     fireWand_.reset();
@@ -663,6 +667,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
     updateEliteEffects(deltaSeconds);
+    if (state_ != RunState::Defeat) updateRepairStations(deltaSeconds);
     collectEliteEnemyEvents();
     updateChallengeColumns(0.0, PlayerCommand{});
     if (state_ == RunState::Defeat) {

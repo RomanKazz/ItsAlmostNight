@@ -160,7 +160,7 @@ class GameUi {
     Texture2D wallBuildingIcon_{};
     Texture2D gateBuildingIcon_{};
     std::array<Texture2D, 3> modularBuildingIcons_{};
-    std::array<Texture2D, 14> buildingIcons_{};
+    std::array<Texture2D, 15> buildingIcons_{};
     std::array<Texture2D, 7> weaponIcons_{};
     std::array<Texture2D, 8> enemyIcons_{};
     Texture2D armorUpgradeIcon_{};

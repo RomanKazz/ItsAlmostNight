@@ -1,5 +1,6 @@
 #include "buildings/BuildingStats.hpp"
 #include "buildings/BuildingModifiers.hpp"
+#include "buildings/RepairStation.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
 #include "combat/CannonSystem.hpp"
@@ -72,6 +73,10 @@ BuildingStats buildingStatsAtLevel(
             producers.productionAmount(level, building.type));
         stats.productionInterval =
             producers.productionInterval(building.type, level);
+    } else if (building.type == BuildingType::RepairStation) {
+        stats.effectRadius = repairStationRadius(level);
+        stats.repairPerSecond = repairStationRate(level);
+        stats.repairDelay = RepairStationDamagePause;
     } else if (building.type == BuildingType::SlowTrap) {
         stats.slowPercent = TrapSystem::slowPercent(level);
         stats.effectRadius = TrapSystem::triggerRadius(level);

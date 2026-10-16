@@ -157,6 +157,8 @@ void drawBuildingContextCard(
         add("SLOW", &BuildingStats::slowPercent,0,"%");
         add("DURATION", &BuildingStats::effectDuration,1,"s");
         add("COOLDOWN", &BuildingStats::cooldown,2,"s");
+        add("REPAIR RATE", &BuildingStats::repairPerSecond,1,"/s");
+        add("REPAIR DELAY", &BuildingStats::repairDelay,1,"s");
         add("PER CYCLE", &BuildingStats::productionPerCycle);
         add("CYCLE TIME", &BuildingStats::productionInterval,1,"s");
         add("CAPACITY", &BuildingStats::producerCapacity);

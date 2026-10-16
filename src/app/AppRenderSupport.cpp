@@ -1,5 +1,6 @@
 #include "buildings/TowerRig.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/RepairStation.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
@@ -1069,6 +1070,8 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::RepairStation) {
+        static_cast<void>(renderer.drawRepairStation(position, yawRadians));
     } else if (type == BuildingType::Mortar) {
         static_cast<void>(renderer.drawMortar(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::LaserTower) {
@@ -1343,6 +1346,11 @@ void drawBuildingTacticalOverlay(
             targetId = runtime->targetId;
         }
         center.y += 1.5;
+    } else if (building->type == BuildingType::RepairStation) {
+        renderer.drawTacticalGroundSector(
+            {static_cast<float>(center.x), static_cast<float>(center.y) + .085F, static_cast<float>(center.z)},
+            static_cast<float>(repairStationRadius(building->level)), 0, 360, {99, 234, 255, 190});
+        return;
     } else if (building->type == BuildingType::SlowTrap) {
         drawTacticalGroundCircle(
             {static_cast<float>(center.x),

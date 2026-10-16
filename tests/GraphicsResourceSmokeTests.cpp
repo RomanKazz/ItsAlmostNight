@@ -1,6 +1,7 @@
 #include "TeslaGraphicsChecks.hpp"
 #include "LaserGraphicsChecks.hpp"
 #include "MortarGraphicsChecks.hpp"
+#include "RepairStationGraphicsChecks.hpp"
 #include "MissileLauncherGraphicsChecks.hpp"
 #include "ToolLevelGraphicsChecks.hpp"
 #include "graphics/CrystalMineModel.hpp"
@@ -3149,6 +3150,7 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkRepairStationGraphics(renderer)) {std::cerr<<"repair station model/icon/effect/raycast failed\n";return 1;}
         if (!checkMortarGraphics(renderer)) {std::cerr<<"mortar model/rig/icon/raycast failed\n";return 1;}
         if (!checkLaserGraphics(renderer)) {std::cerr<<"laser model/rig/beam/icon/depth failed\n";return 1;}
         if (!checkTeslaGraphics(renderer)) {std::cerr << "tesla model/icon/lightning/depth/range failed\n";return 1;}

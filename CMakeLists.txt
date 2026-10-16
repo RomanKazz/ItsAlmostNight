@@ -121,6 +121,7 @@ add_library(ian_simulation
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
     src/game/SimulationCombat.cpp
+    src/game/SimulationRepairStations.cpp
     src/game/SimulationCoins.cpp
     src/game/SimulationChallenges.cpp
     src/game/QuestGameplayTracker.cpp
@@ -413,6 +414,16 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_night_encounter_tests COMMAND ian_night_encounter_tests)
     set_tests_properties(ian_night_encounter_tests PROPERTIES TIMEOUT 60)
+
+    add_executable(ian_repair_station_tests tests/RepairStationTests.cpp)
+    target_link_libraries(ian_repair_station_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_repair_station_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_repair_station_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_repair_station_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_repair_station_tests COMMAND ian_repair_station_tests)
+    set_tests_properties(ian_repair_station_tests PROPERTIES TIMEOUT 60)
 
     add_executable(ian_weapon_arsenal_tests tests/WeaponArsenalTests.cpp)
     target_link_libraries(ian_weapon_arsenal_tests PRIVATE ian_simulation)

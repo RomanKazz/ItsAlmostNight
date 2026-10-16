@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/RepairStation.hpp"
 #include "buildings/BuildingStats.hpp"
 #include "buildings/FoundationSystem.hpp"
 #include "combat/CannonSystem.hpp"
@@ -382,6 +383,7 @@ struct SimulationSnapshot {
         defenseBlueprints;
     std::span<const EnemyInstance> enemies;
     std::span<const EnemyProjectile> enemyProjectiles;
+    std::span<const RepairStationLink> repairStationLinks;
     std::span<const TowerRuntime> towers;
     std::span<const LaserBeamSegment> laserBeams;
     std::span<const AttackProjectile> defenseProjectiles;
@@ -725,6 +727,7 @@ class Simulation {
     [[nodiscard]] int earlyWaveCoinBonus() const;
     [[nodiscard]] int earlyWaveInsightBonus() const;
     void updateCombat(double deltaSeconds);
+    void updateRepairStations(double deltaSeconds);
     void updateEliteEffects(double deltaSeconds);
     void collectEliteEnemyEvents();
     void updateTrapCombat(double deltaSeconds);
@@ -1103,6 +1106,8 @@ class Simulation {
     std::vector<ActiveFortification> activeFortifications_;
     struct ActiveRepairCooldown { EntityId id; double remaining; };
     std::vector<ActiveRepairCooldown> activeRepairCooldowns_;
+    std::vector<RepairStationSource> repairStationSources_;
+    std::vector<RepairStationLink> repairStationLinks_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;
     struct PendingEliteExplosion {
         EntityId sourceId;

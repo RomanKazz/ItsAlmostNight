@@ -337,7 +337,7 @@ void App::processGameplayInput(bool controlDown,
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 ConstructionKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
-                    KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO, KEY_MINUS, KEY_EQUAL,
+                    KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO, KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACKET,
                 };
             const ConstructionHotbarLayout layout =
                 makeConstructionHotbarLayout(
@@ -389,7 +389,7 @@ void App::processGameplayInput(bool controlDown,
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 BuildingKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE,
-                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO, KEY_MINUS, KEY_EQUAL,
+                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO, KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACKET,
                 };
             const BuildingHotbarLayout layout =
                 makeBuildingHotbarLayout(

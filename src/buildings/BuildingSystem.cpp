@@ -1,5 +1,6 @@
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingModifiers.hpp"
+#include "buildings/RepairStation.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 
@@ -32,6 +33,7 @@ Footprint footprint(BuildingType type) {
     case BuildingType::TeslaTower:
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
+    case BuildingType::RepairStation:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -74,6 +76,7 @@ SelectionBounds selectionBounds(BuildingType type) {
     case BuildingType::TeslaTower: return {0.6, 0.6, 0.0, 1.44};
     case BuildingType::LaserTower: return {0.6, 0.6, 0.0, 1.40};
     case BuildingType::Mortar: return {0.6, 0.6, 0.0, 1.45};
+    case BuildingType::RepairStation: return {0.6, 0.71, 0.0, 1.5};
     case BuildingType::MissileLauncher: return {0.6, 0.6, 0.0, 1.54};
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -256,6 +259,7 @@ BuildingLimitCategory buildingLimitCategory(
     case BuildingType::TeslaTower:
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
+    case BuildingType::RepairStation:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -525,7 +529,9 @@ bool BuildingSystem::restoreBuildings(
         const std::uint64_t key =
             (static_cast<std::uint64_t>(building.id.generation) << 32U) |
             static_cast<std::uint64_t>(building.id.index);
-        if (building.id.index < FirstBuildingId ||
+        if (!std::isfinite(building.repairDelayRemaining) || building.repairDelayRemaining < 0 ||
+            building.repairDelayRemaining > RepairStationDamagePause ||
+            building.id.index < FirstBuildingId ||
             building.id.index >=
                 std::numeric_limits<std::uint32_t>::max() -
                     ReservedIdHeadroom ||
@@ -828,6 +834,7 @@ std::optional<BuildingDamageResult> BuildingSystem::damage(EntityId id, double a
         return std::nullopt;
     }
 
+    iterator->repairDelayRemaining = RepairStationDamagePause;
     iterator->health = std::max(0.0, iterator->health - amount);
     const BuildingDamageResult result{
         .id = iterator->id,
@@ -959,6 +966,21 @@ RepairResult BuildingSystem::repair(EntityId id, int wood, int stone, int crysta
         .cost = validation.cost,
         .repairedHealth = repairedHealth,
     };
+}
+
+double BuildingSystem::restoreHealth(EntityId id, double amount) {
+    if (!std::isfinite(amount) || amount <= 0) return 0;
+    const auto target = std::ranges::find(buildings_,id,&BuildingInstance::id);
+    if (target == buildings_.end()) return 0;
+    const double healing = std::min(amount,std::max(0.0,target->maxHealth-target->health));
+    target->health += healing;
+    return healing;
+}
+
+void BuildingSystem::advanceRepairDelays(double deltaSeconds) {
+    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0) return;
+    for (auto& building : buildings_)
+        building.repairDelayRemaining = std::max(0.0, building.repairDelayRemaining - deltaSeconds);
 }
 
 SellResult BuildingSystem::sell(EntityId id) {

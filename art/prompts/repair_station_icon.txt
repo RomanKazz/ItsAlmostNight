@@ -1,0 +1,6 @@
+Tool: built-in image_gen, transparent_background=true.
+References: art/models/repair_station_comparison.png (subject, left station only),
+assets/ui/building_flamethrower.png (style).
+Output: assets/ui/building_repair_station.png, resized to 256×256 with alpha using sips.
+
+Create ONE square transparent-background game inventory icon for the REPAIR STATION at LEFT of reference image 1. Reference image 1 is subject/model guidance only; the center tesla and right cannon must NOT appear. Reference image 2 is exact style guidance: bold crisp dark outline, chunky cartoon low-poly shaded painted game icon, saturated orange, blue-gray metal highlights, clear large silhouette. Depict repair station faithfully: short orange round octagonal base, orange tapered central body with FOUR diagonal blue-gray metal braces and bolts, dark vertical stalk with orange collar, large CYAN OPEN-JAW WRENCH symbol standing vertically on top, small blue-gray front angled console with cyan screen. Front-left three-quarter elevated view, whole single isolated building centered taking 88% of canvas. No wood platform, no environment, no labels or letters, no text, no glow cloud, no border card. Transparent background with real alpha. Match proportions of reference station and line/shading style of flamethrower icon. Final asset is building_repair_station.png.

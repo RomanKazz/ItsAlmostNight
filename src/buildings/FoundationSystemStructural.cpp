@@ -1,4 +1,5 @@
 #include "buildings/FoundationSystem.hpp"
+#include "buildings/RepairStation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -102,6 +103,7 @@ FoundationSystem::damage(
                 return candidate.id == id;
             });
         if (wall != walls_.end()) {
+            wall->repairDelayRemaining = RepairStationDamagePause;
             wall->health =
                 std::max(0.0, wall->health - amount);
             result.wall = *wall;
@@ -127,6 +129,21 @@ FoundationSystem::damage(
         syncStructuralStates();
     }
     return result;
+}
+
+void FoundationSystem::advanceWallRepairDelays(double deltaSeconds) {
+    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0) return;
+    for (auto& wall : walls_)
+        wall.repairDelayRemaining = std::max(0.0, wall.repairDelayRemaining - deltaSeconds);
+}
+
+double FoundationSystem::restoreWallHealth(EntityId id, double amount) {
+    if (!std::isfinite(amount) || amount <= 0) return 0;
+    const auto target = std::ranges::find(walls_, id, &WallInstance::id);
+    if (target == walls_.end()) return 0;
+    const double healed = std::min(amount, std::max(0.0, target->maxHealth - target->health));
+    target->health += healed;
+    return healed;
 }
 
 ModularBuildingRepairResult FoundationSystem::repair(

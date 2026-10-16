@@ -89,6 +89,7 @@ Json buildingJson(const BuildingInstance& building) {
         {"foundationBottomHeight", building.foundationBottomHeight},
         {"anvilEnhanced", building.anvilEnhanced},
         {"anvilStacks", building.anvilStacks},
+        {"repairDelayRemaining", building.repairDelayRemaining},
     };
 }
 
@@ -111,6 +112,7 @@ BuildingInstance readBuilding(const Json& value) {
         .anvilEnhanced = value.value("anvilEnhanced", false),
         .anvilStacks = static_cast<std::uint8_t>(
             value.value("anvilStacks", 0U)),
+        .repairDelayRemaining = value.value("repairDelayRemaining", RepairStationDamagePause),
     };
 }
 
@@ -154,6 +156,7 @@ Json wallJson(const WallInstance& wall) {
         {"storey", wall.storey},
         {"health", wall.health},
         {"maxHealth", wall.maxHealth},
+        {"repairDelayRemaining", wall.repairDelayRemaining},
         {"supportState", static_cast<int>(wall.supportState)},
     };
 }
@@ -173,6 +176,7 @@ WallInstance readWall(const Json& value) {
         .storey = value.at("storey").get<int>(),
         .health = value.at("health").get<double>(),
         .maxHealth = value.at("maxHealth").get<double>(),
+        .repairDelayRemaining = value.value("repairDelayRemaining", RepairStationDamagePause),
         .supportState = static_cast<StructuralSupportState>(
             value.at("supportState").get<int>()),
     };

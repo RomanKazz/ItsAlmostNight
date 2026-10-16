@@ -40,6 +40,7 @@ enum class BuildingType {
     TeslaTower, // Append-only save ID 17.
     LaserTower, // Append-only save ID 18.
     Mortar, // Append-only save ID 19.
+    RepairStation, // Append-only save ID 20.
 };
 
 enum class BuildingLimitCategory {
@@ -83,6 +84,7 @@ struct BuildingInstance {
     double foundationBottomHeight{};
     bool anvilEnhanced{};
     std::uint8_t anvilStacks{};
+    double repairDelayRemaining{};
 };
 
 enum class PlacementError {
@@ -260,6 +262,8 @@ class BuildingSystem {
                                                   double maxDistance) const;
     [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals) const;
     RepairResult repair(EntityId id, int wood, int stone, int crystals);
+    void advanceRepairDelays(double deltaSeconds);
+    double restoreHealth(EntityId id, double amount);
     SellResult sell(EntityId id);
     [[nodiscard]] ResourceCost configuredCost(BuildingType type) const;
     [[nodiscard]] ResourceCost upgradeCost(const BuildingInstance& building) const;

@@ -242,6 +242,8 @@ bool Simulation::loadSuspendedRunState(
                         buildingRotationStepCount(building.type) ||
                     building.level == 0U ||
                     building.level > MaxBuildingLevel ||
+                    !std::isfinite(building.repairDelayRemaining) ||
+                    building.repairDelayRemaining < 0 || building.repairDelayRemaining > RepairStationDamagePause ||
                     !std::isfinite(building.health) ||
                     !std::isfinite(building.maxHealth) ||
                     building.health <= 0.0 || building.maxHealth <= 0.0 ||
@@ -544,6 +546,8 @@ bool Simulation::loadSuspendedRunState(
     runStatistics_ = saved.runStatistics;
 
     refreshRunUpgradeRuntimeEffects();
+    repairStationSources_.clear();
+    repairStationLinks_.clear();
     if (!buildings_.restoreBuildings(
             saved.buildings, saved.buildingBlueprintLevels,
             static_cast<int>(restoredBuildRadius)) ||
