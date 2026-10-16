@@ -1530,6 +1530,14 @@ bool CollisionWorld::overlapsCircle(Vec3 position, double radius, const Collisio
 }
 
 bool CollisionWorld::canOccupyCircle(Vec3 position, double radius) const {
+    return canOccupyCircleInternal(position, radius, false);
+}
+
+bool CollisionWorld::canOccupyCircleIgnoringStructures(Vec3 position, double radius) const {
+    return canOccupyCircleInternal(position, radius, true);
+}
+
+bool CollisionWorld::canOccupyCircleInternal(Vec3 position, double radius, bool ignoreStructures) const {
     if (std::abs(position.x) + radius >= worldLimit_ ||
         std::abs(position.z) + radius >= worldLimit_) return false;
     const auto nearby = [position, radius](const BroadphaseGrid& grid, auto&& blocked) {
@@ -1544,7 +1552,9 @@ bool CollisionWorld::canOccupyCircle(Vec3 position, double radius) const {
         }
         return false;
     };
-    if (nearby(colliderBroadphase_, [this, position, radius](std::size_t index) {
+    if (nearby(colliderBroadphase_, [this, position, radius, ignoreStructures](std::size_t index) {
+        if (ignoreStructures && index >= staticColliders_.size() &&
+            index < staticColliders_.size() + buildingColliders_.size() + modularColliders_.size()) return false;
         const auto& box = colliders_[index];
         return position.y > box.minimumBlockingEyeY &&
                position.y < box.maximumBlockingEyeY &&

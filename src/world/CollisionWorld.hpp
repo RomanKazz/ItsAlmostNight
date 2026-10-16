@@ -90,12 +90,16 @@ class CollisionWorld {
     [[nodiscard]] bool overlapsCircle(Vec3 position, double radius,
                                       const CollisionBox& box) const;
     [[nodiscard]] bool canOccupyCircle(Vec3 position, double radius) const;
+    // Navigation may plan to break structures, while immutable world geometry
+    // and resource cylinders must still block the route.
+    [[nodiscard]] bool canOccupyCircleIgnoringStructures(Vec3 position, double radius) const;
     [[nodiscard]] bool overlapsBox(const CollisionBox& candidate) const;
     [[nodiscard]] bool overlapsRampBox(
         const CollisionBox& candidate) const;
     [[nodiscard]] const std::vector<CollisionBox>& colliders() const;
 
   private:
+    [[nodiscard]] bool canOccupyCircleInternal(Vec3 position, double radius, bool ignoreStructures) const;
     [[nodiscard]] Vec3 moveCircleInternal(
         Vec3 position, Vec3 delta, double radius,
         double maximumWalkableSurfaceHeight,

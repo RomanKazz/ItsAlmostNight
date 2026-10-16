@@ -91,9 +91,22 @@ void reachablePaths() {
     sealed.tick(7.99,buildings,flow);
     sealed.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Basic,.position={0,0,4}}});
     sealed.tick(.01,buildings,flow);
-    require(!sealed.enemies()[0].decoyTarget,"closed wall enclosure cannot lure unreachable ground enemy");
-    std::erase_if(buildings,[](const auto& b){return b.type==BuildingType::Wall && b.gridPosition.z==2;});
+    require(sealed.enemies()[0].decoyTarget==BeaconId,"beacon attracts through a closed destructible enclosure");
+    bool hitWall=false;
+    EntityId breachedWall{};
+    for(int frame=0;frame<120;++frame)for(const auto& hit:sealed.tick(Step,buildings,flow)) {
+        require(hit.targetId!=BeaconId,"closed enclosure prevents damaging the beacon through walls");
+        hitWall|=std::ranges::any_of(buildings,[&](const auto& b){return b.id==hit.targetId && b.type==BuildingType::Wall;});
+        breachedWall=hit.targetId;
+    }
+    require(hitWall,"attracted enemy attacks an intervening wall");
+    const auto breach=std::ranges::find(buildings,breachedWall,&BuildingInstance::id)->gridPosition;
+    std::erase_if(buildings,[&](const auto& b){return b.type==BuildingType::Wall &&
+        (std::abs(breach.x)==2 ? b.gridPosition.x==breach.x : b.gridPosition.z==breach.z);});
     flow.rebuild({0,-16},buildings);
+    bool reachedAfterBreach=false;
+    for(int frame=0;frame<150;++frame)for(const auto& hit:sealed.tick(Step,buildings,flow))reachedAfterBreach|=hit.targetId==BeaconId;
+    require(reachedAfterBreach,"enemy continues to beacon after the wall is destroyed");
     EnemySystem open;open.tick(7.99,buildings,flow);
     open.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Basic,.position={0,0,4}},EnemySpawn{.type=EnemyType::Flying,.position={4,0,0}}});
     open.tick(.01,buildings,flow);
@@ -112,6 +125,38 @@ void reachablePaths() {
     EnemySystem obstacle;auto clear=structures();obstacle.tick(7.99,clear,blocked);
     obstacle.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Basic,.position={0,0,4}}});obstacle.tick(.01,clear,blocked);
     require(!obstacle.enemies()[0].decoyTarget,"static blocked cells are not reachable");
+}
+void structuralAndStaticBarriers() {
+    auto buildings=structures();
+    buildings.push_back({.id={1020,1},.type=BuildingType::Wall,.gridPosition={0,2},.health=100,.maxHealth=100});
+    CollisionWorld collision(48,{});collision.syncBuildings(buildings);
+    require(!collision.canOccupyCircle({.5,1.7,2.5},.5),"ordinary collision query still blocks walls");
+    require(collision.canOccupyCircleIgnoringStructures({.5,1.7,2.5},.5),"breach planning can cross destructible colliders");
+    collision.syncWorldScenery(std::array{CollisionBox{-.5,.5,3.5,4.5}});
+    require(!collision.canOccupyCircleIgnoringStructures({0,1.7,4},.5),"immutable scenery stays solid during breach planning");
+    collision.syncWorldScenery({});
+    auto flow=navigation(buildings);
+    EnemySystem enclosed;enclosed.tick(7.99,buildings,flow,{}, {},nullptr,{{},{},1,&collision});
+    enclosed.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Basic,.position={0,0,4.5}}});
+    enclosed.tick(.01,buildings,flow,{}, {},nullptr,{{},{},1,&collision});
+    require(enclosed.enemies()[0].decoyTarget==BeaconId,"real collision-world walls do not suppress attraction");
+    for(const auto type:{EnemyType::Basic,EnemyType::Ranged,EnemyType::Sapper}) {
+        auto clear=structures();auto field=navigation(clear);
+        std::vector<EnemyStructureTarget> barriers;
+        for(int z=-2;z<=2;++z)for(int x=-2;x<=2;++x)if(std::abs(x)==2 || std::abs(z)==2)
+            barriers.push_back({.id={static_cast<std::uint32_t>(31001+barriers.size()),1},
+                .position={x+.5,0,z+.5},.radius=.55,.buildingType=std::nullopt,.modular=true,.structuralImpact=3});
+        EnemySystem enemies;enemies.tick(7.99,clear,field,{},barriers);
+        enemies.spawnGroup(std::array{EnemySpawn{.type=type,.position={-4,0,0}}});
+        enemies.tick(.01,clear,field,{},barriers);
+        require(enemies.enemies()[0].decoyTarget==BeaconId,"modular barrier allows a taunt to be acquired");
+        bool struck=false;
+        for(int frame=0;frame<180;++frame)for(const auto& hit:enemies.tick(Step,clear,field,{},barriers)) {
+            require(hit.targetId!=BeaconId,"melee and ranged attacks cannot skip an intact modular barrier");
+            struck|=std::ranges::any_of(barriers,[&](const auto& wall){return wall.id==hit.targetId;});
+        }
+        require(struck,"ordinary, ranged and sapper enemies attack the modular barrier while lured");
+    }
 }
 void progression() {
     require(static_cast<int>(BuildingType::DecoyBeacon)==21 && static_cast<int>(RunUpgradeEffect::UnlockDecoyBeacon)==66,"append-only stable IDs");
@@ -140,4 +185,4 @@ void progression() {
     require(hotbar.count==14 && hotbar.indexOf(BuildingType::DecoyBeacon)==10 && hotbar.types[13]==BuildingType::SlowTrap,"beacon appears after station and before walls/traps");
 }
 }
-int main(){selectionAndExpiry();targetingAndAttacks();overlapAndElite();staggeredPulsesAndFreeze();reachablePaths();progression();}
+int main(){selectionAndExpiry();targetingAndAttacks();overlapAndElite();staggeredPulsesAndFreeze();reachablePaths();structuralAndStaticBarriers();progression();}

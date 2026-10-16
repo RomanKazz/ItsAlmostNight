@@ -456,6 +456,7 @@ class EnemySystem {
         static constexpr int HalfExtent = 12, Size = HalfExtent * 2 + 1;
         GridPosition center;
         std::array<std::int16_t, Size * Size> distance{};
+        std::array<std::uint8_t, Size * Size> traversalCost{};
     };
     void updateDecoyBeacons(double deltaSeconds, const std::vector<BuildingInstance>& buildings,
         const FlowField& flowField, EnemyNavigationView navigation, bool layoutChanged);

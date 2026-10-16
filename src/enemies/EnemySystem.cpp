@@ -477,7 +477,7 @@ struct StructureTargetSelection {
 StructureTargetSelection selectStructureTarget(
     const EnemyInstance& enemy,
     const BuildingQueryGrid& buildingGrid,
-    double directionX, double directionZ) {
+    double directionX, double directionZ, bool lureApproach = false) {
     const EnemyStructureTarget* blocker = nullptr;
     double closestContactDistance = std::numeric_limits<double>::max();
     std::size_t greatestStructuralImpact = 0U;
@@ -485,7 +485,7 @@ StructureTargetSelection selectStructureTarget(
     // firing radius. The narrow forward corridor below is suitable for
     // melee path blockers, but made ranged units walk almost into the
     // target whenever steering was even slightly off-center.
-    if (enemy.type == EnemyType::Ranged) {
+    if (enemy.type == EnemyType::Ranged && !lureApproach) {
         buildingGrid.forEachNearby(
             enemy.position,
             attackRange(enemy.type) +
@@ -511,7 +511,7 @@ StructureTargetSelection selectStructureTarget(
                 }
             });
     }
-    if (enemy.type == EnemyType::Sapper) {
+    if (enemy.type == EnemyType::Sapper && !lureApproach) {
         buildingGrid.forEachNearby(
             enemy.position,
             SapperStructureSearchRadius,
@@ -590,10 +590,10 @@ StructureTargetSelection selectStructureTarget(
 
         const double contactDistance = std::max(0.0, projection - combinedRadius);
         const bool sapperPriority =
-            enemy.type == EnemyType::Sapper &&
+            !lureApproach && enemy.type == EnemyType::Sapper &&
             building.structuralImpact >
                 greatestStructuralImpact;
-        const bool equalSapperPriority =
+        const bool equalSapperPriority = lureApproach ||
             (enemy.type != EnemyType::Sapper &&
              enemy.type != EnemyType::Ranged) ||
             building.structuralImpact ==
@@ -1534,11 +1534,13 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
         const StructureTargetSelection targetSelection =
             selectStructureTarget(
-                enemy, buildingGrid, directionX, directionZ);
-        const EnemyStructureTarget* blocker = lured ? &*lureTarget : targetSelection.target;
-        double closestContactDistance = lured
-            ? std::max(0.0, coreDistance - blocker->radius - enemyRadius(enemy.type))
-            : targetSelection.contactDistance;
+                enemy, buildingGrid, directionX, directionZ, lured);
+        const double lureContactDistance=lured
+            ? std::max(0.0,coreDistance-lureTarget->radius-enemyRadius(enemy.type)) : 0;
+        const bool approachBlocked=lured && enemy.type!=EnemyType::Flying && targetSelection.target &&
+            targetSelection.contactDistance<=lureContactDistance;
+        const EnemyStructureTarget* blocker = lured && !approachBlocked ? &*lureTarget : targetSelection.target;
+        double closestContactDistance = lured && !approachBlocked ? lureContactDistance : targetSelection.contactDistance;
 
         if (blocker == nullptr) {
             enemy.state = EnemyState::MoveToCore;

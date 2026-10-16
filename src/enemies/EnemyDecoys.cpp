@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <utility>
 
 namespace ian {
 namespace {
@@ -55,9 +57,9 @@ void EnemySystem::updateDecoyBeacons(double deltaSeconds,
     if (decoyNavigation_.size() != decoyBeacons_.size()*Clearances.size()) layoutChanged = true;
     if (layoutChanged) {
         decoyNavigation_.resize(decoyBeacons_.size()*Clearances.size());
-        // A bounded local field uses the existing world's static cells, solid
-        // structures and collision checks. Rebuild only when the layout changes.
-        // Four-connected routing cannot cut diagonally through closed walls.
+        // Prefer an open route, but allow a costly route through destructible
+        // barriers. Physical movement still stops at the barrier and attacks it.
+        // Immutable scenery/resources remain impassable for the whole route.
         constexpr std::array<GridPosition,4> neighbors{{{-1,0},{0,-1},{1,0},{0,1}}};
         for (std::size_t i=0;i<decoyBeacons_.size();++i) {
             const auto& beacon = decoyBeacons_[i];
@@ -66,6 +68,7 @@ void EnemySystem::updateDecoyBeacons(double deltaSeconds,
             auto& field = decoyNavigation_[i*Clearances.size()+clearance];
             field.center = {static_cast<int>(std::lround(beacon.position.x)),static_cast<int>(std::lround(beacon.position.z))};
             field.distance.fill(-1);
+            field.traversalCost.fill(1);
             for (int z=0;z<DecoyNavigationField::Size;++z) for (int x=0;x<DecoyNavigationField::Size;++x) {
                 const GridPosition cell{field.center.x+x-DecoyNavigationField::HalfExtent,
                     field.center.z+z-DecoyNavigationField::HalfExtent};
@@ -73,36 +76,48 @@ void EnemySystem::updateDecoyBeacons(double deltaSeconds,
                 const bool ownCell = std::abs(position.x-beacon.position.x)<1.1 && std::abs(position.z-beacon.position.z)<1.1;
                 const auto* terrainCell = flowField.cellAt(cell);
                 bool blocked = terrainCell ? terrainCell->blocked : navigation.collisionWorld == nullptr;
+                const auto cellIndex=static_cast<std::size_t>(z*DecoyNavigationField::Size+x);
                 if (!ownCell && !blocked) {
-                    blocked = navigation.collisionWorld
-                        ? !navigation.collisionWorld->canOccupyCircle(position,bodyRadius)
-                        : terrainCell && terrainCell->terrainCost >= 8;
+                    blocked = navigation.collisionWorld &&
+                        !navigation.collisionWorld->canOccupyCircleIgnoringStructures(position,bodyRadius);
                     if (!blocked) for (const auto& structure : structureBuffer_) {
                         if (structure.id == beacon.buildingId || structure.traversable ||
                             beacon.position.y < structure.minimumEnemySurfaceHeight ||
                             beacon.position.y > structure.maximumEnemySurfaceHeight) continue;
                         const double dx=position.x-structure.position.x,dz=position.z-structure.position.z;
                         const double radius=structure.radius+bodyRadius;
-                        if (dx*dx+dz*dz<radius*radius) {blocked=true;break;}
+                        if (dx*dx+dz*dz>=radius*radius) continue;
+                        const bool barrier=structure.attackable;
+                        if (barrier) field.traversalCost[cellIndex]=25;
+                        else {blocked=true;break;}
                     }
                 }
                 if (blocked) field.distance[static_cast<std::size_t>(z*DecoyNavigationField::Size+x)]=-2;
             }
-            std::array<int,DecoyNavigationField::Size*DecoyNavigationField::Size> queue{};
+            static_assert(DecoyNavigationField::Size*DecoyNavigationField::Size*25 <
+                std::numeric_limits<std::int16_t>::max());
+            using Entry=std::pair<int,int>; // Distance, cell; stable ties.
+            // Each settled cell relaxes at most four edges, including stale
+            // entries: the fixed heap needs no per-rebuild allocations.
+            std::array<Entry,4*DecoyNavigationField::Size*DecoyNavigationField::Size+1> frontier{};
+            std::size_t queued=0;
             constexpr int center = DecoyNavigationField::HalfExtent*DecoyNavigationField::Size+DecoyNavigationField::HalfExtent;
             if (field.distance[center] == -2) continue;
-            field.distance[center]=0;queue[0]=center;
-            std::size_t head=0,tail=1;
-            while(head<tail) {
-                const int current=queue[head++];
+            field.distance[center]=0;frontier[queued++]={0,center};
+            while(queued>0) {
+                std::pop_heap(frontier.begin(),frontier.begin()+static_cast<std::ptrdiff_t>(queued),std::greater<Entry>{});
+                const auto [cost,current]=frontier[--queued];
+                if(field.distance[static_cast<std::size_t>(current)]!=cost)continue;
                 const int x=current%DecoyNavigationField::Size,z=current/DecoyNavigationField::Size;
+                const int candidate=cost+field.traversalCost[static_cast<std::size_t>(current)];
                 for(const auto offset:neighbors) {
                     const int nx=x+offset.x,nz=z+offset.z;
                     if(nx<0 || nz<0 || nx>=DecoyNavigationField::Size || nz>=DecoyNavigationField::Size)continue;
                     const auto next=static_cast<std::size_t>(nz*DecoyNavigationField::Size+nx);
-                    if(field.distance[next]!=-1)continue;
-                    field.distance[next]=static_cast<std::int16_t>(field.distance[static_cast<std::size_t>(current)]+1);
-                    queue[tail++]=static_cast<int>(next);
+                    if(field.distance[next]==-2 || (field.distance[next]>=0 && field.distance[next]<=candidate))continue;
+                    field.distance[next]=static_cast<std::int16_t>(candidate);
+                    frontier[queued++]={candidate,static_cast<int>(next)};
+                    std::push_heap(frontier.begin(),frontier.begin()+static_cast<std::ptrdiff_t>(queued),std::greater<Entry>{});
                 }
             }
             }
@@ -173,12 +188,15 @@ std::optional<Vec3> EnemySystem::decoyWaypoint(const EnemyInstance& enemy) const
     if(field.distance[static_cast<std::size_t>(slot)]<=1)return beacon->position;
     const int x=slot%DecoyNavigationField::Size,z=slot/DecoyNavigationField::Size;
     int best=slot;
+    int bestCost=field.distance[static_cast<std::size_t>(slot)];
     constexpr std::array<GridPosition,4> offsets{{{-1,0},{0,-1},{1,0},{0,1}}};
     for(const auto offset:offsets) {
         const int nx=x+offset.x,nz=z+offset.z;
         if(nx<0 || nz<0 || nx>=DecoyNavigationField::Size || nz>=DecoyNavigationField::Size)continue;
         const int next=nz*DecoyNavigationField::Size+nx;
-        if(field.distance[static_cast<std::size_t>(next)]>=0 && field.distance[static_cast<std::size_t>(next)]<field.distance[static_cast<std::size_t>(best)])best=next;
+        if(field.distance[static_cast<std::size_t>(next)]<0)continue;
+        const int cost=field.distance[static_cast<std::size_t>(next)]+field.traversalCost[static_cast<std::size_t>(next)];
+        if(cost<=bestCost) {best=next;bestCost=cost;}
     }
     return Vec3{double(field.center.x+best%DecoyNavigationField::Size-DecoyNavigationField::HalfExtent),
         beacon->position.y,double(field.center.z+best/DecoyNavigationField::Size-DecoyNavigationField::HalfExtent)};
