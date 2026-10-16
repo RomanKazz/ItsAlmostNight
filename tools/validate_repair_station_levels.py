@@ -126,6 +126,12 @@ def mechanical(level):
     base, service = objects['base_mesh'], objects['service_mesh']
     image = next(n.image for n in base.data.materials[0].node_tree.nodes if n.type == 'TEX_IMAGE')
     assert image.packed_file and bytes(image.packed_file.data) == PALETTE
+    reference = next(o for o in bpy.data.scenes['REPAIR_STATION_L01'].objects
+                     if o.get('canonical_name') == 'service_mesh')
+    wrench_points = [service.data.vertices[j].co for j in check.ids(service, 'repair_wrench')]
+    reference_points = [reference.data.vertices[j].co for j in check.ids(reference, 'repair_wrench')]
+    assert len(wrench_points) == len(reference_points)
+    assert all((a - b).length < 1e-6 for a, b in zip(wrench_points, reference_points)), 'wrench must retain level 1 geometry'
     wrench = check.tree(service, only='repair_wrench')
     assert wrench.ray_cast(Vector((0, 1, 1.420)), Vector((0, -1, 0)), 2)[0] is None, 'wrench jaw blocked'
     frame = check.tree(base)
@@ -148,7 +154,7 @@ def mechanical(level):
         for side in (-1, 1):
             bottom = [base.data.vertices[j].co.z for j in check.ids(base, 'service_lower_cap_%d' % side)]
             assert min(bottom) < .230 and max(bottom) > .230, 'reservoir not seated on the base'
-    return {'open_wrench_jaw': True, 'visible_display': True, 'exposed_bolts': True,
+    return {'open_wrench_jaw': True, 'unchanged_wrench_geometry': True, 'visible_display': True, 'exposed_bolts': True,
             'reservoirs_seated': level >= 5, 'packed_palette': True}
 
 

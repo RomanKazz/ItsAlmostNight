@@ -22,10 +22,10 @@ spec = importlib.util.spec_from_file_location('repair_level_helpers', ROOT / 'to
 common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
 GOLD, RED, ORANGE, DARK = common.GOLD, common.RED, common.ORANGE, common.DARK
-WRENCH_WIDTHS = (1, 1, 1, 1.12, 1.12, 1.12, 1.25, 1.35)
+WRENCH_WIDTHS = (1,) * 8
 DESCRIPTIONS = (
     'Original repair station', 'Gold base belt, upper collar and console',
-    'Gold braces and display frame', 'Larger cyan wrench and stem reinforcement rings',
+    'Gold braces and display frame', 'Stem reinforcement rings',
     'Twin service reservoirs with cyan indicators', 'Rear service pipe and larger console deck',
     'Double base belt and reinforced reservoirs', 'Master wrench holder and heavy service frame',
 )

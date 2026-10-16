@@ -13,10 +13,9 @@
   "integration": {
     "gameplay_changed": false,
     "loader_verified": true,
-    "playtested": false,
-    "renderer_connected": true,
     "native_graphics_smoke": true,
-    "sanitizers_checked": true
+    "playtested": false,
+    "renderer_connected": true
   },
   "levels": [
     {
@@ -47,6 +46,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": false,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -266,6 +266,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": false,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -485,6 +486,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": false,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -694,7 +696,7 @@
           1.39000004529953
         ]
       },
-      "description": "Larger cyan wrench and stem reinforcement rings",
+      "description": "Stem reinforcement rings",
       "embedded_palette_identical": true,
       "file": "assets/models/buildings/repair_station_levels/repair_station_lvl04.glb",
       "fresh_import_verified": true,
@@ -704,6 +706,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": false,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -713,7 +716,7 @@
         "base_mesh": 0,
         "service_mesh": 1
       },
-      "sha256": "9ad33b15dabd53d7fb6612b584908bd5d3b2e75fdbb07f054145db343a5ea116",
+      "sha256": "7eabb7e5ad3e41b6521bc3b3f682e203d19bb6ce160bb5e187731556f52bfd37",
       "transforms_glb": {
         "COL_BOX_BODY": {
           "parent": "asset_root",
@@ -923,6 +926,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": true,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -932,7 +936,7 @@
         "base_mesh": 0,
         "service_mesh": 1
       },
-      "sha256": "7445ff677a17931e1f8b05a66a92565e040784bf1355024c9ef76e41a66db473",
+      "sha256": "0c50b79aa9edc261ad74b749d38f324edb3da789a8350e266c2bb28b49ad72b2",
       "transforms_glb": {
         "COL_BOX_BODY": {
           "parent": "asset_root",
@@ -1142,6 +1146,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": true,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -1151,7 +1156,7 @@
         "base_mesh": 0,
         "service_mesh": 1
       },
-      "sha256": "81cc4cd18ae01c3d833895974f9eaed146f470743e838a2f8db510cd807f144c",
+      "sha256": "19c3bcd1427165cd0684f29858aefc1ab4f683e74b50c350c649a85e1c35a782",
       "transforms_glb": {
         "COL_BOX_BODY": {
           "parent": "asset_root",
@@ -1361,6 +1366,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": true,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -1370,7 +1376,7 @@
         "base_mesh": 0,
         "service_mesh": 1
       },
-      "sha256": "2cec923a9bd149fee7d148607144bb4fddd6f8acb919ee9a702bbc331f9f08dc",
+      "sha256": "d12f24366a1836fb28fadc392ac1bfa59d2a34600501b8c2621299edb9565fca",
       "transforms_glb": {
         "COL_BOX_BODY": {
           "parent": "asset_root",
@@ -1580,6 +1586,7 @@
         "open_wrench_jaw": true,
         "packed_palette": true,
         "reservoirs_seated": true,
+        "unchanged_wrench_geometry": true,
         "visible_display": true
       },
       "mirror_symmetry_verified": true,
@@ -1589,7 +1596,7 @@
         "base_mesh": 0,
         "service_mesh": 1
       },
-      "sha256": "1eff5452b615e36e870320fe0a4cf90a5ba3cf201fd1c682ff99d0acc7f497f6",
+      "sha256": "40594aa681c719526b59143bbbcb5b228d679014b265a1c34a67a2ee062a5dc0",
       "transforms_glb": {
         "COL_BOX_BODY": {
           "parent": "asset_root",
@@ -1788,10 +1795,10 @@
     1,
     1,
     1,
-    1.12,
-    1.12,
-    1.12,
-    1.25,
-    1.35
+    1,
+    1,
+    1,
+    1,
+    1
   ]
 }
