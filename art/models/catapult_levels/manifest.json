@@ -1,0 +1,516 @@
+{
+  "asset": "catapult_levels",
+  "base_sha256": "2de97fa2306146b94cc437b244e037d0ce500de35da3d5598d70e31b2a1a7043",
+  "coordinates": "GLB +Y up; original catapult throws toward +Z. Blender +Z up, -Y forward",
+  "footprint_cells": [
+    2,
+    2
+  ],
+  "fresh_import_verified": true,
+  "immutable_base_glb": "art/models/catapult_levels/base_catapult.glb",
+  "integration": {
+    "gameplay_changed": false,
+    "loader_verified": true,
+    "native_graphics_smoke": true,
+    "playtested": false,
+    "renderer_connected": true
+  },
+  "levels": [
+    {
+      "description": "Original catapult",
+      "level": 1
+    },
+    {
+      "description": "Gold foot belt and bucket binding",
+      "level": 2,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.41200000047683716,
+              0.722000002861023,
+              1.0486118793487549
+            ],
+            "min": [
+              -0.41200000047683716,
+              0.6899999976158142,
+              0.22461193799972534
+            ],
+            "size": [
+              0.8240000009536743,
+              0.03200000524520874,
+              0.8239999413490295
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l2_arm",
+          "render_index": 3,
+          "triangles": 64,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.6155048608779907,
+              0.1459999978542328,
+              0.625
+            ],
+            "min": [
+              -0.6155048608779907,
+              0.10000000149011612,
+              -0.587307870388031
+            ],
+            "size": [
+              1.2310097217559814,
+              0.04599999636411667,
+              1.212307870388031
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l2_base",
+          "render_index": 2,
+          "triangles": 132,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": false
+      }
+    },
+    {
+      "description": "Reinforced gold carriage cheeks",
+      "level": 3,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.41200000047683716,
+              0.722000002861023,
+              1.0486118793487549
+            ],
+            "min": [
+              -0.41200000047683716,
+              0.6899999976158142,
+              0.22461193799972534
+            ],
+            "size": [
+              0.8240000009536743,
+              0.03200000524520874,
+              0.8239999413490295
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l3_arm",
+          "render_index": 5,
+          "triangles": 64,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.6155048608779907,
+              0.8199999928474426,
+              0.625
+            ],
+            "min": [
+              -0.6155048608779907,
+              0.10000000149011612,
+              -0.587307870388031
+            ],
+            "size": [
+              1.2310097217559814,
+              0.7199999913573265,
+              1.212307870388031
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l3_base",
+          "render_index": 4,
+          "triangles": 172,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    },
+    {
+      "description": "Gold bucket rim",
+      "level": 4,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.41499999165534973,
+              0.9100000262260437,
+              1.0516119003295898
+            ],
+            "min": [
+              -0.41499999165534973,
+              0.6899999976158142,
+              0.22161193192005157
+            ],
+            "size": [
+              0.8299999833106995,
+              0.2200000286102295,
+              0.8299999684095383
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l4_arm",
+          "render_index": 7,
+          "triangles": 128,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.6155048608779907,
+              0.8199999928474426,
+              0.625
+            ],
+            "min": [
+              -0.6155048608779907,
+              0.10000000149011612,
+              -0.587307870388031
+            ],
+            "size": [
+              1.2310097217559814,
+              0.7199999913573265,
+              1.212307870388031
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l4_base",
+          "render_index": 6,
+          "triangles": 172,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    },
+    {
+      "description": "Red bucket binding and gold axle collars",
+      "level": 5,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.41499999165534973,
+              0.9100000262260437,
+              1.0516119003295898
+            ],
+            "min": [
+              -0.41499999165534973,
+              0.6899999976158142,
+              0.22161193192005157
+            ],
+            "size": [
+              0.8299999833106995,
+              0.2200000286102295,
+              0.8299999684095383
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l5_arm",
+          "render_index": 9,
+          "triangles": 128,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.6155048608779907,
+              0.8199999928474426,
+              0.625
+            ],
+            "min": [
+              -0.6155048608779907,
+              0.10000000149011612,
+              -0.587307870388031
+            ],
+            "size": [
+              1.2310097217559814,
+              0.7199999913573265,
+              1.212307870388031
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l5_base",
+          "render_index": 8,
+          "triangles": 300,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    },
+    {
+      "description": "Twin torsion drums with gold caps",
+      "level": 6,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.41499999165534973,
+              0.9100000262260437,
+              1.0516119003295898
+            ],
+            "min": [
+              -0.41499999165534973,
+              0.6899999976158142,
+              0.22161193192005157
+            ],
+            "size": [
+              0.8299999833106995,
+              0.2200000286102295,
+              0.8299999684095383
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l6_arm",
+          "render_index": 11,
+          "triangles": 128,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.7749999761581421,
+              0.8199999928474426,
+              0.625
+            ],
+            "min": [
+              -0.7749999761581421,
+              0.10000000149011612,
+              -0.587307870388031
+            ],
+            "size": [
+              1.5499999523162842,
+              0.7199999913573265,
+              1.212307870388031
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l6_base",
+          "render_index": 10,
+          "triangles": 596,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    },
+    {
+      "description": "Raised heavy bucket rim and double base belt",
+      "level": 7,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.4350000023841858,
+              0.9549999833106995,
+              1.0716118812561035
+            ],
+            "min": [
+              -0.4350000023841858,
+              0.6899999976158142,
+              0.2016119360923767
+            ],
+            "size": [
+              0.8700000047683716,
+              0.26499998569488525,
+              0.8699999451637268
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l7_arm",
+          "render_index": 13,
+          "triangles": 128,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.7749999761581421,
+              0.8199999928474426,
+              0.6380000114440918
+            ],
+            "min": [
+              -0.7749999761581421,
+              0.06800000369548798,
+              -0.5995239019393921
+            ],
+            "size": [
+              1.5499999523162842,
+              0.7519999891519547,
+              1.2375239133834839
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l7_base",
+          "render_index": 12,
+          "triangles": 728,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    },
+    {
+      "description": "Gold bucket clamps and raised orange cheek inlays",
+      "level": 8,
+      "parts": {
+        "arm": {
+          "bounds_glb": {
+            "max": [
+              0.4350000023841858,
+              0.9549999833106995,
+              1.0716118812561035
+            ],
+            "min": [
+              -0.4350000023841858,
+              0.6899999976158142,
+              0.2016119360923767
+            ],
+            "size": [
+              0.8700000047683716,
+              0.26499998569488525,
+              0.8699999451637268
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l8_arm",
+          "render_index": 15,
+          "triangles": 224,
+          "uv_palette_verified": true
+        },
+        "base": {
+          "bounds_glb": {
+            "max": [
+              0.7749999761581421,
+              0.8199999928474426,
+              0.6380000114440918
+            ],
+            "min": [
+              -0.7749999761581421,
+              0.06800000369548798,
+              -0.5995239019393921
+            ],
+            "size": [
+              1.5499999523162842,
+              0.7519999891519547,
+              1.2375239133834839
+            ]
+          },
+          "material": 0,
+          "node": "upgrade_catapult_l8_base",
+          "render_index": 14,
+          "triangles": 900,
+          "uv_palette_verified": true
+        }
+      },
+      "source_and_motion": {
+        "full_yaw_step_degrees": 1,
+        "new_part_intersections": 0,
+        "open_bucket": true,
+        "packed_palette": true,
+        "pitch_range_radians": [
+          -1.2,
+          0.18
+        ],
+        "pitch_step_radians": 0.01,
+        "poses": 1217,
+        "supported_cheeks": true
+      }
+    }
+  ],
+  "license": "Kenney Tower Defense Kit CC0 base and original colormap; new project upgrade geometry",
+  "maximum_draws_per_catapult": 4,
+  "mode": "Original arm/carriage plus one selected pair of overlays for levels 2 through 8",
+  "muzzle_glb": [
+    0,
+    0.8762649297714233,
+    0.6370007395744324
+  ],
+  "original_base_binary_nodes_meshes_rig_colliders_and_muzzle_unchanged": true,
+  "palette": {
+    "embedded_glb": true,
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "pitch_pivot_glb": [
+    0,
+    0.14931100606918335,
+    0
+  ],
+  "render_mesh_count": 16,
+  "runtime_glb": "assets/models/buildings/catapult.glb",
+  "runtime_sha256": "13b0dfcba657e5b639ec653cd2319295f1143e1c04268827c4aedf94c72502f2"
+}

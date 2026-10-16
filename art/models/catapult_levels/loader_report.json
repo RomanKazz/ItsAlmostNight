@@ -1,0 +1,13 @@
+{
+  "colliders": 1,
+  "embedded_palette_loaded_on_all_meshes": true,
+  "generated_bounds_verified": true,
+  "glb_collision_valid": true,
+  "levels": 8,
+  "model_resource_valid": true,
+  "muzzles": 1,
+  "original_muzzle_preserved": true,
+  "overlay_meshes": 14,
+  "playtested": false,
+  "render_mesh_count": 16
+}
