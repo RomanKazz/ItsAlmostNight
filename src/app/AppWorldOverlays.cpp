@@ -1051,9 +1051,7 @@ void App::drawWorldOverlays(
                             position, yaw));
                 } else if (preview.type == BuildingType::WindBlower) {
                     static_cast<void>(renderer_->drawWindBlower(position,yaw,WHITE,1,yaw));
-                } else if (preview.type == BuildingType::WindBlower) {
-            static_cast<void>(renderer_->drawWindBlower({x,0,z},yaw,WHITE,1,yaw));
-        } else if (preview.type == BuildingType::DecoyBeacon) {
+                } else if (preview.type == BuildingType::DecoyBeacon) {
                     static_cast<void>(renderer_->drawDecoyBeacon(position, yaw));
                 } else if (preview.type == BuildingType::RepairStation) {
                     static_cast<void>(renderer_->drawRepairStation(position, yaw));
@@ -1125,7 +1123,7 @@ void App::drawWorldOverlays(
                            renderer_->drawGate(
                                position, yaw, 0.0F)) {
                     // The imported closed gate preview was submitted.
-                } else if ((visualPreview.rotation % 2U) == 0U) {
+                } else if (preview.type == BuildingType::Gate && (visualPreview.rotation % 2U) == 0U) {
                     DrawCube(
                         {position.x - 0.38F, 1.0F, position.z},
                         0.22F, 2.0F, 1.0F, WHITE);
@@ -1135,7 +1133,7 @@ void App::drawWorldOverlays(
                     DrawCube(
                         {position.x, 1.0F, position.z},
                         0.55F, 1.7F, 0.18F, WHITE);
-                } else {
+                } else if (preview.type == BuildingType::Gate) {
                     DrawCube(
                         {position.x, 1.0F, position.z - 0.38F},
                         1.0F, 2.0F, 0.22F, WHITE);
@@ -1167,6 +1165,8 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::WindBlower) {
+            static_cast<void>(renderer_->drawWindBlower({x,0,z},yaw,WHITE,1,yaw));
         } else if (preview.type == BuildingType::DecoyBeacon) {
             static_cast<void>(renderer_->drawDecoyBeacon({x, 0.0F, z}, yaw));
         } else if (preview.type == BuildingType::RepairStation) {
@@ -1390,14 +1390,14 @@ void App::drawWorldOverlays(
                    renderer_->drawGate(
                        {x, 0.0F, z}, yaw, 0.0F)) {
             // The imported closed gate preview was submitted.
-        } else if ((visualPreview.rotation % 2U) == 0U) {
+        } else if (preview.type == BuildingType::Gate && (visualPreview.rotation % 2U) == 0U) {
             DrawCube({x - 0.38F, 1.0F, z}, 0.22F, 2.0F,
                      1.0F, WHITE);
             DrawCube({x + 0.38F, 1.0F, z}, 0.22F, 2.0F,
                      1.0F, WHITE);
             DrawCube({x, 1.0F, z}, 0.55F, 1.7F, 0.18F,
                      WHITE);
-        } else {
+        } else if (preview.type == BuildingType::Gate) {
             DrawCube({x, 1.0F, z - 0.38F}, 1.0F, 2.0F,
                      0.22F, WHITE);
             DrawCube({x, 1.0F, z + 0.38F}, 1.0F, 2.0F,

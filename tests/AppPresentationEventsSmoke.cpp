@@ -86,6 +86,40 @@ struct AppPresentationTestAccess {
         okay &= bright[0]>10 && bright[1]>bright[0]*.65;
         if(!(bright[0]>10 && bright[1]>bright[0]*.65))
             std::cerr<<"Rear world ink covers electrical core: "<<bright[0]<<" / "<<bright[1]<<"\n";
+        // Exercise the actual placement pass, not just the model renderer.
+        // A horizontal camera cleanly separates the fan (<1.4m) from the old
+        // 2m gate fallback which previously appeared over its preview.
+        app->effects_.clear();
+        app->actionMode_=ActionMode::Buildings;
+        app->placementPreviewEntranceSeconds_=1;
+        app->gameplayCamera_={{0,1.5F,-4},{0,1.5F,0},{0,1,0},3,CAMERA_ORTHOGRAPHIC};
+        snapshot.playerPosition={10,1.7,-10};
+        snapshot.buildingPreview=BuildingPreview{.type=BuildingType::WindBlower,.gridPosition={0,0},.rotation=0,.placement={}};
+        app->renderer_->settings().postProcessing=false;
+        int upperInk=0,lowerInk=0;
+        for (int rotation=0;rotation<2;++rotation) {
+            app->placementRotationYaw_=static_cast<double>(rotation)*1.5707963267948966;
+            snapshot.buildingPreview->rotation=static_cast<std::uint8_t>(rotation*2);
+            app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});
+            BeginMode3D(app->gameplayCamera_);app->renderer_->beginWorldShader(lighting);
+            app->drawWorldOverlays(snapshot,lighting);app->renderer_->endWorldShader();
+            EndMode3D();EndTextureMode();
+            Image image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+            auto* pixels=LoadImageColors(image);
+            for(int y=0;y<600;++y)for(int x=250;x<550;++x) {
+                const auto p=pixels[y*800+x];
+                const bool drawn=std::abs(int(p.r)-29)+std::abs(int(p.g)-47)+std::abs(int(p.b)-57)>24;
+                if(y<300)upperInk+=drawn;else lowerInk+=drawn;
+            }
+            if(const char* capture=std::getenv("IAN_WIND_CAPTURE")) {
+                std::filesystem::create_directories(capture);
+                const auto path=std::filesystem::path(capture)/("wind-preview-"+std::to_string(rotation)+".png");ExportImage(image,path.string().c_str());
+            }
+            UnloadImageColors(pixels);UnloadImage(image);
+        }
+        if(upperInk>20 || lowerInk<100) {
+            std::cerr<<"Wind preview contains legacy gate geometry or is invisible: "<<upperInk<<" / "<<lowerInk<<"\n";okay=false;
+        }
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }
