@@ -21,6 +21,7 @@ struct BuildingStats {
     std::optional<double> slowPercent;
     std::optional<double> effectDuration;
     std::optional<double> cooldown;
+    std::optional<double> attractionTargets;
     std::optional<double> repairPerSecond;
     std::optional<double> repairInterval;
     std::optional<double> defenseBuildingLimit;

@@ -420,6 +420,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockLaserTower:
     case RunUpgradeEffect::UnlockMortar:
     case RunUpgradeEffect::UnlockRepairStation:
+    case RunUpgradeEffect::UnlockDecoyBeacon:
     case RunUpgradeEffect::UnlockMissileLauncher:
     case RunUpgradeEffect::UnlockFlamethrower:
     case RunUpgradeEffect::UnlockSpikeTrap:

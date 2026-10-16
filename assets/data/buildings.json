@@ -68,6 +68,10 @@
     "wall": {"wood": 5, "stone": 10, "crystals": 0},
     "ramp": {"wood": 16, "stone": 4, "crystals": 0}
   },
+  "decoyBeacon": {
+    "wood": 30, "stone": 25, "crystals": 10,
+    "maxHealth": 220, "unlockCoreLevel": 1, "maxCount": 64
+  },
   "repairStation": {
     "wood": 40, "stone": 35, "crystals": 15,
     "maxHealth": 160, "unlockCoreLevel": 1, "maxCount": 64

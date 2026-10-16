@@ -383,6 +383,7 @@ struct SimulationSnapshot {
         defenseBlueprints;
     std::span<const EnemyInstance> enemies;
     std::span<const EnemyProjectile> enemyProjectiles;
+    std::span<const DecoyBeaconRuntime> decoyBeacons;
     double repairStationPulseAge{};
     std::span<const RepairStationLink> repairStationLinks;
     std::span<const TowerRuntime> towers;

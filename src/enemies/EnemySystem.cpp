@@ -760,6 +760,8 @@ EnemySystem::EnemySystem(
     eliteSpawnEventBuffer_.reserve(64);
     eliteDeathEventBuffer_.reserve(64);
     bossActionEventBuffer_.reserve(16);
+    decoyBeacons_.reserve(64);
+    decoyNavigation_.reserve(64);
     structureBuffer_.reserve(256);
     incomingStructureBuffer_.reserve(256);
     structureNextBuffer_.reserve(256);
@@ -776,6 +778,8 @@ void EnemySystem::reset() {
     // the previous run as a fresh kill on the first restarted tick.
     // clear() retains vector capacity, so restart stays allocation-free.
     enemies_.clear();
+    decoyBeacons_.clear();
+    decoyNavigation_.clear();
     firstIndex_ = nextIndex_;
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
@@ -1076,6 +1080,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
     if (spatialHashDirty_) {
         rebuildSpatialIndex();
     }
+    updateDecoyBeacons(deltaSeconds, buildings, flowField, navigation, structureLayoutChanged);
     const BuildingQueryGrid buildingGrid(
         structureBuffer_, structureNextBuffer_,
         structureGridHeads_, structureLayoutChanged);
@@ -1146,13 +1151,18 @@ std::span<const EnemyAttack> EnemySystem::tick(
             ? terrain->getHeight(
                   enemy.position.x, enemy.position.z)
             : 0.0;
-        const auto navigationWaypoint =
+        const auto lureWaypoint = decoyWaypoint(enemy);
+        const auto lureTarget = enemy.decoyTarget
+            ? std::ranges::find(structureBuffer_, *enemy.decoyTarget, &EnemyStructureTarget::id)
+            : structureBuffer_.end();
+        const bool lured = lureWaypoint && lureTarget != structureBuffer_.end();
+        const auto navigationWaypoint = lured ? lureWaypoint :
             prioritizePlayerTarget || enemy.type == EnemyType::Flying
                 ? std::optional<Vec3>{}
                 : multiLevelWaypoint(
                       *multiLevelNavigation, enemy,
                       terrainHeight, coreWorldPosition);
-        const double aiInterval = navigationWaypoint
+        const double aiInterval = lured ? 0.0 : navigationWaypoint
             ? 0.0
             : aiUpdateInterval(
                   enemy, playerPosition, coreWorldPosition);
@@ -1215,7 +1225,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         // A navigation waypoint only describes the route to the core. It
         // must not suppress aggro: playerSharesAttackHeight below is the
         // authoritative same-storey check.
-        if (playerPosition) {
+        if (playerPosition && !lured) {
             const double playerOffsetX = playerPosition->x - enemy.position.x;
             const double playerOffsetZ = playerPosition->z - enemy.position.z;
             const double playerDistanceSquared =
@@ -1417,8 +1427,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
             }
         }
 
-        const double coreX = coreWorldPosition.x;
-        const double coreZ = coreWorldPosition.z;
+        const double coreX = lured ? lureTarget->position.x : coreWorldPosition.x;
+        const double coreZ = lured ? lureTarget->position.z : coreWorldPosition.z;
         const double toCoreX = coreX - enemy.position.x;
         const double toCoreZ = coreZ - enemy.position.z;
         const double coreDistance = std::sqrt((toCoreX * toCoreX) + (toCoreZ * toCoreZ));
@@ -1525,9 +1535,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
         const StructureTargetSelection targetSelection =
             selectStructureTarget(
                 enemy, buildingGrid, directionX, directionZ);
-        const EnemyStructureTarget* blocker = targetSelection.target;
-        double closestContactDistance =
-            targetSelection.contactDistance;
+        const EnemyStructureTarget* blocker = lured ? &*lureTarget : targetSelection.target;
+        double closestContactDistance = lured
+            ? std::max(0.0, coreDistance - blocker->radius - enemyRadius(enemy.type))
+            : targetSelection.contactDistance;
 
         if (blocker == nullptr) {
             enemy.state = EnemyState::MoveToCore;
@@ -1565,9 +1576,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
             }
         }
 
-        const double enemyAttackRange =
+        const double enemyAttackRange = lured ? AttackRange :
             attackRange(enemy.type);
-        if (closestContactDistance > enemyAttackRange) {
+        if (closestContactDistance > enemyAttackRange + (lured ? 1e-6 : 0.0)) {
             const double movement =
                 std::min(movementSpeed * deltaSeconds,
                          closestContactDistance -

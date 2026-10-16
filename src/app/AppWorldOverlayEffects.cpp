@@ -203,6 +203,8 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::DecoyBeacon) {
+            static_cast<void>(renderer_->drawDecoyBeacon({x, baseY - sink, z}, yaw, tint, scale));
         } else if (building.type == BuildingType::RepairStation) {
             static_cast<void>(renderer_->drawRepairStation({x, baseY - sink, z}, yaw, tint, scale));
         } else if (building.type == BuildingType::Mortar) {
@@ -560,6 +562,8 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::DecoyBeacon) {
+        static_cast<void>(renderer_->drawDecoyBeacon(modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::RepairStation) {
         static_cast<void>(renderer_->drawRepairStation(modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::Mortar) {

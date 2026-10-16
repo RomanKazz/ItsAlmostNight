@@ -239,6 +239,29 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     return true;
 }
 
+bool Renderer::drawDecoyBeacon(Vector3 position, float yawRadians, Color tint, float scale, float lightStrength) {
+    auto& resource = resources_.decoyBeaconModel();
+    if (!resource.valid()) return false;
+    auto& model = resource.get();
+    prepareModelShader(model);
+    const auto saved = worldMaterial_;
+    const Matrix transform = MatrixMultiply(model.transform, MatrixMultiply(
+        MatrixScale(scale, scale, scale), MatrixMultiply(MatrixRotateY(yawRadians),
+            MatrixTranslate(position.x, position.y, position.z))));
+    for (int mesh=0;mesh<model.meshCount;++mesh) {
+        auto state = saved;
+        if (mesh==1) {state.unlitAmount=.25F+.75F*std::clamp(lightStrength,0.0F,1.0F);state.screenAoAmount=0;}
+        setWorldMaterial(state);
+        auto& material=model.materials[model.meshMaterial[mesh]];
+        const auto color=material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color=ColorTint(color,tint);
+        DrawMesh(model.meshes[mesh],material,transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].color=color;
+    }
+    setWorldMaterial(saved);
+    return true;
+}
+
 bool Renderer::drawRepairStation(Vector3 position, float yawRadians, Color tint, float scale) {
     auto& resource = resources_.repairStationModel();
     if (!resource.valid()) return false;
@@ -674,6 +697,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::TeslaTower: return 1.44F;
     case BuildingType::LaserTower: return 1.40F;
     case BuildingType::Mortar: return 1.45F;
+    case BuildingType::DecoyBeacon: return 1.47F;
     case BuildingType::RepairStation: return 1.472F;
     case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;

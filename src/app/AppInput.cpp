@@ -675,10 +675,10 @@ void App::processInput() {
         if (IsKeyPressed(KEY_Y)) {
             environment_.toggleFrozen();
         }
-        if (IsKeyPressed(KEY_LEFT_BRACKET)) {
+        if (actionMode_ != ActionMode::Buildings && IsKeyPressed(KEY_LEFT_BRACKET)) {
             environment_.adjustTime(-0.025F);
         }
-        if (IsKeyPressed(KEY_RIGHT_BRACKET)) {
+        if (actionMode_ != ActionMode::Buildings && IsKeyPressed(KEY_RIGHT_BRACKET)) {
             environment_.adjustTime(0.025F);
         }
         if (IsKeyPressed(KEY_APOSTROPHE)) {

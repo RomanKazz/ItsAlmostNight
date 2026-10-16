@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/DecoyBeacon.hpp"
 #include "buildings/FoundationSystem.hpp"
 #include "core/PerformanceStats.hpp"
 #include "core/Types.hpp"
@@ -173,6 +174,9 @@ struct EnemyInstance {
     // from authored model/capsule Y so existing combat dimensions stay valid.
     double surfaceHeightOffset{};
     double worldSurfaceHeight{};
+    std::optional<EntityId> decoyTarget;
+    double decoyRemaining{};
+    double decoyFlashRemaining{};
     std::array<EnemyStatusEffect, 3> statusEffects{{
         EnemyStatusEffect{.type = StatusEffectType::Freeze},
         EnemyStatusEffect{.type = StatusEffectType::Slow},
@@ -418,6 +422,7 @@ class EnemySystem {
     [[nodiscard]] bool hasPendingSplits() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
+    [[nodiscard]] std::span<const DecoyBeaconRuntime> decoyBeacons() const { return decoyBeacons_; }
     // Borrowed until the next tick/reset. Cleared per tick; storage reused.
     [[nodiscard]] std::span<const EnemyMagicEvent> magicEvents() const;
     void clearProjectiles();
@@ -447,6 +452,16 @@ class EnemySystem {
     [[nodiscard]] bool refreshStructureTargets(
         const std::vector<BuildingInstance>& buildings,
         std::span<const EnemyStructureTarget> additionalStructures);
+    struct DecoyNavigationField {
+        static constexpr int HalfExtent = 12, Size = HalfExtent * 2 + 1;
+        GridPosition center;
+        std::array<std::int16_t, Size * Size> distance{};
+    };
+    void updateDecoyBeacons(double deltaSeconds, const std::vector<BuildingInstance>& buildings,
+        const FlowField& flowField, EnemyNavigationView navigation, bool layoutChanged);
+    [[nodiscard]] std::optional<Vec3> decoyWaypoint(const EnemyInstance& enemy) const;
+    std::vector<DecoyBeaconRuntime> decoyBeacons_;
+    std::vector<DecoyNavigationField> decoyNavigation_;
     void updateEnemyTimers(EnemyInstance& enemy, double deltaSeconds);
     [[nodiscard]] bool advanceBossAbility(
         EnemyInstance& enemy, double deltaSeconds,

@@ -13,7 +13,7 @@ void runBuildingSystemTests() {
             allUnlocked, ian::BuildingHotbarCategory::Defense,
             true, 1, true);
         require(
-            creativeDefense.count == 13U,
+            creativeDefense.count == 14U,
             "creative catalog exposes every defense structure");
         const auto creativeEconomy = ian::makeBuildingHotbarLayout(
             allUnlocked, ian::BuildingHotbarCategory::Economy,

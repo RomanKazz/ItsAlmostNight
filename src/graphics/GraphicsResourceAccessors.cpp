@@ -312,6 +312,7 @@ ModelResource& GraphicsResources::teslaTowerModel() { return teslaTowerModel_; }
 ModelResource& GraphicsResources::laserTowerModel() { return laserTowerModel_; }
 ModelResource& GraphicsResources::mortarModel() { return mortarModel_; }
 ModelResource& GraphicsResources::repairStationModel() { return repairStationModel_; }
+ModelResource& GraphicsResources::decoyBeaconModel() { return decoyBeaconModel_; }
 ModelResource& GraphicsResources::mortarUpgradeModel() { return mortarUpgradeModel_; }
 ModelResource& GraphicsResources::teslaUpgradeModel() { return teslaUpgradeModel_; }
 

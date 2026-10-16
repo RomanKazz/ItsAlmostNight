@@ -1,6 +1,7 @@
 #include "buildings/TowerRig.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/RepairStation.hpp"
+#include "buildings/DecoyBeacon.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
@@ -1070,6 +1071,8 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::DecoyBeacon) {
+        static_cast<void>(renderer.drawDecoyBeacon(position, yawRadians));
     } else if (type == BuildingType::RepairStation) {
         static_cast<void>(renderer.drawRepairStation(position, yawRadians));
     } else if (type == BuildingType::Mortar) {
@@ -1346,6 +1349,11 @@ void drawBuildingTacticalOverlay(
             targetId = runtime->targetId;
         }
         center.y += 1.5;
+    } else if (building->type == BuildingType::DecoyBeacon) {
+        renderer.drawTacticalGroundSector(
+            {static_cast<float>(center.x), static_cast<float>(center.y) + .085F, static_cast<float>(center.z)},
+            static_cast<float>(decoyBeaconRadius(building->level)), 0, 360, {255, 217, 99, 190});
+        return;
     } else if (building->type == BuildingType::RepairStation) {
         renderer.drawTacticalGroundSector(
             {static_cast<float>(center.x), static_cast<float>(center.y) + .085F, static_cast<float>(center.z)},

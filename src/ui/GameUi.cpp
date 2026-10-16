@@ -204,6 +204,7 @@ void GameUi::initialize() {
         "assets/ui/building_laser.png",
         "assets/ui/building_mortar.png",
         "assets/ui/building_repair_station.png",
+        "assets/ui/building_decoy_beacon.png",
     };
     for (std::size_t index = 0; index < buildingIcons_.size(); ++index) {
         buildingIcons_[index] = loadTexture(BuildingIconPaths[index]);
@@ -676,6 +677,7 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     case BuildingType::LaserTower: return buildingIcons_[12];
     case BuildingType::Mortar: return buildingIcons_[13];
     case BuildingType::RepairStation: return buildingIcons_[14];
+    case BuildingType::DecoyBeacon: return buildingIcons_[15];
     default: return {};
     }
 }

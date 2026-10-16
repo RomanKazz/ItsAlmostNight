@@ -33,6 +33,7 @@ Footprint footprint(BuildingType type) {
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
     case BuildingType::RepairStation:
+    case BuildingType::DecoyBeacon:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:
@@ -75,6 +76,7 @@ SelectionBounds selectionBounds(BuildingType type) {
     case BuildingType::TeslaTower: return {0.6, 0.6, 0.0, 1.44};
     case BuildingType::LaserTower: return {0.6, 0.6, 0.0, 1.40};
     case BuildingType::Mortar: return {0.6, 0.6, 0.0, 1.45};
+    case BuildingType::DecoyBeacon: return {0.64, 0.64, 0.0, 1.47};
     case BuildingType::RepairStation: return {0.6, 0.71, 0.0, 1.5};
     case BuildingType::MissileLauncher: return {0.6, 0.6, 0.0, 1.54};
     case BuildingType::Flamethrower:
@@ -259,6 +261,7 @@ BuildingLimitCategory buildingLimitCategory(
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
     case BuildingType::RepairStation:
+    case BuildingType::DecoyBeacon:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:
     case BuildingType::Catapult:

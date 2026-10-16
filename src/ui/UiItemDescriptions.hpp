@@ -35,6 +35,7 @@ inline std::string_view buildingDescription(BuildingType type) {
     case BuildingType::GunTurret: return "Rapid bullets against the horde.";
     case BuildingType::Cannon: return "Explosive shells damage groups of enemies.";
     case BuildingType::Mortar: return "High-arc shells. Blasts distant groups. Cannot aim within 4 m.";
+    case BuildingType::DecoyBeacon: return "Light pulses lure nearby enemies. Bosses are immune.";
     case BuildingType::RepairStation: return "Repairs nearby walls and weapons every 2s, even under attack. Does not repair the Core.";
     case BuildingType::LaserTower: return "Focused beam. Damage ramps up while holding the same target.";
     case BuildingType::TeslaTower: return "Circular defense. Lightning jumps between nearby enemies.";

@@ -113,6 +113,7 @@ add_library(ian_simulation
     src/combat/PlayerWeaponSystem.cpp
     src/economy/CrystalMineSystem.cpp
     src/economy/CoinPickupSystem.cpp
+    src/enemies/EnemyDecoys.cpp
     src/enemies/EnemyCombat.cpp
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemyBoss.cpp
@@ -355,6 +356,16 @@ if(BUILD_TESTING)
     target_sources(its_almost_night PRIVATE tests/AppPresentationEventsSmoke.cpp)
     add_test(NAME ian_presentation_events_smoke COMMAND its_almost_night --test-presentation-events)
     set_tests_properties(ian_presentation_events_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE LABELS "graphics;integration" TIMEOUT 60)
+
+    add_executable(ian_decoy_tests tests/DecoyBeaconTests.cpp)
+    target_link_libraries(ian_decoy_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_decoy_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_decoy_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_decoy_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_decoy_tests COMMAND ian_decoy_tests)
+    set_tests_properties(ian_decoy_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
 
     add_executable(ian_missile_tests tests/MissileLauncherTests.cpp)
     target_link_libraries(ian_missile_tests PRIVATE ian_simulation)

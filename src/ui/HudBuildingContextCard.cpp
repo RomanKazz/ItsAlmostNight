@@ -155,6 +155,7 @@ void drawBuildingContextCard(
         add("PIERCING", &BuildingStats::piercingCount);
         add("RADIUS", &BuildingStats::effectRadius,2,"m");
         add("SLOW", &BuildingStats::slowPercent,0,"%");
+        add("TARGETS", &BuildingStats::attractionTargets);
         add("DURATION", &BuildingStats::effectDuration,1,"s");
         add("COOLDOWN", &BuildingStats::cooldown,2,"s");
         add("REPAIR RATE", &BuildingStats::repairPerSecond,1,"/s");

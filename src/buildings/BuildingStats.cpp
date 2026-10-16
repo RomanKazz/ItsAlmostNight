@@ -1,6 +1,7 @@
 #include "buildings/BuildingStats.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/RepairStation.hpp"
+#include "buildings/DecoyBeacon.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
 #include "combat/CannonSystem.hpp"
@@ -73,6 +74,11 @@ BuildingStats buildingStatsAtLevel(
             producers.productionAmount(level, building.type));
         stats.productionInterval =
             producers.productionInterval(building.type, level);
+    } else if (building.type == BuildingType::DecoyBeacon) {
+        stats.effectRadius = decoyBeaconRadius(level);
+        stats.effectDuration = DecoyBeaconDuration;
+        stats.cooldown = DecoyBeaconInterval;
+        stats.attractionTargets = decoyBeaconTargets(level);
     } else if (building.type == BuildingType::RepairStation) {
         stats.effectRadius = repairStationRadius(level);
         stats.repairPerSecond = repairStationRate(level);

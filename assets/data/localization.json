@@ -3,6 +3,11 @@
   "languages": {
     "en": {},
     "ru": {
+      "DECOY": "ПРИМАНКА",
+      "Decoy": "Приманка",
+      "Light pulses lure nearby enemies. Upgrade all copies.": "Световые импульсы отвлекают врагов. Улучшает все приманки.",
+      "Light pulses lure nearby enemies. Bosses are immune.": "Свет отвлекает врагов. Не действует на боссов.",
+      "TARGETS": "ЦЕЛИ",
       "REPAIR STATION": "РЕМОНТНАЯ СТАНЦИЯ",
       "Repair Station": "Ремонтная станция",
       "REPAIR RATE": "РЕМОНТ",

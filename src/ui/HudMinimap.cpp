@@ -969,6 +969,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         case BuildingType::LaserTower:
         case BuildingType::Mortar:
         case BuildingType::RepairStation:
+    case BuildingType::DecoyBeacon:
         case BuildingType::MissileLauncher:
         case BuildingType::Flamethrower:
         case BuildingType::Catapult:

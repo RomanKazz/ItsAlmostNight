@@ -84,10 +84,11 @@ enum class RunUpgradeEffect {
     UnlockLaserTower,
     UnlockMortar,
     UnlockRepairStation,
+    UnlockDecoyBeacon,
     ResourceCapacity = RichResources, // Stable former yield-tome save ID.
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 66U;
+inline constexpr std::size_t RunUpgradeEffectCount = 67U;
 // Poison deals 25% of the triggering hit per second for four seconds.
 // Reapplication refreshes duration and retains the strongest dose.
 inline constexpr double PoisonDuration = 4.0;
@@ -278,6 +279,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockLaserTower, "LASER", "Sustained focus ramps damage. Upgrade all copies."},
         {RunUpgradeEffect::UnlockMortar, "MORTAR", "High-arc shells blast distant groups. Upgrade all copies."},
         {RunUpgradeEffect::UnlockRepairStation, "REPAIR STATION", "Repairs nearby walls and weapons every 2s. Upgrade all copies."},
+        {RunUpgradeEffect::UnlockDecoyBeacon, "DECOY", "Light pulses lure nearby enemies. Upgrade all copies."},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -286,9 +288,9 @@ inline constexpr std::array<RunUpgradeDefinition,
 }
 
 inline constexpr std::size_t RunBuildingSlotCount = 4U;
-inline constexpr std::array<BuildingType, 13> RunBuildingTypes{
+inline constexpr std::array<BuildingType, 14> RunBuildingTypes{
     BuildingType::GunTurret, BuildingType::Turret, BuildingType::Cannon,
-    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::Flamethrower, BuildingType::Wall, BuildingType::MissileLauncher, BuildingType::TeslaTower, BuildingType::LaserTower, BuildingType::Mortar, BuildingType::RepairStation};
+    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::Flamethrower, BuildingType::Wall, BuildingType::MissileLauncher, BuildingType::TeslaTower, BuildingType::LaserTower, BuildingType::Mortar, BuildingType::RepairStation, BuildingType::DecoyBeacon};
 
 inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     BuildingType::LumberMill, BuildingType::Quarry, BuildingType::CrystalMine};
@@ -318,6 +320,7 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     case RunUpgradeEffect::UnlockTeslaTower: return BuildingType::TeslaTower;
     case RunUpgradeEffect::UnlockLaserTower: return BuildingType::LaserTower;
     case RunUpgradeEffect::UnlockMortar: return BuildingType::Mortar;
+    case RunUpgradeEffect::UnlockDecoyBeacon: return BuildingType::DecoyBeacon;
     case RunUpgradeEffect::UnlockRepairStation: return BuildingType::RepairStation;
     case RunUpgradeEffect::UnlockSpikeTrap: return BuildingType::SpikeTrap;
     case RunUpgradeEffect::UnlockSlowTrap: return BuildingType::SlowTrap;

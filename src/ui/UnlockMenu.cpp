@@ -75,15 +75,15 @@ const std::vector<Entry>& catalog() {
         constexpr std::array buildings{BuildingType::Core, BuildingType::Wall, BuildingType::Gate,
             BuildingType::Turret, BuildingType::GunTurret, BuildingType::Cannon, BuildingType::Catapult,
             BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::CrystalMine,
-            BuildingType::LumberMill, BuildingType::Quarry, BuildingType::RepairStation};
-        constexpr std::array<std::string_view, 13> descriptions{
+            BuildingType::LumberMill, BuildingType::Quarry, BuildingType::RepairStation, BuildingType::DecoyBeacon};
+        constexpr std::array<std::string_view, 14> descriptions{
             "The heart of your fort. Upgrade it to expand your defenses.",
             "Blocks enemies and protects your defenses.", "An entrance through your fortifications.",
             "Fires bolts at approaching enemies.", "Rapid bullets against the horde.",
             "Explosive shells damage groups of enemies.", "Lobs heavy projectiles at distant enemies.",
             "Damages enemies crossing the trap.", "Slows enemies crossing the trap.",
             "Produces crystals over time.", "Produces wood over time.", "Produces stone over time.",
-            "Repairs nearby walls and weapons every 2s, even under attack. Does not repair the Core."};
+            "Repairs nearby walls and weapons every 2s, even under attack. Does not repair the Core.", "Light pulses lure nearby enemies. Bosses are immune."};
         for (std::size_t i = 0; i < buildings.size(); ++i) result.push_back({
             "building:" + std::to_string(static_cast<int>(buildings[i])), UnlockCategory::Buildings,
             static_cast<int>(buildings[i]), std::string(buildingDisplayName(buildings[i])), std::string(descriptions[i]), {}, {}});

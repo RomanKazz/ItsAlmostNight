@@ -31,6 +31,7 @@ inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;
     case BuildingType::TeslaTower: return 1.54;
     case BuildingType::LaserTower: return 1.48;
     case BuildingType::Mortar: return 1.55;
+    case BuildingType::DecoyBeacon: return 1.56;
     case BuildingType::RepairStation: return 1.58;
     case BuildingType::MissileLauncher: return 1.65;
     case BuildingType::Flamethrower: return 1.14;

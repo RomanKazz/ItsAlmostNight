@@ -1,6 +1,7 @@
 #include "buildings/TowerRig.hpp"
 #include "app/App.hpp"
 #include "app/RepairStationDrawing.hpp"
+#include "app/DecoyBeaconDrawing.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "graphics/BuildingFoundationVisual.hpp"
@@ -115,6 +116,7 @@ void App::drawWorldOverlays(
     const WorldLighting& lighting) {
     renderer_->endWorldShader();
     renderer_->beginColorOnlyWorldEffects();
+    decoy_beacon_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes, simulation_.terrain());
     repair_station_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes, simulation_.terrain());
     renderer_->endColorOnlyWorldEffects();
     const auto dragPreviewForCell = [this](BuildingType type, GridPosition position) -> const BuildingPreview* {
@@ -684,15 +686,16 @@ void App::drawWorldOverlays(
         if (!wallDragStart_ &&
             !placementPreviewObstructed(
                 snapshot.buildingPreview->placement.error) &&
-            (isDirectionalDefense(snapshot.buildingPreview->type) || snapshot.buildingPreview->type == BuildingType::TeslaTower || snapshot.buildingPreview->type == BuildingType::RepairStation)) {
+            (isDirectionalDefense(snapshot.buildingPreview->type) || snapshot.buildingPreview->type == BuildingType::TeslaTower || snapshot.buildingPreview->type == BuildingType::RepairStation || snapshot.buildingPreview->type == BuildingType::DecoyBeacon)) {
             const BuildingType type =
                 snapshot.buildingPreview->type;
             const bool artillery =
                 type == BuildingType::Cannon ||
                 type == BuildingType::Catapult || type == BuildingType::Mortar;
-            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar || type == BuildingType::RepairStation)
+            const std::uint8_t previewLevel = (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar || type == BuildingType::RepairStation || type == BuildingType::DecoyBeacon)
                 ? std::max<std::uint8_t>(1, snapshot.buildingBlueprintLevels[static_cast<std::size_t>(type)]) : 1;
-            const float range = type == BuildingType::RepairStation
+            const float range = type == BuildingType::DecoyBeacon
+                ? static_cast<float>(decoyBeaconRadius(previewLevel)) : type == BuildingType::RepairStation
                 ? static_cast<float>(repairStationRadius(previewLevel))
                 : (type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower || type == BuildingType::Mortar) && snapshot.buildingPreviewFinalAttackStats
                 ? static_cast<float>(snapshot.buildingPreviewFinalAttackStats->range * (type == BuildingType::Flamethrower ? snapshot.buildingPreviewFinalAttackStats->size : 1.0))
@@ -708,7 +711,7 @@ void App::drawWorldOverlays(
                  visualCenter.y},
                 range,
                 static_cast<float>(placementRotationYaw_),
-                type == BuildingType::RepairStation ? 360.0F : static_cast<float>(defenseAttackArcDegrees(type, previewLevel)),
+                (type == BuildingType::RepairStation || type == BuildingType::DecoyBeacon) ? 360.0F : static_cast<float>(defenseAttackArcDegrees(type, previewLevel)),
                 {228, 239, 226, 92},
                 type == BuildingType::MissileLauncher ? static_cast<float>(MissileLauncherMinimumRange)
                     : artillery
@@ -1044,6 +1047,8 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::DecoyBeacon) {
+                    static_cast<void>(renderer_->drawDecoyBeacon(position, yaw));
                 } else if (preview.type == BuildingType::RepairStation) {
                     static_cast<void>(renderer_->drawRepairStation(position, yaw));
                 } else if (preview.type == BuildingType::Mortar) {
@@ -1156,6 +1161,8 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::DecoyBeacon) {
+            static_cast<void>(renderer_->drawDecoyBeacon({x, 0.0F, z}, yaw));
         } else if (preview.type == BuildingType::RepairStation) {
             static_cast<void>(renderer_->drawRepairStation({x, 0.0F, z}, yaw));
         } else if (preview.type == BuildingType::Mortar) {
