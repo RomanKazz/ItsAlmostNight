@@ -25,6 +25,7 @@ std::string_view buildingDisplayName(BuildingType type) {
     case BuildingType::LaserTower: return "Laser";
     case BuildingType::Mortar: return "Mortar";
     case BuildingType::DecoyBeacon: return "Decoy";
+    case BuildingType::WindBlower: return "Wind Blower";
     case BuildingType::RepairStation: return "Repair Station";
     case BuildingType::MissileLauncher: return "Missile Launcher";
     case BuildingType::Flamethrower:

@@ -452,6 +452,13 @@ float cannonBaseYaw(const SimulationSnapshot& snapshot,
         building.type, building.rotation));
 }
 
+float windBlowerRotor(const SimulationSnapshot& snapshot, const BuildingInstance& building, float interpolationAlpha) {
+    const auto tower = std::ranges::find(snapshot.towers,building.id,&TowerRuntime::buildingId);
+    return tower == snapshot.towers.end() ? 0.0F : static_cast<float>(wrapBuildingAngle(
+        tower->previousWindRotor + wrapBuildingAngle(tower->windRotor-tower->previousWindRotor) *
+        std::clamp(interpolationAlpha,0.0F,1.0F)));
+}
+
 float towerYaw(const SimulationSnapshot& snapshot,
                const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
@@ -561,9 +568,9 @@ std::optional<EntityId> preciseBuildingAim(
         float pitch = 0.0F;
         if (building.type == BuildingType::Turret ||
             building.type == BuildingType::GunTurret ||
-            building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower) {
+            building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower || building.type == BuildingType::WindBlower) {
             yaw = towerYaw(snapshot, building);
-            if (building.type == BuildingType::Turret || building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower) {
+            if (building.type == BuildingType::Turret || building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower || building.type == BuildingType::WindBlower) {
                 pitch = towerPitch(snapshot, building);
             }
         } else if (
@@ -587,9 +594,10 @@ std::optional<EntityId> preciseBuildingAim(
                 building.type == BuildingType::SpikeTrap
                     ? spikeTrapAnimationSeconds(snapshot, building.id)
                     : -1.0F,
-                (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower)
+                (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::LaserTower || building.type == BuildingType::WindBlower)
                     ? std::optional<float>{towerBaseYaw(snapshot, building)}
-                    : building.type == BuildingType::Mortar ? std::optional<float>{cannonBaseYaw(snapshot, building)} : std::nullopt);
+                    : building.type == BuildingType::Mortar ? std::optional<float>{cannonBaseYaw(snapshot, building)} : std::nullopt,
+                windBlowerRotor(snapshot, building));
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
             result = building.id;
@@ -1071,6 +1079,8 @@ void drawPlacementPreviewGeometry(
             DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
                      0.18F, 1.0F, WHITE);
         }
+    } else if (type == BuildingType::WindBlower) {
+        static_cast<void>(renderer.drawWindBlower(position,yawRadians,WHITE,1,yawRadians));
     } else if (type == BuildingType::DecoyBeacon) {
         static_cast<void>(renderer.drawDecoyBeacon(position, yawRadians));
     } else if (type == BuildingType::RepairStation) {
@@ -1296,10 +1306,10 @@ void drawBuildingTacticalOverlay(
     Vec3 center = buildingWorldPosition(*building);
     std::optional<EntityId> targetId;
     if (building->type == BuildingType::Turret ||
-        building->type == BuildingType::GunTurret || building->type == BuildingType::Flamethrower || building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower) {
+        building->type == BuildingType::GunTurret || building->type == BuildingType::Flamethrower || building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower || building->type == BuildingType::WindBlower) {
         double range = TowerSystem::attackRange(building->type, building->level);
-        if ((building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower) && snapshot.aimedFinalAttackStats) range = snapshot.aimedFinalAttackStats->range;
-        if (building->type == BuildingType::Flamethrower && snapshot.aimedFinalAttackStats) {
+        if ((building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower || building->type == BuildingType::WindBlower) && snapshot.aimedFinalAttackStats) range = snapshot.aimedFinalAttackStats->range;
+        if ((building->type == BuildingType::Flamethrower || building->type == BuildingType::WindBlower) && snapshot.aimedFinalAttackStats) {
             range = snapshot.aimedFinalAttackStats->range * snapshot.aimedFinalAttackStats->size;
         }
         renderer.drawTacticalGroundSector(

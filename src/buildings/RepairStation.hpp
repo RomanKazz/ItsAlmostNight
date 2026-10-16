@@ -30,6 +30,7 @@ inline constexpr std::size_t MaximumRepairStationVisualLinks = 64;
     case BuildingType::TeslaTower:
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
+    case BuildingType::WindBlower: return true;
     case BuildingType::DecoyBeacon: return true;
     default: return false;
     }

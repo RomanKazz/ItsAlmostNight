@@ -13,7 +13,7 @@ inline constexpr double PiRadians = 3.14159265358979323846;
 
 [[nodiscard]] inline bool isDirectionalDefense(
     BuildingType type) {
-    return type == BuildingType::Turret ||
+    return type == BuildingType::WindBlower || type == BuildingType::Turret ||
            type == BuildingType::GunTurret ||
            type == BuildingType::Cannon ||
            type == BuildingType::Catapult ||

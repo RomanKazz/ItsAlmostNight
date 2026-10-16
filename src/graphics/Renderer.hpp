@@ -387,7 +387,7 @@ class Renderer {
         float cannonPitch = 0.0F,
         float gateOpenAmount = 1.0F,
         float spikeAnimationSeconds = -1.0F,
-        std::optional<float> defenseBaseYaw = std::nullopt);
+        std::optional<float> defenseBaseYaw = std::nullopt, float windRotor = 0);
     [[nodiscard]] std::optional<double>
     resourceRaycastDistance(
         ResourceType type, Vector3 position,
@@ -416,6 +416,7 @@ class Renderer {
                                   float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawWindBlower(Vector3 position, float baseYaw, Color tint = WHITE, float scale = 1, float headYaw = 0, float rotor = 0);
     [[nodiscard]] bool drawDecoyBeacon(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1, float lightStrength = .5F);
     [[nodiscard]] bool drawRepairStation(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1);
     [[nodiscard]] bool drawMortar(Vector3 position, float yawRadians, Color tint = WHITE,

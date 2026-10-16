@@ -11,6 +11,7 @@ class CrystalMineSystem;
 struct BuildingStats {
     double maxHealth{};
     std::optional<double> attackDamage;
+    std::optional<double> pushStrength;
     std::optional<double> attackRange;
     std::optional<double> attackArcDegrees;
     std::optional<double> attacksPerSecond;

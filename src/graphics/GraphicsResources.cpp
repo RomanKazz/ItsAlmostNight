@@ -1101,6 +1101,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     laserTowerModel_.load("assets/models/buildings/laser.glb");
     mortarModel_.load("assets/models/buildings/mortar.glb");
     decoyBeaconModel_.load("assets/models/buildings/decoy_beacon.glb");
+    windBlowerModel_.load("assets/models/buildings/wind_blower.glb");
     repairStationModel_.load("assets/models/buildings/repair_station.glb");
     mortarUpgradeModel_.load("assets/models/buildings/mortar_upgrades.glb");
     teslaUpgradeModel_.load("assets/models/buildings/tesla_upgrades.glb");
@@ -1618,6 +1619,7 @@ void GraphicsResources::shutdown() {
     mortarModel_.unload();
     repairStationModel_.unload();
     decoyBeaconModel_.unload();
+    windBlowerModel_.unload();
     mortarUpgradeModel_.unload();
     teslaUpgradeModel_.unload();
     for (auto& model : missileLauncherModels_) model.unload();

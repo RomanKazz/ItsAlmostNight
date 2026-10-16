@@ -1,4 +1,5 @@
 #include "graphics/LaserModel.hpp"
+#include "graphics/WindBlowerModel.hpp"
 #include "graphics/MortarModel.hpp"
 #include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/MissileLauncherModel.hpp"
@@ -33,7 +34,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     std::span<const BuildingInstance> buildings, Ray ray,
     double maxDistance, float defensiveYaw,
     float cannonPitchRadians, float gateOpenAmount,
-    float /*spikeAnimationSeconds*/, std::optional<float> defenseBaseYaw) {
+    float /*spikeAnimationSeconds*/, std::optional<float> defenseBaseYaw, float windRotor) {
     const Vec3 worldCenter =
         buildingWorldPosition(building);
     Vector3 position{
@@ -184,6 +185,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
+    case BuildingType::WindBlower:
+        resource = &resources_.windBlowerModel(); yaw = defensiveYaw; break;
     case BuildingType::DecoyBeacon:
         resource = &resources_.decoyBeaconModel();
         yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
@@ -323,6 +326,18 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::WindBlower) {
+            std::optional<double> closest;
+            for (int index=0; index<model.meshCount; ++index) {
+                const Matrix pose=MatrixMultiply(model.transform,
+                    wind_blower_model::meshTransform(index,position,
+                        defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(building.type,building.rotation))),
+                        defensiveYaw,windRotor));
+                const auto distance=acceptCollision(GetRayCollisionMesh(ray,model.meshes[index],pose));
+                if (distance && (!closest || *distance<*closest)) closest=distance;
+            }
+            return closest;
+        }
         if (building.type == BuildingType::Mortar) {
             std::optional<double> closest;
             for (int index = 0; index < model.meshCount; ++index) {

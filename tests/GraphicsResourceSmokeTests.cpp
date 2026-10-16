@@ -3,6 +3,7 @@
 #include "MortarGraphicsChecks.hpp"
 #include "RepairStationGraphicsChecks.hpp"
 #include "DecoyBeaconGraphicsChecks.hpp"
+#include "WindBlowerGraphicsChecks.hpp"
 #include "MissileLauncherGraphicsChecks.hpp"
 #include "ToolLevelGraphicsChecks.hpp"
 #include "graphics/CrystalMineModel.hpp"
@@ -3151,6 +3152,7 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkWindBlowerGraphics(renderer)) {std::cerr<<"wind blower model/rotor/icon/gust/raycast failed\n";return 1;}
         if (!checkDecoyBeaconGraphics(renderer)) {std::cerr<<"decoy beacon model/icon/effect/raycast failed\n";return 1;}
         if (!checkRepairStationGraphics(renderer)) {std::cerr<<"repair station model/icon/effect/raycast failed\n";return 1;}
         if (!checkMortarGraphics(renderer)) {std::cerr<<"mortar model/rig/icon/raycast failed\n";return 1;}

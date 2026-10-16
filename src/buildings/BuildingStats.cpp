@@ -37,6 +37,12 @@ BuildingStats buildingStatsAtLevel(
             coreResourceCapacity(ResourceCapacityType::Stone, level));
         stats.crystalCapacity = static_cast<double>(
             coreResourceCapacity(ResourceCapacityType::Crystal, level));
+    } else if (building.type == BuildingType::WindBlower) {
+        const auto attack = TowerSystem::baseStats(building.type, level);
+        stats.attackRange = attack.range;
+        stats.attackArcDegrees = defenseAttackArcDegrees(building.type, level);
+        stats.cooldown = attack.attackInterval;
+        stats.pushStrength = attack.knockback;
     } else if (building.type == BuildingType::Turret ||
                building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
         const double towerBonus = buildingAnvilMultiplier(building);

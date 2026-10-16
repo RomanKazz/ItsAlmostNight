@@ -25,12 +25,13 @@ constexpr double TurnSpeed = 12.0;
 constexpr double PitchSpeed = 8.0;
 constexpr double AimTolerance = 0.08726646259971647;
 bool isTower(BuildingType type) {
-    return type == BuildingType::Turret || type == BuildingType::GunTurret ||
+    return type == BuildingType::WindBlower || type == BuildingType::Turret || type == BuildingType::GunTurret ||
         type == BuildingType::Flamethrower || type == BuildingType::MissileLauncher || type == BuildingType::TeslaTower || type == BuildingType::LaserTower;
 }
 
 double attackRange(BuildingType type, std::uint8_t level) {
     level = std::clamp<std::uint8_t>(level, 1, MaxBuildingLevel);
+    if (type == BuildingType::WindBlower) return 5.5 + .2 * (level - 1);
     if (type == BuildingType::LaserTower) return 10.0 + .4 * (level - 1);
     if (type == BuildingType::TeslaTower) return 8.0 + 0.35 * (level - 1);
     if (type == BuildingType::MissileLauncher) return 15.0 + 0.5 * (level - 1);
@@ -40,6 +41,7 @@ double attackRange(BuildingType type, std::uint8_t level) {
 }
 
 double attackDamage(BuildingType type, std::uint8_t level) {
+    if (type == BuildingType::WindBlower) return 0;
     if (type == BuildingType::LaserTower) return .18 + .045 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     if (type == BuildingType::TeslaTower) return 1.2 + 0.3 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     if (type == BuildingType::MissileLauncher) return 2.0 + 0.45 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
@@ -59,6 +61,7 @@ double attackDamage(BuildingType type, std::uint8_t level) {
 
 double fireInterval(BuildingType type, std::uint8_t level) {
     const double levelBonus = static_cast<double>(std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
+    if (type == BuildingType::WindBlower) return 2.8 / (1.0 + .05 * levelBonus);
     if (type == BuildingType::LaserTower) return .15 / (1.0 + .04 * levelBonus);
     if (type == BuildingType::TeslaTower) return 1.2 / (1.0 + 0.06 * levelBonus);
     if (type == BuildingType::MissileLauncher) return 1.8 / (1.0 + 0.06 * levelBonus);
@@ -79,6 +82,7 @@ int piercingCount(BuildingType type, std::uint8_t level) {
 
 Vec3 towerPosition(const BuildingInstance& building) {
     Vec3 position = buildingWorldPosition(building);
+    if (building.type == BuildingType::WindBlower) { position.y += WindBlowerMuzzleY; return position; }
     if (building.type == BuildingType::LaserTower) { position.y += LaserPitchPivotY; return position; }
     if (building.type == BuildingType::MissileLauncher) { position.y += MissileLauncherPitchPivotY; return position; }
     if (building.type == BuildingType::Flamethrower) {
@@ -145,6 +149,10 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
     stats.pierce = piercingCount(type, level);
     stats.spreadDegrees = type == BuildingType::GunTurret ? 2.0 : 1.0;
     stats.knockback = type == BuildingType::GunTurret ? 0.25 : 0.8;
+    if (type == BuildingType::WindBlower) {
+        stats.projectileSpeed = 0; stats.spreadDegrees = 0;
+        stats.knockback = 8.0 + .6 * (level - 1);
+    }
     if (type == BuildingType::Flamethrower) {
         stats.projectileSpeed = 0.0;
         stats.duration = 2.0; // Duration means afterburn, not projectile lifetime.
@@ -167,7 +175,7 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
 }
 
 FinalAttackStats TowerSystem::finalStats(const BuildingInstance& building) const {
-    if (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
+    if (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower || building.type == BuildingType::WindBlower) {
         return resolveBuildingAttackStats(baseStats(building.type, building.level), building,
             compatibleAttackModifiers(building.type, modifiers_), bonusType_,
             compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_);
@@ -184,6 +192,7 @@ void TowerSystem::clearProjectiles() {
     flameBurnSlots_.fill(-1);
     for (auto& tower : towers_) {
         tower.flameRemaining = tower.flameAge = tower.flameTailRemaining = 0.0;
+        tower.windAge = WindBlowerPulseSeconds;
         tower.laserFocusTarget.reset(); tower.laserFocusSeconds = tower.laserRemaining = 0;
     }
     for (auto& tower : towers_) { tower.sequenceRemaining = 0; tower.sequenceDelay = 0.0; tower.sequenceInterval = 0.0; }
@@ -244,12 +253,21 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             continue;
         }
 
+        if (building->type == BuildingType::WindBlower) {
+            tower.previousWindRotor = tower.windRotor;
+            tower.windAge += deltaSeconds;
+            const double rotorTarget = tower.targetId && tower.fireCooldownRemaining < .5 ? 30.0 :
+                tower.windAge < WindBlowerPulseSeconds ? 38.0 : 2.0;
+            tower.windRotorSpeed += (rotorTarget - tower.windRotorSpeed) * (1.0 - std::exp(-deltaSeconds * 7.0));
+            tower.windRotor = wrapBuildingAngle(tower.windRotor + tower.windRotorSpeed * deltaSeconds);
+        }
         tower.previousYaw = tower.yaw;
         tower.previousPitch = tower.pitch;
         const double cooldownOvershoot = std::min(0.0, tower.fireCooldownRemaining - deltaSeconds);
         tower.fireCooldownRemaining = std::max(0.0, tower.fireCooldownRemaining - deltaSeconds);
         tower.targetSearchCooldownRemaining =
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
+        const bool wind = building->type == BuildingType::WindBlower;
         const bool crossbow = building->type == BuildingType::Turret;
         const bool missile = building->type == BuildingType::MissileLauncher;
         const bool flame = building->type == BuildingType::Flamethrower;
@@ -264,7 +282,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const double aimPitchSpeed = crossbow ? 2.8 : PitchSpeed;
         const Vec3 origin = towerPosition(*building);
         const auto stats = finalStats(*building);
-        const double range = flame ? flamethrowerRange(stats) : stats.range;
+        const double range = wind ? windBlowerRange(stats) : flame ? flamethrowerRange(stats) : stats.range;
         if (building->type == BuildingType::TeslaTower) {
             // Static, omnidirectional building. Quantity means one controlled
             // chain-discharge sequence, with independent visited IDs per bolt.
@@ -360,7 +378,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
 
         if (tower.targetId) {
             const auto target = enemies.enemy(*tower.targetId);
-            if (!target || !projectileDefenseCanTarget(
+            if (!target || (wind && !windBlowerCanTarget(*target, building->baseHeight)) || !projectileDefenseCanTarget(
                     building->type, *target, building->baseHeight) ||
                 !withinRange(origin, target->position, range) ||
                 (missile && withinRange(origin, target->position, MissileLauncherMinimumRange)) ||
@@ -371,7 +389,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             }
         }
 
-        if (preferMarkedTargets_ && (!laser || !tower.targetId) && tower.targetSearchCooldownRemaining <= 0.0) {
+        if (!wind && preferMarkedTargets_ && (!laser || !tower.targetId) && tower.targetSearchCooldownRemaining <= 0.0) {
             Vec3 search = origin; search.y = building->baseHeight;
             if (auto marked = markedDefenseTarget(enemies, building->type, search, range,
                     tower.restYaw, building->level, missile ? MissileLauncherMinimumRange : 0.0)) {
@@ -384,7 +402,17 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         if (!tower.targetId && tower.targetSearchCooldownRemaining <= 0.0) {
             Vec3 searchOrigin = origin;
             searchOrigin.y = building->baseHeight;
-            tower.targetId = missile ? enemies.densestEnemyInArc(
+            if (wind) {
+                if (!flameQueryReady) { flameQuery_.rebuild(enemies); flameQueryReady = true; }
+                double nearest = range * range;
+                flameQuery_.nearby(enemies, origin, range, [&](const EnemyInstance& enemy) {
+                    if (!windBlowerCanTarget(enemy, building->baseHeight) ||
+                        !directionInsideDefenseArc(origin, enemy.position, tower.restYaw, building->level)) return;
+                    const double dx = enemy.position.x-origin.x, dz = enemy.position.z-origin.z;
+                    const double distance = dx*dx+dz*dz;
+                    if (distance < nearest) { nearest = distance; tower.targetId = enemy.id; }
+                });
+            } else tower.targetId = missile ? enemies.densestEnemyInArc(
                 searchOrigin, range, missileExplosionRadius(stats), tower.restYaw,
                 defenseAttackHalfAngleRadians(building->level), MissileLauncherMinimumRange)
                 : enemies.nearestEnemyInArc(
@@ -485,7 +513,22 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         attackBuffer_.push_back(tower.attack);
         // Carry the sub-step deadline instead of losing a fraction of every period.
         tower.fireCooldownRemaining = stats.attackInterval + cooldownOvershoot;
-        if (flame) {
+        if (wind) {
+            if (!flameQueryReady) { flameQuery_.rebuild(enemies); flameQueryReady = true; }
+            tower.windAge = 0;
+            tower.windYaw = tower.yaw;
+            tower.windOrigin = windBlowerMuzzle(buildingWorldPosition(*building), tower.yaw);
+            const Vec3 direction{-std::sin(tower.yaw), 0, -std::cos(tower.yaw)};
+            flameQuery_.nearby(enemies, origin, range + 2.0, [&](const EnemyInstance& enemy) {
+                if (!windBlowerTouches(enemy, buildingWorldPosition(*building), tower.yaw, range)) return;
+                // Bound overlapping fans: a gust never stacks additional speed
+                // onto an enemy already travelling at its full impulse speed.
+                const double along = enemy.knockbackVelocity.x*direction.x + enemy.knockbackVelocity.z*direction.z;
+                const double strength = std::max(0.0, stats.knockback - std::max(0.0, along));
+                enemies.applyKnockback(enemy.id, direction, strength);
+            });
+            launches_.push_back({tower.buildingId, building->type, tower.windOrigin, 0});
+        } else if (flame) {
             if (!flameQueryReady) {
                 flameQuery_.rebuild(enemies);
                 flameQueryReady = true;

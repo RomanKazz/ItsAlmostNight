@@ -123,7 +123,7 @@ void coverageAndCadence() {
     requireNear(bulk->saveSuspendedRunState().repairStationCycleRemaining,stepped->saveSuspendedRunState().repairStationCycleRemaining,1e-7,"clock phase is independent of frame size");
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto layout=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(layout.count==14 && layout.indexOf(BuildingType::RepairStation)==9 && layout.types[13]==BuildingType::SlowTrap,"station remains before walls and traps");
+    require(layout.count==15 && layout.indexOf(BuildingType::RepairStation)==9 && layout.types[14]==BuildingType::SlowTrap,"station remains before walls and traps");
 }
 }
 int main(){doseAndStats();realSimulation();coverageAndCadence();}

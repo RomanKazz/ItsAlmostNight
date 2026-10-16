@@ -315,6 +315,10 @@ void AudioSystem::playEvent(
     if (!initialized_) {
         return;
     }
+    if (event.type == GameEventType::TowerFired && event.buildingType == BuildingType::WindBlower) {
+        playCue(AudioCue::Dash, event.position, snapshot, .20F, 32.0F, .18);
+        return;
+    }
     switch (event.type) {
     case GameEventType::SawSplinterLaunched:
         playAt(

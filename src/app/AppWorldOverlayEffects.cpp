@@ -203,6 +203,8 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::WindBlower) {
+            static_cast<void>(renderer_->drawWindBlower({x,baseY-sink,z},yaw,tint,scale,yaw));
         } else if (building.type == BuildingType::DecoyBeacon) {
             static_cast<void>(renderer_->drawDecoyBeacon({x, baseY - sink, z}, yaw, tint, scale));
         } else if (building.type == BuildingType::RepairStation) {
@@ -562,6 +564,8 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::WindBlower) {
+        static_cast<void>(renderer_->drawWindBlower(modelPosition,yaw,WHITE,scale,yaw));
     } else if (preview.type == BuildingType::DecoyBeacon) {
         static_cast<void>(renderer_->drawDecoyBeacon(modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::RepairStation) {

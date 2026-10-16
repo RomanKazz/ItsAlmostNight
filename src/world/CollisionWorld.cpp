@@ -39,6 +39,7 @@ bool buildingBlocksPlayer(
     case BuildingType::LaserTower:
     case BuildingType::Mortar:
     case BuildingType::RepairStation:
+    case BuildingType::WindBlower:
     case BuildingType::DecoyBeacon:
     case BuildingType::MissileLauncher:
     case BuildingType::Flamethrower:

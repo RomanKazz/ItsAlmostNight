@@ -27,6 +27,8 @@ inline constexpr auto PhysicalAttackStats = attackStatMask({
     AttackStat::BounceRange});
 // Weapon data, not UI logic. Only implemented, meaningful mechanics are listed.
 inline constexpr std::array DefenseAttackCompatibility{
+    AttackStatCompatibility{BuildingType::WindBlower, attackStatMask({
+        AttackStat::AttackSpeed, AttackStat::Range, AttackStat::Size, AttackStat::Knockback})},
     AttackStatCompatibility{BuildingType::LaserTower, attackStatMask({
         AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Quantity, AttackStat::Bounces,
         AttackStat::BounceRange, AttackStat::CritChance, AttackStat::CritDamage, AttackStat::Knockback, AttackStat::Range})},

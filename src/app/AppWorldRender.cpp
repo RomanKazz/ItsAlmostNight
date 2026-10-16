@@ -1081,6 +1081,9 @@ void App::drawWorldEntities(
                     0.0F, 1.55F, -0.55F, 0.18F, 0.18F,
                     1.0F, {50, 58, 67, 255});
             }
+        } else if (building.type == BuildingType::WindBlower) {
+            static_cast<void>(renderer_->drawWindBlower({x,groundY,z},towerBaseYaw(snapshot,building),WHITE,spawnScale,
+                towerYaw(snapshot,building,interpolationAlpha),windBlowerRotor(snapshot,building,interpolationAlpha)));
         } else if (building.type == BuildingType::DecoyBeacon) {
             const auto beacon = std::ranges::find(snapshot.decoyBeacons, building.id, &DecoyBeaconRuntime::buildingId);
             const float light = beacon != snapshot.decoyBeacons.end()

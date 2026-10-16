@@ -154,6 +154,7 @@ void drawBuildingContextCard(
         add("ATTACK RATE", &BuildingStats::attacksPerSecond,2,"/s");
         add("PIERCING", &BuildingStats::piercingCount);
         add("RADIUS", &BuildingStats::effectRadius,2,"m");
+        add("PUSH", &BuildingStats::pushStrength,1,"m/s");
         add("SLOW", &BuildingStats::slowPercent,0,"%");
         add("TARGETS", &BuildingStats::attractionTargets);
         add("DURATION", &BuildingStats::effectDuration,1,"s");

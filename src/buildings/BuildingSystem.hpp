@@ -42,6 +42,7 @@ enum class BuildingType {
     Mortar, // Append-only save ID 19.
     RepairStation, // Append-only save ID 20.
     DecoyBeacon, // Append-only save ID 21.
+    WindBlower, // Append-only save ID 22.
 };
 
 enum class BuildingLimitCategory {

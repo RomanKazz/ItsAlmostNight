@@ -4,6 +4,7 @@
 #include "core/Types.hpp"
 #include "combat/AttackProjectile.hpp"
 #include "combat/LightningTargetCache.hpp"
+#include "combat/WindBlowerAttack.hpp"
 #include "enemies/EnemySystem.hpp"
 
 #include <optional>
@@ -43,6 +44,12 @@ struct TowerRuntime {
     double laserRemaining{};
     Vec3 laserOrigin{};
     Vec3 laserEnd{};
+    double windAge{WindBlowerPulseSeconds};
+    double windYaw{};
+    Vec3 windOrigin{};
+    double windRotor{};
+    double previousWindRotor{};
+    double windRotorSpeed{2.0};
 };
 
 inline constexpr std::size_t MaximumLaserVisualSegments = 256;

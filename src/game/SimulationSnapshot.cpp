@@ -16,6 +16,14 @@ const SimulationSnapshot& Simulation::snapshot() const {
         return *snapshotCache_;
     }
     const auto core = buildings_.core();
+    std::optional<FinalAttackStats> aimedFinalStats;
+    std::optional<FinalAttackStats> previewFinalStats;
+    if (selectedBuilding_ == BuildingType::WindBlower) {
+        BuildingInstance preview;
+        preview.type = BuildingType::WindBlower;
+        preview.level = buildings_.blueprintLevels()[static_cast<std::size_t>(preview.type)];
+        previewFinalStats = towers_.finalStats(preview);
+    }
     std::optional<ResourceCost> aimedUpgradeCost;
     std::optional<BuildingStatComparison> aimedStats;
     if (aimedBuilding_) {
@@ -33,6 +41,19 @@ const SimulationSnapshot& Simulation::snapshot() const {
         if (aimed != buildings_.buildings().end()) {
             aimedStats = compareBuildingStats(
                 *aimed, crystalMines_, MaxBuildingLevel);
+            if (aimed->type == BuildingType::WindBlower) {
+                aimedFinalStats = towers_.finalStats(*aimed);
+                const auto updateWindStats = [&](BuildingStats& view, std::uint8_t level) {
+                    auto copy = *aimed; copy.level = level;
+                    const auto stats = towers_.finalStats(copy);
+                    view.attackRange = stats.range * stats.size;
+                    view.pushStrength = stats.knockback;
+                    view.cooldown = stats.attackInterval;
+                };
+                updateWindStats(aimedStats->current, aimed->level);
+                if (aimedStats->previous) updateWindStats(*aimedStats->previous, static_cast<std::uint8_t>(aimed->level - 1));
+                if (aimedStats->next) updateWindStats(*aimedStats->next, static_cast<std::uint8_t>(aimed->level + 1));
+            }
         }
     }
     constexpr std::array DefenseTypes{
@@ -266,6 +287,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::Mortar),
             buildings_.configuredCost(BuildingType::RepairStation),
             buildings_.configuredCost(BuildingType::DecoyBeacon),
+            buildings_.configuredCost(BuildingType::WindBlower),
         },
         .unlockedBuildings = {
             buildingUnlocked(BuildingType::Core),
@@ -290,12 +312,14 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::Mortar),
             buildingUnlocked(BuildingType::RepairStation),
             buildingUnlocked(BuildingType::DecoyBeacon),
+            buildingUnlocked(BuildingType::WindBlower),
         },
         .coreBuildRadius = sandboxMode_
             ? 0
             : buildings_.coreBuildRadius(),
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
+        .buildingPreviewFinalAttackStats = previewFinalStats,
         .buildings = std::span<const BuildingInstance>{buildings_.buildings()},
         .platformFrames =
             foundations_.platformFrames(),
@@ -315,6 +339,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
                         modularStoreyHeight(worldConfig_))),
         .aimedEnemy = aimedEnemy_,
         .aimedBuilding = aimedBuilding_,
+        .aimedFinalAttackStats = aimedFinalStats,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
         .aimedBuildingStats = aimedStats,
         .defenseBlueprints = defenseBlueprints,

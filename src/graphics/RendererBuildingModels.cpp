@@ -1,6 +1,7 @@
 #include "graphics/MissileLauncherModel.hpp"
 #include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/LaserModel.hpp"
+#include "graphics/WindBlowerModel.hpp"
 #include "graphics/MortarModel.hpp"
 #include "buildings/TowerRig.hpp"
 #include "graphics/Renderer.hpp"
@@ -236,6 +237,22 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     prepareModelShader(model);
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
                 {scale, scale, scale}, tint);
+    return true;
+}
+
+bool Renderer::drawWindBlower(Vector3 position, float baseYaw, Color tint, float scale, float headYaw, float rotor) {
+    auto& resource = resources_.windBlowerModel();
+    if (!resource.valid()) return false;
+    auto& model = resource.get();
+    prepareModelShader(model);
+    for (int mesh=0; mesh<model.meshCount; ++mesh) {
+        auto& material = model.materials[model.meshMaterial[mesh]];
+        const auto color = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(color,tint);
+        DrawMesh(model.meshes[mesh],material,MatrixMultiply(model.transform,
+            wind_blower_model::meshTransform(mesh,position,baseYaw,headYaw,rotor,scale)));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = color;
+    }
     return true;
 }
 
@@ -698,6 +715,7 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::LaserTower: return 1.40F;
     case BuildingType::Mortar: return 1.45F;
     case BuildingType::DecoyBeacon: return 1.47F;
+    case BuildingType::WindBlower: return 1.34F;
     case BuildingType::RepairStation: return 1.472F;
     case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;

@@ -182,7 +182,7 @@ void progression() {
     }
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto hotbar=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(hotbar.count==14 && hotbar.indexOf(BuildingType::DecoyBeacon)==10 && hotbar.types[13]==BuildingType::SlowTrap,"beacon appears after station and before walls/traps");
+    require(hotbar.count==15 && hotbar.indexOf(BuildingType::DecoyBeacon)==10 && hotbar.types[14]==BuildingType::SlowTrap,"beacon appears after station and before walls/traps");
 }
 }
 int main(){selectionAndExpiry();targetingAndAttacks();overlapAndElite();staggeredPulsesAndFreeze();reachablePaths();structuralAndStaticBarriers();progression();}

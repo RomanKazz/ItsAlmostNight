@@ -349,7 +349,7 @@ void drawConstructionHotbar(
     const HudViewState& view, float transitionOffset) {
     constexpr std::array<std::string_view,
                          MaximumBuildingHotbarSlots> Keys{
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]"};
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", ";"};
     const ConstructionHotbarLayout layout =
         makeConstructionHotbarLayout(
             snapshot.unlockedBuildings,
@@ -427,7 +427,7 @@ void drawBuildHotbar(
         return;
     }
     constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]",
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", ";",
     };
     const BuildingHotbarLayout layout =
         makeBuildingHotbarLayout(
