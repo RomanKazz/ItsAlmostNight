@@ -9,8 +9,69 @@
 
 namespace ian::repair_station_drawing {
 
+// A soft wave travels out to the actual repair radius. Sample every band on the
+// terrain so the wide effect follows hills instead of cutting through them.
+inline void drawPulses(const SimulationSnapshot& snapshot, const Camera3D& camera,
+    const TerrainHeightfield& terrain, bool reduceFlashes) {
+    constexpr int Segments = 64;
+    constexpr std::array<float, 5> Bands{-1, -.5F, 0, .5F, 1};
+    constexpr std::array<float, 5> Opacity{0, .4F, 1, .4F, 0};
+    const Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
+    const float time = static_cast<float>(snapshot.elapsedSeconds);
+    int visible = 0;
+    rlBegin(RL_TRIANGLES);
+    for (const auto& station : snapshot.buildings) {
+        if (station.type != BuildingType::RepairStation) continue;
+        if (!std::ranges::any_of(snapshot.repairStationLinks, [&](const auto& link) {
+                return link.stationId == station.id;
+            })) continue;
+        const Vec3 position = buildingWorldPosition(station);
+        const Vector3 center{float(position.x), float(position.y), float(position.z)};
+        const auto offset = Vector3Subtract(center, camera.position);
+        const float range = static_cast<float>(repairStationRadius(station.level));
+        if (Vector3LengthSqr(offset) > 50 * 50 || Vector3DotProduct(offset, forward) < -range) continue;
+        if (++visible > 16) break;
+        const float phase = float(station.id.index % 19U) * .071F;
+        const float progress = std::fmod(time / 1.8F + phase, 1.0F);
+        const auto smooth = [](float value) {
+            const float t = std::clamp(value, 0.0F, 1.0F);
+            return t * t * (3 - 2 * t);
+        };
+        const float envelope = smooth(progress / .16F) * (1 - smooth((progress - .68F) / .32F));
+        const float radius = range * (.10F + .90F * progress);
+        const float width = .16F + .025F * range;
+        const auto point = [&](int segment, float band) {
+            const float angle = float(segment) * (2 * PI / Segments);
+            const float distance = std::max(.025F, radius + band * width);
+            const float x = center.x + std::cos(angle) * distance;
+            const float z = center.z + std::sin(angle) * distance;
+            return Vector3{x, float(terrain.getHeight(x, z)) + .075F, z};
+        };
+        const auto emit = [&](Vector3 vertex, float opacity) {
+            rlColor4ub(83, 235, 225, static_cast<unsigned char>(
+                (reduceFlashes ? 45 : 90) * envelope * opacity));
+            rlVertex3f(vertex.x, vertex.y, vertex.z);
+        };
+        std::array<Vector3, Bands.size()> previous{};
+        for (std::size_t band = 0; band < Bands.size(); ++band) previous[band] = point(0, Bands[band]);
+        for (int segment = 1; segment <= Segments; ++segment) {
+            std::array<Vector3, Bands.size()> next{};
+            for (std::size_t band = 0; band < Bands.size(); ++band) next[band] = point(segment, Bands[band]);
+            for (std::size_t band = 0; band + 1 < Bands.size(); ++band) {
+                emit(previous[band], Opacity[band]); emit(next[band], Opacity[band]);
+                emit(next[band + 1], Opacity[band + 1]);
+                emit(previous[band], Opacity[band]); emit(next[band + 1], Opacity[band + 1]);
+                emit(previous[band + 1], Opacity[band + 1]);
+            }
+            previous = next;
+        }
+    }
+    rlEnd();
+}
+
 // One untextured batch, a fixed visual cap, and no per-frame particle allocations.
-inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera, bool reduceFlashes) {
+inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera, bool reduceFlashes,
+    const TerrainHeightfield& terrain) {
     if (snapshot.repairStationLinks.empty()) return;
     const Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
     const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, camera.up));
@@ -21,6 +82,7 @@ inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera, boo
     rlDisableDepthMask();
     rlDisableBackfaceCulling();
     rlSetTexture(0);
+    drawPulses(snapshot, camera, terrain, reduceFlashes);
     rlBegin(RL_QUADS);
     const auto rectangle = [&](Vector3 center, float halfWidth, float halfHeight, Color color) {
         rlColor4ub(color.r, color.g, color.b, color.a);

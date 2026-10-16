@@ -113,7 +113,10 @@ void drawTerrainTacticalRing(
 void App::drawWorldOverlays(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
-    repair_station_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes);
+    renderer_->endWorldShader();
+    renderer_->beginColorOnlyWorldEffects();
+    repair_station_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes, simulation_.terrain());
+    renderer_->endColorOnlyWorldEffects();
     const auto dragPreviewForCell = [this](BuildingType type, GridPosition position) -> const BuildingPreview* {
         if (!wallDragStart_ || placementDragType_ != type) return nullptr;
         const auto found = std::ranges::find(placementDragPreviews_, position, &BuildingPreview::gridPosition);

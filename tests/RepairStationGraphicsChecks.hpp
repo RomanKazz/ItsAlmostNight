@@ -18,7 +18,12 @@ inline bool checkRepairStationGraphics(ian::Renderer& renderer) {
     const auto canvas = LoadRenderTexture(800,600);
     const Camera3D camera{{3,2.5F,-4},{0,.8F,0},{0,1,0},3.8F,CAMERA_ORTHOGRAPHIC};
     const std::array links{RepairStationLink{{1001,1},{1002,1},{0,1.205,0},{1.4,.7,0}}};
-    SimulationSnapshot snapshot; snapshot.repairStationLinks=links;
+    auto config = WorldConfig::defaults();
+    config.terrainResolution=33;config.terrainAmplitude=config.terrainSurfaceNoiseAmplitude=0;
+    config.pondMinimumCount=config.pondMaximumCount=0;
+    TerrainHeightfield terrain(config);
+    const std::array stations{BuildingInstance{.id={1001,1},.type=BuildingType::RepairStation,.gridPosition={0,0}}};
+    SimulationSnapshot snapshot; snapshot.repairStationLinks=links;snapshot.buildings=stations;
     std::array<std::uint64_t,2> signatures{};
     int orange=0,cyan=0;
     for (int frame=0;frame<2;++frame) {
@@ -27,7 +32,7 @@ inline bool checkRepairStationGraphics(ian::Renderer& renderer) {
         if (!renderer.drawRepairStation({},0)) return false;
         renderer.endWorldShader();
         snapshot.elapsedSeconds=.27+frame*.25;
-        repair_station_drawing::draw(snapshot,camera,false);
+        repair_station_drawing::draw(snapshot,camera,false,terrain);
         EndMode3D();EndTextureMode();
         auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);
         auto* pixels=LoadImageColors(image);
