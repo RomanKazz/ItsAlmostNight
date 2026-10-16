@@ -227,7 +227,7 @@ def main():
                 'effect_socket_glb': [0, .6536, 0], 'light_mesh_index': 1,
                 'central_radial_scales': authoring.CENTRAL_SCALES, 'hanging_lamp_scales': authoring.LAMP_SCALES,
                 'license': 'Kenney Tower Defense Kit 2.1 palette CC0; original project geometry',
-                'integration': {'gameplay_changed': False, 'renderer_connected': False,
+                'integration': {'gameplay_changed': False, 'renderer_connected': True,
                                 'loader_verified': False, 'playtested': False}}
     (ART / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('DECOY_ALL_LEVELS_VERIFIED', flush=True)

@@ -1,5 +1,6 @@
 #pragma once
 #include "game/Simulation.hpp"
+#include "graphics/DecoyBeaconModel.hpp"
 #include "enemies/EnemyCollision.hpp"
 #include <raylib.h>
 #include <raymath.h>
@@ -33,10 +34,11 @@ inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera,
         if(Vector3LengthSqr(offset)>2500 || Vector3DotProduct(offset,forward)<-8)continue;
         if(++visible>16)break;
         const float light=static_cast<float>(decoyBeaconLightStrength(beacon));
-        glow(Vector3Add(origin,{0,.6536F,0}),.36F+.06F*light,(reduceFlashes ? 28 : 62)*light);
+        glow(Vector3Add(origin,{0,.6536F,0}),(.36F+.06F*light)*decoy_beacon_model::centralLampScale(beacon.level),(reduceFlashes ? 28 : 62)*light);
         const float flash=std::exp(-float(beacon.pulseAge)*4);
-        for(const auto lamp:std::array<Vector3,4>{{{0,.6705F,-.505F},{-.505F,.6705F,0},{0,.6705F,.505F},{.505F,.6705F,0}}})
-            glow(Vector3Add(origin,lamp),.20F+.12F*flash,(reduceFlashes ? 24 : 95)*flash);
+        const float lampHeight=decoy_beacon_model::hangingLampHeight(beacon.level);
+        for(const auto lamp:std::array<Vector3,4>{{{0,lampHeight,-.505F},{-.505F,lampHeight,0},{0,lampHeight,.505F},{.505F,lampHeight,0}}})
+            glow(Vector3Add(origin,lamp),(.20F+.12F*flash)*decoy_beacon_model::hangingLampScale(beacon.level),(reduceFlashes ? 24 : 95)*flash);
         if(beacon.pulseAge>=DecoyBeaconPulseDuration)continue;
         const float progress=float(beacon.pulseAge/DecoyBeaconPulseDuration);
         const float fade=std::sin(PI*progress);

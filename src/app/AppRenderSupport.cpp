@@ -1080,11 +1080,11 @@ void drawPlacementPreviewGeometry(
                      0.18F, 1.0F, WHITE);
         }
     } else if (type == BuildingType::WindBlower) {
-        static_cast<void>(renderer.drawWindBlower(position,yawRadians,WHITE,1,yawRadians));
+        static_cast<void>(renderer.drawWindBlower(position,yawRadians,WHITE,1,yawRadians,0,level));
     } else if (type == BuildingType::DecoyBeacon) {
-        static_cast<void>(renderer.drawDecoyBeacon(position, yawRadians));
+        static_cast<void>(renderer.drawDecoyBeacon(position, yawRadians, WHITE, 1, .5F, level));
     } else if (type == BuildingType::RepairStation) {
-        static_cast<void>(renderer.drawRepairStation(position, yawRadians));
+        static_cast<void>(renderer.drawRepairStation(position, yawRadians, WHITE, 1, level));
     } else if (type == BuildingType::Mortar) {
         static_cast<void>(renderer.drawMortar(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::LaserTower) {

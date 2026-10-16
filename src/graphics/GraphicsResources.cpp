@@ -1100,9 +1100,15 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     teslaTowerModel_.load("assets/models/buildings/tesla_tower.glb");
     laserTowerModel_.load("assets/models/buildings/laser.glb");
     mortarModel_.load("assets/models/buildings/mortar.glb");
-    decoyBeaconModel_.load("assets/models/buildings/decoy_beacon.glb");
-    windBlowerModel_.load("assets/models/buildings/wind_blower.glb");
-    repairStationModel_.load("assets/models/buildings/repair_station.glb");
+    for (std::size_t index = 0; index < windBlowerModels_.size(); ++index) {
+        const std::string suffix = std::to_string(index + 1) + ".glb";
+        const std::string windPath = "assets/models/buildings/wind_blower_levels/wind_blower_lvl0" + suffix;
+        const std::string decoyPath = "assets/models/buildings/decoy_beacon_levels/decoy_beacon_lvl0" + suffix;
+        windBlowerModels_[index].load(windPath.c_str());
+        decoyBeaconModels_[index].load(decoyPath.c_str());
+        const std::string repairPath = "assets/models/buildings/repair_station_levels/repair_station_lvl0" + suffix;
+        repairStationModels_[index].load(repairPath.c_str());
+    }
     mortarUpgradeModel_.load("assets/models/buildings/mortar_upgrades.glb");
     teslaUpgradeModel_.load("assets/models/buildings/tesla_upgrades.glb");
     for (std::size_t index = 0; index < missileLauncherModels_.size(); ++index) {
@@ -1619,9 +1625,9 @@ void GraphicsResources::shutdown() {
     teslaTowerModel_.unload();
     laserTowerModel_.unload();
     mortarModel_.unload();
-    repairStationModel_.unload();
-    decoyBeaconModel_.unload();
-    windBlowerModel_.unload();
+    for (auto& model : repairStationModels_) model.unload();
+    for (auto& model : decoyBeaconModels_) model.unload();
+    for (auto& model : windBlowerModels_) model.unload();
     mortarUpgradeModel_.unload();
     teslaUpgradeModel_.unload();
     for (auto& model : missileLauncherModels_) model.unload();

@@ -416,9 +416,9 @@ class Renderer {
                                   float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE, float scale = 1.0F);
-    [[nodiscard]] bool drawWindBlower(Vector3 position, float baseYaw, Color tint = WHITE, float scale = 1, float headYaw = 0, float rotor = 0);
-    [[nodiscard]] bool drawDecoyBeacon(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1, float lightStrength = .5F);
-    [[nodiscard]] bool drawRepairStation(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1);
+    [[nodiscard]] bool drawWindBlower(Vector3 position, float baseYaw, Color tint = WHITE, float scale = 1, float headYaw = 0, float rotor = 0, int level = 1);
+    [[nodiscard]] bool drawDecoyBeacon(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1, float lightStrength = .5F, int level = 1);
+    [[nodiscard]] bool drawRepairStation(Vector3 position, float yawRadians, Color tint = WHITE, float scale = 1, int level = 1);
     [[nodiscard]] bool drawMortar(Vector3 position, float yawRadians, Color tint = WHITE,
         float scale = 1.0F, float pitchRadians = 0.0F,
         std::optional<float> headYaw = std::nullopt, int level = 1);

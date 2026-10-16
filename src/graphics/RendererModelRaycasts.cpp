@@ -186,12 +186,12 @@ std::optional<double> Renderer::buildingRaycastDistance(
         yaw = defensiveYaw;
         break;
     case BuildingType::WindBlower:
-        resource = &resources_.windBlowerModel(); yaw = defensiveYaw; break;
+        resource = &resources_.windBlowerModel(building.level); yaw = defensiveYaw; break;
     case BuildingType::DecoyBeacon:
-        resource = &resources_.decoyBeaconModel();
+        resource = &resources_.decoyBeaconModel(building.level);
         yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
     case BuildingType::RepairStation:
-        resource = &resources_.repairStationModel();
+        resource = &resources_.repairStationModel(building.level);
         yaw = static_cast<float>(buildingRotationYaw(building.type, building.rotation)); break;
     case BuildingType::Mortar:
         resource = &resources_.mortarModel(); yaw=defensiveYaw; break;

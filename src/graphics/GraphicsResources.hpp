@@ -273,9 +273,9 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& teslaTowerModel();
     [[nodiscard]] ModelResource& laserTowerModel();
     [[nodiscard]] ModelResource& mortarModel();
-    [[nodiscard]] ModelResource& repairStationModel();
-    [[nodiscard]] ModelResource& decoyBeaconModel();
-    [[nodiscard]] ModelResource& windBlowerModel();
+    [[nodiscard]] ModelResource& repairStationModel(int level = 1);
+    [[nodiscard]] ModelResource& decoyBeaconModel(int level = 1);
+    [[nodiscard]] ModelResource& windBlowerModel(int level = 1);
     [[nodiscard]] ModelResource& mortarUpgradeModel();
     [[nodiscard]] ModelResource& teslaUpgradeModel();
     [[nodiscard]] ModelResource& missileLauncherModel(int level = 1);
@@ -434,9 +434,9 @@ class GraphicsResources {
     ModelResource teslaTowerModel_;
     ModelResource laserTowerModel_;
     ModelResource mortarModel_;
-    ModelResource repairStationModel_;
-    ModelResource decoyBeaconModel_;
-    ModelResource windBlowerModel_;
+    std::array<ModelResource, 8> repairStationModels_;
+    std::array<ModelResource, 8> decoyBeaconModels_;
+    std::array<ModelResource, 8> windBlowerModels_;
     ModelResource mortarUpgradeModel_;
     ModelResource teslaUpgradeModel_;
     std::array<ModelResource, 8> missileLauncherModels_;

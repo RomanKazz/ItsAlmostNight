@@ -240,8 +240,8 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     return true;
 }
 
-bool Renderer::drawWindBlower(Vector3 position, float baseYaw, Color tint, float scale, float headYaw, float rotor) {
-    auto& resource = resources_.windBlowerModel();
+bool Renderer::drawWindBlower(Vector3 position, float baseYaw, Color tint, float scale, float headYaw, float rotor, int level) {
+    auto& resource = resources_.windBlowerModel(level);
     if (!resource.valid()) return false;
     auto& model = resource.get();
     prepareModelShader(model);
@@ -256,8 +256,8 @@ bool Renderer::drawWindBlower(Vector3 position, float baseYaw, Color tint, float
     return true;
 }
 
-bool Renderer::drawDecoyBeacon(Vector3 position, float yawRadians, Color tint, float scale, float lightStrength) {
-    auto& resource = resources_.decoyBeaconModel();
+bool Renderer::drawDecoyBeacon(Vector3 position, float yawRadians, Color tint, float scale, float lightStrength, int level) {
+    auto& resource = resources_.decoyBeaconModel(level);
     if (!resource.valid()) return false;
     auto& model = resource.get();
     prepareModelShader(model);
@@ -279,8 +279,8 @@ bool Renderer::drawDecoyBeacon(Vector3 position, float yawRadians, Color tint, f
     return true;
 }
 
-bool Renderer::drawRepairStation(Vector3 position, float yawRadians, Color tint, float scale) {
-    auto& resource = resources_.repairStationModel();
+bool Renderer::drawRepairStation(Vector3 position, float yawRadians, Color tint, float scale, int level) {
+    auto& resource = resources_.repairStationModel(level);
     if (!resource.valid()) return false;
     auto& model = resource.get();
     prepareModelShader(model);
@@ -714,9 +714,9 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::TeslaTower: return 1.44F;
     case BuildingType::LaserTower: return 1.40F;
     case BuildingType::Mortar: return 1.45F;
-    case BuildingType::DecoyBeacon: return 1.47F;
-    case BuildingType::WindBlower: return 1.34F;
-    case BuildingType::RepairStation: return 1.472F;
+    case BuildingType::DecoyBeacon: model = &resources_.decoyBeaconModel(level); break;
+    case BuildingType::WindBlower: model = &resources_.windBlowerModel(level); break;
+    case BuildingType::RepairStation: model = &resources_.repairStationModel(level); break;
     case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;

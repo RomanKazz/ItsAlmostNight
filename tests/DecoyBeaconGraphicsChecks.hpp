@@ -45,9 +45,43 @@ inline bool checkDecoyBeaconGraphics(ian::Renderer& renderer) {
         }
         UnloadImage(image);
     }
+    bool levelsValid = &resources.decoyBeaconModel(0)==&resources.decoyBeaconModel(1) &&
+        &resources.decoyBeaconModel(99)==&resources.decoyBeaconModel(8) &&
+        std::abs(decoy_beacon_model::hangingLampHeight(8)-.632835F)<1e-6F &&
+        std::abs(decoy_beacon_model::hangingLampHeight(1)-.6705F)<1e-6F;
+    std::uint64_t previousHash=0;
+    const Camera3D levelCamera{{3,2.4F,-4},{0,.78F,0},{0,1,0},3.0F,CAMERA_ORTHOGRAPHIC};
+    for(int level=1;level<=8;++level) {
+        auto& resource=resources.decoyBeaconModel(level);
+        levelsValid=levelsValid && resource.valid() && resource.get().meshCount==2 &&
+            resource.collisionAsset().colliders.size()==1 && resource.collisionAsset().sockets.empty() &&
+            std::abs(renderer.buildingVisualHeight(BuildingType::DecoyBeacon,level)-(resource.visualBounds().max.y+.005F))<1e-4F;
+        renderer.beginFrame();BeginTextureMode(canvas);ClearBackground({29,47,57,255});BeginMode3D(levelCamera);
+        WorldLighting lighting{};lighting.cameraPosition=levelCamera.position;renderer.beginWorldShader(lighting);
+        levelsValid=renderer.drawDecoyBeacon({},0,WHITE,1,.65F,level) && levelsValid;
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);std::uint64_t hash=1469598103934665603ULL;
+        for(int i=0;i<image.width*image.height;++i) {
+            hash=(hash^pixels[i].r)*1099511628211ULL;
+            hash=(hash^pixels[i].g)*1099511628211ULL;
+        }
+        levelsValid=levelsValid && (level==1 || hash!=previousHash);previousHash=hash;
+        if(const char* directory=std::getenv("IAN_DECOY_CAPTURE")) {
+            std::filesystem::create_directories(directory);
+            const auto path=std::filesystem::path(directory)/("decoy-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImageColors(pixels);UnloadImage(image);
+        BuildingInstance building{.type=BuildingType::DecoyBeacon,.gridPosition={0,0},.level=static_cast<std::uint8_t>(level)};
+        const Ray aimedRay{levelCamera.position,Vector3Normalize(Vector3Subtract(levelCamera.target,levelCamera.position))};
+        levelsValid=levelsValid && renderer.buildingRaycastDistance(building,{&building,1},aimedRay,10).has_value();
+        const Ray expandedColliderRay{{.655F,.250F,-3},{0,0,1}};
+        levelsValid=levelsValid && (renderer.buildingRaycastDistance(building,{&building,1},expandedColliderRay,10).has_value()==(level>=2));
+    }
     const auto& beacon=buildings[0];
     const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
     const bool aimed=renderer.buildingRaycastDistance(beacon,buildings,ray,10).has_value();
     UnloadRenderTexture(canvas);ui.shutdown();resources.shutdown();
-    return aimed && orange>1000 && yellow>1000 && hashes[0]!=hashes[1] && hashes[1]!=hashes[2];
+    return levelsValid && aimed && orange>1000 && yellow>1000 && hashes[0]!=hashes[1] && hashes[1]!=hashes[2];
 }

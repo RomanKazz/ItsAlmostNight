@@ -277,7 +277,7 @@ def main():
                 'intentional_contacts': ['Turntable seats on the pedestal', 'Rotor shaft is inside its bearing',
                                          'Motor-bank support brackets are fixed to the yoke', 'Blade roots sit inside the hub'],
                 'license': 'Kenney Tower Defense Kit 2.1 colormap CC0; original project geometry',
-                'integration': {'gameplay_changed': False, 'renderer_connected': False,
+                'integration': {'gameplay_changed': False, 'renderer_connected': True,
                                 'loader_verified': False, 'playtested': False}}
     (ART / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('WIND_LEVELS_VALIDATED', [(r['level'], r['visible_triangles']) for r in rows], flush=True)

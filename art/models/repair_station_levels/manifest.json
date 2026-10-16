@@ -1,0 +1,1797 @@
+{
+  "asset": "repair_station_levels",
+  "coordinates": "GLB +Y up, -Z forward; Blender +Z up, +Y forward; metres",
+  "effect_socket_glb": [
+    0,
+    0.6536,
+    0
+  ],
+  "footprint_m": [
+    2,
+    2
+  ],
+  "integration": {
+    "gameplay_changed": false,
+    "loader_verified": true,
+    "playtested": false,
+    "renderer_connected": true,
+    "native_graphics_smoke": true,
+    "sanitizers_checked": true
+  },
+  "levels": [
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6000000238418579,
+          1.5,
+          0.6000000238418579
+        ],
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.7099999785423279
+        ],
+        "size": [
+          1.2000000476837158,
+          1.5,
+          1.3100000023841858
+        ]
+      },
+      "description": "Original repair station",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl01.glb",
+      "fresh_import_verified": true,
+      "level": 1,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": false,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "c8d99c1507d2a8435e6b9509d5de6ee502b58e6bb39256bd68f8b117718ece9a",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 972,
+        "service_mesh": 128
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6000000238418579,
+          1.472000002861023,
+          0.6000000238418579
+        ],
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.2000000476837158,
+          1.472000002861023,
+          1.305999994277954
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 1100
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Gold base belt, upper collar and console",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl02.glb",
+      "fresh_import_verified": true,
+      "level": 2,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": false,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "0d31b7dfc15ab3689eaff907da762fff2fb5c47285020868c978e6e3fe4b2d29",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 1068,
+        "service_mesh": 128
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.472000002861023,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.25,
+          1.472000002861023,
+          1.3309999704360962
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 1196
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Gold braces and display frame",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl03.glb",
+      "fresh_import_verified": true,
+      "level": 3,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": false,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "1ced08ac3943036d309f63870ee21394bce202c42dc91647b2e18244330ae347",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 1068,
+        "service_mesh": 128
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.472000002861023,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.25,
+          1.472000002861023,
+          1.3309999704360962
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 1196
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Larger cyan wrench and stem reinforcement rings",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl04.glb",
+      "fresh_import_verified": true,
+      "level": 4,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": false,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "9ad33b15dabd53d7fb6612b584908bd5d3b2e75fdbb07f054145db343a5ea116",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 1356,
+        "service_mesh": 128
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.472000002861023,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.25,
+          1.472000002861023,
+          1.3309999704360962
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 1484
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Twin service reservoirs with cyan indicators",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl05.glb",
+      "fresh_import_verified": true,
+      "level": 5,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": true,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "7445ff677a17931e1f8b05a66a92565e040784bf1355024c9ef76e41a66db473",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2100,
+        "service_mesh": 216
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.472000002861023,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.25,
+          1.472000002861023,
+          1.3309999704360962
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 2316
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Rear service pipe and larger console deck",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl06.glb",
+      "fresh_import_verified": true,
+      "level": 6,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": true,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "81cc4cd18ae01c3d833895974f9eaed146f470743e838a2f8db510cd807f144c",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2184,
+        "service_mesh": 216
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.472000002861023,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.25,
+          1.472000002861023,
+          1.3309999704360962
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 2400
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Double base belt and reinforced reservoirs",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl07.glb",
+      "fresh_import_verified": true,
+      "level": 7,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": true,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "2cec923a9bd149fee7d148607144bb4fddd6f8acb919ee9a702bbc331f9f08dc",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2568,
+        "service_mesh": 216
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.472000002861023,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.2760000228881836,
+          1.472000002861023,
+          1.343999981880188
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 2784
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6600000262260437,
+          1.5199999809265137,
+          0.6600000262260437
+        ],
+        "min": [
+          -0.6600000262260437,
+          0.0,
+          -0.7300000190734863
+        ],
+        "size": [
+          1.3200000524520874,
+          1.5199999809265137,
+          1.39000004529953
+        ]
+      },
+      "description": "Master wrench holder and heavy service frame",
+      "embedded_palette_identical": true,
+      "file": "assets/models/buildings/repair_station_levels/repair_station_lvl08.glb",
+      "fresh_import_verified": true,
+      "level": 8,
+      "mechanical": {
+        "exposed_bolts": true,
+        "open_wrench_jaw": true,
+        "packed_palette": true,
+        "reservoirs_seated": true,
+        "visible_display": true
+      },
+      "mirror_symmetry_verified": true,
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "service_mesh": 1
+      },
+      "sha256": "1eff5452b615e36e870320fe0a4cf90a5ba3cf201fd1c682ff99d0acc7f497f6",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "service_mesh": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_effect_repair": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.2050000429153442,
+            0
+          ]
+        },
+        "socket_service_console": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3199999928474426,
+            -0.5450000166893005
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.600000023841858,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 2804,
+        "service_mesh": 216
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.472000002861023,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.7059999704360962
+        ],
+        "size": [
+          1.2760000228881836,
+          1.472000002861023,
+          1.343999981880188
+        ]
+      },
+      "visible_materials": 2,
+      "visible_meshes": 2,
+      "visible_primitives": 2,
+      "visible_triangles": 3020
+    }
+  ],
+  "license": "Kenney Tower Defense Kit 2.1 palette CC0; original project geometry",
+  "mode": "Eight complete replacement models; draw one level, not additive overlays",
+  "motion": "Static; no pivots, muzzle, recoil, rig or animation clips",
+  "original_base_sha256": "50f388e52274363168c9e1931e5ca057e892474d3aabdd7cd8e4fd73a08001f8",
+  "palette": {
+    "embedded_glb": true,
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "service_mesh_index": 1,
+  "source_blend_sha256": "5910b43e2721a0d7efdcf1db2c4f18e2f529d2601aaa7d97d844c8103d245605",
+  "wrench_width_scales": [
+    1,
+    1,
+    1,
+    1.12,
+    1.12,
+    1.12,
+    1.25,
+    1.35
+  ]
+}

@@ -444,13 +444,13 @@ void App::drawShadowPass(
                 }
             } else if (building.type == BuildingType::WindBlower) {
                 static_cast<void>(renderer_->drawWindBlower({x,groundY,z},towerBaseYaw(snapshot,building),WHITE,spawnScale,
-                    towerYaw(snapshot,building,interpolationAlpha),windBlowerRotor(snapshot,building,interpolationAlpha)));
+                    towerYaw(snapshot,building,interpolationAlpha),windBlowerRotor(snapshot,building,interpolationAlpha), building.level));
             } else if (building.type == BuildingType::DecoyBeacon) {
                 static_cast<void>(renderer_->drawDecoyBeacon({x, groundY, z},
-                    static_cast<float>(buildingRotationYaw(building.type, building.rotation)), WHITE, spawnScale));
+                    static_cast<float>(buildingRotationYaw(building.type, building.rotation)), WHITE, spawnScale, .5F, building.level));
             } else if (building.type == BuildingType::RepairStation) {
                 static_cast<void>(renderer_->drawRepairStation({x, groundY, z},
-                    static_cast<float>(buildingRotationYaw(building.type, building.rotation)), WHITE, spawnScale));
+                    static_cast<float>(buildingRotationYaw(building.type, building.rotation)), WHITE, spawnScale, building.level));
             } else if (building.type == BuildingType::Mortar) {
                 static_cast<void>(renderer_->drawMortar({x, groundY, z},
                     cannonBaseYaw(snapshot, building), WHITE, spawnScale,
@@ -1088,13 +1088,13 @@ void App::drawSelectionPass(
                     }
                 } else if (building->type == BuildingType::WindBlower) {
                     static_cast<void>(renderer_->drawWindBlower({x,groundY,z},towerBaseYaw(snapshot,*building),WHITE,spawnScale,
-                        towerYaw(snapshot,*building,interpolationAlpha),windBlowerRotor(snapshot,*building,interpolationAlpha)));
+                        towerYaw(snapshot,*building,interpolationAlpha),windBlowerRotor(snapshot,*building,interpolationAlpha), building->level));
                 } else if (building->type == BuildingType::DecoyBeacon) {
                     static_cast<void>(renderer_->drawDecoyBeacon({x, groundY, z},
-                        static_cast<float>(buildingRotationYaw(building->type, building->rotation)), WHITE, spawnScale));
+                        static_cast<float>(buildingRotationYaw(building->type, building->rotation)), WHITE, spawnScale, .5F, building->level));
                 } else if (building->type == BuildingType::RepairStation) {
                     static_cast<void>(renderer_->drawRepairStation({x, groundY, z},
-                        static_cast<float>(buildingRotationYaw(building->type, building->rotation)), WHITE, spawnScale));
+                        static_cast<float>(buildingRotationYaw(building->type, building->rotation)), WHITE, spawnScale, building->level));
                 } else if (building->type == BuildingType::Mortar) {
                     static_cast<void>(renderer_->drawMortar({x, groundY, z},
                         cannonBaseYaw(snapshot, *building), WHITE, spawnScale,

@@ -1050,11 +1050,14 @@ void App::drawWorldOverlays(
                         renderer_->drawCrossbow(
                             position, yaw));
                 } else if (preview.type == BuildingType::WindBlower) {
-                    static_cast<void>(renderer_->drawWindBlower(position,yaw,WHITE,1,yaw));
+                    static_cast<void>(renderer_->drawWindBlower(position,yaw,WHITE,1,yaw,0,
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::DecoyBeacon) {
-                    static_cast<void>(renderer_->drawDecoyBeacon(position, yaw));
+                    static_cast<void>(renderer_->drawDecoyBeacon(position, yaw, WHITE, 1, .5F,
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::RepairStation) {
-                    static_cast<void>(renderer_->drawRepairStation(position, yaw));
+                    static_cast<void>(renderer_->drawRepairStation(position, yaw, WHITE, 1,
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::Mortar) {
                     static_cast<void>(renderer_->drawMortar(position, yaw, WHITE, 1, 0, {},
                         snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
@@ -1166,11 +1169,14 @@ void App::drawWorldOverlays(
                          0.18F, 1.0F, WHITE);
             }
         } else if (preview.type == BuildingType::WindBlower) {
-            static_cast<void>(renderer_->drawWindBlower({x,0,z},yaw,WHITE,1,yaw));
+            static_cast<void>(renderer_->drawWindBlower({x,0,z},yaw,WHITE,1,yaw,0,
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::DecoyBeacon) {
-            static_cast<void>(renderer_->drawDecoyBeacon({x, 0.0F, z}, yaw));
+            static_cast<void>(renderer_->drawDecoyBeacon({x, 0.0F, z}, yaw, WHITE, 1, .5F,
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::RepairStation) {
-            static_cast<void>(renderer_->drawRepairStation({x, 0.0F, z}, yaw));
+            static_cast<void>(renderer_->drawRepairStation({x, 0.0F, z}, yaw, WHITE, 1,
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::Mortar) {
             static_cast<void>(renderer_->drawMortar({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
                 snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));

@@ -33,7 +33,7 @@ inline bool checkWindBlowerGraphics(ian::Renderer& renderer) {
         towers[0].windAge=.14+frame*.17;
         renderer.beginFrame();BeginTextureMode(canvas);ClearBackground({29,47,57,255});BeginMode3D(camera);
         WorldLighting light{};light.cameraPosition=camera.position;renderer.beginWorldShader(light);
-        if(!renderer.drawWindBlower({},0,WHITE,1,0,rotor))return false;
+        if(!renderer.drawWindBlower({},0,WHITE,1,0,rotor,mode==0 ? 8 : 1))return false;
         renderer.endWorldShader();
         if(mode==1) {
             renderer.beginColorOnlyWorldEffects();wind_blower_drawing::draw(snapshot,camera,false);renderer.endColorOnlyWorldEffects();
@@ -53,9 +53,43 @@ inline bool checkWindBlowerGraphics(ian::Renderer& renderer) {
         }
         UnloadImage(image);
     }
+    bool levelsValid = &resources.windBlowerModel(0)==&resources.windBlowerModel(1) &&
+        &resources.windBlowerModel(99)==&resources.windBlowerModel(8);
+    std::uint64_t previousHash=0;
+    const Camera3D levelCamera{{3,2.4F,-4},{0,.73F,0},{0,1,0},3.0F,CAMERA_ORTHOGRAPHIC};
+    for(int level=1;level<=8;++level) {
+        auto& model=resources.windBlowerModel(level);
+        levelsValid=levelsValid && model.valid() && model.get().meshCount==3 &&
+            model.collisionAsset().colliders.size()==1 && model.collisionAsset().sockets.size()==1 &&
+            std::abs(renderer.buildingVisualHeight(BuildingType::WindBlower,level)-(model.visualBounds().max.y+.005F))<1e-4F;
+        renderer.beginFrame();BeginTextureMode(canvas);ClearBackground({29,47,57,255});BeginMode3D(levelCamera);
+        WorldLighting lighting{};lighting.cameraPosition=levelCamera.position;renderer.beginWorldShader(lighting);
+        levelsValid=renderer.drawWindBlower({},.2F,WHITE,1,.35F,.4F,level) && levelsValid;
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);std::uint64_t hash=1469598103934665603ULL;
+        for(int i=0;i<image.width*image.height;++i) {
+            hash=(hash^pixels[i].r)*1099511628211ULL;
+            hash=(hash^pixels[i].g)*1099511628211ULL;
+        }
+        levelsValid=levelsValid && (level==1 || hash!=previousHash);previousHash=hash;
+        if(const char* directory=std::getenv("IAN_WIND_CAPTURE")) {
+            std::filesystem::create_directories(directory);
+            const auto path=std::filesystem::path(directory)/("wind-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImageColors(pixels);UnloadImage(image);
+        BuildingInstance building{.type=BuildingType::WindBlower,.gridPosition={0,0},.level=static_cast<std::uint8_t>(level)};
+        const Ray aimedRay{levelCamera.position,Vector3Normalize(Vector3Subtract(levelCamera.target,levelCamera.position))};
+        levelsValid=levelsValid && renderer.buildingRaycastDistance(building,{&building,1},aimedRay,10,.35F,0,1,-1,.2F,.4F).has_value();
+        const Ray rimRay{{.630F,.090F,-3},{0,0,1}};
+        levelsValid=levelsValid && (renderer.buildingRaycastDistance(building,{&building,1},rimRay,10).has_value()==(level>=7));
+
+    }
     const Ray ray{{0,.9F,-3},{0,0,1}};
     const bool aimed=renderer.buildingRaycastDistance(buildings[0],buildings,ray,10,0,0,1,-1,0,.4F).has_value();
     UnloadRenderTexture(canvas);ui.shutdown();resources.shutdown();
-    return aimed && orange>1000 && wind>100 && hashes[0]!=hashes[1] && hashes[1]!=hashes[2] &&
+
+    return levelsValid && aimed && orange>1000 && wind>100 && hashes[0]!=hashes[1] && hashes[1]!=hashes[2] &&
         rotorHashes[0]!=rotorHashes[1] && rotorHashes[1]!=rotorHashes[2];
 }

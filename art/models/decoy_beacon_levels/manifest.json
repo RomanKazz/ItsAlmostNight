@@ -34,7 +34,10 @@
     "gameplay_changed": false,
     "loader_verified": true,
     "playtested": false,
-    "renderer_connected": false
+    "renderer_connected": true,
+    "runtime_level_source": "BuildingInstance::level; buildingBlueprintLevels for placement previews",
+    "native_graphics_smoke": true,
+    "sanitizers_checked": true
   },
   "levels": [
     {

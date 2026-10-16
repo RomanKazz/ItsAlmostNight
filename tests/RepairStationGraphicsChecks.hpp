@@ -54,9 +54,40 @@ inline bool checkRepairStationGraphics(ian::Renderer& renderer) {
         }
         UnloadImage(image);
     }
+    bool levelsValid = &resources.repairStationModel(0)==&resources.repairStationModel(1) &&
+        &resources.repairStationModel(99)==&resources.repairStationModel(8);
+    std::uint64_t previousHash=0;
+    for(int level=1;level<=8;++level) {
+        auto& resource=resources.repairStationModel(level);
+        levelsValid=levelsValid && resource.valid() && resource.get().meshCount==2 &&
+            resource.collisionAsset().colliders.size()==1 && resource.collisionAsset().sockets.empty() &&
+            std::abs(renderer.buildingVisualHeight(BuildingType::RepairStation,level)-(resource.visualBounds().max.y+.005F))<1e-4F;
+        renderer.beginFrame();BeginTextureMode(canvas);ClearBackground({29,47,57,255});BeginMode3D(camera);
+        WorldLighting lighting{};lighting.cameraPosition=camera.position;renderer.beginWorldShader(lighting);
+        levelsValid=renderer.drawRepairStation({},0,WHITE,1,level) && levelsValid;
+        renderer.endWorldShader();EndMode3D();EndTextureMode();
+        auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);
+        auto* pixels=LoadImageColors(image);std::uint64_t hash=1469598103934665603ULL;
+        for(int i=0;i<image.width*image.height;++i) {
+            hash=(hash^pixels[i].r)*1099511628211ULL;
+            hash=(hash^pixels[i].g)*1099511628211ULL;
+        }
+        levelsValid=levelsValid && (level==1 || hash!=previousHash);previousHash=hash;
+        if(const char* directory=std::getenv("IAN_REPAIR_STATION_CAPTURE")) {
+            std::filesystem::create_directories(directory);
+            const auto path=std::filesystem::path(directory)/("repair-level-"+std::to_string(level)+".png");
+            ExportImage(image,path.string().c_str());
+        }
+        UnloadImageColors(pixels);UnloadImage(image);
+        BuildingInstance building{.type=BuildingType::RepairStation,.gridPosition={0,0},.level=static_cast<std::uint8_t>(level)};
+        const Ray aimedRay{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
+        levelsValid=levelsValid && renderer.buildingRaycastDistance(building,{&building,1},aimedRay,10).has_value();
+        const Ray expandedColliderRay{{.645F,.250F,-3},{0,0,1}};
+        levelsValid=levelsValid && (renderer.buildingRaycastDistance(building,{&building,1},expandedColliderRay,10).has_value()==(level>=2));
+    }
     const BuildingInstance station{.type=BuildingType::RepairStation,.gridPosition={0,0}};
     const Ray ray{camera.position,Vector3Normalize(Vector3Subtract(camera.target,camera.position))};
     const bool aim=renderer.buildingRaycastDistance(station,{&station,1},ray,10).has_value();
     UnloadRenderTexture(canvas);ui.shutdown();resources.shutdown();
-    return aim && orange>10000 && cyan>1000 && signatures[0]!=signatures[1];
+    return levelsValid && aim && orange>10000 && cyan>1000 && signatures[0]!=signatures[1];
 }

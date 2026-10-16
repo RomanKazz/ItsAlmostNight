@@ -204,11 +204,11 @@ void App::drawSoldBuildingVisuals() {
                     {176, 128, 60, alpha});
             }
         } else if (building.type == BuildingType::WindBlower) {
-            static_cast<void>(renderer_->drawWindBlower({x,baseY-sink,z},yaw,tint,scale,yaw));
+            static_cast<void>(renderer_->drawWindBlower({x,baseY-sink,z},yaw,tint,scale,yaw,0,building.level));
         } else if (building.type == BuildingType::DecoyBeacon) {
-            static_cast<void>(renderer_->drawDecoyBeacon({x, baseY - sink, z}, yaw, tint, scale));
+            static_cast<void>(renderer_->drawDecoyBeacon({x, baseY - sink, z}, yaw, tint, scale, .5F, building.level));
         } else if (building.type == BuildingType::RepairStation) {
-            static_cast<void>(renderer_->drawRepairStation({x, baseY - sink, z}, yaw, tint, scale));
+            static_cast<void>(renderer_->drawRepairStation({x, baseY - sink, z}, yaw, tint, scale, building.level));
         } else if (building.type == BuildingType::Mortar) {
             static_cast<void>(renderer_->drawMortar({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::LaserTower) {
@@ -565,11 +565,14 @@ void App::drawCancelledPlacementPreview(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::WindBlower) {
-        static_cast<void>(renderer_->drawWindBlower(modelPosition,yaw,WHITE,scale,yaw));
+        static_cast<void>(renderer_->drawWindBlower(modelPosition,yaw,WHITE,scale,yaw,0,
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::DecoyBeacon) {
-        static_cast<void>(renderer_->drawDecoyBeacon(modelPosition, yaw, WHITE, scale));
+        static_cast<void>(renderer_->drawDecoyBeacon(modelPosition, yaw, WHITE, scale, .5F,
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::RepairStation) {
-        static_cast<void>(renderer_->drawRepairStation(modelPosition, yaw, WHITE, scale));
+        static_cast<void>(renderer_->drawRepairStation(modelPosition, yaw, WHITE, scale,
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::Mortar) {
         static_cast<void>(renderer_->drawMortar(modelPosition, yaw, WHITE, scale, 0, {},
             simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
