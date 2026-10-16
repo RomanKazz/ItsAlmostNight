@@ -1135,7 +1135,7 @@ void drawPlacementPreviewGeometry(
         type == BuildingType::CrystalMine ||
         type == BuildingType::LumberMill ||
         type == BuildingType::Quarry) {
-        if (!renderer.drawResourceProducer(type, position, yawRadians)) {
+        if (!renderer.drawResourceProducer(type, position, yawRadians, WHITE, 1, level)) {
             DrawCube({x, y + 0.275F, z}, 1.0F, 0.55F, 1.0F, WHITE);
         }
     } else if (

@@ -322,9 +322,9 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& heartLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
-    [[nodiscard]] ModelResource& mineModel();
-    [[nodiscard]] ModelResource& lumberMillModel();
-    [[nodiscard]] ModelResource& quarryModel();
+    [[nodiscard]] ModelResource& mineModel(int level = 1);
+    [[nodiscard]] ModelResource& lumberMillModel(int level = 1);
+    [[nodiscard]] ModelResource& quarryModel(int level = 1);
     [[nodiscard]] ModelResource& spikeTrapModel();
     [[nodiscard]] ModelResource& rockModel(
         std::size_t variant = 0U);
@@ -481,9 +481,9 @@ class GraphicsResources {
     ModelResource heartLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
-    ModelResource mineModel_;
-    ModelResource lumberMillModel_;
-    ModelResource quarryModel_;
+    std::array<ModelResource, 8> mineModels_;
+    std::array<ModelResource, 8> lumberMillModels_;
+    std::array<ModelResource, 8> quarryModels_;
     ModelResource spikeTrapModel_;
     std::array<ModelResource, StoneVisualVariantCount> rockModels_;
     ModelResource crystalResourceModel_;

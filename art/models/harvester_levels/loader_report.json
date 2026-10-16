@@ -1,0 +1,218 @@
+[
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 1,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 2,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 3,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 4,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 5,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 6,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 7,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "wood_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 8,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 1,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 2,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 3,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 4,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 5,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 6,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 7,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "stone_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 8,
+    "model_resource_valid": true,
+    "visible_meshes": 4
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 1,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 2,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 3,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 4,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 5,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 6,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 7,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  },
+  {
+    "asset": "crystal_harvester",
+    "collider_removed": true,
+    "embedded_texture_loaded": true,
+    "glb_collision_valid": true,
+    "level": 8,
+    "model_resource_valid": true,
+    "visible_meshes": 3
+  }
+]

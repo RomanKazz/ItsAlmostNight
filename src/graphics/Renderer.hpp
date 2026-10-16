@@ -561,7 +561,8 @@ class Renderer {
     [[nodiscard]] bool drawResourceProducer(
         BuildingType type, Vector3 position,
         float yawRadians = 0.0F,
-        Color tint = WHITE, float scale = 1.0F, int level = 1);
+        Color tint = WHITE, float scale = 1.0F, int level = 1,
+        double animationSeconds = -1.0);
     [[nodiscard]] bool drawSpikeTrap(
         Vector3 position, float yawRadians = 0.0F,
         float animationSeconds = -1.0F,

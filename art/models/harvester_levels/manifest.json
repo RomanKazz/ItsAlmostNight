@@ -1,0 +1,8320 @@
+{
+  "authoring": "itsalmostnight-models; inspected Tesla/flamethrower/mortar progression; original Kenney gold/red swatches",
+  "colliders": "Each complete variant retains the original root-level COL_BOX_BODY; not walkable",
+  "coordinates": "GLB metres, +Y up, -Z front; Blender +Z up, +Y front; all roots identity at floor",
+  "delivery": "24 standalone complete GLBs, not additive overlays; draw exactly one file per building level",
+  "family": "compact_harvesters_v1",
+  "footprint_m": [
+    1,
+    1
+  ],
+  "generator": "tools/create_harvester_levels.py",
+  "handoff": "art/models/harvester_levels/HANDOFF_RU.md",
+  "integration": {
+    "level_selection_connected": true,
+    "loader_checked": true,
+    "motion_connected": true,
+    "playtested": false,
+    "production_connected": true,
+    "native_graphics_smoke": true,
+    "release_graphics_smoke": true,
+    "sanitizers_checked": true
+  },
+  "level_convention": "8 total levels: L1 unchanged base plus 7 progressively enhanced variants",
+  "levels": [
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_01.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_01.blend",
+      "changes": "Исходная лесопилка",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 8,
+        "module_mesh": 19,
+        "resource_mesh": 13,
+        "saw_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl01.glb",
+      "level": 1,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "00d6e74f77cdbfdc738f3e55333cd686382e8e73756ece404cb2359a92d8f40d",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2040,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 308,
+        "module_mesh": 700,
+        "resource_mesh": 604,
+        "saw_mesh": 428
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_02.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_02.blend",
+      "changes": "Золотой пояс и шайба ступицы",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "module_mesh": 19,
+        "resource_mesh": 13,
+        "saw_mesh": 6
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl02.glb",
+      "level": 2,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "d28a23698a1dff65017cf8eb0b926ac22b42a1ffb3376978b722ee23105d42b6",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2168,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "module_mesh": 700,
+        "resource_mesh": 604,
+        "saw_mesh": 492
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_03.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_03.blend",
+      "changes": "Обручи привода",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "module_mesh": 21,
+        "resource_mesh": 13,
+        "saw_mesh": 6
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl03.glb",
+      "level": 3,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "805f2039f9bff3113b36cf29211a28803a4773925e6f1f8a1f1b814ba80407cc",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2296,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "module_mesh": 828,
+        "resource_mesh": 604,
+        "saw_mesh": 492
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_04.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_04.blend",
+      "changes": "Золотая рама, крепления и диск",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "module_mesh": 21,
+        "resource_mesh": 13,
+        "saw_mesh": 7
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl04.glb",
+      "level": 4,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "37ab2ed8ca267c9fc26324ca1cfdd03fd5e1a19e55d1adb0ca49e2f3f514e1ac",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2488,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "module_mesh": 828,
+        "resource_mesh": 604,
+        "saw_mesh": 620
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_05.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_05.blend",
+      "changes": "Усиленный кожух пилы",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "module_mesh": 22,
+        "resource_mesh": 13,
+        "saw_mesh": 7
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl05.glb",
+      "level": 5,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "e659924ec5d75563fd47746b59ee9846f047636f9f64ffe5aa7cc512c5e9b0c6",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2620,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "module_mesh": 960,
+        "resource_mesh": 604,
+        "saw_mesh": 620
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_06.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_06.blend",
+      "changes": "Увеличенный мотор и третье бревно",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 11,
+        "module_mesh": 28,
+        "resource_mesh": 16,
+        "saw_mesh": 7
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl06.glb",
+      "level": 6,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "189e01277ae22bcafcabf05f7ff1a362c4fd400b0d803a2a10366a19fe7158f9",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2992,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 500,
+        "module_mesh": 1116,
+        "resource_mesh": 756,
+        "saw_mesh": 620
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_07.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_07.blend",
+      "changes": "Рамка запаса и красный пояс",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 12,
+        "module_mesh": 30,
+        "resource_mesh": 16,
+        "saw_mesh": 7
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl07.glb",
+      "level": 7,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "bfebb4d0a6288b22d7cd890cb5bd61c33ffb1500a7ef9be54c9652888e8f4549",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 3080,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 564,
+        "module_mesh": 1140,
+        "resource_mesh": 756,
+        "saw_mesh": 620
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8720095157623291,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "wood_harvester",
+      "beauty": "art/models/harvester_levels/wood_harvester/level_08.png",
+      "blend": "art/models/harvester_levels/wood_harvester/level_08.blend",
+      "changes": "Четвёртое бревно, тяжёлая подошва и ступица",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 24,
+        "module_mesh": 30,
+        "resource_mesh": 19,
+        "saw_mesh": 8
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3,
+        "saw_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/wood_harvester_lvl08.glb",
+      "level": 8,
+      "motion": {
+        "axis_glb": [
+          0,
+          0,
+          -1
+        ],
+        "exception": "original axle inside bearing",
+        "pivot": "saw_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2,
+        "saw_mesh": 3
+      },
+      "sha256": "5995615ee44b5e75cf344cff96433fb5c47b24080fd7d41e73c539054157d4bf",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "saw_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "saw_pivot",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "saw_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.6299999952316284,
+            0.05999999865889549
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_sawdust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.4099999964237213,
+            -0.05999999865889549
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.10000000149011612,
+            0.40299999713897705,
+            -0.42500001192092896
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9800000190734863,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9800000190734863,
+            0.0
+          ]
+        }
+      },
+      "triangles": 3584,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 852,
+        "module_mesh": 1140,
+        "resource_mesh": 908,
+        "saw_mesh": 684
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.4790000021457672,
+          0.8720095157623291,
+          0.4790000021457672
+        ],
+        "min": [
+          -0.4790000021457672,
+          0.0,
+          -0.4790000021457672
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_01.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_01.blend",
+      "changes": "Исходная каменоломня",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 8,
+        "drill_mesh": 3,
+        "module_mesh": 22,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl01.glb",
+      "level": 1,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "11e72f51fed423dabd11a1d4e107ffd3c0148161dcdfa8aa1c11e3c134bd56b9",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1946,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 308,
+        "drill_mesh": 780,
+        "module_mesh": 744,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_02.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_02.blend",
+      "changes": "Золотой пояс и хомут привода",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "drill_mesh": 3,
+        "module_mesh": 23,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl02.glb",
+      "level": 2,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "d55f99bc64d0a5193fd9d89ca3ac19757f4f1102f018ad314915d70c39f555ce",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2074,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "drill_mesh": 780,
+        "module_mesh": 808,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_03.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_03.blend",
+      "changes": "Усиление подшипника и мотора",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "drill_mesh": 3,
+        "module_mesh": 25,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl03.glb",
+      "level": 3,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "c6f56f063b7a12add48a0814fb0add120f30012ab9597758e2688a4139b208ca",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2234,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "drill_mesh": 780,
+        "module_mesh": 968,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_04.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_04.blend",
+      "changes": "Золотые стойки буровой",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "drill_mesh": 3,
+        "module_mesh": 25,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl04.glb",
+      "level": 4,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "4aeefb6c24baf9d51650aa027d53949ac485dbaadd7356d5523ea9b5a8193ba8",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2298,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "drill_mesh": 780,
+        "module_mesh": 968,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_05.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_05.blend",
+      "changes": "Рёбра охлаждения мотора",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "drill_mesh": 3,
+        "module_mesh": 28,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl05.glb",
+      "level": 5,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "6caad464e92ae2cae5a3d50ae588f472607fc30c835c2fb1e398cfec8ae96018",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2490,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "drill_mesh": 780,
+        "module_mesh": 1160,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_06.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_06.blend",
+      "changes": "Две гидравлические стойки",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 11,
+        "drill_mesh": 3,
+        "module_mesh": 36,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl06.glb",
+      "level": 6,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "6c6bbb4950e679729ba06425a9d1ce534f83be56f0b750bcc35036dd43a3b9b1",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2842,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 500,
+        "drill_mesh": 780,
+        "module_mesh": 1448,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8899999856948853,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_07.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_07.blend",
+      "changes": "Усиленная перекладина и крышка",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 12,
+        "drill_mesh": 3,
+        "module_mesh": 38,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl07.glb",
+      "level": 7,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "7790640e230f89d8d5f375b59667905b2f233f21be8555657cb0e41826db46e0",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2962,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 564,
+        "drill_mesh": 780,
+        "module_mesh": 1504,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.9039999842643738,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "stone_harvester",
+      "beauty": "art/models/harvester_levels/stone_harvester/level_08.png",
+      "blend": "art/models/harvester_levels/stone_harvester/level_08.blend",
+      "changes": "Золотой шнек, зажимы и броня подошвы",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.92,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 24,
+        "drill_mesh": 3,
+        "module_mesh": 38,
+        "resource_mesh": 3
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "drill_mesh": 2,
+        "module_mesh": 3,
+        "resource_mesh": 4
+      },
+      "glb": "assets/models/buildings/harvester_levels/stone_harvester_lvl08.glb",
+      "level": 8,
+      "motion": {
+        "axis_glb": [
+          0,
+          1,
+          0
+        ],
+        "exception": "original core inside spindle bearing",
+        "pivot": "drill_pivot",
+        "range_degrees": [
+          0,
+          360
+        ],
+        "recoil_m": 0,
+        "verified_poses": 360
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "drill_mesh": 1,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "sha256": "3c4d8f98de0268d07d5b9517ec3086d189e725c0d5f05c0fb0013fbdc84faed0",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "drill_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "drill_pivot",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "drill_pivot": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.6100000143051147,
+            0.029999999329447746
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.6100000143051147,
+            0.029999999329447746
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_dust": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.38999998569488525,
+            -0.07500000298023224
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.2849999964237213,
+            0.2800000011920929,
+            -0.35499998927116394
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9950000047683716,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9950000047683716,
+            0.0
+          ]
+        }
+      },
+      "triangles": 3250,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 852,
+        "drill_mesh": 780,
+        "module_mesh": 1504,
+        "resource_mesh": 114
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.4790000021457672,
+          0.9039999842643738,
+          0.4790000021457672
+        ],
+        "min": [
+          -0.4790000021457672,
+          0.0,
+          -0.4790000021457672
+        ]
+      },
+      "visible_meshes": 4
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_01.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_01.blend",
+      "changes": "Исходная кристальная шахта",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 8,
+        "module_mesh": 18,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl01.glb",
+      "level": 1,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "5f5a5408cd009e3859c24fa1e3421e58047081a26f7e6b1ebcf0a8f3f4db059e",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1062,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 308,
+        "module_mesh": 524,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_02.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_02.blend",
+      "changes": "Золотой пояс и край чаши",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "module_mesh": 19,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl02.glb",
+      "level": 2,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "3a17299ad8e4032114d881cbf180ef59c8f0be6a097d092e1a8ab63111bf4c80",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1190,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "module_mesh": 588,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_03.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_03.blend",
+      "changes": "Золотые наконечники захватов",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 9,
+        "module_mesh": 23,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl03.glb",
+      "level": 3,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "4e9171d0a4400280aa97aeb349505570c89ed3e81f55e460fe3214071b132fd9",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1254,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 372,
+        "module_mesh": 652,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_04.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_04.blend",
+      "changes": "Броня и усиленные опоры",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "module_mesh": 27,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl04.glb",
+      "level": 4,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "364239ac326ea778bd8a8b6249b66b0155defc0d19f8dca800242f1ac1b5b566",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1382,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "module_mesh": 716,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_05.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_05.blend",
+      "changes": "Два накопителя энергии",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 10,
+        "module_mesh": 35,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl05.glb",
+      "level": 5,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "7b4d1c9b5eb2ec2139435f3f71a0021a2c350af853b35608f4ba0aa14438bbec",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1734,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 436,
+        "module_mesh": 1068,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_06.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_06.blend",
+      "changes": "Третий накопитель",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 11,
+        "module_mesh": 39,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl06.glb",
+      "level": 6,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "f1f780502ff3e0d0eecbea603ccbec5a5683a60e66b039358f41c1c0ff00d5a5",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 1974,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 500,
+        "module_mesh": 1244,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_07.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_07.blend",
+      "changes": "Рама и корона экстрактора",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 12,
+        "module_mesh": 44,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl07.glb",
+      "level": 7,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "95b4cb20445bdbe03d01cee379b70dd76c81d73ec9cc7d4d08db3e991d8360bd",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2182,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 564,
+        "module_mesh": 1388,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.45899999141693115,
+          0.8500000238418579,
+          0.45899999141693115
+        ],
+        "min": [
+          -0.45899999141693115,
+          0.0,
+          -0.45899999141693115
+        ]
+      },
+      "visible_meshes": 3
+    },
+    {
+      "asset": "crystal_harvester",
+      "beauty": "art/models/harvester_levels/crystal_harvester/level_08.png",
+      "blend": "art/models/harvester_levels/crystal_harvester/level_08.blend",
+      "changes": "Золотые захваты, инкрустация короны и тяжёлая подошва",
+      "collider_bounds_glb": {
+        "max": [
+          0.48,
+          0.9,
+          0.48
+        ],
+        "min": [
+          -0.48,
+          0,
+          -0.48
+        ]
+      },
+      "editable_vertex_groups": {
+        "base_mesh": 24,
+        "module_mesh": 45,
+        "resource_mesh": 5
+      },
+      "export_primitive_indices_in_node_order": {
+        "COL_BOX_BODY": 1,
+        "base_mesh": 0,
+        "module_mesh": 2,
+        "resource_mesh": 3
+      },
+      "glb": "assets/models/buildings/harvester_levels/crystal_harvester_lvl08.glb",
+      "level": 8,
+      "motion": {
+        "kind": "static"
+      },
+      "render_indices_after_collision_removal": {
+        "base_mesh": 0,
+        "module_mesh": 1,
+        "resource_mesh": 2
+      },
+      "sha256": "cab405bebe9c10f57f60c94fdd3c3c733fc78ab2936114ff544b6d47ba72388a",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "asset_root": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": null,
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "base_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "module_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "resource_mesh": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_base": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "socket_effect_extraction": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.46000000834465027,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.46000000834465027,
+            0.0
+          ]
+        },
+        "socket_output": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            -0.20000000298023224,
+            0.2849999964237213,
+            -0.3700000047683716
+          ]
+        },
+        "socket_resource_mount": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.2150000035762787,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.2150000035762787,
+            0.0
+          ]
+        },
+        "socket_ui_top": {
+          "local_rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "local_scale": [
+            1,
+            1,
+            1
+          ],
+          "local_translation": [
+            0,
+            0.9700000286102295,
+            0
+          ],
+          "parent": "asset_root",
+          "position_relative_to_asset_root": [
+            0.0,
+            0.9700000286102295,
+            0.0
+          ]
+        }
+      },
+      "triangles": 2534,
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 852,
+        "module_mesh": 1452,
+        "resource_mesh": 230
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.4790000021457672,
+          0.8500000238418579,
+          0.4790000021457672
+        ],
+        "min": [
+          -0.4790000021457672,
+          0.0,
+          -0.4790000021457672
+        ]
+      },
+      "visible_meshes": 3
+    }
+  ],
+  "license": "Original project geometry; Kenney Tower Defense Kit 2.1 palette CC0",
+  "loader_probe": "tools/validate_harvester_levels_loader.cpp",
+  "original_sha256": {
+    "art/models/crystal_harvester.blend": "10b81a7941cb88241d4f4f2823bd3e5c8a38083a55f155c0c68be4b4f6961ff4",
+    "art/models/stone_harvester.blend": "b3776d0f917ceb1b8932b9856c0848eed2b63685242d369c6bdb0800c6eb4463",
+    "art/models/wood_harvester.blend": "f01d33abcbaf4fe295c538d9a93a5719f28db988d2c9290936cecc8985216761",
+    "assets/models/buildings/crystal_harvester.glb": "5f5a5408cd009e3859c24fa1e3421e58047081a26f7e6b1ebcf0a8f3f4db059e",
+    "assets/models/buildings/stone_harvester.glb": "11e72f51fed423dabd11a1d4e107ffd3c0148161dcdfa8aa1c11e3c134bd56b9",
+    "assets/models/buildings/wood_harvester.glb": "00d6e74f77cdbfdc738f3e55333cd686382e8e73756ece404cb2359a92d8f40d"
+  },
+  "overview": "art/models/harvester_levels/harvester_levels.blend",
+  "overview_image": "art/models/harvester_levels/all_levels.png",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "validation": {
+    "all_variants": 24,
+    "loader_report": "art/models/harvester_levels/loader_report.json",
+    "original_models_preserved": true,
+    "original_node_transforms_preserved": true,
+    "report": "art/models/harvester_levels/validation.json",
+    "total_spin_poses": 5760
+  },
+  "validator": "tools/validate_harvester_levels.py"
+}

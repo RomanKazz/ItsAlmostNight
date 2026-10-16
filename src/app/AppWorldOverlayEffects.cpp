@@ -620,7 +620,7 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawResourceProducer(
                 preview.type, modelPosition, yaw, WHITE,
-                scale));
+                scale, simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::Wall) {
         static_cast<void>(
             renderer_->drawWall(

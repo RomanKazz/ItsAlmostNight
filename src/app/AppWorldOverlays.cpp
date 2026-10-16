@@ -1099,7 +1099,8 @@ void App::drawWorldOverlays(
                     preview.type == BuildingType::Quarry) {
                     static_cast<void>(
                         renderer_->drawResourceProducer(
-                            preview.type, position, yaw));
+                            preview.type, position, yaw, WHITE, 1,
+                            snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (
                     preview.type == BuildingType::SlowTrap) {
                     DrawCube(
@@ -1242,7 +1243,8 @@ void App::drawWorldOverlays(
             preview.type == BuildingType::LumberMill ||
             preview.type == BuildingType::Quarry) {
             if (!renderer_->drawResourceProducer(
-                    preview.type, {x, 0.0F, z}, yaw)) {
+                    preview.type, {x, 0.0F, z}, yaw, WHITE, 1,
+                    snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)])) {
                 DrawCube({x, 0.275F, z}, 1.0F, 0.55F,
                          1.0F, WHITE);
             }

@@ -496,16 +496,16 @@ ModelResource& GraphicsResources::rampModel() {
     return rampModel_;
 }
 
-ModelResource& GraphicsResources::mineModel() {
-    return mineModel_;
+ModelResource& GraphicsResources::mineModel(int level) {
+    return mineModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
 }
 
-ModelResource& GraphicsResources::lumberMillModel() {
-    return lumberMillModel_;
+ModelResource& GraphicsResources::lumberMillModel(int level) {
+    return lumberMillModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
 }
 
-ModelResource& GraphicsResources::quarryModel() {
-    return quarryModel_;
+ModelResource& GraphicsResources::quarryModel(int level) {
+    return quarryModels_[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
 }
 
 ModelResource& GraphicsResources::spikeTrapModel() {

@@ -720,9 +720,9 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::MissileLauncher: return 1.54F;
     case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;
-    case BuildingType::CrystalMine: model = &resources_.mineModel(); scale = 1.05F; break;
-    case BuildingType::LumberMill: model = &resources_.lumberMillModel(); scale = .825F; break;
-    case BuildingType::Quarry: model = &resources_.quarryModel(); scale = .65F; break;
+    case BuildingType::CrystalMine: model = &resources_.mineModel(level); scale = 1.0F; break;
+    case BuildingType::LumberMill: model = &resources_.lumberMillModel(level); scale = 1.0F; break;
+    case BuildingType::Quarry: model = &resources_.quarryModel(level); scale = 1.0F; break;
     case BuildingType::SpikeTrap: model = &resources_.spikeTrapModel(); scale = 1.2F; break;
     case BuildingType::SlowTrap: return .45F;
     case BuildingType::WoodStorage:
@@ -747,12 +747,6 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
         if (type == BuildingType::Core && meshCount == core_crystal_model_detail::MeshCount) {
             core_crystal_model_detail::forEachLevelPart(level, 0.0,
                 [&](int index, Matrix pose, Color, bool) { includeMesh(index, pose); });
-        } else if (type == BuildingType::CrystalMine &&
-                   meshCount >= crystal_mine_model_detail::MeshCount) {
-            crystal_mine_model_detail::forEachLevelPart(level, includeMesh);
-        } else if (type == BuildingType::Quarry &&
-                   meshCount >= quarry_model_detail::MeshCount) {
-            quarry_model_detail::forEachLevelPart(level, includeMesh);
         } else if (type == BuildingType::Wall &&
                    meshCount >= wall_upgrade_model_detail::MeshCount) {
             includeMesh(0);

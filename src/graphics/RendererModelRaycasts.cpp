@@ -4,8 +4,7 @@
 #include "graphics/TeslaUpgradeModel.hpp"
 #include "graphics/MissileLauncherModel.hpp"
 #include "graphics/Renderer.hpp"
-#include "graphics/CrystalMineModel.hpp"
-#include "graphics/QuarryModel.hpp"
+#include "graphics/HarvesterModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
@@ -34,7 +33,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     std::span<const BuildingInstance> buildings, Ray ray,
     double maxDistance, float defensiveYaw,
     float cannonPitchRadians, float gateOpenAmount,
-    float /*spikeAnimationSeconds*/, std::optional<float> defenseBaseYaw, float windRotor) {
+    float animationSeconds, std::optional<float> defenseBaseYaw, float windRotor) {
     const Vec3 worldCenter =
         buildingWorldPosition(building);
     Vector3 position{
@@ -150,28 +149,19 @@ std::optional<double> Renderer::buildingRaycastDistance(
             building.type, building.rotation));
         break;
     case BuildingType::CrystalMine:
-        resource = &resources_.mineModel();
-        modelScale = 2.1F;
-        yaw = static_cast<float>(building.rotation) *
-              QuarterTurn;
+        resource = &resources_.mineModel(building.level);
+        yaw = static_cast<float>(building.rotation) * QuarterTurn;
         groundOffset = 0.005F;
-        horizontalScale = 0.5F;
         break;
     case BuildingType::LumberMill:
-        resource = &resources_.lumberMillModel();
-        modelScale = 1.65F;
-        yaw = static_cast<float>(building.rotation) *
-              QuarterTurn;
+        resource = &resources_.lumberMillModel(building.level);
+        yaw = static_cast<float>(building.rotation) * QuarterTurn;
         groundOffset = 0.005F;
-        horizontalScale = 0.5F;
         break;
     case BuildingType::Quarry:
-        resource = &resources_.quarryModel();
-        modelScale = 1.3F;
-        yaw = static_cast<float>(building.rotation) *
-              QuarterTurn;
+        resource = &resources_.quarryModel(building.level);
+        yaw = static_cast<float>(building.rotation) * QuarterTurn;
         groundOffset = 0.005F;
-        horizontalScale = 0.5F;
         break;
     case BuildingType::SpikeTrap:
         resource = &resources_.spikeTrapModel();
@@ -421,19 +411,16 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return closest;
         }
-        if ((building.type == BuildingType::CrystalMine && model.meshCount >= 2) ||
-            (building.type == BuildingType::Quarry && model.meshCount >= quarry_model_detail::MeshCount)) {
+        if (building.type == BuildingType::CrystalMine || building.type == BuildingType::LumberMill ||
+            building.type == BuildingType::Quarry) {
             std::optional<double> closest;
-            const auto testPart = [&](int index, Matrix pose) {
-                if (index >= model.meshCount) return;
+            const double seconds = animationSeconds >= 0 ? animationSeconds : GetTime();
+            for (int index = 0; index < model.meshCount; ++index) {
                 const Matrix transform = MatrixMultiply(
-                    pose, baseTransform);
-                const auto distance = acceptCollision(
-                    GetRayCollisionMesh(ray, model.meshes[index], transform));
+                    harvester_model::meshPose(building.type, index, seconds), baseTransform);
+                const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], transform));
                 if (distance && (!closest || *distance < *closest)) closest = distance;
-            };
-            if (building.type == BuildingType::Quarry) quarry_model_detail::forEachLevelPart(building.level, testPart);
-            else crystal_mine_model_detail::forEachLevelPart(building.level, testPart);
+            }
             return closest;
         }
         if (building.type == BuildingType::Core) {

@@ -1,6 +1,5 @@
 #include "graphics/Renderer.hpp"
-#include "graphics/CrystalMineModel.hpp"
-#include "graphics/QuarryModel.hpp"
+#include "graphics/HarvesterModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
@@ -687,52 +686,28 @@ bool Renderer::drawRampSupportBeam(
 
 bool Renderer::drawResourceProducer(
     BuildingType type, Vector3 position, float yawRadians,
-    Color tint, float scale, int level) {
+    Color tint, float scale, int level, double animationSeconds) {
     ModelResource* resource = nullptr;
-    float modelScale = 1.0F;
-    if (type == BuildingType::CrystalMine) {
-        resource = &resources_.mineModel();
-        modelScale = 2.1F;
-    } else if (type == BuildingType::LumberMill) {
-        resource = &resources_.lumberMillModel();
-        modelScale = 1.65F;
-    } else if (type == BuildingType::Quarry) {
-        resource = &resources_.quarryModel();
-        modelScale = 1.3F;
-    }
-    if (resource == nullptr || !resource->valid()) {
-        return false;
-    }
+    if (type == BuildingType::CrystalMine) resource = &resources_.mineModel(level);
+    else if (type == BuildingType::LumberMill) resource = &resources_.lumberMillModel(level);
+    else if (type == BuildingType::Quarry) resource = &resources_.quarryModel(level);
+    if (resource == nullptr || !resource->valid()) return false;
     Model& model = resource->get();
     prepareModelShader(model);
     position.y += 0.005F;
-    if ((type == BuildingType::CrystalMine && model.meshCount >= 2) ||
-        (type == BuildingType::Quarry && model.meshCount >= quarry_model_detail::MeshCount)) {
-        const float uniformScale = modelScale * scale * 0.5F;
-        const Matrix transform = MatrixMultiply(
-            model.transform,
-            MatrixMultiply(MatrixScale(uniformScale, uniformScale, uniformScale),
-                MatrixMultiply(MatrixRotateY(yawRadians),
-                    MatrixTranslate(position.x, position.y, position.z))));
-        const auto drawPart = [&](int index, Matrix pose) {
-            if (index >= model.meshCount) return;
-            Material& material = model.materials[model.meshMaterial[index]];
-            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
-            DrawMesh(model.meshes[index], material,
-                MatrixMultiply(pose, transform));
-            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        };
-        if (type == BuildingType::Quarry) quarry_model_detail::forEachLevelPart(level, drawPart);
-        else crystal_mine_model_detail::forEachLevelPart(level, drawPart);
-        return true;
+    const double seconds = animationSeconds >= 0 ? animationSeconds : GetTime();
+    const Matrix transform = MatrixMultiply(model.transform,
+        MatrixMultiply(MatrixScale(scale, scale, scale),
+            MatrixMultiply(MatrixRotateY(yawRadians),
+                MatrixTranslate(position.x, position.y, position.z))));
+    for (int index = 0; index < model.meshCount; ++index) {
+        Material& material = model.materials[model.meshMaterial[index]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        DrawMesh(model.meshes[index], material,
+            MatrixMultiply(harvester_model::meshPose(type, index, seconds), transform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     }
-    DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F},
-        yawRadians * RAD2DEG,
-        {modelScale * scale * 0.5F, modelScale * scale * 0.5F,
-         modelScale * scale * 0.5F},
-        tint);
     return true;
 }
 

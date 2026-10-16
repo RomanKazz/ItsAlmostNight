@@ -1,3 +1,4 @@
+#include "HarvesterGraphicsChecks.hpp"
 #include "TeslaGraphicsChecks.hpp"
 #include "LaserGraphicsChecks.hpp"
 #include "MortarGraphicsChecks.hpp"
@@ -1720,118 +1721,6 @@ bool checkSpikeTrapLevelRendering(ian::Renderer& renderer) {
     return valid;
 }
 
-bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
-    const auto target = LoadRenderTexture(512, 384);
-    const Camera3D camera{{1.7F, 1.5F, 2.2F}, {0, .43F, 0}, {0, 1, 0},
-                          36, CAMERA_PERSPECTIVE};
-    const auto capture = [&](int level) {
-        BeginTextureMode(target);
-        ClearBackground({26, 30, 40, 255});
-        BeginMode3D(camera);
-        ian::WorldLighting lighting{};
-        lighting.cameraPosition = camera.position;
-        renderer.beginWorldShader(lighting);
-        renderer.setWorldMaterial({});
-        static_cast<void>(renderer.drawResourceProducer(
-            ian::BuildingType::CrystalMine, {0, 0, 0}, 0, WHITE, 1, level));
-        renderer.endWorldShader();
-        EndMode3D();
-        EndTextureMode();
-        Image image = LoadImageFromTexture(target.texture);
-        ImageFlipVertical(&image);
-        if (const char* directory = std::getenv("IAN_CAPTURE_MINE_LEVELS")) {
-            std::filesystem::create_directories(directory);
-            ExportImage(image, (std::filesystem::path{directory} /
-                ("mine-level-" + std::to_string(level) + ".png")).string().c_str());
-        }
-        return image;
-    };
-    Image previous = capture(1);
-    bool distinct = true;
-    for (int level = 2; level <= 8; ++level) {
-        Image current = capture(level);
-        distinct = distinct && changedPixels(previous, current) > 35;
-        UnloadImage(previous);
-        previous = current;
-    }
-    UnloadImage(previous);
-    UnloadRenderTexture(target);
-    const float lowHeight = renderer.buildingVisualHeight(ian::BuildingType::CrystalMine, 1);
-    const float highHeight = renderer.buildingVisualHeight(ian::BuildingType::CrystalMine, 8);
-    bool correctAiming = highHeight > lowHeight + .25F;
-    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
-        bool hitRaisedCrystals = false;
-        for (int x = -20; x <= 20; ++x) {
-            ian::BuildingInstance mine{.type = ian::BuildingType::CrystalMine,
-                                      .rotation = rotation, .level = 1};
-            const auto center = ian::buildingWorldPosition(mine);
-            const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
-                           .80F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
-            correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
-            mine.level = 8;
-            hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
-        }
-        correctAiming = correctAiming && hitRaisedCrystals;
-    }
-    return distinct && correctAiming;
-}
-
-bool checkQuarryLevelRendering(ian::Renderer& renderer) {
-    const auto target = LoadRenderTexture(512, 384);
-    const Camera3D camera{{1.5F, 1.5F, 2.4F}, {0, .47F, 0}, {0, 1, 0},
-                          36, CAMERA_PERSPECTIVE};
-    const auto capture = [&](int level) {
-        BeginTextureMode(target);
-        ClearBackground({26, 30, 40, 255});
-        BeginMode3D(camera);
-        ian::WorldLighting lighting{};
-        lighting.cameraPosition = camera.position;
-        renderer.beginWorldShader(lighting);
-        renderer.setWorldMaterial({});
-        static_cast<void>(renderer.drawResourceProducer(
-            ian::BuildingType::Quarry, {0, 0, 0}, 0, WHITE, 1, level));
-        renderer.endWorldShader();
-        EndMode3D();
-        EndTextureMode();
-        Image image = LoadImageFromTexture(target.texture);
-        ImageFlipVertical(&image);
-        if (const char* directory = std::getenv("IAN_CAPTURE_QUARRY_LEVELS")) {
-            std::filesystem::create_directories(directory);
-            ExportImage(image, (std::filesystem::path{directory} /
-                ("quarry-level-" + std::to_string(level) + ".png")).string().c_str());
-        }
-        return image;
-    };
-    Image previous = capture(1);
-    bool distinct = true;
-    for (int level = 2; level <= 8; ++level) {
-        Image current = capture(level);
-        distinct = distinct && changedPixels(previous, current) > 35;
-        UnloadImage(previous);
-        previous = current;
-    }
-    UnloadImage(previous);
-    UnloadRenderTexture(target);
-    const float lowHeight = renderer.buildingVisualHeight(ian::BuildingType::Quarry, 1);
-    const float highHeight = renderer.buildingVisualHeight(ian::BuildingType::Quarry, 8);
-    bool correctAiming = highHeight > lowHeight + .20F;
-    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
-        bool hitRaisedCrystals = false;
-        for (int x = -20; x <= 20; ++x) {
-            ian::BuildingInstance mine{.type = ian::BuildingType::Quarry,
-                                      .rotation = rotation, .level = 1};
-            const auto center = ian::buildingWorldPosition(mine);
-            const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
-                           .75F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
-            correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
-            mine.level = 8;
-            hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
-        }
-        correctAiming = correctAiming && hitRaisedCrystals;
-    }
-    return distinct && correctAiming;
-}
-
 bool checkGateLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(512, 384);
     const Camera3D camera{{1.6F, 1.0F, -1.9F}, {0, .26F, 0}, {0, 1, 0}, 28, CAMERA_PERSPECTIVE};
@@ -2705,31 +2594,6 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
     return true;
 }
 
-bool checkCrystalMineStaticShards(ian::ModelResource& resource) {
-    if (!resource.valid()) return false;
-    Model& model = resource.get();
-    if (model.meshCount != ian::crystal_mine_model_detail::MeshCount ||
-        model.meshes[0].triangleCount != 232 ||
-        model.meshes[1].triangleCount != 204) return false;
-    for (int level = 1; level <= 8; ++level) {
-        int emitted = 0;
-        bool expected = true;
-        ian::crystal_mine_model_detail::forEachLevelPart(level,
-            [&](int meshIndex, Matrix pose) {
-                expected = expected && meshIndex < model.meshCount &&
-                    model.meshes[meshIndex].triangleCount > 0 &&
-                    (meshIndex == 1 || meshIndex == 10 || meshIndex == level + 1);
-                const Vector3 posed = Vector3Transform({.23F, .45F, .12F}, pose);
-                expected = expected && (meshIndex == 1
-                    ? posed.y > .45F && posed.y < 1.0F
-                    : meshIndex == 10 || Vector3Distance(posed, {.23F, .45F, .12F}) < .00001F);
-                ++emitted;
-            });
-        if (!expected || emitted != 2 + (level >= 3) + (level >= 5) + (level >= 7)) return false;
-    }
-    return true;
-}
-
 bool checkMissingResources() {
     ian::ShaderResource shader;
     ian::TextureResource texture;
@@ -2966,10 +2830,6 @@ int main() {
         }
         if (!checkCoreCrystalOrbit(resources.coreModel())) {
             std::cerr << "core satellites fail to orbit the fixed central crystal/pedestal\n";
-            result = 1;
-        }
-        if (!checkCrystalMineStaticShards(resources.mineModel())) {
-            std::cerr << "crystal mine static shards or level meshes failed\n";
             result = 1;
         }
         if (!resources.sceneTargetValid() ||
@@ -3315,12 +3175,8 @@ int main() {
             std::cerr << "spike trap level rendering failed\n";
             result = 1;
         }
-        if (!checkCrystalMineLevelRendering(renderer)) {
-            std::cerr << "crystal mine levels fail to render distinctly\n";
-            result = 1;
-        }
-        if (!checkQuarryLevelRendering(renderer)) {
-            std::cerr << "quarry levels, visual height or raised stone aiming failed\n";
+        if (!checkHarvesterGraphics(renderer)) {
+            std::cerr << "harvester levels, animated rigs, scale or posed selection failed\n";
             result = 1;
         }
         if (!checkGateLevelRendering(renderer)) {

@@ -1207,10 +1207,13 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/items/heart.glb");
     platformModel_.load("assets/models/construction/platform.glb");
     rampModel_.load("assets/models/construction/ramp.glb");
-    mineModel_.load("assets/models/buildings/mine.glb");
-    lumberMillModel_.load(
-        "assets/models/buildings/lumber_mill.glb");
-    quarryModel_.load("assets/models/buildings/quarry.glb");
+    for (std::size_t index = 0; index < mineModels_.size(); ++index) {
+        const std::string prefix = "assets/models/buildings/harvester_levels/";
+        const std::string suffix = "_lvl0" + std::to_string(index + 1) + ".glb";
+        mineModels_[index].load((prefix + "crystal_harvester" + suffix).c_str());
+        lumberMillModels_[index].load((prefix + "wood_harvester" + suffix).c_str());
+        quarryModels_[index].load((prefix + "stone_harvester" + suffix).c_str());
+    }
     spikeTrapModel_.load(
         "assets/models/traps/spike_trap.glb");
     rockModels_[0].load("assets/models/environment/stone_1.glb");
@@ -1581,10 +1584,10 @@ void GraphicsResources::shutdown() {
         rockModel.unload();
     }
     crystalResourceModel_.unload();
-    quarryModel_.unload();
+    for (auto& model : quarryModels_) model.unload();
     spikeTrapModel_.unload();
-    lumberMillModel_.unload();
-    mineModel_.unload();
+    for (auto& model : lumberMillModels_) model.unload();
+    for (auto& model : mineModels_) model.unload();
     rampModel_.unload();
     platformModel_.unload();
     hammerModel_.unload();
