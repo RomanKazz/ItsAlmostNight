@@ -25,7 +25,7 @@ struct NightForecast {
 
 [[nodiscard]] inline std::array<int, GameBalance::EnemyTypeCount> waveEnemyCounts(const WaveDefinition& wave) {
     return {wave.basic, wave.fast, wave.heavy, wave.boss ? 1 : 0,
-            wave.ranged, wave.sapper, wave.flying, wave.splitter, 0};
+            wave.ranged, 0, wave.flying, wave.splitter, 0};
 }
 
 [[nodiscard]] inline NightPattern nightPattern(const WaveDefinition& base, int wave, std::uint32_t seed) {
@@ -41,7 +41,9 @@ struct NightForecast {
     return choices[hash % count];
 }
 
-[[nodiscard]] inline WaveDefinition nightComposition(const WaveDefinition& base, NightPattern pattern, int requestedAct) {
+[[nodiscard]] inline WaveDefinition nightComposition(const WaveDefinition& configuredBase, NightPattern pattern, int requestedAct) {
+    WaveDefinition base = configuredBase;
+    base.sapper = 0; // Retired role; old wave data must not bring it back.
     // The tutorial opening stays exactly the configured first-night roster.
     const auto available = waveEnemyCounts(base);
     if (base.fast == 0 && base.heavy == 0 && base.ranged == 0 && base.flying == 0 && base.splitter == 0)
@@ -59,12 +61,10 @@ struct NightForecast {
     case NightPattern::Blitz:
         weight(EnemyType::Fast, act == 2 ? 75 : 60);
         weight(EnemyType::Ranged, act == 1 ? 25 : 5);
-        weight(EnemyType::Sapper, act == 2 ? 15 : 0);
         break;
     case NightPattern::Siege:
         weight(EnemyType::Heavy, act == 0 ? 45 : 60);
         weight(EnemyType::Ranged, act == 1 ? 30 : 10);
-        weight(EnemyType::Sapper, act == 2 ? 40 : 5);
         break;
     case NightPattern::AirRaid:
         weight(EnemyType::Flying, act == 0 ? 65 : 55);
@@ -81,7 +81,6 @@ struct NightForecast {
         weight(EnemyType::Ranged, act == 1 ? 10 : 35);
         weight(EnemyType::Fast, act == 1 ? 40 : 10);
         weight(EnemyType::Flying, act == 1 ? 35 : 0);
-        weight(EnemyType::Sapper, act == 1 ? 20 : 0);
         break;
     }
     constexpr std::array<int, GameBalance::EnemyTypeCount> Costs{1, 2, 5, 0, 3, 4, 3, 4, 0};

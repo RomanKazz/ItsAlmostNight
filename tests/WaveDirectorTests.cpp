@@ -21,6 +21,24 @@ void runWaveDirectorTests() {
             "endless health growth stays finite and invalid waves normalize");
     constexpr std::array<int, 6> ExpectedBudgets{15, 25, 40, 55, 75, 100};
 
+    auto legacyWaves = ian::GameBalance::defaults().waves;
+    for (auto& wave : legacyWaves) wave.sapper = 12;
+    ian::WaveDirector legacyDirector(legacyWaves);
+    for (const int wave : {1, 4, 6, 12, 1000000}) {
+        require(legacyDirector.composition(wave).sapper == 0,
+                "legacy wave data cannot restore the retired sapper");
+        require(legacyDirector.forecast(wave, 42).enemies[
+                    static_cast<std::size_t>(ian::EnemyType::Sapper)] == 0,
+                "retired enemy is absent from the night forecast");
+        for (int act = 0; act < 3; ++act) {
+            const auto plan = legacyDirector.buildWave(wave, {0, 0}, 0,
+                {.runSeed = 42, .act = act});
+            require(std::none_of(plan.spawns.begin(), plan.spawns.end(),
+                        [](const auto& spawn) { return spawn.type == ian::EnemyType::Sapper; }),
+                    "all night acts and endless waves exclude the retired sapper");
+        }
+    }
+
     for (int wave = 1;
          wave <= ian::WaveDirector::ConfiguredWaveCount;
          ++wave) {
@@ -68,7 +86,7 @@ void runWaveDirectorTests() {
             secondComposition.fast > 0 &&
             secondComposition.ranged > 0 &&
             thirdComposition.heavy > 0 &&
-            fourthComposition.sapper > 0 &&
+            fourthComposition.sapper == 0 &&
             fifthComposition.flying > 0,
         "enemy roles unlock progressively across early waves");
     require(
@@ -109,9 +127,9 @@ void runWaveDirectorTests() {
             "sixth configured wave stays inside enemy pool budget");
     const auto lateForecast = director.forecast(6, 0);
     require(lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Ranged)] > 0 &&
-                lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Sapper)] > 0 &&
+                lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Sapper)] == 0 &&
                 lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Flying)] > 0,
-            "boss-night acts collectively contain ranged, sapper and flying roles");
+            "boss-night acts retain ranged and flying roles without the retired sapper");
     const int sixthWaveBudget = finalWave.regularBudget;
     const double sixthWaveHealthMultiplier =
         finalWave.spawns.front().healthMultiplier;

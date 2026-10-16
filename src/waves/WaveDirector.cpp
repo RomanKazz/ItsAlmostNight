@@ -90,6 +90,8 @@ WaveDirector::WaveDirector(
       definitions_(definitions) {
     spawnBuffer_.reserve(MaximumWaveEnemies);
     scratchBuffer_.reserve(MaximumWaveEnemies);
+    // Keep the legacy enemy ID/config field, but retire it from every wave.
+    for (auto& definition : definitions_) definition.sapper = 0;
 }
 
 WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
@@ -112,7 +114,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         };
         composition.basic = bounded(composition.basic); composition.fast = bounded(composition.fast);
         composition.heavy = bounded(composition.heavy); composition.ranged = bounded(composition.ranged);
-        composition.sapper = bounded(composition.sapper); composition.flying = bounded(composition.flying);
+        composition.flying = bounded(composition.flying);
         composition.splitter = bounded(composition.splitter);
     }
     const double waveIndex =
@@ -137,8 +139,6 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     append(EnemyType::Heavy, composition.heavy, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Ranged, composition.ranged, corePosition,
-           composition.groupSize, healthMultiplier, damageMultiplier);
-    append(EnemyType::Sapper, composition.sapper, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Flying, composition.flying, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
@@ -290,7 +290,6 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.fast += growth;
     result.heavy += (growth + 1) / 2;
     result.ranged += growth / 2;
-    result.sapper += (growth + 2) / 3;
     result.flying += growth / 3;
     result.splitter += (growth + 3) / 4;
     result.boss = normalizedWave % ConfiguredWaveCount == 0;
@@ -304,7 +303,6 @@ WaveDefinition WaveDirector::composition(int wave) const {
         result.fast * enemyBudgetCost(EnemyType::Fast) +
         result.heavy * enemyBudgetCost(EnemyType::Heavy) +
         result.ranged * enemyBudgetCost(EnemyType::Ranged) +
-        result.sapper * enemyBudgetCost(EnemyType::Sapper) +
         result.flying * enemyBudgetCost(EnemyType::Flying) +
         result.splitter * enemyBudgetCost(EnemyType::Splitter);
     return result;

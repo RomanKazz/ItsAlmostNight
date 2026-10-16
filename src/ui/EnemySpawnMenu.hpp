@@ -30,13 +30,12 @@ struct Entry {
     const char* role;
     const char* description;
 };
-inline constexpr std::array<Entry, 9> Enemies{{
+inline constexpr std::array<Entry, 8> Enemies{{
     {EnemyType::Basic, "BASIC", "THE HORDE", "Classic crowd. Perfect for\ntrying out a full wave."},
     {EnemyType::Fast, "FAST", "QUICK FEET", "Fast runners that close\nthe distance quickly."},
     {EnemyType::Heavy, "HEAVY", "TOUGH TARGET", "A sturdy front line for\ntesting sustained damage."},
     {EnemyType::Boss, "BOSS", "BIG TROUBLE", "A boss encounter with powerful\nattacks and abilities."},
     {EnemyType::Ranged, "RANGED", "KEEP YOUR DISTANCE", "Ranged attackers for testing\nincoming projectiles."},
-    {EnemyType::Sapper, "SAPPER", "EXPLOSIVE", "An explosive visitor.\nKeep an eye on your buildings."},
     {EnemyType::Flying, "FLYING", "ABOVE THE GROUND", "Airborne enemies for testing\nanti-air defenses."},
     {EnemyType::Splitter, "SPLITTER", "THREE LITTLE SURPRISES", "Splits into three little enemies\nwhen defeated."},
     {EnemyType::Splitling, "SPLITLING", "SMALL BUT LIVELY", "The little splitter offspring,\nspawned directly."},
@@ -50,7 +49,7 @@ inline constexpr std::array<int, 6> Presets{1, 10, 50, 100, 500, 1000};
 
 struct Layout {
     Rectangle panel{}, catalog{}, details{}, close{}, minus{}, plus{}, count{}, slider{}, summon{};
-    std::array<Rectangle, 9> cards{};
+    std::array<Rectangle, Enemies.size()> cards{};
     std::array<Rectangle, 4> variants{};
     std::array<Rectangle, 6> presets{};
     float scale{1};
@@ -124,6 +123,9 @@ inline EnemySpawnMenuResult drawEnemySpawnCatalog(const GameUi& ui, EnemyType& s
     int activeEnemies, Vector2 screen, const EnemySpawnMenuInput& input = {}) {
     namespace es = enemy_spawn_menu;
     namespace ms = menuStyle;
+    if (std::none_of(es::Enemies.begin(), es::Enemies.end(),
+            [selected](const es::Entry& entry) { return entry.type == selected; }))
+        selected = es::Enemies.front().type;
     const auto l = es::layout(screen);
     const float s = l.scale;
     constexpr int Maximum = static_cast<int>(EnemySystem::MaxActiveEnemies);

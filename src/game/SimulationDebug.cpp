@@ -260,7 +260,8 @@ void Simulation::processDebugCommands(
             command.damagePlayer->amount, std::nullopt,
             playerPosition_);
     }
-    if (command.spawnEnemy) {
+    if (command.spawnEnemy &&
+        command.spawnEnemy->type != EnemyType::Sapper) {
         const auto core = buildings_.core();
         if (core) {
             constexpr double TwoPi =

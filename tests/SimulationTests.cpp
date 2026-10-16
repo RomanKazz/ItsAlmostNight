@@ -3896,6 +3896,11 @@ void runSimulationTests() {
     const std::size_t activeBeforeDebugSpawn =
         simulation.snapshot().activeEnemyCount;
     ian::PlayerCommand spawnDebugEnemy;
+    const auto enemiesBeforeRetiredSpawn = simulation.snapshot().enemies.size();
+    spawnDebugEnemy.spawnEnemy = ian::SpawnEnemyCommand{ian::EnemyType::Sapper};
+    simulation.tick(0.0, spawnDebugEnemy);
+    require(simulation.snapshot().enemies.size() == enemiesBeforeRetiredSpawn,
+            "debug commands cannot spawn the retired explosive enemy");
     spawnDebugEnemy.spawnEnemy = ian::SpawnEnemyCommand{ian::EnemyType::Boss};
     simulation.tick(1.0 / 60.0, spawnDebugEnemy);
     require(simulation.snapshot().activeEnemyCount ==
