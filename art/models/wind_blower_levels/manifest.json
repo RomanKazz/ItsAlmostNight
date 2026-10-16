@@ -1,0 +1,2553 @@
+{
+  "asset": "wind_blower_levels",
+  "coordinates": "GLB +Y up, -Z forward; Blender +Z up, +Y forward; metres",
+  "footprint_m": [
+    2,
+    2
+  ],
+  "integration": {
+    "gameplay_changed": false,
+    "loader_verified": true,
+    "playtested": false,
+    "renderer_connected": false
+  },
+  "intentional_contacts": [
+    "Turntable seats on the pedestal",
+    "Rotor shaft is inside its bearing",
+    "Motor-bank support brackets are fixed to the yoke",
+    "Blade roots sit inside the hub"
+  ],
+  "levels": [
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6100000143051147,
+          1.340000033378601,
+          0.6100000143051147
+        ],
+        "min": [
+          -0.6100000143051147,
+          0.0,
+          -0.6100000143051147
+        ],
+        "size": [
+          1.2200000286102295,
+          1.340000033378601,
+          1.2200000286102295
+        ]
+      },
+      "description": "Original four-blade fan",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl01.glb",
+      "fresh_import_verified": true,
+      "level": 1,
+      "motion": {
+        "blade_count": 4,
+        "blade_tip_radius": 0.2505993115014628,
+        "bore_inradius": 0.2530725664877359,
+        "maximum_moving_height": 1.3149999380111694,
+        "maximum_moving_radius": 0.551805281083841,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "cb52ca79995ac62d76e1c7203602c7967c1d6a80518f71d7cc454ed4b1ebdec0",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 376,
+        "rotor_mesh": 260,
+        "yaw_mesh": 1488
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6000000238418579,
+          1.3149999380111694,
+          0.6000000238418579
+        ],
+        "min": [
+          -0.6000000238418579,
+          0.0,
+          -0.6000000238418579
+        ],
+        "size": [
+          1.2000000476837158,
+          1.3149999380111694,
+          1.2000000476837158
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 2124
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Gold intake rim and foot belt",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl02.glb",
+      "fresh_import_verified": true,
+      "level": 2,
+      "motion": {
+        "blade_count": 4,
+        "blade_tip_radius": 0.2505993115014628,
+        "bore_inradius": 0.2530725664877359,
+        "maximum_moving_height": 1.3149999380111694,
+        "maximum_moving_radius": 0.551805281083841,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "554388e675aee8be47c6906c968a98f5c0410ae40fdb43a79117d0a8599ee2d5",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 472,
+        "rotor_mesh": 260,
+        "yaw_mesh": 1488
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3149999380111694,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3149999380111694,
+          1.25
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 2220
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Gold yoke with raised orange side panels",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl03.glb",
+      "fresh_import_verified": true,
+      "level": 3,
+      "motion": {
+        "blade_count": 4,
+        "blade_tip_radius": 0.2505993115014628,
+        "bore_inradius": 0.2530725664877359,
+        "maximum_moving_height": 1.3149999380111694,
+        "maximum_moving_radius": 0.551805281083841,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "77c59da69664a2faa6263f5a84302bf194e19704328f332fa9ef81bada78bda4",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 472,
+        "rotor_mesh": 260,
+        "yaw_mesh": 1520
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3149999380111694,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3149999380111694,
+          1.25
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 2252
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Larger intake and rear reinforcing collar",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl04.glb",
+      "fresh_import_verified": true,
+      "level": 4,
+      "motion": {
+        "blade_count": 4,
+        "blade_tip_radius": 0.27064725328197936,
+        "bore_inradius": 0.27331837180675483,
+        "maximum_moving_height": 1.3433998823165894,
+        "maximum_moving_radius": 0.5682789851375205,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "5c1a7d1ea05c1fa126d1445325de6e18f541bc20ecc9dafaefc9966a9ad1be74",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 568,
+        "rotor_mesh": 260,
+        "yaw_mesh": 1616
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3433998823165894,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3433998823165894,
+          1.25
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 2444
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Twin red motor banks and widened head",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl05.glb",
+      "fresh_import_verified": true,
+      "level": 5,
+      "motion": {
+        "blade_count": 4,
+        "blade_tip_radius": 0.2856832316183482,
+        "bore_inradius": 0.28850272579601893,
+        "maximum_moving_height": 1.3646999597549438,
+        "maximum_moving_radius": 0.6483851954043214,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "4ff484a354706d43e8930dfe975166aa04cb95a8800535808491474a6f220b62",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 568,
+        "rotor_mesh": 260,
+        "yaw_mesh": 2384
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3646999597549438,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3646999597549438,
+          1.25
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 3212
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Six blades and an extended rear motor",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl06.glb",
+      "fresh_import_verified": true,
+      "level": 6,
+      "motion": {
+        "blade_count": 6,
+        "blade_tip_radius": 0.2834323031352521,
+        "bore_inradius": 0.28850272579601893,
+        "maximum_moving_height": 1.3646999597549438,
+        "maximum_moving_radius": 0.6483851954043214,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "5258a1cf08081fb08bb46f7976ea2ca13a5db09bb090052e2ba8ba8526e010cb",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 568,
+        "rotor_mesh": 316,
+        "yaw_mesh": 2544
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.625,
+          1.3646999597549438,
+          0.625
+        ],
+        "min": [
+          -0.625,
+          0.0,
+          -0.625
+        ],
+        "size": [
+          1.25,
+          1.3646999597549438,
+          1.25
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 3428
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Heavy duct rails and double motor straps",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl07.glb",
+      "fresh_import_verified": true,
+      "level": 7,
+      "motion": {
+        "blade_count": 6,
+        "blade_tip_radius": 0.2983497926823511,
+        "bore_inradius": 0.3036870797852831,
+        "maximum_moving_height": 1.3859999179840088,
+        "maximum_moving_radius": 0.6694059437042916,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "7307de30a79af809122c3aac45bf823f9e8168e0895550ec7f842adc551c49f2",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 664,
+        "rotor_mesh": 316,
+        "yaw_mesh": 2672
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.3859999179840088,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.6380000114440918
+        ],
+        "size": [
+          1.2760000228881836,
+          1.3859999179840088,
+          1.2760000228881836
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 3652
+    },
+    {
+      "collision_bounds_glb": {
+        "max": [
+          0.6800000071525574,
+          1.4700000286102295,
+          0.6800000071525574
+        ],
+        "min": [
+          -0.6800000071525574,
+          0.0,
+          -0.6800000071525574
+        ],
+        "size": [
+          1.3600000143051147,
+          1.4700000286102295,
+          1.3600000143051147
+        ]
+      },
+      "description": "Eight blades, flared intake and master pedestal",
+      "file": "assets/models/buildings/wind_blower_levels/wind_blower_lvl08.glb",
+      "fresh_import_verified": true,
+      "level": 8,
+      "motion": {
+        "blade_count": 8,
+        "blade_tip_radius": 0.29642007308449325,
+        "bore_inradius": 0.3036870797852831,
+        "maximum_moving_height": 1.4279999732971191,
+        "maximum_moving_radius": 0.6694059437042916,
+        "poses": 3936,
+        "rotor_step_degrees": 1,
+        "unintended_intersections": 0,
+        "yaw_step_degrees": 1
+      },
+      "normals_uv_manifold_verified": true,
+      "raw_glb_verified": true,
+      "render_order": {
+        "base_mesh": 0,
+        "rotor_mesh": 1,
+        "yaw_mesh": 2
+      },
+      "sha256": "bfa7afe05a5119cf9a5cee08245d18b540a91bcbd0c089020298872dc4c4e71c",
+      "transforms_glb": {
+        "COL_BOX_BODY": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MUZZLE_01": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.4790000021457672
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.4790000021457672
+          ]
+        },
+        "asset_root": {
+          "parent": null,
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "base_mesh": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_mesh": {
+          "parent": "rotor_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotor_pivot": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.9600000381469727,
+            -0.30000001192092896
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.6100000143051147,
+            -0.30000001192092896
+          ]
+        },
+        "socket_base": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "socket_ui_top": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            1.5499999523162842,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            1.5499999523162842,
+            0
+          ]
+        },
+        "yaw_mesh": {
+          "parent": "yaw_pivot",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0,
+            0
+          ]
+        },
+        "yaw_pivot": {
+          "parent": "asset_root",
+          "position_relative_to_root": [
+            0.0,
+            0.3499999940395355,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "translation_local": [
+            0,
+            0.3499999940395355,
+            0
+          ]
+        }
+      },
+      "triangles_by_mesh": {
+        "COL_BOX_BODY": 12,
+        "base_mesh": 760,
+        "rotor_mesh": 372,
+        "yaw_mesh": 2832
+      },
+      "visible_bounds_glb": {
+        "max": [
+          0.6380000114440918,
+          1.4279999732971191,
+          0.6380000114440918
+        ],
+        "min": [
+          -0.6380000114440918,
+          0.0,
+          -0.6380000114440918
+        ],
+        "size": [
+          1.2760000228881836,
+          1.4279999732971191,
+          1.2760000228881836
+        ]
+      },
+      "visible_materials": 1,
+      "visible_meshes": 3,
+      "visible_primitives": 3,
+      "visible_triangles": 3964
+    }
+  ],
+  "license": "Kenney Tower Defense Kit 2.1 colormap CC0; original project geometry",
+  "mode": "Eight complete standalone variants; choose one, never combine them as overlays",
+  "original_base_sha256": "defb6eb9ee2d3793918c590491cf6a3d1043829dc210026664607ff68b6ef8f7",
+  "palette": {
+    "embedded_glb": true,
+    "packed_blend": true,
+    "path": "assets/models/buildings/Textures/colormap.png",
+    "sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6"
+  },
+  "pitch_degrees": [
+    0,
+    0
+  ],
+  "recoil_m": 0,
+  "rig": {
+    "muzzle_glb": [
+      0,
+      0.96,
+      -0.479
+    ],
+    "muzzle_parent": "yaw_pivot",
+    "rotor_axis_glb": [
+      0,
+      0,
+      -1
+    ],
+    "rotor_pivot_glb": [
+      0,
+      0.96,
+      -0.3
+    ],
+    "yaw_axis_glb": [
+      0,
+      1,
+      0
+    ],
+    "yaw_pivot_glb": [
+      0,
+      0.35,
+      0
+    ]
+  },
+  "source_blend_sha256": "b23a4fa7c2139b8359741f71c91a188ca5a22a69a4ed735cd97d3159ffd737cc"
+}
