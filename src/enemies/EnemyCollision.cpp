@@ -53,6 +53,7 @@ constexpr int CollisionCellCount =
 
 struct CollisionBody {
     double radius{}, centerY{}, halfHeight{}, inverseMass{};
+    int searchCells{};
     bool valid{};
 };
 
@@ -69,6 +70,10 @@ struct CollisionBody {
     // Most grid neighbours do not touch. Preserve pair order and all twelve
     // solver iterations, but only compute the exact distance for nearby pairs.
     if (std::abs(offsetX) >= minimumDistance || std::abs(offsetZ) >= minimumDistance)
+        return false;
+    // Corner neighbours pass the axis test but still cannot touch. Keep
+    // hypot for actual contacts so their corrections stay bit-for-bit equal.
+    if (offsetX * offsetX + offsetZ * offsetZ >= minimumDistance * minimumDistance)
         return false;
     const double distance = std::hypot(offsetX, offsetZ);
     const double penetration = std::max(0.0, minimumDistance - distance);
@@ -260,8 +265,10 @@ void resolveEnemyCapsuleCollisions(
     std::vector<int>& enemyLinks,
     std::vector<int>& structureLinks,
     std::span<const int> cachedStructureHeads) {
-    std::array<int, CollisionCellCount> bucketHeads{};
-    std::array<int, CollisionCellCount> localStructureHeads{};
+    // Heads are filled before any read; value-initializing both large grids
+    // here would clear them a second time on every simulation tick.
+    std::array<int, CollisionCellCount> bucketHeads;
+    std::array<int, CollisionCellCount> localStructureHeads;
     enemyLinks.assign(enemies.size(), -1);
     double maximumStructureRadius = 0.0;
     for (const EnemyStructureTarget& structure : structures) {
@@ -305,10 +312,17 @@ void resolveEnemyCapsuleCollisions(
         bodies[index] = {
             cylinder.radius + ContactPadding * 0.5, cylinder.center.y, cylinder.halfHeight,
             1.0 / (capsuleMass(enemy.type) * (enemy.eliteAffixes ? 1.08 * 1.08 : 1.0)),
+            0,
             std::isfinite(cylinder.radius) && std::isfinite(cylinder.halfHeight) &&
                 cylinder.radius > 0 && cylinder.halfHeight > 0 &&
                 std::isfinite(cylinder.center.x) && std::isfinite(cylinder.center.y) &&
                 std::isfinite(cylinder.center.z)};
+    }
+    for (std::size_t index = 0; index < enemies.size(); ++index) {
+        if (!enemies[index].active) continue;
+        bodies[index].searchCells = std::max(1, static_cast<int>(std::ceil(
+            (enemyCollisionCylinder(enemies[index]).radius + maximumEnemyRadius + ContactPadding) /
+            CollisionCellSize)));
     }
     const int structureSearchCells = std::max(
         2, static_cast<int>(std::ceil(
@@ -345,9 +359,7 @@ void resolveEnemyCapsuleCollisions(
                 enemies[leftIndex].position.x);
             const int centerZ = collisionCellCoordinate(
                 enemies[leftIndex].position.z);
-            const int enemySearchCells = std::max(1, static_cast<int>(std::ceil(
-                (enemyCollisionCylinder(enemies[leftIndex]).radius + maximumEnemyRadius + ContactPadding) /
-                CollisionCellSize)));
+            const int enemySearchCells = bodies[leftIndex].searchCells;
             for (int z = std::max(0, centerZ - enemySearchCells);
                  z <= std::min(
                           CollisionGridSize - 1,
