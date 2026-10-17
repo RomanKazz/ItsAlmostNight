@@ -160,46 +160,11 @@ void drawDragPlacementSummary(
 
 using namespace app_detail;
 
-void App::renderGameplayUi(
-    const SimulationSnapshot& snapshot,
-    const SimulationSnapshot& presentationSnapshot,
-    const SimulationSnapshot& feedbackSnapshot,
-    const SimulationSnapshot& healthBarSnapshot,
+void App::renderGameplayViewModel(const SimulationSnapshot& snapshot,
     const Camera3D& camera, const WorldLighting& lighting,
-    std::optional<EntityId> pinnedOrdinaryBuilding,
-    std::optional<EntityId> pinnedModularBuilding,
-    RenderFrameTimings& timings) {
-    auto& uiStart = timings.uiStart;
-    auto& viewModelMilliseconds = timings.viewModelMilliseconds;
-    auto& worldUiMilliseconds = timings.worldUiMilliseconds;
-    auto& interactionPromptMilliseconds =
-        timings.interactionPromptMilliseconds;
-    auto& hudCoreMilliseconds = timings.hudCoreMilliseconds;
-    auto& hudTargetHealthMilliseconds =
-        timings.hudTargetHealthMilliseconds;
-    auto& hudResourcesMilliseconds = timings.hudResourcesMilliseconds;
-    auto& hudVitalityMilliseconds = timings.hudVitalityMilliseconds;
-    auto& hudInformationMilliseconds =
-        timings.hudInformationMilliseconds;
-    auto& hudObjectivesMilliseconds = timings.hudObjectivesMilliseconds;
-    auto& hudLootMilliseconds = timings.hudLootMilliseconds;
-    auto& hudPhaseMilliseconds = timings.hudPhaseMilliseconds;
-    auto& hudHotbarMilliseconds = timings.hudHotbarMilliseconds;
-    auto& hudFeedbackMilliseconds = timings.hudFeedbackMilliseconds;
-    auto& hudTextFlushMilliseconds = timings.hudTextFlushMilliseconds;
-    auto& resourceGainMilliseconds = timings.resourceGainMilliseconds;
-    auto& minimapMilliseconds = timings.minimapMilliseconds;
-    auto& minimapSetupMilliseconds = timings.minimapSetupMilliseconds;
-    auto& minimapTargetRefreshMilliseconds =
-        timings.minimapTargetRefreshMilliseconds;
-    auto& minimapFrameMilliseconds = timings.minimapFrameMilliseconds;
-    auto& minimapLabelsMilliseconds = timings.minimapLabelsMilliseconds;
-    auto& uiOverlaysMilliseconds = timings.uiOverlaysMilliseconds;
-uiStart = PerformanceClock::now();
+    RenderFrameTimings& timings, bool prepareTarget) {
 const float arrivalHudOpacity = playerArrival_.hudOpacity();
 const bool showGameplayHud = !hudHidden_ && arrivalHudOpacity > 0.0F;
-const bool showWorldHud = showGameplayHud && arrivalHudOpacity >= 1.0F;
-
 const bool tuningPreview =
     renderer_->graphicsPanelVisible() &&
     graphicsPanelTab_ == ToolSettingsTab;
@@ -288,7 +253,22 @@ if (showFirstPersonTool) {
         renderTuning.position.y -=
             activeToolTuning().swapDrop * smooth;
     }
-    if (renderer_->beginFirstPersonToolPass(&lighting, &camera)) {
+    if (!prepareTarget) {
+        if (timings.viewModelPrepared) {
+        renderer_->beginGpuTimer(
+            RendererGpuStage::ViewModelComposite);
+        renderer_->compositeFirstPersonTool(activeToolTuning());
+        renderer_->drawFirstPersonSwingTrail(
+            toolVisual, swingProgress,
+            static_cast<float>(cameraBobPhase_),
+            static_cast<float>(cameraBobAmount_),
+            renderTuning, viewModelCamera,
+            toolSwingAlternateAnimation_);
+        renderer_->endGpuTimer(
+            RendererGpuStage::ViewModelComposite);
+        }
+    } else if (renderer_->beginFirstPersonToolPass(&lighting, &camera)) {
+        timings.viewModelPrepared = true;
         BeginMode3D(viewModelCamera);
         renderer_->beginGpuTimer(
             RendererGpuStage::ViewModelTarget);
@@ -307,22 +287,53 @@ if (showFirstPersonTool) {
         renderer_->endGpuTimer(
             RendererGpuStage::ViewModelTarget);
         EndMode3D();
-        renderer_->beginGpuTimer(
-            RendererGpuStage::ViewModelComposite);
-        renderer_->endFirstPersonToolPass(
-            activeToolTuning(), &lighting);
-        renderer_->drawFirstPersonSwingTrail(
-            toolVisual, swingProgress,
-            static_cast<float>(cameraBobPhase_),
-            static_cast<float>(cameraBobAmount_),
-            renderTuning, viewModelCamera,
-            toolSwingAlternateAnimation_);
-        renderer_->endGpuTimer(
-            RendererGpuStage::ViewModelComposite);
+        renderer_->finishFirstPersonToolTarget();
     }
 }
-viewModelMilliseconds =
+timings.viewModelMilliseconds +=
     performanceMilliseconds(viewModelStart);
+}
+
+void App::renderGameplayUi(
+    const SimulationSnapshot& snapshot,
+    const SimulationSnapshot& presentationSnapshot,
+    const SimulationSnapshot& feedbackSnapshot,
+    const SimulationSnapshot& healthBarSnapshot,
+    const Camera3D& camera, const WorldLighting& lighting,
+    std::optional<EntityId> pinnedOrdinaryBuilding,
+    std::optional<EntityId> pinnedModularBuilding,
+    RenderFrameTimings& timings) {
+    auto& uiStart = timings.uiStart;
+    auto& worldUiMilliseconds = timings.worldUiMilliseconds;
+    auto& interactionPromptMilliseconds =
+        timings.interactionPromptMilliseconds;
+    auto& hudCoreMilliseconds = timings.hudCoreMilliseconds;
+    auto& hudTargetHealthMilliseconds =
+        timings.hudTargetHealthMilliseconds;
+    auto& hudResourcesMilliseconds = timings.hudResourcesMilliseconds;
+    auto& hudVitalityMilliseconds = timings.hudVitalityMilliseconds;
+    auto& hudInformationMilliseconds =
+        timings.hudInformationMilliseconds;
+    auto& hudObjectivesMilliseconds = timings.hudObjectivesMilliseconds;
+    auto& hudLootMilliseconds = timings.hudLootMilliseconds;
+    auto& hudPhaseMilliseconds = timings.hudPhaseMilliseconds;
+    auto& hudHotbarMilliseconds = timings.hudHotbarMilliseconds;
+    auto& hudFeedbackMilliseconds = timings.hudFeedbackMilliseconds;
+    auto& hudTextFlushMilliseconds = timings.hudTextFlushMilliseconds;
+    auto& resourceGainMilliseconds = timings.resourceGainMilliseconds;
+    auto& minimapMilliseconds = timings.minimapMilliseconds;
+    auto& minimapSetupMilliseconds = timings.minimapSetupMilliseconds;
+    auto& minimapTargetRefreshMilliseconds =
+        timings.minimapTargetRefreshMilliseconds;
+    auto& minimapFrameMilliseconds = timings.minimapFrameMilliseconds;
+    auto& minimapLabelsMilliseconds = timings.minimapLabelsMilliseconds;
+    auto& uiOverlaysMilliseconds = timings.uiOverlaysMilliseconds;
+uiStart = PerformanceClock::now();
+const float arrivalHudOpacity = playerArrival_.hudOpacity();
+const bool showGameplayHud = !hudHidden_ && arrivalHudOpacity > 0.0F;
+const bool showWorldHud = showGameplayHud && arrivalHudOpacity >= 1.0F;
+
+renderGameplayViewModel(snapshot, camera, lighting, timings, false);
 renderer_->beginGpuTimer(RendererGpuStage::Ui);
 
 // Resolve once so the health bar and upgrade price share the same target.
@@ -910,16 +921,16 @@ resourceGainMilliseconds =
 
 const auto minimapStart = PerformanceClock::now();
 if (showGameplayHud) {
-    drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_);
+    drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_, MinimapHudPass::Composite);
     const auto& minimapTimings =
         minimapRenderPerformanceStats();
-    minimapSetupMilliseconds = minimapTimings.setupMs;
-    minimapTargetRefreshMilliseconds =
+    minimapSetupMilliseconds += minimapTimings.setupMs;
+    minimapTargetRefreshMilliseconds +=
         minimapTimings.targetRefreshMs;
     minimapFrameMilliseconds = minimapTimings.frameMs;
     minimapLabelsMilliseconds = minimapTimings.labelsMs;
 }
-minimapMilliseconds =
+minimapMilliseconds +=
     performanceMilliseconds(minimapStart);
 
 if (arrivalHudPass) {

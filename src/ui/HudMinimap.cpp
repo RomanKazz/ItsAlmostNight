@@ -560,7 +560,8 @@ minimapRenderPerformanceStats() noexcept {
 }
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
-                    float expansion) {
+                    float expansion, MinimapHudPass pass) {
+    const bool prepareOnly = pass == MinimapHudPass::Prepare;
     minimapPerformanceStats = {};
     auto minimapSectionStart = PerformanceClock::now();
     if (expansion < 0.0F) return;
@@ -611,14 +612,14 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<double>(worldLimit),
         static_cast<double>(expanded));
 
-    if (expanded > 0.001F) {
+    if (!prepareOnly && expanded > 0.001F) {
         DrawRectangle(
             0, 0, GetScreenWidth(), GetScreenHeight(),
             {24, 11, 5,
              static_cast<unsigned char>(
                  std::lround(168.0F * expanded))});
     }
-    if (expanded > 0.35F) {
+    if (!prepareOnly && expanded > 0.35F) {
         drawUiText(
             "TACTICAL MAP",
             {panelX + panelPadding,
@@ -636,8 +637,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const double refreshInterval = expanded > 0.55F
         ? 1.0 / 30.0
         : 1.0 / 20.0;
-    const bool refreshTarget = ui.minimapTargetRefreshDue(
-        minimapNow, refreshInterval, expansionAnimating);
+    const bool refreshTarget = pass != MinimapHudPass::Composite &&
+        ui.minimapTargetRefreshDue(minimapNow, refreshInterval, expansionAnimating);
     minimapPerformanceStats.setupMs =
         performanceMilliseconds(minimapSectionStart);
     minimapSectionStart = PerformanceClock::now();
@@ -1268,6 +1269,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     minimapPerformanceStats.targetRefreshMs =
         performanceMilliseconds(minimapSectionStart);
     minimapSectionStart = PerformanceClock::now();
+
+    if (prepareOnly) {
+        if (expanded <= 0.001F) ensureMinimapFrameTarget(ui);
+        return;
+    }
 
     const Vector2 displayMapCenter{
         displayMapBounds.x + displayMapSize * 0.5F,

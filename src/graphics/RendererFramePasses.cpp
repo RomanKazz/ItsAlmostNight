@@ -730,7 +730,16 @@ void Renderer::endFirstPersonToolPass(
     if (!resources_.viewModelTargetValid()) {
         return;
     }
+    finishFirstPersonToolTarget();
+    compositeFirstPersonTool(tuning);
+}
+
+void Renderer::finishFirstPersonToolTarget() {
     EndTextureMode();
+}
+
+void Renderer::compositeFirstPersonTool(const FirstPersonToolTuning& tuning) {
+    if (!resources_.viewModelTargetValid()) return;
     const RenderTexture2D& target =
         resources_.viewModelTarget();
     const Rectangle source{

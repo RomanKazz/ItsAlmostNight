@@ -111,25 +111,29 @@ float bilateralSsao(vec2 uv)
     {
         return 0.0;
     }
+    vec2 aoUvs[5];
+    float aoValues[5];
+    float maximumAo = 0.0;
+    for (int sampleIndex = 0; sampleIndex < 5; ++sampleIndex)
+    {
+        vec2 offset = sampleIndex == 0 ? vec2(0.0)
+            : sampleIndex == 1 ? vec2(1.0, 0.0)
+            : sampleIndex == 2 ? vec2(-1.0, 0.0)
+            : sampleIndex == 3 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+        aoUvs[sampleIndex] = clamp(uv + offset*ssaoTexelSize,
+            ssaoTexelSize*0.5, vec2(1.0) - ssaoTexelSize*0.5);
+        aoValues[sampleIndex] = texture(ssaoTexture, aoUvs[sampleIndex]).r;
+        maximumAo = max(maximumAo, aoValues[sampleIndex]);
+    }
+    // Zero AO cannot be changed by bilateral weights.
+    if (maximumAo == 0.0) return 0.0;
     vec3 centerPosition = reconstructViewPosition(uv, centerDepth);
     vec3 centerNormal = decodeOctahedralNormal(centerPackedNormal.rg);
     float total = 0.0;
     float totalWeight = 0.0;
     for (int sampleIndex = 0; sampleIndex < 5; ++sampleIndex)
     {
-        vec2 offset = sampleIndex == 0
-            ? vec2(0.0)
-            : sampleIndex == 1
-                ? vec2(1.0, 0.0)
-                : sampleIndex == 2
-                    ? vec2(-1.0, 0.0)
-                    : sampleIndex == 3
-                        ? vec2(0.0, 1.0)
-                        : vec2(0.0, -1.0);
-        vec2 sampleUv = clamp(
-            uv + offset*ssaoTexelSize,
-            ssaoTexelSize*0.5,
-            vec2(1.0) - ssaoTexelSize*0.5);
+        vec2 sampleUv = aoUvs[sampleIndex];
         float sampleDepth = texture(sceneDepth, sampleUv).r;
         vec3 samplePackedNormal = texture(sceneNormal, sampleUv).rgb;
         float sampleMaterialClass = materialClassOf(
@@ -151,7 +155,7 @@ float bilateralSsao(vec2 uv)
         float spatialWeight = sampleIndex == 0 ? 1.0 : 0.62;
         float weight = depthWeight*normalWeight*spatialWeight*
             sampleAoMask;
-        total += texture(ssaoTexture, sampleUv).r*weight;
+        total += aoValues[sampleIndex]*weight;
         totalWeight += weight;
     }
     return total/max(totalWeight, 0.0001);
@@ -268,6 +272,22 @@ float inkDifference(
     // and tree crowns.
     float separateSurfaceDistance =
         0.080 + viewDistance*0.0015;
+    // Depth already assigns an overlapping-object edge to the front surface.
+    // Drawing a plain class boundary on both surfaces doubles the visible
+    // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
+    // reserved for impact fragments, which still need their own contour when
+    // they sit almost flush with the source object.
+    float centerIsEffect = step(3.5, centerMaterialClass);
+    float frontClassBoundary = smoothstep(
+        separateSurfaceDistance * 0.08,
+        separateSurfaceDistance * 0.30,
+        frontSurfaceGap);
+    float objectClassBoundary = centerIsObject*neighborIsObject*
+        max(centerIsEffect, frontClassBoundary)*
+        step(0.5, abs(centerMaterialClass - neighborMaterialClass));
+    // Continuous faces have zero depth-boundary contribution.
+    if (frontSurfaceGap <= separateSurfaceDistance)
+        return objectClassBoundary*directionWeight;
     // Hardware depth is affine across a projected planar face. Compare the
     // candidate jump with the one-sided slopes INSIDE each surface. Unlike
     // fwidth, these samples never straddle the candidate edge in 2x2 quads.
@@ -291,19 +311,6 @@ float inkDifference(
         separateSurfaceDistance,
         separateSurfaceDistance * 3.0,
         frontSurfaceGap)*depthDiscontinuity;
-    // Depth already assigns an overlapping-object edge to the front surface.
-    // Drawing a plain class boundary on both surfaces doubles the visible
-    // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
-    // reserved for impact fragments, which still need their own contour when
-    // they sit almost flush with the source object.
-    float centerIsEffect = step(3.5, centerMaterialClass);
-    float frontClassBoundary = smoothstep(
-        separateSurfaceDistance * 0.08,
-        separateSurfaceDistance * 0.30,
-        frontSurfaceGap);
-    float objectClassBoundary = centerIsObject*neighborIsObject*
-        max(centerIsEffect, frontClassBoundary)*
-        step(0.5, abs(centerMaterialClass - neighborMaterialClass));
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
     return max(objectClassBoundary, objectDepthBoundary)*directionWeight;

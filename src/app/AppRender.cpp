@@ -358,7 +358,7 @@ void App::render() {
         performanceStats_.uiTextRender.sample(
             uiTextPerformanceStats().milliseconds);
         performanceStats_.uiRender.sample(
-            performanceMilliseconds(uiStart));
+            performanceMilliseconds(uiStart) + timings.uiPreparationMilliseconds);
     } else {
         performanceStats_.renderPreparation.sample(
             performanceMilliseconds(renderPreparationStart));

@@ -102,8 +102,9 @@ minimapRenderPerformanceStats() noexcept;
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera,
              const ControlSettings& controls);
+enum class MinimapHudPass { Complete, Prepare, Composite };
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
-                    float expansion);
+                    float expansion, MinimapHudPass pass = MinimapHudPass::Complete);
 void drawRunStateOverlay(const SimulationSnapshot& snapshot);
 
 } // namespace ian

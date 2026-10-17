@@ -4,6 +4,7 @@
 #include "graphics/WorldTransforms.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
+#include "ui/HudRenderer.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -460,6 +461,19 @@ void App::renderGameplayFrame(
         }
     }
     renderer_->endGpuTimer(RendererGpuStage::World);
+    // Complete the tool texture before the first window draw. Switching away
+    // from the window again can drain the macOS driver's command-buffer pool.
+    const auto uiPreparationStart = PerformanceClock::now();
+    renderGameplayViewModel(snapshot, camera, lighting, timings, true);
+    if (!hudHidden_ && playerArrival_.hudOpacity() > 0.0F) {
+        const auto minimapStart = PerformanceClock::now();
+        drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_, MinimapHudPass::Prepare);
+        timings.minimapMilliseconds += performanceMilliseconds(minimapStart);
+        const auto& mapTimings = minimapRenderPerformanceStats();
+        timings.minimapSetupMilliseconds += mapTimings.setupMs;
+        timings.minimapTargetRefreshMilliseconds += mapTimings.targetRefreshMs;
+    }
+    timings.uiPreparationMilliseconds = performanceMilliseconds(uiPreparationStart);
     renderer_->beginGpuTimer(RendererGpuStage::PostProcess);
     const auto postProcessStart = PerformanceClock::now();
     renderer_->setMenuDepthOfField(

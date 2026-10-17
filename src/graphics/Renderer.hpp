@@ -338,6 +338,11 @@ class Renderer {
         const FirstPersonToolTuning& tuning,
         const WorldLighting* lighting = nullptr);
 
+    // Prepare offscreen tools before composing the world to the window.
+    // endFirstPersonToolPass remains the immediate-mode convenience path.
+    void finishFirstPersonToolTarget();
+    void compositeFirstPersonTool(const FirstPersonToolTuning& tuning);
+
     [[nodiscard]] bool beginShadowPass(const WorldLighting& lighting,
                                        Vector3 focus);
     void endShadowPass();

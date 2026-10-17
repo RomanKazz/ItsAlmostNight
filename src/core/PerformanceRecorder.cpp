@@ -57,7 +57,8 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "window_focused,window_minimized,window_focus_changed,"
                "final_batch_submission_ms,present_thread_cpu_ms,"
                "present_not_running_ms,present_thread_cpu_valid,"
-               "defense_shot_events,active_defense_projectiles\n";
+               "defense_shot_events,active_defense_projectiles,optimized_build,"
+               "ssao_enabled,bloom_enabled,ink_outlines_enabled,postprocessing_enabled\n";
     return true;
 }
 
@@ -122,6 +123,11 @@ void PerformanceRecorder::record(
             << ',' << static_cast<int>(value.presentThreadCpuValid)
             << ',' << value.defenseShotEvents
             << ',' << value.activeDefenseProjectiles
+            << ',' << static_cast<int>(value.optimizedBuild)
+            << ',' << static_cast<int>(value.ssaoEnabled)
+            << ',' << static_cast<int>(value.bloomEnabled)
+            << ',' << static_cast<int>(value.inkOutlinesEnabled)
+            << ',' << static_cast<int>(value.postProcessingEnabled)
             << '\n';
     ++framesSinceFlush_;
     constexpr std::uint32_t FlushIntervalFrames = 300U;

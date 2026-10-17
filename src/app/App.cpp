@@ -464,6 +464,13 @@ int App::run() {
                       })) : 0U,
                 .activeDefenseProjectiles = static_cast<std::size_t>(
                     std::ranges::count_if(performanceSnapshot.cannonProjectiles, [](const auto& shot) { return shot.active; })),
+#ifdef NDEBUG
+                .optimizedBuild = true,
+#endif
+                .ssaoEnabled = renderer_->settings().ssao,
+                .bloomEnabled = renderer_->settings().bloom,
+                .inkOutlinesEnabled = renderer_->settings().inkOutlines,
+                .postProcessingEnabled = renderer_->settings().postProcessing,
             });
         }
         persistUserSettings();

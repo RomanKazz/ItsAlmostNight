@@ -120,6 +120,7 @@ struct AppPerformanceStats {
 
 class App {
     friend struct AppPresentationTestAccess;
+    friend struct AppFrameBenchmarkAccess;
   public:
     App();
     int run();
@@ -141,6 +142,8 @@ class App {
     struct RenderFrameTimings {
         PerformanceClock::time_point uiStart{};
         double viewModelMilliseconds{};
+        bool viewModelPrepared{};
+        double uiPreparationMilliseconds{};
         double worldUiMilliseconds{};
         double interactionPromptMilliseconds{};
         double hudCoreMilliseconds{};
@@ -189,6 +192,9 @@ class App {
         std::optional<EntityId> pinnedModularBuilding,
         PerformanceClock::time_point renderPreparationStart,
         RenderFrameTimings& timings);
+    void renderGameplayViewModel(const SimulationSnapshot& snapshot,
+        const Camera3D& camera, const WorldLighting& lighting,
+        RenderFrameTimings& timings, bool prepareTarget);
     void renderGameplayUi(
         const SimulationSnapshot& snapshot,
         const SimulationSnapshot& presentationSnapshot,

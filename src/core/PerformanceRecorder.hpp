@@ -94,6 +94,12 @@ struct PerformanceFrameRecord {
     bool presentThreadCpuValid{};
     std::size_t defenseShotEvents{};
     std::size_t activeDefenseProjectiles{};
+    // Build/settings are required to compare recordings without guessing.
+    bool optimizedBuild{};
+    bool ssaoEnabled{};
+    bool bloomEnabled{};
+    bool inkOutlinesEnabled{};
+    bool postProcessingEnabled{};
 };
 
 class PerformanceRecorder {

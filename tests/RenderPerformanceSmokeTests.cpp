@@ -1,4 +1,6 @@
 #include "graphics/Renderer.hpp"
+#include "PostprocessPixelParity.hpp"
+#include "PreparedMinimapParity.hpp"
 #include "graphics/ViewModelCompositeBounds.hpp"
 #include "graphics/CameraCulling.hpp"
 #include <raymath.h>
@@ -60,6 +62,57 @@ bool firstCombatDraw(ian::Renderer& renderer) {
     renderer.settings()=savedSettings;
     std::cout << "Combat first/repeated GPU draw ms: " << timings[0] << ' '
         << timings[1] << ' ' << timings[2] << "; coverage routing=" << valid << '\n';
+    return valid;
+}
+
+bool preparedToolPixelParity(ian::Renderer& renderer) {
+    using namespace ian;
+    const auto saved = renderer.settings();
+    renderer.settings().renderWidth = GetScreenWidth();
+    renderer.settings().renderHeight = GetScreenHeight();
+    const Camera3D camera{{0, 2, 5}, {0, 1, 0}, {0, 1, 0}, 65, CAMERA_PERSPECTIVE};
+    WorldLighting lighting{}; lighting.cameraPosition = camera.position;
+    bool valid = true;
+    for (bool post : {false, true}) {
+        renderer.settings().postProcessing = post;
+        for (auto visual : {FirstPersonToolVisual::Axe, FirstPersonToolVisual::Pickaxe,
+             FirstPersonToolVisual::Club,
+             FirstPersonToolVisual::IceWand, FirstPersonToolVisual::FireWand, FirstPersonToolVisual::Bomb}) {
+            const auto tuning = defaultFirstPersonToolTuning(visual);
+            const auto toolCamera = firstPersonToolCamera(visual);
+            std::array<Image, 2> images{};
+            for (int prepared = 0; prepared < 2; ++prepared) {
+                renderer.beginFrame();
+                renderer.beginWorldPass({31, 57, 74, 255}, camera);
+                BeginMode3D(camera);
+                renderer.beginWorldShader(lighting);
+                DrawCube({0, 1, 0}, 2, 2, 2, {125, 147, 184, 255});
+                renderer.endWorldShader(); EndMode3D();
+                const auto tool = [&] {
+                    valid = renderer.beginFirstPersonToolPass(&lighting, &camera) && valid;
+                    BeginMode3D(toolCamera);
+                    valid = renderer.drawFirstPersonTool(visual, .4F, .6F, .5F, tuning, .6F, .4F, false, 4) && valid;
+                    EndMode3D();
+                };
+                if (prepared) { tool(); renderer.finishFirstPersonToolTarget(); }
+                renderer.endWorldPass();
+                renderer.drawFirstPersonSwingTrail(visual, .4F, .6F, .5F, tuning, toolCamera, false);
+                if (prepared) renderer.compositeFirstPersonTool(tuning);
+                else { tool(); renderer.endFirstPersonToolPass(tuning); }
+                rlDrawRenderBatchActive(); images[static_cast<std::size_t>(prepared)] = LoadImageFromScreen();
+                renderer.endFrame();
+            }
+            Color* a = LoadImageColors(images[0]); Color* b = LoadImageColors(images[1]);
+            int changed = 0;
+            for (int i = 0; i < images[0].width * images[0].height; ++i)
+                if (std::max({std::abs(int(a[i].r)-int(b[i].r)), std::abs(int(a[i].g)-int(b[i].g)),
+                    std::abs(int(a[i].b)-int(b[i].b))}) > 1) ++changed;
+            if (changed) std::cerr << "Prepared viewmodel pixel mismatch: " << int(visual) << '/' << post << " = " << changed << '\n';
+            valid = valid && changed == 0;
+            UnloadImageColors(a); UnloadImageColors(b); for (auto image : images) UnloadImage(image);
+        }
+    }
+    renderer.settings() = saved;
     return valid;
 }
 
@@ -228,8 +281,11 @@ int main() {
         }
     }
     UnloadRenderTexture(raw); UnloadShader(shader);
+    valid = ian::test::postprocessPixelParity() && valid;
+    valid = preparedToolPixelParity(renderer) && valid;
     valid = skyDepthParity(renderer) && valid;
     valid = presentWaitDiagnostics(renderer) && valid;
+    valid = ian::test::preparedMinimapPixelParity() && valid;
     renderer.shutdown(); CloseWindow();
     std::cout << "GPU sparse queries and complete viewmodel pixel parity: " << valid << '\n';
     return valid ? 0 : 1;
