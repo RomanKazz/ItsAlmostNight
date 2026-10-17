@@ -1191,15 +1191,7 @@ void App::drawWorldEntities(
             if (cannonLoaded(snapshot, building)) {
                 const Vec3 socket = catapultMuzzleWorldPosition(
                     {}, defensiveYaw, cannonPitch(snapshot, building, interpolationAlpha));
-                const auto* character = playerClassDefinition(snapshot.playerClass);
-                const double classDamage = character &&
-                    character->startingBuilding == BuildingType::Catapult
-                        ? character->startingBuildingDamageMultiplier : 1.0;
-                const auto appearance = presentation::bulletAppearance(
-                    CannonSystem::explosionDamage(BuildingType::Catapult, building.level) *
-                    buildingAnvilMultiplier(building) *
-                    std::max(0.05, snapshot.upgradeStats.defenseDamage) *
-                    std::max(0.05, classDamage));
+                const auto appearance = presentation::CannonballAppearance;
                 WorldMaterialState ballMaterial{};
                 ballMaterial.unlitAmount = 1.0F;
                 ballMaterial.screenAoAmount = 0.0F;
@@ -1432,8 +1424,7 @@ void App::drawWorldProjectiles(
         if (!projectile.active) {
             continue;
         }
-        const auto appearance = presentation::bulletAppearance(
-            projectile.explosionDamage);
+        const auto appearance = presentation::CannonballAppearance;
         const Color tint{appearance.color.r, appearance.color.g,
                          appearance.color.b, 255};
         const float scale = static_cast<float>(projectile.visualScale);
@@ -1486,7 +1477,7 @@ void App::drawWorldProjectiles(
     beginProjectileBatch(false);
     for (const auto& projectile : snapshot.cannonProjectiles) {
         if (!projectile.active) continue;
-        const auto appearance = presentation::bulletAppearance(projectile.explosionDamage);
+        const auto appearance = presentation::CannonballAppearance;
         const Vector3 velocity{static_cast<float>(projectile.velocity.x),
                                static_cast<float>(projectile.velocity.y),
                                static_cast<float>(projectile.velocity.z)};

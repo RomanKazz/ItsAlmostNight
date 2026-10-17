@@ -303,7 +303,7 @@ inline void emitDefenseShotGeometry(
 }
 
 // Keep the authored shot style independent of the physical flight runtime.
-// Damage controls the original palette/scale; Size is an additional modifier.
+// Size is the only stat that changes body scale; fragments keep their authored ratio.
 inline void emitDefenseProjectileGeometry(
     const AttackProjectile& projectile, Vector3 cameraPosition,
     float interpolationAlpha, bool drawTail) {
