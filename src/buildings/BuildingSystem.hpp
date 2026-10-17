@@ -243,6 +243,7 @@ class BuildingSystem {
         std::span<const BuildingInstance> buildings,
         std::span<const std::uint8_t> blueprintLevels,
         int coreBuildRadius);
+    // Shared structure levels; Core and legacy entries retain save compatibility.
     [[nodiscard]] const std::array<std::uint8_t,
         GameBalance::BuildingTypeCount>& blueprintLevels() const;
 
@@ -303,6 +304,7 @@ class BuildingSystem {
     bool sandboxMode_{};
     std::uint8_t newTowerBonusStacks_{};
     bool combatCardProgressionEnabled_{};
+    // Defense and producer placement use these shared levels in normal runs.
     std::array<std::uint8_t, GameBalance::BuildingTypeCount>
         blueprintLevels_{};
 };

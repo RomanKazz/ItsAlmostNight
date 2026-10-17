@@ -35,7 +35,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         if (aimed != buildings_.buildings().end() &&
             !BuildingSystem::usesGlobalBlueprint(aimed->type) &&
             aimed->level < MaxBuildingLevel &&
-            (sandboxMode_ || unlimitedResources_ || !runCombatBuilding(aimed->type))) {
+            (sandboxMode_ || unlimitedResources_ || aimed->type == BuildingType::Core)) {
             aimedUpgradeCost = buildings_.upgradeCost(*aimed);
         }
         if (aimed != buildings_.buildings().end()) {
@@ -455,6 +455,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .objectives = objectives_.statuses(),
         .recommendedObjectives = recommendedObjectives,
         .buildingArsenalCount = runBuildingArsenalCount(),
+        .buildingSlotLimit = runBuildingSlotLimit(activeMetaBonuses_),
         .tomeCount = runTomeCount(runUpgradeStacks_),
         .tomeSlotLimit = runTomeSlotLimit(activeMetaBonuses_),
         .weaponSlotLimit = runWeaponSlotLimit(activeMetaBonuses_),

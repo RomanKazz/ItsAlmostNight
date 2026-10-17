@@ -50,7 +50,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         return checkpoint;
     }
     SuspendedRunState saved{
-        .buildingArsenalVersion = 3,
+        .buildingArsenalVersion = 5,
         .playerClass = playerClass_,
         .metaBonuses = activeMetaBonuses_,
         .terrainSeed = terrain_.seed(),
@@ -199,11 +199,12 @@ bool Simulation::loadSuspendedRunState(
         std::ranges::any_of(saved.runUpgradeStacks, invalidStack);
     const bool invalidUpgradePower = std::ranges::any_of(saved.runUpgradePower,
         [](double power) { return !std::isfinite(power) || power < 0.0 || power > MaximumSavedStack * 2.0; });
-    const bool invalidArsenal = saved.buildingArsenalVersion < 0 || saved.buildingArsenalVersion > 3 ||
+    const bool invalidArsenal = saved.buildingArsenalVersion < 0 || saved.buildingArsenalVersion > 5 ||
         std::ranges::any_of(RunUpgradeDefinitions, [&](const RunUpgradeDefinition& definition) {
             if (!runUpgradeBuilding(definition.effect)) return false;
             const auto index = runUpgradeIndex(definition.effect);
-            const int maximum = saved.buildingArsenalVersion >= 3 && runDefenseCard(definition.effect)
+            const int maximum = saved.buildingArsenalVersion >= 3 && runDefenseCard(definition.effect) &&
+                (runCombatBuilding(*runUpgradeBuilding(definition.effect)) || saved.buildingArsenalVersion >= 5)
                 ? MaxBuildingLevel : 1;
             return saved.runUpgradeStacks[index] > maximum || saved.runUpgradePower[index] > maximum ||
                 (saved.runUpgradePower[index] != 0.0 &&
@@ -478,14 +479,16 @@ bool Simulation::loadSuspendedRunState(
         }
     }
     // Before v3, combat buildings had individual resource-funded levels.
-    // Keep the strongest built copy, then make that level shared for its type.
+    // Before v5, producers did too. Preserve every acquired type even when
+    // migration exceeds the new slot cap, and keep the strongest built copy.
     const auto* savedClass = playerClassDefinition(playerClass_);
     const auto startingDefense = savedClass ? savedClass->startingBuilding : BuildingType::GunTurret;
     for (const auto type : RunBuildingTypes) {
         const auto index = runUpgradeIndex(*buildingRunUpgrade(type));
         int level = runUpgradeStacks_[index];
         if (type == startingDefense) level = std::max(1, level);
-        if (saved.buildingArsenalVersion < 3) {
+        if (saved.buildingArsenalVersion < 3 ||
+            (saved.buildingArsenalVersion < 5 && !runCombatBuilding(type))) {
             for (const auto& building : saved.buildings)
                 if (building.type == type) level = std::max(level, static_cast<int>(building.level));
         }

@@ -427,7 +427,7 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
             .confirm = IsKeyPressed(KEY_ENTER),
             .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
-                : IsKeyPressed(KEY_DOWN) ? 5 : IsKeyPressed(KEY_UP) ? -5 : 0,
+                : IsKeyPressed(KEY_DOWN) ? MetaShopGridColumns : IsKeyPressed(KEY_UP) ? -MetaShopGridColumns : 0,
         };
         const auto result = drawShopMenu(ui_, metaProgression_, shopMenuState_,
             {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, input);

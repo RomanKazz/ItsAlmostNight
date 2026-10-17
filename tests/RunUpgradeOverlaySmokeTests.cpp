@@ -300,8 +300,8 @@ int main(int argc, char** argv) {
                         ian::RunUpgradeEffect::ProductionSpeed};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Rare};
-                    require(ian::app_detail::previewRunUpgrade(display, 0).buildingArsenalCount == display.buildingArsenalCount,
-                        "economy blueprint preview leaves combat slots unchanged");
+                    require(ian::app_detail::previewRunUpgrade(display, 0).buildingArsenalCount == display.buildingArsenalCount + 1,
+                        "economy blueprint preview consumes a shared structure slot");
                 }
                 if (scene == 4) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::DefenseDamage,

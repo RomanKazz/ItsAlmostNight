@@ -27,8 +27,8 @@ inline void checkDefenseCardProgression() {
     require(gunDraws > 49000 && gunDraws < 51000, "defense levels do not bias owned-only offers");
     for (const auto type : RunBuildingTypes) require(runUpgradeMaximumLevel(*buildingRunUpgrade(type)) == 8,
         "every combat card has eight levels");
-    for (const auto type : RunEconomyBuildingTypes) require(runUpgradeMaximumLevel(*buildingRunUpgrade(type)) == 1,
-        "producer acquisitions remain unique");
+    for (const auto type : RunEconomyBuildingTypes) require(runUpgradeMaximumLevel(*buildingRunUpgrade(type)) == 8,
+        "producer cards share eight-level progression");
 
     BuildingSystem buildings;
     buildings.setCombatCardProgressionEnabled(true);
@@ -54,7 +54,9 @@ inline void checkDefenseCardProgression() {
         "resource upgrade cannot bypass combat cards after the core gate opens");
     require(buildings.validateUpgrade(core->building.id, 99999, 99999, 99999).valid(),
         "core keeps resource upgrades");
-    require(!buildings.setCombatBlueprintLevel(BuildingType::Quarry, 4), "producers are not global card types");
+    const auto quarry = buildings.place(BuildingType::Quarry, {8, 0}, 0, 99999, 99999, 99999);
+    require(quarry && buildings.setCombatBlueprintLevel(BuildingType::Quarry, 4),
+        "producer copies use shared card levels too");
     buildings.setCombatCardProgressionEnabled(false);
     require(buildings.upgrade(core->building.id, 99999, 99999, 99999).valid(), "sandbox retains manual progression");
     buildings.reset();

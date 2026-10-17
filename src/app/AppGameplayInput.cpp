@@ -687,7 +687,8 @@ void App::processGameplayInput(bool controlDown,
                         return value.id == *actionBuilding;
                     });
                 if (building != currentSnapshot.buildings.end() &&
-                    !BuildingSystem::usesGlobalBlueprint(building->type)) {
+                    (building->type == BuildingType::Core || currentSnapshot.sandboxMode ||
+                     currentSnapshot.unlimitedResources)) {
                     pendingBuildingUpgrade_ =
                         UpgradeBuildingCommand{
                             .buildingId = *actionBuilding,

@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "DefenseCardProgressionChecks.hpp"
+#include "ProducerCardProgressionChecks.hpp"
 #include "WeaponCardProgressionChecks.hpp"
 #include "RunUpgradeRetirementChecks.hpp"
 #include "CoreDefenseGateChecks.hpp"
@@ -11,6 +12,7 @@
 
 void runRunUpgradeTests() {
     checkDefenseCardProgression();
+    checkProducerCardProgression();
     checkWeaponCardProgression();
     checkRetiredHighStakes();
     checkCoreDefenseGateAndRepairs();
@@ -371,12 +373,12 @@ void runRunUpgradeTests() {
         "four types block new acquisitions but allow shared upgrades regardless of rarity");
     const auto arsenalSave = arsenal->saveSuspendedRunState();
     restored->returnToMainMenu();
-    require(arsenalSave.buildingArsenalVersion == 3 && restored->loadSuspendedRunState(arsenalSave) &&
+    require(arsenalSave.buildingArsenalVersion == 5 && restored->loadSuspendedRunState(arsenalSave) &&
         restored->snapshot().buildingArsenalCount == 4 &&
         restored->snapshot().runUpgradeStacks == arsenal->snapshot().runUpgradeStacks,
         "unbuilt blueprints survive save and resume");
     auto invalidArsenal = arsenalSave;
-    invalidArsenal.buildingArsenalVersion = 4;
+    invalidArsenal.buildingArsenalVersion = 6;
     restored->returnToMainMenu();
     require(!restored->loadSuspendedRunState(invalidArsenal), "future arsenal formats rejected");
     invalidArsenal = arsenalSave;
@@ -422,9 +424,7 @@ void runRunUpgradeTests() {
                 "defense acquisitions and shared upgrades have fixed one-level power");
         }
     }
-    require(runUpgradeBuilding(offer.runUpgradeChoices[1]).has_value() &&
-        !runCombatBuilding(*runUpgradeBuilding(offer.runUpgradeChoices[1])),
-        "opening level offers an economy blueprint independently of combat");
+
     for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
         require(!runUpgradeProductionBuilding(offer.runUpgradeChoices[index]) &&
             offer.runUpgradeChoices[index] != RunUpgradeEffect::ProductionSpeed,
@@ -449,18 +449,20 @@ void runRunUpgradeTests() {
         "full arsenal offer regenerated");
     for (std::size_t index = 0; index < normal->snapshot().runUpgradeChoiceCount; ++index) {
         const auto building = runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]);
-        require(!building || !runCombatBuilding(*building) ||
+        require(!building || !runSlottedBuilding(*building) ||
             normal->snapshot().runUpgradeStacks[runUpgradeIndex(normal->snapshot().runUpgradeChoices[index])] > 0,
-            "full combat arsenal allows only owned combat upgrades and economic acquisitions");
+            "full structure arsenal offers only owned structure upgrades");
     }
 
     for (auto type : RunEconomyBuildingTypes) {
-        require(normal->grantDebugRunUpgrade(*buildingRunUpgrade(type), RunUpgradeRarity::Legendary) &&
-            !normal->grantDebugRunUpgrade(*buildingRunUpgrade(type)),
-            "every economy blueprint is unique and available with a full combat arsenal");
-        require(normal->snapshot().buildingArsenalCount == 4 &&
+        const auto producerCard = *buildingRunUpgrade(type);
+        const bool owned = normal->snapshot().runUpgradeStacks[runUpgradeIndex(producerCard)] > 0;
+        const auto slotsBefore = normal->snapshot().buildingArsenalCount;
+        require(normal->grantDebugRunUpgradeBatch(producerCard, 2),
+            "debug can acquire and raise producers even beyond normal slot limits");
+        require(normal->snapshot().buildingArsenalCount == slotsBefore + (owned ? 0U : 1U) &&
             normal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
-            "economic construction does not consume a combat slot");
+            "each economic type consumes one shared slot independent of its level");
     }
     // Already-acquired cards remain valid in old runs after being retired.
     auto legacyNumericCards = normal->saveSuspendedRunState();
@@ -483,19 +485,22 @@ void runRunUpgradeTests() {
     normalRestored->returnToMainMenu();
     require(normalRestored->loadSuspendedRunState(economySave) &&
         normalRestored->snapshot().runUpgradeStacks == normal->snapshot().runUpgradeStacks &&
-        normalRestored->snapshot().buildingArsenalCount == 4,
+        normalRestored->snapshot().buildingArsenalCount == normal->snapshot().buildingArsenalCount,
         "unbuilt economy blueprints and type improvements survive resume");
     auto invalidEconomy = economySave;
-    invalidEconomy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockLumberMill)] = 2;
+    invalidEconomy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockLumberMill)] = 9;
     normalRestored->returnToMainMenu();
-    require(!normalRestored->loadSuspendedRunState(invalidEconomy), "duplicate economic blueprint rejected");
+    require(!normalRestored->loadSuspendedRunState(invalidEconomy), "economic levels beyond eight are rejected");
     normalRestored->startRunFromSeed(PlayerClass::Engineer, 4321);
     for (auto type : RunEconomyBuildingTypes) require(!normalRestored->snapshot().unlockedBuildings[static_cast<std::size_t>(type)] &&
         normalRestored->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(type))] == 0,
         "new runs clear economic acquisitions");
 
     normalRestored->returnToMainMenu();
-    require(normalRestored->loadSuspendedRunState(pendingArsenal) && normalRestored->selectRunUpgrade(1),
+    auto producerPending = pendingArsenal;
+    producerPending.runUpgradeChoices = {RunUpgradeEffect::UnlockLumberMill,
+        RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed};
+    require(normalRestored->loadSuspendedRunState(producerPending) && normalRestored->selectRunUpgrade(0),
         "normal card selection acquires an economic type");
     auto oneProducer = normalRestored->saveSuspendedRunState();
     oneProducer.runUpgradeRerollTokens = 32;
@@ -540,9 +545,9 @@ void runRunUpgradeTests() {
     legacyEconomy.resumeState = RunState::BuildPhase;
     restored->returnToMainMenu();
     require(restored->loadSuspendedRunState(legacyEconomy), "legacy economic fixture resumes");
-    require(restored->snapshot().buildingArsenalCount == 4 &&
+    require(restored->snapshot().buildingArsenalCount == 5 &&
         restored->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::Quarry)],
-        "old checkpoints retain producers already built without consuming combat slots");
+        "old checkpoints retain every built producer even above the new shared slot limit");
 
     auto legacyArsenal = arsenalSave;
     legacyArsenal.buildingArsenalVersion = 0;
@@ -743,7 +748,7 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::UnlockClub, RunUpgradeEffect::UnlockRifle,
                 RunUpgradeEffect::UnlockIceWand, RunUpgradeEffect::UnlockFireWand,
                 RunUpgradeEffect::CannonHeavyShell})
-            require(runUpgradeWeapon(acquiredEffect)
+            require((runUpgradeWeapon(acquiredEffect) || runDefenseCard(acquiredEffect))
                     ? exhausted->grantDebugRunUpgradeBatch(acquiredEffect, 1)
                     : exhausted->grantDebugRunUpgrade(acquiredEffect),
                 "exhaustion fixture explicitly fills weapon slots beyond the normal limit");

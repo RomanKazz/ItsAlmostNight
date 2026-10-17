@@ -441,7 +441,7 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
     if (runDefenseCard(effect)) {
         return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] > 0
             ? "Upgrade every copy by one level; new copies inherit it"
-            : "Unlock level 1 construction; uses one defense slot";
+            : "Unlock level 1 construction; uses one structure slot";
     }
     if (const auto weapon=runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect)) {
         return snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
@@ -558,8 +558,8 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     const RunUpgradeStats& stats = snapshot.upgradeStats;
     const RunUpgradeStats& next = projected.upgradeStats;
     section("DEFENSE");
-    row("Arsenal", std::to_string(snapshot.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount),
-        std::to_string(projected.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount));
+    row("Arsenal", std::to_string(snapshot.buildingArsenalCount) + "/" + std::to_string(snapshot.buildingSlotLimit),
+        std::to_string(projected.buildingArsenalCount) + "/" + std::to_string(projected.buildingSlotLimit));
     row("Defense damage", multiplier(stats.defenseDamage), multiplier(next.defenseDamage));
     row("Fire rate", multiplier(stats.defenseFireRate), multiplier(next.defenseFireRate));
     row("Building HP", multiplier(stats.buildingHealth), multiplier(next.buildingHealth));
@@ -1192,7 +1192,7 @@ void drawRunUpgradeOverlay(
         const float levelFontSize =
             28.0F / UiTextRasterScale * scale;
         const auto blueprint = runUpgradeBuilding(effect);
-        const bool economyBlueprint = blueprint && !runCombatBuilding(*blueprint);
+        const bool economyBlueprint = blueprint && !runSlottedBuilding(*blueprint);
         const bool oneTime = (fixedRunUpgradePower(effect) && !blueprint && !runWeaponLevelCard(effect)) || economyBlueprint;
         if (oneTime) {
             drawOutlinedCenteredText((economyBlueprint || runUpgradeWeapon(effect)) ? "UNLOCK" : "ONE-TIME", centerX, levelBadge.y + 4.0F * scale,

@@ -49,7 +49,8 @@ inline bool debugUpgradeUnique(RunUpgradeEffect effect) {
 }
 inline DebugUpgradeCategory debugUpgradeCategory(RunUpgradeEffect effect) {
     if (debugUpgradeUnique(effect)) return DebugUpgradeCategory::Unlocks;
-    if (runDefenseCard(effect)) return DebugUpgradeCategory::Defense;
+    if (runDefenseCard(effect)) return runCombatBuilding(*runUpgradeBuilding(effect))
+        ? DebugUpgradeCategory::Defense : DebugUpgradeCategory::Economy;
     if (runWeaponLevelCard(effect)) return DebugUpgradeCategory::Player;
     switch (effect) {
     case RunUpgradeEffect::BuildingHealth: case RunUpgradeEffect::BuildRadius:
@@ -113,7 +114,7 @@ inline void debugUpgradeBackspace(std::string& value) {
 }
 inline bool debugUpgradeGrantable(RunUpgradeEffect effect, const SimulationSnapshot& snapshot) {
     if (const auto building = runUpgradeBuilding(effect)) {
-        if (runCombatBuilding(*building))
+        if (runSlottedBuilding(*building))
             return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] < MaxBuildingLevel;
         const auto* character = playerClassDefinition(snapshot.playerClass);
         const auto starting = character ? character->startingBuilding : BuildingType::GunTurret;

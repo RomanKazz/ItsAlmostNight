@@ -41,6 +41,7 @@ void icon(const GameUi& ui, MetaShopUpgrade upgrade, Rectangle r, bool locked) {
     case MetaShopUpgrade::Luck: texture=ui.resourceTexture(UiResourceIcon::Crystal);break;
     case MetaShopUpgrade::DefenseDamage: texture=ui.coreMenuTexture(CoreMenuTexture::Turret);break;
     case MetaShopUpgrade::DefenseFireRate: texture=ui.runUpgradeTexture(RunUpgradeEffect::TwinBatteries);break;
+    case MetaShopUpgrade::BuildingSlots:
     case MetaShopUpgrade::BuildingHealth: texture=ui.coreMenuTexture(CoreMenuTexture::Shield);break;
     case MetaShopUpgrade::ProductionSpeed: texture=ui.coreMenuTexture(CoreMenuTexture::Gear);break;
     case MetaShopUpgrade::TomeSlots: texture=ui.runUpgradeTexture(RunUpgradeEffect::Luck);break;
@@ -73,7 +74,7 @@ void levels(Rectangle r, int current, int max) {
         i<current?Blue:Color{76,87,89,255});
 }
 std::string bonusLabel(const MetaShopDefinition& d, int level) {
-    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots)?"":"%");
+    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots || d.upgrade==MetaShopUpgrade::BuildingSlots)?"":"%");
 }
 }
 Rectangle shopMenuPanelBounds(Vector2 viewport) { return UiMenuLayout::fromViewport(viewport).rect(340,130,1240,820); }
@@ -96,18 +97,21 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
     for(std::size_t i=0;i<MetaShopUpgradeCount;++i) {
         const auto& d=MetaShopDefinitions[i];const int level=metaShopLevel(profile,d.upgrade);
         const bool unlocked=metaShopAvailable(profile,d.upgrade);
-        const float x=378+static_cast<float>(i%5)*237,y=282+static_cast<float>(i/5)*240;
-        const Rectangle tile=l.rect(x,y,217,218);
+        constexpr float pitch = 1185.0F / MetaShopGridColumns;
+        constexpr float width = pitch - 20.0F;
+        const float x=378+static_cast<float>(i%MetaShopGridColumns)*pitch,
+            y=282+static_cast<float>(i/MetaShopGridColumns)*240;
+        const Rectangle tile=l.rect(x,y,width,218);
         const bool hover=CheckCollisionPointRec(input.pointer,tile);
         if(hover&&input.click) { state.selected=d.upgrade;result.interaction=true; }
         panel(tile,l.scale,unlocked?Color{49,64,67,255}:Color{34,42,46,255},
             state.selected==d.upgrade?Gold:hover?Cream:Color{82,109,111,255});
-        icon(ui,d.upgrade,l.rect(x+43,y+10,131,129),!unlocked);
-        text(d.title,l.rect(x+9,y+146,199,26),17*l.scale,unlocked?Cream:Muted,UiFontRole::BodyBold,1);
-        panel(l.rect(x+8,y+180,201,28),l.scale,{20,28,31,255},{49,63,66,255});
-        levels(l.rect(x+19,y+188,179,12),level,d.maximumLevel);
-        if(!unlocked) text("?",l.rect(x+183,y+8,24,28),20*l.scale,Muted,UiFontRole::BodyBold,1);
-        if(level==d.maximumLevel) text("MAX",l.rect(x+162,y+9,46,22),12*l.scale,Blue,UiFontRole::BodyBold,1);
+        icon(ui,d.upgrade,l.rect(x+(width-131)*.5F,y+10,131,129),!unlocked);
+        text(d.title,l.rect(x+9,y+146,width-18,26),16*l.scale,unlocked?Cream:Muted,UiFontRole::BodyBold,1);
+        panel(l.rect(x+8,y+180,width-16,28),l.scale,{20,28,31,255},{49,63,66,255});
+        levels(l.rect(x+19,y+188,width-38,12),level,d.maximumLevel);
+        if(!unlocked) text("?",l.rect(x+width-34,y+8,24,28),20*l.scale,Muted,UiFontRole::BodyBold,1);
+        if(level==d.maximumLevel) text("MAX",l.rect(x+width-55,y+9,46,22),12*l.scale,Blue,UiFontRole::BodyBold,1);
     }
     const auto& d=MetaShopDefinitions[static_cast<std::size_t>(state.selected)];
     const int level=metaShopLevel(profile,state.selected),price=metaShopCost(profile,state.selected);

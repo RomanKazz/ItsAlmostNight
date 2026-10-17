@@ -3,6 +3,7 @@
 #include "ui/GameUi.hpp"
 
 namespace ian {
+inline constexpr int MetaShopGridColumns = 6;
 struct ShopMenuState { MetaShopUpgrade selected{MetaShopUpgrade::SilverGain}; };
 struct ShopMenuInput {
     Vector2 pointer{};

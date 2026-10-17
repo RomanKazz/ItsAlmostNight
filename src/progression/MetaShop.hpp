@@ -8,7 +8,7 @@
 namespace ian {
 struct MetaProgression;
 
-enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, TomeSlots, WeaponSlots, Count };
+enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, TomeSlots, WeaponSlots, BuildingSlots, Count };
 inline constexpr std::size_t MetaShopUpgradeCount = static_cast<std::size_t>(MetaShopUpgrade::Count);
 
 struct MetaShopDefinition {
@@ -32,10 +32,13 @@ inline constexpr std::array<MetaShopDefinition, MetaShopUpgradeCount> MetaShopDe
     {MetaShopUpgrade::ResourceYield, "resource_yield", "RESOURCE YIELD", "Gather more wood, stone and crystals from resource nodes.", 10, 3, 5, {}},
     {MetaShopUpgrade::TomeSlots, "tome_slots", "TOME SLOTS", "Start with 4 different tomes. Each rank adds one slot, up to 6.", 2, 10, 1, {}},
     {MetaShopUpgrade::WeaponSlots, "weapon_slots", "EQUIPMENT SLOTS", "Start with 4 tools and weapons. Add one slot per rank, up to 6.", 2, 10, 1, {}},
+    {MetaShopUpgrade::BuildingSlots, "building_slots", "STRUCTURE SLOTS", "4 structure types. Add one slot per rank, up to 6.", 2, 10, 1, {}},
 }};
 
 inline constexpr int BaseRunTomeSlots = 4;
 inline constexpr int MaximumRunTomeSlots = 6;
+inline constexpr int BaseRunBuildingSlots = 4;
+inline constexpr int MaximumRunBuildingSlots = 6;
 inline constexpr int BaseRunWeaponSlots = 4;
 inline constexpr int MaximumRunWeaponSlots = 6;
 
@@ -49,12 +52,18 @@ struct MetaRunBonuses {
     int rerolls{};
     int additionalTomeSlots{};
     int additionalWeaponSlots{};
+    int additionalBuildingSlots{};
     bool operator==(const MetaRunBonuses&) const = default;
 };
 
 [[nodiscard]] inline int runWeaponSlotLimit(const MetaRunBonuses& bonuses) {
     return BaseRunWeaponSlots + std::clamp(bonuses.additionalWeaponSlots, 0,
         MaximumRunWeaponSlots - BaseRunWeaponSlots);
+}
+
+[[nodiscard]] inline int runBuildingSlotLimit(const MetaRunBonuses& bonuses) {
+    return BaseRunBuildingSlots + std::clamp(bonuses.additionalBuildingSlots, 0,
+        MaximumRunBuildingSlots - BaseRunBuildingSlots);
 }
 
 enum class MetaShopPurchaseResult { Purchased, InvalidUpgrade, Locked, MaximumLevel, InsufficientSilver };

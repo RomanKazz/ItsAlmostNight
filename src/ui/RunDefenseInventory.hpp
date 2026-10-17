@@ -8,7 +8,7 @@ namespace ian {
 
 inline void drawRunDefenseInventory(const GameUi& ui, const SimulationSnapshot& snapshot,
     Rectangle bounds, float opacity = 1.0F, std::optional<Vector2> pointer = std::nullopt) {
-    const std::size_t slots = std::max(RunBuildingSlotCount, snapshot.buildingArsenalCount);
+    const std::size_t slots = std::max(static_cast<std::size_t>(std::max(1, snapshot.buildingSlotLimit)), snapshot.buildingArsenalCount);
     const float pitch = std::min(bounds.height, bounds.width / static_cast<float>(slots));
     const auto fade = [opacity](Color color) {
         color.a = static_cast<unsigned char>(std::lround(color.a * std::clamp(opacity, 0.0F, 1.0F)));

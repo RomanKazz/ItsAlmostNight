@@ -632,7 +632,7 @@ ResourceCost BuildingSystem::sellRefund(const BuildingInstance& building) const 
 
 ResourceCost BuildingSystem::upgradeCost(const BuildingInstance& building) const {
     if (combatCardProgressionEnabled_ &&
-        buildingLimitCategory(building.type) == BuildingLimitCategory::Defense) return {};
+        building.type != BuildingType::Core) return {};
     return upgradeCostFor(
         building, cost(building.type), economy_);
 }
@@ -651,7 +651,7 @@ void BuildingSystem::setCombatCardProgressionEnabled(bool enabled) {
 }
 
 bool BuildingSystem::setCombatBlueprintLevel(BuildingType type, std::uint8_t level) {
-    if (buildingLimitCategory(type) != BuildingLimitCategory::Defense ||
+    if (type == BuildingType::Core || isRemovedStorageBuilding(type) ||
         level < 1U || level > MaxBuildingLevel) return false;
     blueprintLevels_[static_cast<std::size_t>(type)] = level;
     bool changed = false;
@@ -801,7 +801,7 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
     const std::uint8_t anvilStacks = anvilEnhanced
         ? newTowerBonusStacks_ : 0U;
     const std::uint8_t level = combatCardProgressionEnabled_ &&
-        buildingLimitCategory(type) == BuildingLimitCategory::Defense
+        type != BuildingType::Core
         ? blueprintLevels_[static_cast<std::size_t>(type)] : blueprintLevel(type);
     const double health = definition(type).maxHealth *
         (1.0 + 0.15 * static_cast<double>(level - 1)) *
@@ -1020,7 +1020,7 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
         return {.error = UpgradeError::MaxLevel, .building = *iterator};
     }
     if (combatCardProgressionEnabled_ &&
-        buildingLimitCategory(iterator->type) == BuildingLimitCategory::Defense) {
+        iterator->type != BuildingType::Core) {
         const auto coreBuilding = core();
         if (!coreBuilding || coreBuilding->level <= iterator->level)
             return {.error = UpgradeError::CoreLevelRequired, .building = *iterator};

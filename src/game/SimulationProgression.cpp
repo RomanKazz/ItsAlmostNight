@@ -198,10 +198,10 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     if (const auto building = runUpgradeBuilding(effect)) {
         if (sandboxMode_ || unlimitedResources_) return false;
         const auto core = buildings_.core();
-        if (runCombatBuilding(*building) && runUpgradeStacks_[runUpgradeIndex(effect)] >=
+        if (runSlottedBuilding(*building) && runUpgradeStacks_[runUpgradeIndex(effect)] >=
             runDefenseLevelLimit(core ? core->level : 0U)) return false;
-        return runCombatBuilding(*building)
-            ? ownsRunBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount
+        return runSlottedBuilding(*building)
+            ? ownsRunBuilding(*building) || runBuildingArsenalCount() < static_cast<std::size_t>(runBuildingSlotLimit(activeMetaBonuses_))
             : !ownsRunBuilding(*building);
     }
     if (runUpgradeCannonStyle(effect)) {
@@ -298,12 +298,13 @@ void Simulation::generateRunUpgradeChoices() {
     for (std::size_t index = firstRandomIndex;
          index < runUpgradeChoiceCount_; ++index) {
         std::size_t selected = chooseWeighted(pool);
-        // Offer combat and economic blueprints early, independently of combat slots.
-        if (index < 2U) {
+        // Keep one structure option when eligible, with the same owned/new draw
+        // for defenses and producers. Remaining choices use the complete pool.
+        if (index == 0U) {
             std::vector<RunUpgradeEffect> blueprints;
             for (const auto effect : pool) {
                 if (const auto building = runUpgradeBuilding(effect);
-                    building && runCombatBuilding(*building) == (index == 0U)) blueprints.push_back(effect);
+                    building && runSlottedBuilding(*building)) blueprints.push_back(effect);
             }
             if (!blueprints.empty()) {
                 const auto effect = blueprints[chooseWeighted(blueprints)];
@@ -332,12 +333,12 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (effect == RunUpgradeEffect::RiskyInvestment) return false;
     if (const auto building = runUpgradeBuilding(effect)) {
-        if (runCombatBuilding(*building)) {
+        if (runSlottedBuilding(*building)) {
             const auto core = buildings_.core();
             if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
                 runDefenseLevelLimit(core ? core->level : 0U)) return false;
             if (!ownsRunBuilding(*building) &&
-                runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
+                runBuildingArsenalCount() >= static_cast<std::size_t>(runBuildingSlotLimit(activeMetaBonuses_))) return false;
         } else if (ownsRunBuilding(*building)) return false;
     }
     if (const auto weapon=runUpgradeWeapon(effect)) {

@@ -252,9 +252,9 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::CannonHeavyShell, "HEAVY SHELL", "Cannon: x5 damage, fires 3x slower"},
         {RunUpgradeEffect::CannonScattershot, "SCATTERSHOT", "Cannon: 5 shells at 40% damage, smaller blasts"},
         {RunUpgradeEffect::CannonClusterShell, "CLUSTER SHELL", "Cannon: 80% damage, +3 mini explosions"},
-        {RunUpgradeEffect::UnlockLumberMill, "LUMBER MILL", "Unlock lumber mill construction"},
-        {RunUpgradeEffect::UnlockQuarry, "QUARRY", "Unlock quarry construction"},
-        {RunUpgradeEffect::UnlockCrystalMine, "CRYSTAL MINE", "Unlock crystal mine construction"},
+        {RunUpgradeEffect::UnlockLumberMill, "LUMBER MILL", "Acquire lumber mill / upgrade all copies"},
+        {RunUpgradeEffect::UnlockQuarry, "QUARRY", "Acquire quarry / upgrade all copies"},
+        {RunUpgradeEffect::UnlockCrystalMine, "CRYSTAL MINE", "Acquire crystal mine / upgrade all copies"},
         {RunUpgradeEffect::LumberMillProduction, runTomeDefinition(RunUpgradeEffect::LumberMillProduction)->name, "+20% lumber mill production speed"},
         {RunUpgradeEffect::QuarryProduction, runTomeDefinition(RunUpgradeEffect::QuarryProduction)->name, "+20% quarry production speed"},
         {RunUpgradeEffect::CrystalMineProduction, runTomeDefinition(RunUpgradeEffect::CrystalMineProduction)->name, "+20% crystal mine production speed"},
@@ -289,16 +289,22 @@ inline constexpr std::array<RunUpgradeDefinition,
     return static_cast<std::size_t>(effect);
 }
 
-inline constexpr std::size_t RunBuildingSlotCount = 4U;
-inline constexpr std::array<BuildingType, 15> RunBuildingTypes{
+inline constexpr std::size_t RunBuildingSlotCount = BaseRunBuildingSlots; // Base capacity; use runBuildingSlotLimit for eligibility/UI.
+inline constexpr std::array<BuildingType, 18> RunBuildingTypes{
     BuildingType::GunTurret, BuildingType::Turret, BuildingType::Cannon,
-    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::Flamethrower, BuildingType::Wall, BuildingType::MissileLauncher, BuildingType::TeslaTower, BuildingType::LaserTower, BuildingType::Mortar, BuildingType::RepairStation, BuildingType::DecoyBeacon, BuildingType::WindBlower};
+    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap, BuildingType::Flamethrower, BuildingType::Wall, BuildingType::MissileLauncher, BuildingType::TeslaTower, BuildingType::LaserTower, BuildingType::Mortar, BuildingType::RepairStation, BuildingType::DecoyBeacon, BuildingType::WindBlower,
+    BuildingType::LumberMill, BuildingType::Quarry, BuildingType::CrystalMine};
 
 inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     BuildingType::LumberMill, BuildingType::Quarry, BuildingType::CrystalMine};
 
-[[nodiscard]] constexpr bool runCombatBuilding(BuildingType type) {
+[[nodiscard]] constexpr bool runSlottedBuilding(BuildingType type) {
     return std::find(RunBuildingTypes.begin(), RunBuildingTypes.end(), type) != RunBuildingTypes.end();
+}
+
+[[nodiscard]] constexpr bool runCombatBuilding(BuildingType type) {
+    return runSlottedBuilding(type) &&
+        std::find(RunEconomyBuildingTypes.begin(), RunEconomyBuildingTypes.end(), type) == RunEconomyBuildingTypes.end();
 }
 
 [[nodiscard]] constexpr std::optional<BuildingType> runUpgradeProductionBuilding(RunUpgradeEffect effect) {
@@ -334,10 +340,11 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     }
 }
 
-// Combat cards acquire a type at level one, then raise its shared level.
+// Structure cards acquire a type at level one, then raise its shared level.
+// The historical name remains source-compatible with combat-card integrations.
 [[nodiscard]] constexpr bool runDefenseCard(RunUpgradeEffect effect) {
     const auto building = runUpgradeBuilding(effect);
-    return building && runCombatBuilding(*building);
+    return building && runSlottedBuilding(*building);
 }
 
 [[nodiscard]] constexpr int runDefenseLevelLimit(std::uint8_t coreLevel) {

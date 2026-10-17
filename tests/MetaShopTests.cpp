@@ -31,6 +31,8 @@ int main() {
     }
     require(metaRunBonuses(profile).additionalWeaponSlots == 2, "two permanent ranks expand equipment capacity to six");
     require(metaRunBonuses(profile).additionalTomeSlots == 2, "two purchased ranks expand tome capacity to six");
+    require(metaRunBonuses(profile).additionalBuildingSlots == 2 &&
+        runBuildingSlotLimit(metaRunBonuses(profile)) == 6, "two ranks expand shared structure capacity to six");
     require(validMetaRunBonuses(metaRunBonuses(profile)),"catalog caps yield valid runtime bonuses");
     profile.silver=0;
     profile.shopLevels[0]=1;
@@ -54,6 +56,12 @@ int main() {
     {std::ofstream output(path);output << oldShop;}
     require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalTomeSlots == 0,
         "pre-tome shop profiles default to four slots without disturbing other purchases");
+    auto oldStructures = saved;
+    oldStructures["shop"]["levels"].erase("building_slots");
+    {std::ofstream output(path);output << oldStructures;}
+    require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalBuildingSlots == 0 &&
+        metaRunBonuses(loaded).additionalTomeSlots == 2,
+        "old profiles default structure capacity to four without losing existing purchases");
     auto oldEquipment = saved;
     oldEquipment["shop"]["levels"].erase("weapon_slots");
     {std::ofstream output(path);output << oldEquipment;}
@@ -120,6 +128,11 @@ int main() {
     requireNear(restored.upgradeStats.luck,.04,1e-9,"resume retains luck");
     requireNear(restored.upgradeStats.defenseDamage,boosted.upgradeStats.defenseDamage,1e-9,"resume does not apply permanent damage twice");
     require(restored.runUpgradeRerollTokens==1,"resume does not replenish spent rerolls");
+    auto invalidStructures = bonuses;
+    invalidStructures.additionalBuildingSlots = 3;
+    require(!validMetaRunBonuses(invalidStructures), "structure ranks above two are invalid");
+    invalidStructures.additionalBuildingSlots = -1;
+    require(!validMetaRunBonuses(invalidStructures), "negative structure ranks are invalid");
     auto invalidSlots=bonuses; invalidSlots.additionalTomeSlots=3;
     require(!sim->configureNextRunBonuses(invalidSlots), "invalid slot bonus rejects safely");
     invalidSlots.additionalTomeSlots=-1;
