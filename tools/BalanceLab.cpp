@@ -178,7 +178,11 @@ void selfTest(const GameBalance& balance) {
     check(flame.damage>0 && flame.damage==ignored.damage && ignored.applicableCards==0,
         "unsupported cards do not silently boost flame DPS");
     const auto flying=battle(balance,BuildingType::WindBlower,4,3,0,1,300);
-    check(flying.damage==0 && flying.pushSeconds==0,"wind does not affect flying targets");
+    check(flying.damage==0 && flying.pushSeconds>0,"wind controls flying targets without damage");
+    for (const auto type : {BuildingType::Catapult, BuildingType::Mortar}) {
+        const auto artillery=battle(balance,type,4,3,3,1,300);
+        check(artillery.damage==0 && artillery.launches==0,"ground artillery ignores flying targets");
+    }
     const auto slow=battle(balance,BuildingType::SlowTrap,4,1,0,1,600);
     check(slow.damage==0 && slow.slowSeconds>0,"control is measured independently from damage");
     std::cout << "Balance lab actual-combat checks passed\n";

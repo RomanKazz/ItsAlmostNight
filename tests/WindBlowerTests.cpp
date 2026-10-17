@@ -30,7 +30,8 @@ void gust() {
     const auto& all=enemies.enemies();
     requireNear(all[0].knockbackVelocity.z,-8,1e-7,"ordinary enemy receives full outward push");
     require(all[1].knockbackVelocity.z<0 && std::abs(all[1].knockbackVelocity.z)<3,"heavy enemy resists wind");
-    for(int i:{2,3,4,5})requireNear(geometry::length(all[static_cast<std::size_t>(i)].knockbackVelocity),0,1e-9,"rear, side, boss and flying enemies unaffected");
+    for(int i:{2,3,4})requireNear(geometry::length(all[static_cast<std::size_t>(i)].knockbackVelocity),0,1e-9,"rear, side and boss enemies unaffected");
+    requireNear(all[5].knockbackVelocity.z,-5.6,1e-7,"flying enemy receives outward push with its normal resistance");
     for(const auto& enemy:all)requireNear(enemy.health,enemy.maxHealth,1e-9,"gust preserves all enemy health");
     require(towers.projectiles().empty(),"no projectile allocations for wind");
     for(int frame=0;frame<120;++frame){towers.tick(Step,buildings,enemies);pulses+=static_cast<int>(towers.launches().size());}
@@ -54,6 +55,25 @@ void targetingAndAnimation() {
     requireNear(towers.towers()[0].yaw,PiRadians/2,1e-6,"manual rotation moves idle fan");
     enemies.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Boss,.position={-3,0,0}}});
     for(int frame=0;frame<60;++frame){towers.tick(Step,buildings,enemies);require(towers.launches().empty() && !towers.towers()[0].targetId,"immune boss does not consume gusts");}
+}
+void flyingTarget() {
+    auto buildings=structures();EnemySystem enemies;TowerSystem towers;towers.syncBuildings(buildings);
+    enemies.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Flying,.position={1,0,-4}}});
+    bool launched=false;
+    for(int frame=0;frame<120 && !launched;++frame) {
+        towers.tick(Step,buildings,enemies);launched=!towers.launches().empty();
+    }
+    require(launched && towers.towers()[0].targetId==enemies.enemies()[0].id,
+        "fan acquires a lone flying target and turns toward it");
+    const auto before=enemies.enemies()[0].position;
+    FlowField flow;
+    const std::vector<BuildingInstance> targets{{.id={9002,1},.type=BuildingType::Core,.gridPosition={0,6}}};
+    flow.rebuild({0,6},targets);
+    enemies.tick(Step,targets,flow);
+    require(enemies.enemies()[0].position.z<before.z,
+        "gust moves a flying enemy away from the core in the real movement tick");
+    requireNear(enemies.enemies()[0].health,enemies.enemies()[0].maxHealth,1e-9,
+        "airborne control does not deal damage");
 }
 void modifiersAndLevels() {
     TowerSystem towers;auto building=structures()[0];AttackModifiers modifiers;
@@ -98,4 +118,4 @@ void progression() {
     require(bar.count==15 && bar.types[11]==BuildingType::WindBlower && bar.types[14]==BuildingType::SlowTrap,"support fan precedes walls and traps");
 }
 }
-int main(){gust();targetingAndAnimation();modifiersAndLevels();progression();}
+int main(){gust();targetingAndAnimation();flyingTarget();modifiersAndLevels();progression();}

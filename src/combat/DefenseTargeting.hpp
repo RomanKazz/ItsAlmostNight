@@ -12,10 +12,16 @@ namespace ian {
 // on the same surface, with a small tolerance for rolling terrain.
 inline constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
 
+[[nodiscard]] inline bool defenseCanTargetFlying(BuildingType type) {
+    return type != BuildingType::GunTurret && type != BuildingType::Catapult &&
+        type != BuildingType::Mortar;
+}
+
 [[nodiscard]] inline bool projectileDefenseCanTarget(
     BuildingType type, const EnemyInstance& enemy, double surfaceHeight) {
+    if (enemy.type == EnemyType::Flying && !defenseCanTargetFlying(type)) return false;
     if (type == BuildingType::WindBlower) return enemy.type != EnemyType::Boss &&
-        enemy.type != EnemyType::Flying && std::abs(enemy.worldSurfaceHeight - surfaceHeight) <= 1.25;
+        std::abs(enemy.worldSurfaceHeight - surfaceHeight) <= 1.25;
     return type != BuildingType::GunTurret ||
         (enemy.type != EnemyType::Flying &&
          std::abs(enemy.worldSurfaceHeight - surfaceHeight) <=

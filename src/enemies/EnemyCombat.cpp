@@ -261,7 +261,7 @@ std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
 
 std::optional<EntityId> EnemySystem::densestEnemyInArc(
     Vec3 position, double radius, double clusterRadius,
-    double yaw, double halfAngle, double minimumRadius) const {
+    double yaw, double halfAngle, double minimumRadius, bool includeFlying) const {
     const double forwardX = -std::sin(yaw);
     const double forwardZ = -std::cos(yaw);
     const double minimumDot = std::cos(halfAngle);
@@ -273,7 +273,8 @@ std::optional<EntityId> EnemySystem::densestEnemyInArc(
     spatialHash_.forEachNearby(
         position, radius, [&](const SpatialEntry& candidate) {
             const EnemyInstance* enemy = findEnemy(candidate.id);
-            if (enemy == nullptr || !enemy->active) return;
+            if (enemy == nullptr || !enemy->active ||
+                (!includeFlying && enemy->type == EnemyType::Flying)) return;
             const double deltaX = candidate.position.x - position.x;
             const double deltaZ = candidate.position.z - position.z;
             const double distanceSquared =
@@ -290,9 +291,10 @@ std::optional<EntityId> EnemySystem::densestEnemyInArc(
             std::size_t count = 0;
             spatialHash_.forEachNearby(
                 candidate.position, clusterRadius,
-                [this, &count](const SpatialEntry& entry) {
+                [this, &count, includeFlying](const SpatialEntry& entry) {
                     const EnemyInstance* nearby = findEnemy(entry.id);
-                    if (nearby != nullptr && nearby->active) ++count;
+                    if (nearby != nullptr && nearby->active &&
+                        (includeFlying || nearby->type != EnemyType::Flying)) ++count;
                 });
             if (count > bestCount ||
                 (count == bestCount &&

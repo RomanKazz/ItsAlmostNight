@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "DefenseIdleAimChecks.hpp"
+#include "ArtilleryAirTargetChecks.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -24,6 +25,7 @@ void tickUntilShot(ian::CannonSystem& cannons,
 
 void runCannonSystemTests() {
     defense_idle_aim_checks::ballistics();
+    artillery_air_target_checks::run();
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "cannon fixture creates core");

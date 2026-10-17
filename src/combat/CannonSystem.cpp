@@ -261,7 +261,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
 
         if (cannon.targetId) {
             const auto target = enemies.enemy(*cannon.targetId);
-            if (!target) {
+            if (!target || !projectileDefenseCanTarget(building->type, *target, building->baseHeight)) {
                 cannon.targetId.reset();
             } else {
                 const double deltaX =
@@ -282,7 +282,8 @@ std::span<const CannonExplosion> CannonSystem::tick(
         if (!cannon.targetId && cannon.targetSearchCooldownRemaining <= 0.0) {
             cannon.targetId = enemies.densestEnemyInArc(
                 targetingOrigin, range, ClusterRadius, cannon.restYaw,
-                defenseAttackHalfAngleRadians(building->type, building->level), deadZone);
+                defenseAttackHalfAngleRadians(building->type, building->level), deadZone,
+                defenseCanTargetFlying(building->type));
             cannon.targetSearchCooldownRemaining = SearchInterval;
         }
 

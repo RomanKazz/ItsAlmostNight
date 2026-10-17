@@ -1,6 +1,7 @@
 #pragma once
 #include "buildings/BuildingOrientation.hpp"
 #include "combat/AttackStats.hpp"
+#include "combat/DefenseTargeting.hpp"
 #include "enemies/EnemyCollision.hpp"
 #include <cmath>
 
@@ -13,8 +14,7 @@ inline constexpr double WindBlowerMuzzleZ = -.479;
         base.y + WindBlowerMuzzleY, base.z + std::cos(yaw) * WindBlowerMuzzleZ};
 }
 [[nodiscard]] inline bool windBlowerCanTarget(const EnemyInstance& enemy, double surface) {
-    return enemy.active && enemy.type != EnemyType::Boss && enemy.type != EnemyType::Flying &&
-        std::abs(enemy.worldSurfaceHeight - surface) <= 1.25;
+    return enemy.active && projectileDefenseCanTarget(BuildingType::WindBlower, enemy, surface);
 }
 [[nodiscard]] inline double windBlowerRange(const FinalAttackStats& stats) {
     return stats.range * stats.size;

@@ -389,7 +389,7 @@ class EnemySystem {
     [[nodiscard]] std::optional<EntityId> densestEnemyInArc(
         Vec3 position, double radius, double clusterRadius,
         double yaw, double halfAngle,
-        double minimumRadius = 0.0) const;
+        double minimumRadius = 0.0, bool includeFlying = true) const;
     [[nodiscard]] std::optional<EnemyInstance> enemy(EntityId id) const;
     std::span<const EnemyDamageResult> damageInRadius(
         Vec3 position, double radius, double amount,
