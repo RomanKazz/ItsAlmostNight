@@ -136,6 +136,10 @@ class RenderTextureResource {
     RenderTextureResource& operator=(RenderTextureResource&&) = delete;
 
     bool load(int width, int height);
+    // AO stores only red and never needs a depth attachment. Falls back to
+    // the ordinary target if the driver cannot render to an R8 texture.
+    // Check valid(): raylib's IsRenderTextureValid also requires depth.
+    bool loadSingleChannel(int width, int height);
     bool loadScreenSpace(int width, int height);
     void unload();
 

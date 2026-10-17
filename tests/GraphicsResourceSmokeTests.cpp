@@ -2968,7 +2968,7 @@ int main() {
         settings.ssao = false;
         resources.updateFramebuffer(settings);
         if (!resources.sceneTargetValid() ||
-            resources.sceneScreenSpaceBuffers() ||
+            resources.sceneScreenSpaceBuffers() != settings.inkOutlines ||
             resources.ssaoTargetValid()) {
             std::cerr << "SSAO disable transition failed\n";
             result = 1;

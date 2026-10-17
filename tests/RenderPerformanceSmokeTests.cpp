@@ -1,5 +1,6 @@
 #include "graphics/Renderer.hpp"
 #include "PostprocessPixelParity.hpp"
+#include "SsaoStorageParity.hpp"
 #include "PreparedMinimapParity.hpp"
 #include "graphics/ViewModelCompositeBounds.hpp"
 #include "graphics/CameraCulling.hpp"
@@ -113,6 +114,60 @@ bool preparedToolPixelParity(ian::Renderer& renderer) {
         }
     }
     renderer.settings() = saved;
+    return valid;
+}
+
+bool inkIndependentOfSsao(ian::Renderer& renderer) {
+    const auto saved = renderer.settings();
+    auto& settings = renderer.settings();
+    settings.postProcessing = true;
+    settings.aoStrength = 0.0F;
+    settings.bloom = false;
+    settings.shadows = false;
+    settings.paperGrain = false;
+    const Camera3D camera{{0, 2, 6}, {0, .5F, 0}, {0, 1, 0}, 65, CAMERA_PERSPECTIVE};
+    ian::WorldLighting lighting{};
+    lighting.cameraPosition = camera.position;
+    std::array<Image, 3> images{};
+    for (std::size_t mode = 0; mode < images.size(); ++mode) {
+        settings.ssao = mode == 0;
+        settings.inkOutlines = mode != 2;
+        renderer.beginFrame();
+        // Isolate this fixture from the selection mask left by earlier tests.
+        if (renderer.beginSelectionMaskPass(camera)) renderer.endSelectionMaskPass();
+        renderer.beginWorldPass({35, 48, 60, 255}, camera);
+        BeginMode3D(camera); renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        renderer.setWorldMaterial(material);
+        DrawCube({-.8F, .6F, 0}, 1.3F, 2.0F, 1.2F, ORANGE);
+        DrawCube({.8F, .2F, -1}, 1.8F, 1.2F, 1.2F, BLUE);
+        DrawSphere({.7F, 1.4F, .5F}, .65F, GREEN);
+        renderer.endWorldShader(); EndMode3D(); renderer.endWorldPass();
+        rlDrawRenderBatchActive(); images[mode] = LoadImageFromScreen(); renderer.endFrame();
+    }
+    bool valid = true;
+    for (const auto image : images) valid = valid && image.data != nullptr;
+    if (valid) {
+        auto* withAo = LoadImageColors(images[0]);
+        auto* withoutAo = LoadImageColors(images[1]);
+        auto* noInk = LoadImageColors(images[2]);
+        int changed = 0, inkPixels = 0;
+        for (int pixel = 0; pixel < images[0].width * images[0].height; ++pixel) {
+            const auto differs = [](Color a, Color b) {
+                return a.r != b.r || a.g != b.g || a.b != b.b;
+            };
+            if (differs(withAo[pixel], withoutAo[pixel])) ++changed;
+            if (differs(withAo[pixel], noInk[pixel])) ++inkPixels;
+        }
+        valid = changed == 0 && inkPixels > 32;
+        if (!valid) std::cerr << "SSAO must not disable ink: changed=" << changed
+            << " visible ink pixels=" << inkPixels << '\n';
+        UnloadImageColors(withAo);
+        UnloadImageColors(withoutAo);
+        UnloadImageColors(noInk);
+    }
+    for (auto image : images) if (image.data) UnloadImage(image);
+    settings = saved;
     return valid;
 }
 
@@ -282,9 +337,11 @@ int main() {
     }
     UnloadRenderTexture(raw); UnloadShader(shader);
     valid = ian::test::postprocessPixelParity() && valid;
+    valid = ian::test::ssaoStoragePixelParity() && valid;
     valid = preparedToolPixelParity(renderer) && valid;
     valid = skyDepthParity(renderer) && valid;
     valid = presentWaitDiagnostics(renderer) && valid;
+    valid = inkIndependentOfSsao(renderer) && valid;
     valid = ian::test::preparedMinimapPixelParity() && valid;
     renderer.shutdown(); CloseWindow();
     std::cout << "GPU sparse queries and complete viewmodel pixel parity: " << valid << '\n';

@@ -803,6 +803,30 @@ bool RenderTextureResource::load(int width, int height) {
     return loaded_;
 }
 
+bool RenderTextureResource::loadSingleChannel(int width, int height) {
+    unload();
+    screenSpaceBuffers_ = false;
+    if (width <= 0 || height <= 0) return false;
+    target_.id = rlLoadFramebuffer();
+    target_.texture = {rlLoadTexture(nullptr, width, height,
+        RL_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE, 1), width, height, 1,
+        PIXELFORMAT_UNCOMPRESSED_GRAYSCALE};
+    if (target_.id != 0U && target_.texture.id != 0U) {
+        rlFramebufferAttach(target_.id, target_.texture.id,
+            RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+        loaded_ = rlFramebufferComplete(target_.id);
+    }
+    if (!loaded_) {
+        if (target_.texture.id != 0U) rlUnloadTexture(target_.texture.id);
+        if (target_.id != 0U) rlUnloadFramebuffer(target_.id);
+        target_ = {};
+        return load(width, height);
+    }
+    SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
+    return true;
+}
+
 bool RenderTextureResource::loadScreenSpace(int width, int height) {
     unload();
     screenSpaceBuffers_ = true;
@@ -1426,7 +1450,7 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         std::max(1, static_cast<int>(std::lround(
                static_cast<float>(pixelHeight) * qualityScale)));
     const bool needsScreenSpaceBuffers =
-        settings.postProcessing && settings.ssao;
+        settings.postProcessing && (settings.ssao || settings.inkOutlines);
     if (desiredWidth != requestedSceneWidth_ ||
         desiredHeight != requestedSceneHeight_ ||
         !sceneTarget_.valid() ||
@@ -1470,7 +1494,7 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
     }
     requestedSsaoWidth_ = ssaoWidth;
     requestedSsaoHeight_ = ssaoHeight;
-    ssaoTarget_.load(ssaoWidth, ssaoHeight);
+    ssaoTarget_.loadSingleChannel(ssaoWidth, ssaoHeight);
     if (ssaoTarget_.valid()) {
         SetTextureFilter(ssaoTarget_.get().texture,
                          TEXTURE_FILTER_BILINEAR);
