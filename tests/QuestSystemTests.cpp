@@ -287,7 +287,7 @@ void profileRoundTripAndCatalog() {
             "automatic payouts from quest schema 1 migrate as already claimed without duplicating currency");
     auto catalog = loadQuestDefinitions(std::filesystem::path(IAN_SOURCE_DIR) / "assets/data/meta_quests.json");
     const auto defaults = system.definitions();
-    require(catalog.size() == defaults.size() && catalog.size() == 36, "data catalog loads all 36 quests");
+    require(catalog.size() == defaults.size() && catalog.size() == 35, "data catalog loads all 35 active quests");
     require(catalog == std::vector<QuestDefinition>(defaults.begin(), defaults.end()),
             "fallback catalog matches all shipped conditions, prerequisites and rewards");
     std::filesystem::remove_all(directory);

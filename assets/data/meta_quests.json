@@ -378,26 +378,6 @@
       }
     },
     {
-      "id": "upgrade_cluster",
-      "title": "Get Cluster to level 2",
-      "description": "Get Cluster to level 2",
-      "category": "upgrades",
-      "conditions": [
-        {
-          "metric": "upgrade_level",
-          "scope": "run",
-          "target": 2,
-          "subject": "cluster_payload"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
       "id": "defense_double",
       "title": "Reach 2x defense damage in one run",
       "description": "Reach 2x defense damage in one run",

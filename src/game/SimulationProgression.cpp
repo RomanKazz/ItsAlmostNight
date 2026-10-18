@@ -352,7 +352,10 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         if (runWeaponLevelCard(effect) &&
             playerWeaponLevel(*weapon)>=runDefenseLevelLimit(core?core->level:0U)) return false;
     }
-    if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
+    // Explicit legacy grants keep their ownership/exclusivity rules.
+    if (runUpgradeCannonStyle(effect) &&
+        (runCannonAttackStyle(runUpgradeStacks_) != CannonAttackStyle::Standard ||
+         !(sandboxMode_ || unlimitedResources_ || ownsRunBuilding(BuildingType::Cannon)))) return false;
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
     if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
@@ -494,7 +497,7 @@ bool Simulation::grantDebugRunUpgrade(
     const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
         rawEffect >= static_cast<int>(RunUpgradeEffectCount) ||
-        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect)) ||
+        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect) && !legacyBuildingBranchUpgrade(effect)) ||
         static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) {
         return false;
     }

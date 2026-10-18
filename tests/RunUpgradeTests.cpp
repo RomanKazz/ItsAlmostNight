@@ -17,6 +17,7 @@ void runRunUpgradeTests() {
     checkProducerCardProgression();
     checkWeaponCardProgression();
     checkRetiredHighStakes();
+    checkRetiredBuildingBranches();
     checkCoreDefenseGateAndRepairs();
     using namespace ian;
     const auto rerollWithSavedToken = [](Simulation& run) {
@@ -880,8 +881,8 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 56 && activeHammers == 23,
-        "pool contains 23 tomes, existing blueprint/weapon cards and a slot-free capacity purchase");
+    require(activeCount == 50 && activeHammers == 23,
+        "pool keeps tomes and building/weapon cards while excluding all six building branches");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
             retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight, overkill and high stakes are retired");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;

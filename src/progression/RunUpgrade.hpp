@@ -160,6 +160,21 @@ inline constexpr std::array<RunTomeDefinition, 28> RunTomeDefinitions{{
     return effect == RunUpgradeEffect::DefenseDamage || effect == RunUpgradeEffect::DefenseFireRate ||
         effect == RunUpgradeEffect::LongerDay || effect == RunUpgradeEffect::Overkill;
 }
+// Reserved branch mechanics survive old saves and internal combat fixtures.
+// Their standalone cards are hidden until building evolutions provide a new UI.
+[[nodiscard]] constexpr bool legacyBuildingBranchUpgrade(RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::ClusterPayload:
+    case RunUpgradeEffect::ReactiveTraps:
+    case RunUpgradeEffect::GunShrapnel:
+    case RunUpgradeEffect::CannonHeavyShell:
+    case RunUpgradeEffect::CannonScattershot:
+    case RunUpgradeEffect::CannonClusterShell:
+        return true;
+    default:
+        return false;
+    }
+}
 [[nodiscard]] constexpr bool retiredRunUpgrade(RunUpgradeEffect effect);
 [[nodiscard]] inline int runTomeLevel(RunUpgradeEffect effect, const std::array<int, RunUpgradeEffectCount>& stacks) {
     std::int64_t level = stacks[static_cast<std::size_t>(effect)];
@@ -411,7 +426,8 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
 // These IDs remain reserved so suspended runs keep their card indices.
 [[nodiscard]] constexpr bool retiredRunUpgrade(
     RunUpgradeEffect effect) {
-    return legacyRunTomeUpgrade(effect) || effect == RunUpgradeEffect::BuildRadius ||
+    return legacyRunTomeUpgrade(effect) || legacyBuildingBranchUpgrade(effect) ||
+           effect == RunUpgradeEffect::BuildRadius ||
            effect == RunUpgradeEffect::Salvager ||
            effect == RunUpgradeEffect::LockChoice ||
            effect == RunUpgradeEffect::LumberMillProduction ||

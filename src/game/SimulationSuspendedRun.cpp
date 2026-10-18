@@ -658,7 +658,7 @@ bool Simulation::loadSuspendedRunState(
     runUpgradeChoicePending_ = saved.runUpgradeChoicePending;
     runShop_ = saved.runShop;
     for (auto& offer : runShop_.offers)
-        if (offer.effect == RunUpgradeEffect::RiskyInvestment) offer = {};
+        if (retiredRunUpgrade(offer.effect)) offer = {};
     runUpgradeChoiceCount_ = saved.runUpgradeChoiceCount;
     runUpgradeChoices_ = saved.runUpgradeChoices;
     runUpgradeRarities_ = saved.runUpgradeRarities;
