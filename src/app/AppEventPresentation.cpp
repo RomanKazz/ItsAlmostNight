@@ -1062,6 +1062,16 @@ void App::processPresentationEvents(
             addEffect(PresentationEffectType::BuildingPlaced,
                       event.position, 0.7, effectScale,
                       event.entityId);
+            if (event.platformFrame) {
+                // Newly created support shares the building's timeline and
+                // pivot. Existing platforms receive no placement effect.
+                addEffect(PresentationEffectType::BuildingPlaced,
+                          event.position, 0.7, effectScale,
+                          event.platformFrame->id);
+                // addEffect always appends: animate the linked support without
+                // emitting a second construction burst at the same pivot.
+                effects_.back().variant = 1;
+            }
         } else if (event.type == GameEventType::BuildingUpgraded &&
                    event.buildingType) {
             if (event.entityId) {

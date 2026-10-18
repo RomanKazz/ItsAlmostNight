@@ -354,6 +354,67 @@ struct AppPresentationTestAccess {
         const bool coreRange = rangeInk[0] == 0 && rangeInk[1] == 0 && rangeInk[2] > 100;
         okay &= coreRange;
         if (!coreRange) std::cerr << "Core hover range failed: " << rangeInk[0] << '/' << rangeInk[1] << '/' << rangeInk[2] << '\n';
+        // Real placement event: the tower and its support share a spring, but
+        // only the tower emits dust. Exercise delay, animation and exact settle.
+        app->effects_.clear();
+        const EntityId placedTower{69100,1}, placedSupport{69101,1};
+        const std::array placementEvents{GameEvent{
+            .type=GameEventType::BuildingPlaced, .entityId=placedTower,
+            .buildingType=BuildingType::GunTurret,
+            .platformFrame=PlatformFrameInstance{.id=placedSupport}, .position={0,0,0}}};
+        app->processPresentationEvents(placementEvents, snapshot);
+        bool placement = count(PresentationEffectType::BuildingPlaced) == 2;
+        const Camera3D placementCamera{{3,2.7F,-5},{0,.55F,0},{0,1,0},4.5F,CAMERA_ORTHOGRAPHIC};
+        lighting.cameraPosition=placementCamera.position;
+        std::array<std::uint64_t, 5> placementHashes{};
+        std::array<int, 5> placementPixels{};
+        const std::array<float, 5> placementProgress{.26F,.55F,.26F,.26F,1};
+        for (std::size_t frameIndex=0; frameIndex<placementProgress.size(); ++frameIndex) {
+            if (frameIndex == 2) app->effects_.pop_back(); // linked support must not add particles
+            for (auto& effect:app->effects_) {
+                effect.remaining=effect.duration*(1-placementProgress[frameIndex]);
+                effect.startDelayRemaining=frameIndex==3?.1:0;
+            }
+            const float scale=app->buildingAnimationScaleAt({0,0,0},placedTower);
+            placement &= scale > 0 && scale <= 1.14F &&
+                (frameIndex != 3 || scale == 1) && (frameIndex != 4 || scale == 1);
+            app->renderer_->beginFrame();
+            BeginTextureMode(target);ClearBackground({29,47,57,255});BeginMode3D(placementCamera);
+            app->drawPresentationEffects(placementCamera,lighting);
+            EndMode3D();EndTextureMode();
+            Image image=LoadImageFromTexture(target.texture);
+            auto* pixels=LoadImageColors(image);
+            for (int i=0;i<image.width*image.height;++i) {
+                placementPixels[frameIndex] += pixels[i].r>60;
+                placementHashes[frameIndex] = placementHashes[frameIndex]*31U +
+                    static_cast<unsigned int>(pixels[i].r)*65536U +
+                    static_cast<unsigned int>(pixels[i].g)*256U + pixels[i].b;
+            }
+            UnloadImageColors(pixels);UnloadImage(image);
+            if (frameIndex < 2) {
+                if (const char* directory=std::getenv("IAN_BUILD_PLACEMENT_CAPTURE")) {
+                    std::filesystem::create_directories(directory);
+                    app->renderer_->beginFrame();
+                    BeginTextureMode(target);ClearBackground({29,47,57,255});BeginMode3D(placementCamera);
+                    app->renderer_->beginWorldShader(lighting);
+                    WorldMaterialState placementMaterial{};placementMaterial.unlitAmount=.35F;
+                    app->renderer_->setWorldMaterial(placementMaterial);
+                    DrawCube({0,-.10F,0},3,.2F,3,{116,125,84,255});
+                    static_cast<void>(app->renderer_->drawGunTurret({0,0,0},0,0,WHITE,scale));
+                    app->renderer_->endWorldShader();app->drawPresentationEffects(placementCamera,lighting);
+                    EndMode3D();EndTextureMode();
+                    Image capture=LoadImageFromTexture(target.texture);ImageFlipVertical(&capture);
+                    ExportImage(capture,(std::filesystem::path(directory)/
+                        ("placement-"+std::to_string(frameIndex)+".png")).string().c_str());
+                    UnloadImage(capture);
+                }
+            }
+        }
+        placement &= placementPixels[0]>100 && placementPixels[1]>100 &&
+            placementHashes[0]!=placementHashes[1] && placementHashes[0]==placementHashes[2] &&
+            placementPixels[3]==0 && placementPixels[4]==0;
+        okay &= placement;
+        if (!placement) std::cerr << "Construction feedback failed animation, support deduplication or delay/expiry\n";
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }

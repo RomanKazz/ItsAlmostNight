@@ -4,6 +4,7 @@
 #include "combat/CombatDisplayUnits.hpp"
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
+#include "graphics/BuildingPlacementEffect.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -396,11 +397,7 @@ float App::buildingAnimationScaleAt(
             0.0F, 1.0F);
         if (effect.type ==
             PresentationEffectType::BuildingPlaced) {
-            const float spring =
-                1.0F -
-                std::exp(-6.0F * progress) *
-                    std::cos(4.5F * PI * progress);
-            scale = std::clamp(spring, 0.06F, 1.18F);
+            scale = building_placement_effect::scaleAt(progress);
         } else if (
             effect.type ==
             PresentationEffectType::BuildingUpgrade) {
