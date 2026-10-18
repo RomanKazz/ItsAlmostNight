@@ -183,6 +183,7 @@ void runSimulationTests() {
     {
         auto map = ian::MapDefinition::defaults();
         map.resources.clear(); map.obstacles.clear();
+        map.coreBuildRadius = 9; // This fixture tests drag budgeting, independent of the run radius balance.
         auto world = ian::WorldConfig::defaults();
         world.terrainAmplitude = 0;
         world.pondMinimumCount = world.pondMaximumCount = 0;
@@ -793,6 +794,7 @@ void runSimulationTests() {
         mine.crystals = 0;
         balance.economy.coreUpgradeCrystals = {0, 0};
         ian::MapDefinition map = ian::MapDefinition::defaults();
+        map.coreBuildRadius = 9; // Producer timing is tested independently of construction range.
         map.resources.clear();
         map.obstacles.clear();
         ian::WorldConfig world = ian::WorldConfig::defaults();
@@ -948,7 +950,9 @@ void runSimulationTests() {
                     "sector and daytime tower share smoothed rotation");
     }
     {
-        ian::Simulation wallDragFoundations;
+        auto wallDragMap = ian::MapDefinition::defaults();
+        wallDragMap.coreBuildRadius = 9; // Shared-foundation geometry is independent of the run radius.
+        ian::Simulation wallDragFoundations{ian::GameBalance::defaults(), wallDragMap};
         wallDragFoundations.startRun();
         ian::PlayerCommand unlimited;
         unlimited.enableUnlimitedResources =
@@ -1880,6 +1884,7 @@ void runSimulationTests() {
         };
 
         auto transactionMap = ian::MapDefinition::defaults();
+        transactionMap.coreBuildRadius = 9; // Preserve the authored spending/height fixture layout.
         // Transaction semantics do not depend on procedural run layout.
         // Keep the authored tutorial tree in front of the player so this
         // fixture remains focused on atomic resource spending.
@@ -2116,7 +2121,9 @@ void runSimulationTests() {
     }
 
     {
-        ian::Simulation foundationLifecycle;
+        auto lifecycleMap = ian::MapDefinition::defaults();
+        lifecycleMap.coreBuildRadius = 9; // Platform lifecycle needs room for its raised turret.
+        ian::Simulation foundationLifecycle{ian::GameBalance::defaults(), lifecycleMap};
         foundationLifecycle.startRun(ian::PlayerClass::Engineer);
         ian::PlayerCommand unlimited;
         unlimited.enableUnlimitedResources =
@@ -2703,8 +2710,8 @@ void runSimulationTests() {
             "foundation cannot be placed outside Core build radius");
 
         const ian::Vec3 insideHit{
-            4.2,
-            foundationRadius.terrain().getHeight(4.2, 0.2),
+            2.2,
+            foundationRadius.terrain().getHeight(2.2, 0.2),
             0.2,
         };
         require(

@@ -311,6 +311,49 @@ struct AppPresentationTestAccess {
         }
         okay &= construction;
         if (!construction) std::cerr << "Unified construction selection or contextual platform/drag failed\n";
+        // Construction range also appears while inspecting Core with equipment.
+        app->setFoundationBuildMode(false);
+        app->actionMode_ = ActionMode::Equipment;
+        auto rangeSnapshot = app->simulation_.snapshot();
+        const std::array rangeBuildings{
+            BuildingInstance{.id={68100,1}, .type=BuildingType::Core,
+                .gridPosition={0,0}, .health=500, .maxHealth=500},
+            BuildingInstance{.id={68101,1}, .type=BuildingType::Wall,
+                .gridPosition={2,0}, .health=100, .maxHealth=100}};
+        rangeSnapshot.buildings = rangeBuildings;
+        rangeSnapshot.coreId = rangeBuildings[0].id;
+        rangeSnapshot.coreBuildRadius = 4;
+        rangeSnapshot.selectedBuilding.reset();
+        rangeSnapshot.buildingPreview.reset();
+        const float ground = static_cast<float>(app->simulation_.terrain().getHeight(0,0));
+        const Camera3D rangeCamera{{0,ground+20,0},{0,ground,0},{0,0,-1},12,CAMERA_ORTHOGRAPHIC};
+        std::array<int,3> rangeInk{};
+        for (std::size_t hover = 0; hover < rangeInk.size(); ++hover) {
+            rangeSnapshot.aimedBuilding = hover == 0 ? std::nullopt
+                : std::optional<EntityId>{rangeBuildings[hover == 1 ? 1 : 0].id};
+            app->renderer_->beginFrame();
+            BeginTextureMode(target);ClearBackground({29,47,57,255});
+            BeginMode3D(rangeCamera);app->renderer_->beginWorldShader(lighting);
+            app->drawWorldOverlays(rangeSnapshot,lighting);
+            app->renderer_->endWorldShader();EndMode3D();EndTextureMode();
+            Image capture=LoadImageFromTexture(target.texture);
+            auto* pixels=LoadImageColors(capture);
+            for(int i=0;i<capture.width*capture.height;++i) {
+                const auto pixel=pixels[i];
+                rangeInk[hover] += std::abs(int(pixel.r)-29)+std::abs(int(pixel.g)-47)+std::abs(int(pixel.b)-57)>24;
+            }
+            if (hover == 2) {
+                if (const char* directory = std::getenv("IAN_BUILD_RADIUS_CAPTURE")) {
+                    std::filesystem::create_directories(directory);
+                    ImageFlipVertical(&capture);
+                    ExportImage(capture, (std::filesystem::path(directory)/"core-build-radius.png").string().c_str());
+                }
+            }
+            UnloadImageColors(pixels);UnloadImage(capture);
+        }
+        const bool coreRange = rangeInk[0] == 0 && rangeInk[1] == 0 && rangeInk[2] > 100;
+        okay &= coreRange;
+        if (!coreRange) std::cerr << "Core hover range failed: " << rangeInk[0] << '/' << rangeInk[1] << '/' << rangeInk[2] << '\n';
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }

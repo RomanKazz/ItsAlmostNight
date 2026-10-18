@@ -130,7 +130,7 @@ void runRunUpgradeTests() {
         legacyRun->returnToMainMenu();
         require(legacyRun->loadSuspendedRunState(legacy), "legacy core radius migrates");
         auto resumed = legacyRun->saveSuspendedRunState();
-        require(resumed.coreBuildRadius == 20 && resumed.coreBuildRadiusLevel == 3 &&
+        require(resumed.coreBuildRadius == 16 && resumed.coreBuildRadiusLevel == 3 &&
             resumed.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::BuildRadius)] == 1.5,
             "migration adds core progression on top of old hammer bonuses");
         require(legacyRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Club)] &&
@@ -140,7 +140,7 @@ void runRunUpgradeTests() {
             "old core-level unlocks migrate without removing the equipped weapon");
         legacyRun->returnToMainMenu();
         require(legacyRun->loadSuspendedRunState(resumed) &&
-            legacyRun->saveSuspendedRunState().coreBuildRadius == 20,
+            legacyRun->saveSuspendedRunState().coreBuildRadius == 16,
             "repeated load never applies radius progression twice");
         resumed.coreBuildRadiusLevel = 4;
         legacyRun->returnToMainMenu();

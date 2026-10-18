@@ -65,3 +65,22 @@ Legacy defensive buildings are not removed during these phases.
 Fence tops use thin walkable segments matching their side colliders (0.5m above
 the building base), including junctions and elevated fences. Player support and
 swept landing queries use these segments; jumps can land on and move along them.
+
+## Compact construction radius (2026-10-18)
+
+New runs start with a 4 m horizontal construction radius around the Core.
+Each successful Core upgrade adds 1 m: levels 1–8 provide 4/5/6/7/8/9/10/11 m.
+The previous values were 9 m initially and +3 m per level (30 m at level 8).
+The graybox asset and fallback map use the same initial radius. Structures and
+foundation placement share the current radius; their existing preview boundary
+updates from the same value. The boundary also appears when aiming at the Core
+while holding equipment; aiming at another building does not reveal it.
+Height is not included in this horizontal limit.
+Godmode and sandbox retain their existing bypasses. Suspended runs preserve
+already-saved radius values; subsequent Core levels use the new +1 m growth.
+Public interfaces and save formats are unchanged.
+
+Validation: Debug test suite checked, with its simulation test rerun after
+isolating fixed-layout fixtures from radius balance. Release simulation tests
+and Debug/Release Core-hover rendering tests passed. The four-meter hover
+boundary was also inspected in an offscreen capture. Diff whitespace checks pass.

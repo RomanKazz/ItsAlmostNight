@@ -12,7 +12,7 @@
 void runMapDefinitionTests() {
     const auto asset = ian::loadMapDefinition("assets/maps/graybox.json");
     require(asset.valid() && asset.map.worldLimit == 192.0 &&
-                asset.map.coreBuildRadius == 9 &&
+                asset.map.coreBuildRadius == 4 &&
                 asset.map.resources.size() == 8 &&
                 asset.map.enemySpawnAnchors.size() == 4,
             "large graybox map loads");
@@ -26,6 +26,9 @@ void runMapDefinitionTests() {
         ian::GameBalance::defaults(), asset.map,
         ian::WorldConfig::defaults()};
     const auto expandedSnapshot = expandedWorld.snapshot();
+    require(ian::MapDefinition::defaults().coreBuildRadius == 4 &&
+                expandedSnapshot.coreBuildRadius == 4,
+            "asset and fallback maps start with the compact four-meter build radius");
     requireNear(
         expandedSnapshot.worldLimit, 144.0, 1e-12,
         "playable boundary starts where mountain rise begins");

@@ -589,7 +589,9 @@ void App::drawWorldOverlays(
                 ? Color{135, 244, 169, 190}
                 : Color{255, 88, 76, 220});
     }
-    if ((snapshot.selectedBuilding || foundationBuildMode_) &&
+    const bool hoveringCore = snapshot.coreId &&
+        snapshot.aimedBuilding == snapshot.coreId;
+    if ((snapshot.selectedBuilding || foundationBuildMode_ || hoveringCore) &&
         snapshot.coreBuildRadius > 0) {
         const auto core = std::ranges::find(
             snapshot.buildings, BuildingType::Core,
