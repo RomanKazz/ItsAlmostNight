@@ -59,7 +59,7 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
     Image affordable=render(upgrade,"upgrade-arrow-pill-affordable.png");
     auto* compactPixels=LoadImageColors(compact);auto* affordablePixels=LoadImageColors(affordable);
     int greens=0,reds=0,affordableReds=0,whites=0,pillPixels=0;
-    int minY=720,maxY=0;
+    int minX=1280,maxX=0,minY=720,maxY=0;
     for(int y=0;y<compact.height;++y) for(int x=0;x<compact.width;++x) {
         const auto c=compactPixels[y*compact.width+x];
         const auto d=affordablePixels[y*compact.width+x];
@@ -69,12 +69,41 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         whites+=c.r>225 && c.g>225 && c.b>200;
         // Black at 40% opacity over RGB(24,32,40), allowing integer blending.
         pillPixels+=c.r>=14 && c.r<=16 && c.g>=18 && c.g<=21 && c.b>=23 && c.b<=26;
-        if(c.r!=24 || c.g!=32 || c.b!=40) { minY=std::min(minY,y);maxY=std::max(maxY,y); }
+        if(c.r!=24 || c.g!=32 || c.b!=40) {
+            minX=std::min(minX,x);maxX=std::max(maxX,x);
+            minY=std::min(minY,y);maxY=std::max(maxY,y);
+        }
     }
     require(greens>80 && whites>30 && reds>affordableReds+20 && pillPixels>300,
         "upgrade row restores green arrow, per-resource colours and forty-percent black pill");
     require(maxY-minY<70 && minY<360 && maxY>360,
         "upgrade prompt is one compact row anchored over the building");
+    require(std::abs((minX+maxX)*.5F-640)<=2,
+        "keycap, arrow and resource price are centred together over the building");
+    int keyPeach=0,keyTan=0;
+    for(int y=330;y<390;++y) for(int x=480;x<550;++x) {
+        const auto c=affordablePixels[y*affordable.width+x];
+        keyPeach+=c.r>220 && c.r<235 && c.g>180 && c.g<195 && c.b>140 && c.b<155;
+        keyTan+=c.r>140 && c.r<155 && c.g>108 && c.g<123 && c.b>65 && c.b<80;
+    }
+    require(keyPeach>300 && keyTan>40,
+        "upgrade keycap has the hotbar peach face and visible brown lower edge");
+    require(InputKeycap::label(controls,ControlAction::Upgrade)=="U",
+        "upgrade keycap defaults to U");
+    controls.keys[static_cast<std::size_t>(ControlAction::Upgrade)]=KEY_I;
+    Image rebound=render(upgrade,"upgrade-arrow-pill-rebound.png");
+    auto* reboundPixels=LoadImageColors(rebound);
+    int keyChanges=0,priceChanges=0;
+    for(int y=0;y<rebound.height;++y) for(int x=0;x<rebound.width;++x) {
+        const auto c=affordablePixels[y*rebound.width+x];
+        const auto d=reboundPixels[y*rebound.width+x];
+        if(c.r==d.r && c.g==d.g && c.b==d.b) continue;
+        if(x<640) ++keyChanges;else ++priceChanges;
+    }
+    require(keyChanges>20 && priceChanges==0,
+        "rebound upgrade letter changes on the left without moving the resource price");
+    controls.keys[static_cast<std::size_t>(ControlAction::Upgrade)]=KEY_U;
+    UnloadImageColors(reboundPixels);UnloadImage(rebound);
     UnloadImageColors(compactPixels);UnloadImageColors(affordablePixels);
     UnloadImage(compact);UnloadImage(affordable);
     // Prime the appearance at a real perspective depth, then turn away in a

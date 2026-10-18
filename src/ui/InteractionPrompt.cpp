@@ -114,12 +114,38 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
     const float paddingX=size*.28F,paddingY=size*.15F;
     const float stockHeight=prompt.producerStock?size*.9F:0;
     const float height=size+paddingY*2+stockHeight;
-    Rectangle pill{projected.x-width*.5F-paddingX,
+    // Centre the complete key + gap + price pill on the building's anchor.
+    // Single letters stay square; longer rebound key names can widen the cap.
+    const auto upgradeKey=InputKeycap::label(controls,ControlAction::Upgrade);
+    const float keyHeight=size*1.1F;
+    const Vector2 keySize{std::max(keyHeight,
+        measureUiText(upgradeKey,keyHeight*.32F).x+keyHeight*.22F),keyHeight};
+    const float keyGap=size*.18F;
+    Rectangle pill{projected.x-width*.5F-paddingX+(keySize.x+keyGap)*.5F,
         projected.y-size*.5F-paddingY,width+paddingX*2,height};
     // This is a world-anchored billboard. Let it leave the viewport naturally;
     // clamping its rectangle would pin a departing building's price to the HUD.
     DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
     const float left=pill.x+paddingX,centerY=pill.y+paddingY+size*.5F;
+    const bool pressed=InputKeycap::held(controls,ControlAction::Upgrade);
+    const float stroke=keySize.y*.045F,depth=keySize.y*.085F;
+    // Match the hotbar's peach surface, brown frame and recessed lower edge.
+    constexpr Color keyFrame{104,60,37,255},keyFace{230,188,147,255},keySide{147,115,73,255};
+    constexpr Color keyInk{52,43,43,255};
+    Rectangle key{pill.x-keyGap-keySize.x,centerY-keySize.y*.5F,keySize.x,keySize.y};
+    drawSolidRoundedRect(key,.28F,hintStyle::fade(keyFrame,opacity));
+    Rectangle face{key.x+stroke,key.y+stroke,key.width-stroke*2,key.height-stroke*2};
+    drawSolidRoundedRect(face,.22F,hintStyle::fade(keySide,opacity));
+    if(pressed) face.y+=depth*.7F;
+    face.height-=depth;
+    drawSolidRoundedRect(face,.22F,hintStyle::fade(keyFace,opacity));
+    const float keyFont=fitUiTextSize(upgradeKey,keySize.y*.32F,keySize.y*.20F,
+        face.width-stroke*2,face.height);
+    const auto letterSize=measureUiText(upgradeKey,keyFont);
+    SdfUiTextStyle letterStyle{};letterStyle.fillColor=hintStyle::fade(keyInk,opacity);
+    letterStyle.outlinePixels=0;letterStyle.shadowColor=BLANK;
+    drawStyledSdfUiText(upgradeKey,{face.x+(face.width-letterSize.x)*.5F,
+        face.y+(face.height-letterSize.y)*.5F},keyFont,letterStyle);
     const Texture2D arrow=ui.coreMenuTexture(CoreMenuTexture::UpgradeGreen);
     if(IsTextureValid(arrow))DrawTexturePro(arrow,
         {0,0,static_cast<float>(arrow.width),static_cast<float>(arrow.height)},
