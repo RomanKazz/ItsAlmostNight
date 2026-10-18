@@ -49,6 +49,34 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         "shrine and upgrade share a dark panel with red missing and light available resources");
     UnloadImageColors(const_cast<Color*>(a));UnloadImageColors(const_cast<Color*>(b));
     UnloadImage(reference);UnloadImage(shrine);
+    // Building upgrades use the earlier one-line arrow/price style. Shrines
+    // and other interactions retain their general prompt cards.
+    auto upgrade=prompt;
+    upgrade.targetKind=InteractionPromptTargetKind::Building;
+    upgrade.input=ControlAction::Upgrade;upgrade.actionText="Upgrade";
+    Image compact=render(upgrade,"upgrade-arrow-pill.png");
+    upgrade.availableResources={99,99,99};
+    Image affordable=render(upgrade,"upgrade-arrow-pill-affordable.png");
+    auto* compactPixels=LoadImageColors(compact);auto* affordablePixels=LoadImageColors(affordable);
+    int greens=0,reds=0,affordableReds=0,whites=0,pillPixels=0;
+    int minY=720,maxY=0;
+    for(int y=0;y<compact.height;++y) for(int x=0;x<compact.width;++x) {
+        const auto c=compactPixels[y*compact.width+x];
+        const auto d=affordablePixels[y*compact.width+x];
+        greens+=c.g>150 && c.g>c.r*1.6 && c.r<110;
+        reds+=c.r>220 && c.g>65 && c.g<140 && c.b<130;
+        affordableReds+=d.r>220 && d.g>65 && d.g<140 && d.b<130;
+        whites+=c.r>225 && c.g>225 && c.b>200;
+        // Black at 40% opacity over RGB(24,32,40), allowing integer blending.
+        pillPixels+=c.r>=14 && c.r<=16 && c.g>=18 && c.g<=21 && c.b>=23 && c.b<=26;
+        if(c.r!=24 || c.g!=32 || c.b!=40) { minY=std::min(minY,y);maxY=std::max(maxY,y); }
+    }
+    require(greens>80 && whites>30 && reds>affordableReds+20 && pillPixels>300,
+        "upgrade row restores green arrow, per-resource colours and forty-percent black pill");
+    require(maxY-minY<70 && minY<360 && maxY>360,
+        "upgrade prompt is one compact row anchored over the building");
+    UnloadImageColors(compactPixels);UnloadImageColors(affordablePixels);
+    UnloadImage(compact);UnloadImage(affordable);
     require(InputKeycap::label(controls,ControlAction::Interact)=="F","unified prompt preserves remapped action key");
     for(const auto screen:{Vector2{640,360},Vector2{1024,768},Vector2{1920,1080},Vector2{800,1200}})
         for(const auto anchor:{Vector2{0,0},screen,Vector2{screen.x*.5F,screen.y*.5F}}) {

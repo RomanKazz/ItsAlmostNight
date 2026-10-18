@@ -7,6 +7,7 @@
 #include "ui/UiHintStyle.hpp"
 #include "ui/UiItemTooltip.hpp"
 #include "ui/HudFormatting.hpp"
+#include "ui/TargetHealthBarAnchor.hpp"
 
 #include <raymath.h>
 
@@ -81,6 +82,79 @@ PromptLayout layout(const InteractionPrompt& prompt,Vector2 anchor,Vector2 scree
         out.bounds.y=std::clamp(screen.y*.5F+44*s,top,bottom);
     out.bounds.x=std::round(out.bounds.x);out.bounds.y=std::round(out.bounds.y);
     return out;
+}
+// The compact world-space upgrade row predates the general interaction cards.
+// Keep its existing arrow, chunky numbers and per-resource affordability colours.
+void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
+    const GameUi& ui,const ControlSettings& controls,float opacity) {
+    const ScopedUiFontRole font(UiFontRole::Display);
+    const Vector2 projected=uiWorldToScreen(prompt.worldAnchor,camera);
+    const Vector3 forward=Vector3Normalize(Vector3Subtract(camera.target,camera.position));
+    const Vector3 right=Vector3Normalize(Vector3CrossProduct(forward,camera.up));
+    const Vector3 up=Vector3Normalize(Vector3CrossProduct(right,forward));
+    const Vector2 projectedUp=uiWorldToScreen(Vector3Add(prompt.worldAnchor,up),camera);
+    const float pixelsPerUnit=Vector2Distance(projected,projectedUp);
+    if(!std::isfinite(pixelsPerUnit) || pixelsPerUnit<=0) return;
+    const float size=pixelsPerUnit*BuildingUpgradePromptWorldHeight;
+    const float iconSize=size*.76F,fontSize=iconSize/1.68F,gap=size*.10F;
+    struct Price { UiResourceIcon icon;int amount;int available; };
+    const std::array prices{
+        Price{UiResourceIcon::Wood,prompt.cost->wood,prompt.availableResources.wood},
+        Price{UiResourceIcon::Stone,prompt.cost->stone,prompt.availableResources.stone},
+        Price{UiResourceIcon::Crystal,prompt.cost->crystals,prompt.availableResources.crystals}};
+    float width=size;
+    for(const auto& price:prices) if(price.amount>0)
+        width+=gap+iconSize+gap*.5F+measureUiText(std::to_string(price.amount),fontSize).x;
+    if(prompt.producerStock) {
+        const auto& stock=*prompt.producerStock;
+        const auto text=std::to_string(stock.stored)+"/"+std::to_string(stock.capacity);
+        const auto key=InputKeycap::size(InputKeycap::label(controls,ControlAction::Interact),size*.60F);
+        width=std::max(width,iconSize+gap+measureUiText(text,fontSize).x+gap*2+key.x);
+    }
+    const float paddingX=size*.28F,paddingY=size*.15F;
+    const float stockHeight=prompt.producerStock?size*.9F:0;
+    const float height=size+paddingY*2+stockHeight;
+    Rectangle pill{projected.x-width*.5F-paddingX,
+        projected.y-size*.5F-paddingY,width+paddingX*2,height};
+    pill.x=std::clamp(pill.x,4.0F,std::max(4.0F,static_cast<float>(uiScreenWidth())-pill.width-4));
+    pill.y=std::clamp(pill.y,4.0F,std::max(4.0F,static_cast<float>(uiScreenHeight())-pill.height-4));
+    DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
+    const float left=pill.x+paddingX,centerY=pill.y+paddingY+size*.5F;
+    const Texture2D arrow=ui.coreMenuTexture(CoreMenuTexture::UpgradeGreen);
+    if(IsTextureValid(arrow))DrawTexturePro(arrow,
+        {0,0,static_cast<float>(arrow.width),static_cast<float>(arrow.height)},
+        {left,centerY-size*.5F,size,size},{},0,hintStyle::fade(WHITE,opacity));
+    SdfUiTextStyle style{};
+    style.outlineColor=hintStyle::fade({20,24,20,255},opacity);
+    style.outlinePixels=size*.065F;
+    style.shadowColor=hintStyle::fade({0,0,0,140},opacity);
+    style.shadowOffsetPixels={0,size*.055F};
+    float cursor=left+size;
+    for(const auto& price:prices) {
+        if(price.amount<=0) continue;
+        cursor+=gap;
+        ui.drawResourceIcon({cursor,centerY-iconSize*.5F,iconSize,iconSize},price.icon,
+            hintStyle::fade(WHITE,opacity));
+        cursor+=iconSize+gap*.5F;
+        const auto amount=std::to_string(price.amount);
+        const Vector2 measured=measureUiText(amount,fontSize);
+        style.fillColor=hintStyle::fade(price.available>=price.amount?UiWhite:hintStyle::Warning,opacity);
+        drawStyledSdfUiText(amount,{cursor,centerY-measured.y*.5F},fontSize,style);
+        cursor+=measured.x;
+    }
+    if(prompt.producerStock) {
+        const auto& stock=*prompt.producerStock;
+        const float y=centerY+size*.90F;
+        ui.drawResourceIcon({left,y-iconSize*.5F,iconSize,iconSize},stock.icon,hintStyle::fade(WHITE,opacity));
+        style.fillColor=hintStyle::fade(UiWhite,opacity);
+        const auto text=std::to_string(stock.stored)+"/"+std::to_string(stock.capacity);
+        const auto measured=measureUiText(text,fontSize);
+        drawStyledSdfUiText(text,{left+iconSize+gap,y-measured.y*.5F},fontSize,style);
+        const auto key=InputKeycap::label(controls,ControlAction::Interact);
+        const auto keySize=InputKeycap::size(key,size*.60F);
+        hintStyle::key({pill.x+pill.width-paddingX-keySize.x,y-keySize.y*.5F,keySize.x,keySize.y},
+            key,false,opacity);
+    }
 }
 } // namespace
 
@@ -227,6 +301,11 @@ void InteractionPromptRenderer::draw(
 void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt,const Camera3D& camera,const GameUi& ui,
     const ControlSettings& controls,float opacity) {
+    if(prompt.targetKind==InteractionPromptTargetKind::Building &&
+        prompt.input==ControlAction::Upgrade && prompt.cost) {
+        drawCompactUpgrade(prompt,camera,ui,controls,opacity);
+        return;
+    }
     const auto anchor=uiWorldToScreen(prompt.worldAnchor,camera);
     auto l=layout(prompt,anchor,{static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},controls);
     const float s=l.scale;
