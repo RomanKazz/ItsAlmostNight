@@ -66,6 +66,7 @@ ModelResource* enemyModelFor(
         return &resources.enemyMageModel();
     case EnemyModelVisual::Sapper:
         return &resources.enemySapperModel();
+    case EnemyModelVisual::AirTank: return &resources.enemyAirTankModel();
     case EnemyModelVisual::Bee: return &resources.enemyBeeModel();
     case EnemyModelVisual::BeeElite: return &resources.enemyBeeEliteModel();
     case EnemyModelVisual::Flying:
@@ -95,6 +96,7 @@ const ModelResource* enemyModelFor(
         return &resources.enemyMageModel();
     case EnemyModelVisual::Sapper:
         return &resources.enemySapperModel();
+    case EnemyModelVisual::AirTank: return &resources.enemyAirTankModel();
     case EnemyModelVisual::Bee: return &resources.enemyBeeModel();
     case EnemyModelVisual::BeeElite: return &resources.enemyBeeEliteModel();
     case EnemyModelVisual::Flying:
@@ -208,9 +210,10 @@ EnemyAnimationSource enemyAnimationFor(
             clip = "Idle";
             break;
         }
-    } else if (modelVisual == EnemyModelVisual::Bee || modelVisual == EnemyModelVisual::BeeElite || modelVisual == EnemyModelVisual::Flying || modelVisual == EnemyModelVisual::Boss ||
+    } else if (modelVisual == EnemyModelVisual::AirTank || modelVisual == EnemyModelVisual::Bee || modelVisual == EnemyModelVisual::BeeElite || modelVisual == EnemyModelVisual::Flying || modelVisual == EnemyModelVisual::Boss ||
                modelVisual == EnemyModelVisual::BossSummon) {
-        animations = modelVisual == EnemyModelVisual::Bee ? &resources.enemyBeeAnimations() :
+        animations = modelVisual == EnemyModelVisual::AirTank ? &resources.enemyAirTankAnimations() :
+            modelVisual == EnemyModelVisual::Bee ? &resources.enemyBeeAnimations() :
             modelVisual == EnemyModelVisual::BeeElite ? &resources.enemyBeeEliteAnimations() :
             modelVisual == EnemyModelVisual::Boss ? &resources.enemyBossAnimations() :
             modelVisual == EnemyModelVisual::BossSummon ? &resources.enemyBossSummonAnimations() :
@@ -335,6 +338,7 @@ Color crowdLodTint(EnemyModelVisual visual, Color tint) {
         return {129, 77, 193, tint.a};
     case EnemyModelVisual::Sapper:
         return {170, 118, 43, tint.a};
+    case EnemyModelVisual::AirTank: return {152,174,81,tint.a};
     case EnemyModelVisual::Bee:
     case EnemyModelVisual::BeeElite: return {255,204,48,tint.a};
     case EnemyModelVisual::Flying:
@@ -548,7 +552,7 @@ void Renderer::drawEliteEnemyDetails(const EnemyDrawInstance& instance) {
         setWorldMaterial(material);
     }
     elite_details::draw(resource->visualBounds(), MatrixMultiply(head, world),
-        instance.eliteAffixes, instance.tint.a);
+        instance.eliteAffixes, instance.tint.a, instance.modelVisual != EnemyModelVisual::AirTank);
     if (worldShaderActive_) setWorldMaterial(original);
 }
 

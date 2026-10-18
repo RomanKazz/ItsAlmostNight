@@ -1052,6 +1052,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             result.radius = 4.6F;
             result.color = {255, 123, 55, 255};
             result.priority = 6;
+        } else if (type == EnemyType::AirTank) {
+            result.radius = 3.2F;
+            result.color = {174, 209, 93, 250};
+            result.priority = 4;
         } else if (enemyIsFlying(type)) {
             result.color = type==EnemyType::Bee?Color{255,205,54,250}:Color{220,105,232,250};
             result.priority = 2;

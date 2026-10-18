@@ -83,11 +83,12 @@ WaveDefinition parseWave(const Json& value) {
         .groupSize = value.at("groupSize").get<int>(),
         .groupInterval = value.at("groupInterval").get<double>(),
         .bee = value.value("bee",0),
+        .airTank = value.value("airTank", 0),
     };
     if (definition.budget <= 0 || definition.basic < 0 || definition.fast < 0 ||
         definition.heavy < 0 || definition.ranged < 0 ||
         definition.sapper < 0 || definition.flying < 0 ||
-        definition.splitter < 0 || definition.bee < 0 ||
+        definition.splitter < 0 || definition.bee < 0 || definition.airTank < 0 ||
         definition.groupSize <= 0 ||
         definition.groupInterval <= 0.0) {
         throw std::runtime_error("wave values must be non-negative");
@@ -96,14 +97,14 @@ WaveDefinition parseWave(const Json& value) {
         definition.basic + definition.fast * 2 +
         definition.heavy * 5 + definition.ranged * 3 +
         definition.sapper * 4 + definition.flying * 3 +
-        definition.splitter * 4 + definition.bee * 3;
+        definition.splitter * 4 + definition.bee * 3 + definition.airTank * 8;
     if (calculatedBudget != definition.budget) {
         throw std::runtime_error("wave budget does not match composition");
     }
     const int spawnCount =
         definition.basic + definition.fast + definition.heavy +
         definition.ranged + definition.sapper + definition.flying +
-        definition.splitter + definition.bee +
+        definition.splitter + definition.bee + definition.airTank +
         (definition.boss ? 1 : 0);
     if (spawnCount > 200) {
         throw std::runtime_error("wave exceeds enemy pool");
@@ -456,14 +457,15 @@ GameBalance GameBalance::defaults() {
             {12.0, 1.55, 18.0, 0.0, 1.0, 0.0},
             {3.0, 2.8, 7.0, 0.0, 1.0, 0.0},
             {7.0, 2.6, 10.0, 0.0, 1.0, 0.0},
+            {36.0, 1.8, 36.0, 0.0, 1.0, 0.0},
         }},
         .waves = {{
             {15, 15, 0, 0, 0, 0, 0, 0, false, 3, 1.6},
             {25, 12, 5, 0, 1, 0, 0, 0, false, 4, 1.6},
             {40, 10, 5, 2, 2, 0, 0, 1, false, 4, 1.4},
             {55, 19, 8, 2, 2, 0, 0, 1, false, 5, 1.4},
-            {75, 19, 8, 4, 2, 0, 2, 2, false, 5, 1.2},
-            {100, 24, 10, 6, 4, 0, 1, 2, true, 6, 1.1, 1},
+            {75, 16, 8, 3, 2, 0, 2, 2, false, 5, 1.2, 0, 1},
+            {100, 21, 10, 5, 4, 0, 1, 2, true, 6, 1.1, 1, 1},
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
@@ -561,6 +563,7 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
                 ? parseEnemy(enemies.at("splitling"), false)
                 : result.balance.enemies[8],
             enemies.contains("bee") ? parseEnemy(enemies.at("bee"),false) : result.balance.enemies[9],
+            enemies.contains("airTank") ? parseEnemy(enemies.at("airTank"), false) : result.balance.enemies[10],
         }};
         result.balance.enemies = parsed;
     } catch (const std::exception& error) {

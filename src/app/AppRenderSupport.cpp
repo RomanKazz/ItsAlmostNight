@@ -123,6 +123,7 @@ EnemyModelVisual enemyModelVisual(EnemyType type) {
         return EnemyModelVisual::Mage;
     case EnemyType::Sapper:
         return EnemyModelVisual::Sapper;
+    case EnemyType::AirTank: return EnemyModelVisual::AirTank;
     case EnemyType::Bee: return EnemyModelVisual::Bee;
     case EnemyType::Flying:
         return EnemyModelVisual::Flying;
@@ -147,6 +148,11 @@ EnemyAnimationVisual enemyAnimationVisual(
     if (enemy.hitAnimationRemaining > 0.0 &&
         enemy.state != EnemyState::Dead) {
         return EnemyAnimationVisual::Hit;
+    }
+    if (enemy.type == EnemyType::AirTank) {
+        if (enemy.airTankWindupRemaining > 0 || enemy.attackCooldownRemaining > 1.7)
+            return EnemyAnimationVisual::MeleeAttack;
+        return enemy.state == EnemyState::MoveToCore ? EnemyAnimationVisual::Walk : EnemyAnimationVisual::Idle;
     }
     if(enemy.type==EnemyType::Bee) {
         if(enemy.beeWindupRemaining>0 || (enemy.attackCooldownRemaining>2.6 && enemy.beeRepositionRemaining>0))
@@ -190,6 +196,7 @@ float enemyVisualScale(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
         return 0.55F;
+    case EnemyType::AirTank: return .90F;
     case EnemyType::Bee: return .70F;
     case EnemyType::Flying:
         return 0.52F;
@@ -252,6 +259,7 @@ Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
         static_cast<float>(enemy.position.x-std::sin(enemy.portalExitYaw)*slip),
         enemy.type == EnemyType::Boss
             ? static_cast<float>(enemy.bossHoverOffset)
+            : enemy.type == EnemyType::AirTank ? .50F
             : enemy.type == EnemyType::Bee ? .80F
             : enemy.type == EnemyType::Flying
             ? 1.25F
@@ -266,6 +274,13 @@ float enemyAnimationSeconds(
     if (enemy.hitAnimationRemaining > 0.0) {
         return static_cast<float>(
             0.22 - enemy.hitAnimationRemaining);
+    }
+    if (enemy.type == EnemyType::AirTank) {
+        if (enemy.airTankWindupRemaining > 0)
+            return static_cast<float>(AirTankWindupSeconds - enemy.airTankWindupRemaining);
+        if (enemy.attackCooldownRemaining > 1.7)
+            return static_cast<float>(AirTankWindupSeconds + AirTankRecoverySeconds - enemy.attackCooldownRemaining);
+        return static_cast<float>((elapsedSeconds) * .7);
     }
     if(enemy.type==EnemyType::Bee) {
         const double windup=enemy.eliteAffixes?1.0:.75;

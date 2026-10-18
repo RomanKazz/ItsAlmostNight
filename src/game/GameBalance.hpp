@@ -35,6 +35,7 @@ struct WaveDefinition {
     int groupSize;
     double groupInterval;
     int bee{};
+    int airTank{};
 };
 
 struct BuildingBalanceDefinition {
@@ -178,7 +179,7 @@ struct GameplayBalanceDefinition {
 };
 
 struct GameBalance {
-    static constexpr std::size_t EnemyTypeCount = 10;
+    static constexpr std::size_t EnemyTypeCount = 11;
     static constexpr std::size_t WaveCount = 6;
     static constexpr std::size_t BuildingTypeCount = 23;
 

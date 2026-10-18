@@ -364,6 +364,9 @@ class GraphicsResources {
     [[nodiscard]] const ModelResource& enemyMageModel() const;
     [[nodiscard]] ModelResource& enemySapperModel();
     [[nodiscard]] const ModelResource& enemySapperModel() const;
+    [[nodiscard]] ModelResource& enemyAirTankModel();
+    [[nodiscard]] const ModelResource& enemyAirTankModel() const;
+    [[nodiscard]] const ModelAnimationsResource& enemyAirTankAnimations() const;
     [[nodiscard]] ModelResource& enemyBeeModel();
     [[nodiscard]] const ModelResource& enemyBeeModel() const;
     [[nodiscard]] ModelResource& enemyBeeEliteModel();
@@ -520,6 +523,7 @@ class GraphicsResources {
     ModelResource enemyMageModel_;
     ModelResource enemySapperModel_;
     ModelResource enemyFlyingModel_;
+    ModelResource enemyAirTankModel_;
     ModelResource enemyBeeModel_;
     ModelResource enemyBeeEliteModel_;
     ModelResource enemyBossModel_;
@@ -536,6 +540,7 @@ class GraphicsResources {
     ModelAnimationsResource enemyMovementAnimations_;
     ModelAnimationsResource enemySapperAnimations_;
     ModelAnimationsResource enemyFlyingAnimations_;
+    ModelAnimationsResource enemyAirTankAnimations_;
     ModelAnimationsResource enemyBeeAnimations_;
     ModelAnimationsResource enemyBeeEliteAnimations_;
     ModelAnimationsResource enemyBossAnimations_;

@@ -635,6 +635,10 @@ const ModelResource& GraphicsResources::enemySapperModel() const {
     return enemySapperModel_;
 }
 
+ModelResource& GraphicsResources::enemyAirTankModel() { return enemyAirTankModel_; }
+const ModelResource& GraphicsResources::enemyAirTankModel() const { return enemyAirTankModel_; }
+const ModelAnimationsResource& GraphicsResources::enemyAirTankAnimations() const { return enemyAirTankAnimations_; }
+
 ModelResource& GraphicsResources::enemyBeeModel() {return enemyBeeModel_;}
 const ModelResource& GraphicsResources::enemyBeeModel() const {return enemyBeeModel_;}
 ModelResource& GraphicsResources::enemyBeeEliteModel() {return enemyBeeEliteModel_;}

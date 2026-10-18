@@ -28,6 +28,7 @@ namespace {
 float enemyFlameScale(EnemyType type) {
     switch (type) {
     case EnemyType::Boss: return 1.65F;
+    case EnemyType::AirTank: return 1.35F;
     case EnemyType::Heavy: return 1.25F;
     case EnemyType::Splitter: return 1.35F;
     case EnemyType::Splitling: return 0.62F;
@@ -181,6 +182,9 @@ void App::drawWorldEnemies(
         } else if (
             enemy.state == EnemyState::BossRamWindup) {
             modelTint = {255, 178, 150, 255};
+        } else if (enemy.type == EnemyType::AirTank && enemy.airTankWindupRemaining > 0) {
+            const float pulse = .5F + .5F * std::sin(static_cast<float>(snapshot.elapsedSeconds) * 16);
+            modelTint = {255, static_cast<unsigned char>(220 - 30 * pulse), 160, 255};
         } else if (enemy.state == EnemyState::BossSlamWindup) {
             modelTint = {255, 216, 162, 255};
         } else if (enemy.state == EnemyState::BossWarCryWindup) {

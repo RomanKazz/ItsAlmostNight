@@ -17,7 +17,7 @@ inline Matrix enemyPresentationTransform(
     Vector3 bodyStretch = {1, 1, 1}, float bodyRoll = 0) {
     const float time = std::isfinite(seconds) ? std::max(0.0F, seconds) : 0.0F;
     const bool heavy = visual == EnemyModelVisual::Warrior ||
-        visual == EnemyModelVisual::Boss || visual == EnemyModelVisual::Splitter;
+        visual == EnemyModelVisual::Boss || visual == EnemyModelVisual::AirTank || visual == EnemyModelVisual::Splitter;
     const float weight = heavy ? 0.48F : 1.0F;
     float spring = 0.0F;
     float roll = 0.0F;
@@ -28,7 +28,7 @@ inline Matrix enemyPresentationTransform(
         spring = std::sin(phase * 2.0F) * 0.055F * weight;
         roll = std::sin(phase) * 0.045F * weight;
         pitch = animation == EnemyAnimationVisual::Run ? -0.08F : -0.025F;
-        if (visual != EnemyModelVisual::Bee && visual != EnemyModelVisual::BeeElite && visual != EnemyModelVisual::Flying && visual != EnemyModelVisual::Boss &&
+        if (visual != EnemyModelVisual::AirTank && visual != EnemyModelVisual::Bee && visual != EnemyModelVisual::BeeElite && visual != EnemyModelVisual::Flying && visual != EnemyModelVisual::Boss &&
             visual != EnemyModelVisual::BossSummon)
             hop = std::pow(std::max(0.0F, std::sin(phase * 2.0F)), 2.0F) * 0.045F * weight;
     } else if (animation == EnemyAnimationVisual::MeleeAttack ||

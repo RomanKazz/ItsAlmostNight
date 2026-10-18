@@ -12,7 +12,7 @@ namespace ian::elite_details {
 // Opaque, depth-tested geometry in bind-head space. No particles, resources,
 // per-frame allocations or gameplay collision changes.
 inline void draw(BoundingBox bounds, Matrix headTransform,
-                 EliteAffixMask affixes, unsigned char opacity) {
+                 EliteAffixMask affixes, unsigned char opacity, bool crown = true) {
     if (!affixes || opacity == 0) return;
     const float width = bounds.max.x - bounds.min.x;
     const float depth = bounds.max.z - bounds.min.z;
@@ -85,7 +85,7 @@ inline void draw(BoundingBox bounds, Matrix headTransform,
     rlBegin(RL_TRIANGLES);
     // Thick open crown band, six large triangular peaks, polished pearl tips.
     constexpr int Sides = 12;
-    for (int side = 0; side < Sides; ++side) {
+    if (crown) for (int side = 0; side < Sides; ++side) {
         const auto ringPoint = [&](int index, float r, float y) {
             const float angle = float(index) * 2 * PI / Sides;
             return Vector3{std::sin(angle) * r, y, std::cos(angle) * r};
@@ -112,8 +112,10 @@ inline void draw(BoundingBox bounds, Matrix headTransform,
     }
     const Color gem = hasEliteAffix(affixes, EliteAffix::Warden) ? blue
         : hasEliteAffix(affixes, EliteAffix::Volatile) ? orange : ruby;
-    orb({0, .26F, 1.03F}, {.19F, .24F, .11F}, gem);
-    orb({-.045F, .34F, 1.13F}, {.045F, .06F, .025F}, ivory);
+    if (crown) {
+        orb({0, .26F, 1.03F}, {.19F, .24F, .11F}, gem);
+        orb({-.045F, .34F, 1.13F}, {.045F, .06F, .025F}, ivory);
+    }
     if (hasEliteAffix(affixes, EliteAffix::Berserker)) {
         for (float sign : {-1.0F, 1.0F}) {
             orb({sign * .95F, .13F, 0}, {.27F, .30F, .28F}, ruby);

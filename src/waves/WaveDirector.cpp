@@ -64,6 +64,8 @@ int enemyBudgetCost(EnemyType type) {
         return 1;
     case EnemyType::Fast:
         return 2;
+    case EnemyType::AirTank:
+        return 8;
     case EnemyType::Heavy:
         return 5;
     case EnemyType::Boss:
@@ -116,6 +118,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         composition.basic = bounded(composition.basic); composition.fast = bounded(composition.fast);
         composition.heavy = bounded(composition.heavy); composition.ranged = bounded(composition.ranged);
         composition.flying = bounded(composition.flying); composition.bee=bounded(composition.bee);
+        composition.airTank = bounded(composition.airTank);
         composition.splitter = bounded(composition.splitter);
     }
     const double waveIndex =
@@ -142,6 +145,8 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     append(EnemyType::Ranged, composition.ranged, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Flying, composition.flying, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
+    append(EnemyType::AirTank, composition.airTank, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Bee, composition.bee, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
@@ -295,6 +300,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.ranged += growth / 2;
     result.flying += growth / 3;
     result.bee += growth / 4;
+    result.airTank += growth / 6;
     result.splitter += (growth + 3) / 4;
     result.boss = normalizedWave % ConfiguredWaveCount == 0;
     result.groupSize = std::min(
@@ -309,6 +315,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
         result.ranged * enemyBudgetCost(EnemyType::Ranged) +
         result.flying * enemyBudgetCost(EnemyType::Flying) +
         result.bee * enemyBudgetCost(EnemyType::Bee) +
+        result.airTank * enemyBudgetCost(EnemyType::AirTank) +
         result.splitter * enemyBudgetCost(EnemyType::Splitter);
     return result;
 }

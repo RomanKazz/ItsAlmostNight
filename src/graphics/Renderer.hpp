@@ -191,6 +191,7 @@ enum class EnemyModelVisual {
     BossSummon,
     Bee,
     BeeElite,
+    AirTank,
 };
 
 enum class EnemyAnimationVisual {
@@ -1119,7 +1120,7 @@ class Renderer {
     float worldRevealElapsed_{1000.0F};
     std::vector<Transform> enemyAnimationPose_;
     std::vector<Transform*> enemyAnimationFrames_;
-    std::array<std::array<std::vector<int>, 2>, 12>
+    std::array<std::array<std::vector<int>, 2>, 13>
         enemyBoneMappings_;
     std::map<EnemyBatchKey, EnemyBatch> enemyBatches_;
     std::vector<EnemyBatch*> activeEnemyBatches_;

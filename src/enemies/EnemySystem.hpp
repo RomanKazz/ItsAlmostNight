@@ -24,6 +24,8 @@ class TerrainHeightfield;
 class CollisionWorld;
 class MultiLevelNavigation;
 inline constexpr double EnemyPortalArrivalDuration=.70;
+inline constexpr double AirTankWindupSeconds = .9;
+inline constexpr double AirTankRecoverySeconds = 2.0;
 
 enum class EnemyType : std::uint8_t {
     Basic,
@@ -36,10 +38,11 @@ enum class EnemyType : std::uint8_t {
     Splitter,
     Splitling,
     Bee,
+    AirTank,
 };
 
 [[nodiscard]] constexpr bool enemyIsFlying(EnemyType type) {
-    return type == EnemyType::Flying || type == EnemyType::Bee;
+    return type == EnemyType::Flying || type == EnemyType::Bee || type == EnemyType::AirTank;
 }
 
 enum class EnemyState {
@@ -175,6 +178,8 @@ struct EnemyInstance {
     double portalArrivalRemaining{};
     double portalExitYaw{};
     double aiUpdateRemaining{};
+    double airTankWindupRemaining{};
+    Vec3 airTankImpactPosition{};
     double beeWindupRemaining{};
     double beeRepositionRemaining{};
     Vec3 beeAim{};
@@ -454,6 +459,7 @@ class EnemySystem {
     void trackPlayerVelocity(
         double deltaSeconds, std::optional<Vec3> playerPosition);
     void recordBossWindupDamage(EnemyInstance& enemy, double damage);
+    void tickAirTank(EnemyInstance& enemy, double dt, std::optional<Vec3> playerPosition, bool prioritizePlayer);
     void tickBee(EnemyInstance& enemy, double dt, std::optional<Vec3> playerPosition);
     void updateProjectiles(
         double deltaSeconds,

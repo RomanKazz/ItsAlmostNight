@@ -30,7 +30,7 @@ struct Entry {
     const char* role;
     const char* description;
 };
-inline constexpr std::array<Entry, 9> Enemies{{
+inline constexpr std::array<Entry, 10> Enemies{{
     {EnemyType::Basic, "BASIC", "THE HORDE", "Classic crowd. Perfect for\ntrying out a full wave."},
     {EnemyType::Fast, "FAST", "QUICK FEET", "Fast runners that close\nthe distance quickly."},
     {EnemyType::Heavy, "HEAVY", "TOUGH TARGET", "A sturdy front line for\ntesting sustained damage."},
@@ -38,6 +38,7 @@ inline constexpr std::array<Entry, 9> Enemies{{
     {EnemyType::Ranged, "RANGED", "KEEP YOUR DISTANCE", "Ranged attackers for testing\nincoming projectiles."},
     {EnemyType::Flying, "FLYING", "ABOVE THE GROUND", "Airborne enemies for testing\nanti-air defenses."},
     {EnemyType::Splitter, "SPLITTER", "THREE LITTLE SURPRISES", "Splits into three little enemies\nwhen defeated."},
+    {EnemyType::AirTank, "GOLELING", "FLYING TANK", "Tough flyer. Targets the Core.\nCan be lured away."},
     {EnemyType::Bee, "ARMABEE", "STINGER VOLLEY", "Flying shooter. Elites use\nits evolved model and a fan volley."},
     {EnemyType::Splitling, "SPLITLING", "SMALL BUT LIVELY", "The little splitter offspring,\nspawned directly."},
 }};
@@ -73,7 +74,8 @@ inline Layout layout(Vector2 screen) {
     l.catalog = r(28, 124, l.portrait ? 704.0F : 788.0F, l.portrait ? 498.0F : 588.0F);
     const float gap = 14 * s;
     const float cw = (l.catalog.width - 2 * gap) / 3;
-    const float ch = (l.catalog.height - 2 * gap) / 3;
+    constexpr std::size_t rows = (Enemies.size() + 2) / 3;
+    const float ch = (l.catalog.height - static_cast<float>(rows - 1) * gap) / static_cast<float>(rows);
     for (std::size_t i = 0; i < l.cards.size(); ++i)
         l.cards[i] = {l.catalog.x + static_cast<float>(i % 3) * (cw + gap),
             l.catalog.y + static_cast<float>(i / 3) * (ch + gap), cw, ch};

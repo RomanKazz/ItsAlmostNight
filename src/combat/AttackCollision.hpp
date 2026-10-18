@@ -11,6 +11,7 @@ namespace ian {
     // These centers preserve the authored targeting heights of each silhouette.
     const double height = [&] {
         switch (enemy.type) {
+        case EnemyType::AirTank: return 2.35;
         case EnemyType::Bee: return 2.10;
         case EnemyType::Flying: return 1.72;
         case EnemyType::Boss: return 1.25;

@@ -45,7 +45,7 @@ constexpr int CollisionCellCount =
     if (type == EnemyType::Boss) {
         return radius * radius * 3.0;
     }
-    if (type == EnemyType::Heavy) {
+    if (type == EnemyType::Heavy || type == EnemyType::AirTank) {
         return radius * radius * 1.8;
     }
     return radius * radius;
@@ -178,6 +178,8 @@ EnemyCapsule enemyCapsule(EnemyType type) {
         return {.radius = 0.42, .segmentHalfHeight = 0.32};
     case EnemyType::Sapper:
         return {.radius = 0.44, .segmentHalfHeight = 0.30};
+    case EnemyType::AirTank:
+        return {.radius = 0.85, .segmentHalfHeight = 0.25};
     case EnemyType::Bee:
     case EnemyType::Flying:
         return {.radius = 0.42, .segmentHalfHeight = 0.24};
@@ -198,7 +200,7 @@ namespace {
 struct CylinderDimensions { double radius, height, bottom; };
 // EnemyType order. Measured native silhouettes at the gameplay import scale;
 // rounded outward to cover small walk squash and the authored protrusions.
-constexpr std::array<CylinderDimensions, 10> PhysicalCylinders{{
+constexpr std::array<CylinderDimensions, 11> PhysicalCylinders{{
     {0.86, 1.62, 0.0}, // Pink Blob
     {1.06, 1.60, 0.0}, // Ninja
     {1.34, 2.65, 0.0}, // Mushnub
@@ -209,6 +211,7 @@ constexpr std::array<CylinderDimensions, 10> PhysicalCylinders{{
     {1.27, 2.03, 0.0}, // spiky splitter
     {0.66, 1.04, 0.0}, // splitling
     {.64, 1.24, 1.32}, // Armabee body, wings remain passable
+    {1.02, 1.9, 1.40}, // Goleling Evolved armored body; wings remain passable
 }};
 CylinderDimensions cylinderDimensions(EnemyType type) {
     const auto index = static_cast<std::size_t>(type);

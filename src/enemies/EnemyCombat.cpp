@@ -20,6 +20,7 @@ double knockbackMultiplier(EnemyType type) {
     switch (type) {
     case EnemyType::Basic: return 1.0;
     case EnemyType::Fast: return 1.15;
+    case EnemyType::AirTank: return 0.25;
     case EnemyType::Heavy: return 0.3;
     case EnemyType::Boss: return 0.15;
     case EnemyType::Ranged: return 0.85;
@@ -512,7 +513,7 @@ bool EnemySystem::applyStatus(
     }
 
     const bool elite = enemy->eliteAffixes != 0U ||
-        enemy->type == EnemyType::Heavy;
+        enemy->type == EnemyType::Heavy || enemy->type == EnemyType::AirTank;
     const bool boss = enemy->type == EnemyType::Boss;
     const StatusEffectType appliedType =
         requestedType == StatusEffectType::Freeze && boss

@@ -38,5 +38,6 @@
       "transitionDamageMultiplier": 0.35
     }
   },
-  "bee": { "health": 7.0, "speed": 2.6, "damage": 10.0 }
+  "bee": { "health": 7.0, "speed": 2.6, "damage": 10.0 },
+  "airTank": { "health": 36.0, "speed": 1.8, "damage": 36.0 }
 }

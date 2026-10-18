@@ -333,6 +333,7 @@ double wanderStrength(EnemyType type) {
     case EnemyType::Bee:
     case EnemyType::Flying:
         return 0.24;
+    case EnemyType::AirTank:
     case EnemyType::Heavy:
         return 0.08;
     case EnemyType::Boss:
@@ -376,6 +377,7 @@ double playerAggroRange(EnemyType type) {
         return 11.0;
     case EnemyType::Boss:
         return 5.0;
+    case EnemyType::AirTank:
     case EnemyType::Heavy:
         return 4.0;
     case EnemyType::Sapper:
@@ -1100,6 +1102,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
             continue;
         }
 
+        if (enemy.type == EnemyType::AirTank) {
+            tickAirTank(enemy, deltaSeconds, playerPosition, prioritizePlayerTarget);
+            continue;
+        }
         if(enemy.type==EnemyType::Bee) {
             tickBee(enemy,deltaSeconds,playerPosition);
             continue;

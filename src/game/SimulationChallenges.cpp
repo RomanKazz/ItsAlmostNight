@@ -39,6 +39,7 @@ EliteAffixMask challengeEliteAffix(
 double challengeEnemyCenterHeight(EnemyType type) {
     switch (type) {
     case EnemyType::Fast: return 0.675;
+    case EnemyType::AirTank: return 2.35;
     case EnemyType::Heavy: return 1.0;
     case EnemyType::Ranged: return 0.85;
     case EnemyType::Sapper: return 0.78;
@@ -173,7 +174,7 @@ void Simulation::activateChallengeColumn(EntityId id) {
         EnemyType type;
         int count;
     };
-    std::array<Candidate, 8> candidates{{
+    std::array<Candidate, 9> candidates{{
         {EnemyType::Basic, composition.basic},
         {EnemyType::Fast, composition.fast},
         {EnemyType::Heavy, composition.heavy},
@@ -181,6 +182,7 @@ void Simulation::activateChallengeColumn(EntityId id) {
         {EnemyType::Sapper, composition.sapper},
         {EnemyType::Flying, composition.flying},
         {EnemyType::Bee, composition.bee},
+        {EnemyType::AirTank, composition.airTank},
         {EnemyType::Splitter, composition.splitter},
     }};
     std::vector<EnemyType> pool;
