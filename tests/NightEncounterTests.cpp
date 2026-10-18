@@ -91,7 +91,7 @@ int main() {
     }
     require(patterns.size() == 5 && coherent && actsDiffer && cyclesDiffer,
         "run seeds cover five distinct scenarios, coherent groups, changing acts and refill order");
-    for (int wave : {6, 12, 1000000}) {
+    for (int wave : {6, 8, 12, 16, 1000000}) {
         for (int act : {-2, 0, 1, 2, 99}) {
             const auto plan = director.buildWave(wave, {}, 0, {.runSeed = 123, .act = act});
             require(plan.spawns.size() <= WaveDirector::MaximumWaveEnemies,
@@ -103,7 +103,7 @@ int main() {
                     "bounded late rosters preserve every advertised stage role");
             const auto bosses = std::count_if(plan.spawns.begin(), plan.spawns.end(),
                 [](const auto& spawn) { return spawn.type == EnemyType::Boss; });
-            require(bosses == (wave % 6 == 0 ? 1 : 0), "boss schedule is preserved");
+            require(bosses == (wave % WaveDirector::BossWaveInterval == 0 ? 1 : 0), "boss schedule is preserved");
         }
     }
     require(nightAct(.399) == 0 && nightAct(.4) == 1 && nightAct(.8) == 2 &&
@@ -160,11 +160,11 @@ int main() {
         "debug completion cannot accidentally trigger replacement spawning");
 
     // Exercise actual act transitions and multiple queue refills on a boss night.
-    for (int wave = 2; wave <= 6; ++wave) {
+    for (int wave = 2; wave <= WaveDirector::BossWaveInterval; ++wave) {
         resolveChoices(*restored);
         restored->tick(restored->snapshot().phaseDuration);
         startNight(*restored);
-        if (wave < 6) restored->tick(0, clear);
+        if (wave < WaveDirector::BossWaveInterval) restored->tick(0, clear);
     }
     int acts = 0, bossKills = 0, warnings = 0;
     restored->takeEvents();

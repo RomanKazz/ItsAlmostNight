@@ -12,6 +12,8 @@ namespace ian {
 
 namespace {
 
+// Preserve stage-clear and endless-night checkpoints from the old schedule.
+constexpr int LegacyStageClearWave = 12;
 constexpr int MaximumSavedCounter = 1'000'000'000;
 constexpr int MaximumSavedStack = 1000;
 constexpr double MaximumSavedTime = 1'000'000'000.0;
@@ -150,7 +152,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
     } else if (activeState == RunState::Wave) {
         if (finalNight_) {
             saved.resumeState = RunState::StageClear;
-            saved.wave = std::max(StageClearWave, wave_ - 1);
+            saved.wave = std::max(LegacyStageClearWave, wave_ - 1);
             saved.stageCleared = true;
             saved.finalNight = false;
             saved.phaseTimeRemaining = 0.0;
@@ -360,7 +362,7 @@ bool Simulation::loadSuspendedRunState(
         saved.phaseTimeRemaining > saved.phaseDuration + 1e-6 ||
         saved.finalNight ||
         (saved.resumeState == RunState::StageClear
-             ? (!saved.stageCleared || saved.wave < StageClearWave)
+             ? (!saved.stageCleared || saved.wave < LegacyStageClearWave)
              : saved.stageCleared);
     if (state_ != RunState::MainMenu ||
         saved.playerClass == PlayerClass::None ||

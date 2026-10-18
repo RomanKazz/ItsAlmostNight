@@ -12,7 +12,7 @@ void runWaveDirectorTests() {
     ian::WaveDirector director;
     requireNear(ian::enemyWaveHealthGrowth(1), 1.0, 1e-12,
                 "opening wave health remains unchanged");
-    requireNear(ian::enemyWaveHealthGrowth(6), 3.075, 1e-12,
+    requireNear(ian::enemyWaveHealthGrowth(8), 4.395, 1e-12,
                 "first boss wave has substantially stronger health growth");
     requireNear(ian::enemyWaveHealthGrowth(12), 7.875, 1e-12,
                 "strong builds face accelerating late-wave health");
@@ -23,7 +23,10 @@ void runWaveDirectorTests() {
 
     auto legacyWaves = ian::GameBalance::defaults().waves;
     for (auto& wave : legacyWaves) wave.sapper = 12;
+    legacyWaves.back().boss = true;
     ian::WaveDirector legacyDirector(legacyWaves);
+    require(!legacyDirector.composition(6).boss && legacyDirector.composition(8).boss,
+        "legacy sixth-night boss flags obey the new eighth-night schedule");
     for (const int wave : {1, 4, 6, 12, 1000000}) {
         require(legacyDirector.composition(wave).sapper == 0,
                 "legacy wave data cannot restore the retired sapper");
@@ -54,7 +57,7 @@ void runWaveDirectorTests() {
         }
         require(regularBudget == ExpectedBudgets[static_cast<std::size_t>(wave - 1)],
                 "wave composition matches configured budget");
-        require(bossCount == (wave == 6 ? 1 : 0), "boss appears only in sixth wave");
+        require(bossCount == 0 && !plan.hasBoss, "six configured opening rosters contain no boss");
         require(plan.groupSize > 0 && plan.groupInterval > 0.0,
                 "wave exposes valid group schedule");
         const int eliteCount = static_cast<int>(std::count_if(
@@ -125,7 +128,7 @@ void runWaveDirectorTests() {
     const auto finalWave = director.buildWave(6, {0, 0});
     require(finalWave.spawns.size() <= 200,
             "sixth configured wave stays inside enemy pool budget");
-    const auto lateForecast = director.forecast(6, 0);
+    const auto lateForecast = director.forecast(8, 0);
     require(lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Ranged)] > 0 &&
                 lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Sapper)] == 0 &&
                 lateForecast.enemies[static_cast<std::size_t>(ian::EnemyType::Flying)] > 0,
@@ -135,13 +138,14 @@ void runWaveDirectorTests() {
         finalWave.spawns.front().healthMultiplier;
     const double sixthWaveDamageMultiplier =
         finalWave.spawns.front().damageMultiplier;
+    const auto firstBossWave = director.buildWave(8, {0, 0});
     const auto firstBoss = std::find_if(
-        finalWave.spawns.begin(), finalWave.spawns.end(),
+        firstBossWave.spawns.begin(), firstBossWave.spawns.end(),
         [](const ian::EnemySpawn& spawn) {
             return spawn.type == ian::EnemyType::Boss;
         });
-    require(firstBoss != finalWave.spawns.end(),
-            "sixth wave contains first boss");
+    require(firstBoss != firstBossWave.spawns.end(),
+            "eighth wave contains first boss");
     const ian::EnemySpawn firstBossSpawn = *firstBoss;
 
     const auto seventhWave = director.buildWave(7, {0, 0});
@@ -156,20 +160,32 @@ void runWaveDirectorTests() {
                 sixthWaveDamageMultiplier,
         "enemy health and damage scale with wave number");
 
-    const auto twelfthWave = director.buildWave(12, {0, 0});
+    const auto secondBossWave = director.buildWave(16, {0, 0});
     const auto secondBoss = std::find_if(
-        twelfthWave.spawns.begin(), twelfthWave.spawns.end(),
+        secondBossWave.spawns.begin(), secondBossWave.spawns.end(),
         [](const ian::EnemySpawn& spawn) {
             return spawn.type == ian::EnemyType::Boss;
         });
     require(
-        twelfthWave.hasBoss &&
-            secondBoss != twelfthWave.spawns.end() &&
+        secondBossWave.hasBoss &&
+            secondBoss != secondBossWave.spawns.end() &&
             secondBoss->healthMultiplier >
                 firstBossSpawn.healthMultiplier &&
             secondBoss->damageMultiplier >
                 firstBossSpawn.damageMultiplier,
-        "an increasingly strong boss returns every six waves");
+        "an increasingly strong boss returns every eight waves");
+
+    for (int wave = 1; wave <= 25; ++wave) {
+        const auto plan = director.buildWave(wave, {});
+        const auto count = std::count_if(plan.spawns.begin(), plan.spawns.end(),
+            [](const auto& spawn) { return spawn.type == ian::EnemyType::Boss; });
+        const bool expected = wave == 8 || wave == 16 || wave == 24;
+        const auto forecast = director.forecast(wave, 123);
+        require(plan.hasBoss == expected && count == (expected ? 1 : 0) &&
+            forecast.enemies[static_cast<std::size_t>(ian::EnemyType::Boss)] == count &&
+            (forecast.pattern == ian::NightPattern::RoyalCourt) == expected,
+            "actual boss spawns and forecasts agree on nights 8, 16 and 24 only");
+    }
 
     const auto distantWave = director.buildWave(1000000, {0, 0});
     require(

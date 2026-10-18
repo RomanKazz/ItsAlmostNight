@@ -34,7 +34,7 @@ inline void checkNightForecast(ian::GameUi& ui, const char* captureDirectory) {
         BeginTextureMode(target);
         ClearBackground({45, 75, 85, 255});
         for (int row = 0; row < 4; ++row) {
-            auto forecast = director.forecast(row == 0 ? 1 : row == 1 ? 3 : row == 2 ? 7 : 6, 73);
+            auto forecast = director.forecast(row == 0 ? 1 : row == 1 ? 3 : row == 2 ? 7 : WaveDirector::BossWaveInterval, 73);
             if (row == 2) forecast.enemies.fill(1);
             const float width = nightForecastWidth(forecast);
             drawNightForecast(ui, forecast, {(960 - width) * .5F, 55 + row * 108.0F, width, 48});

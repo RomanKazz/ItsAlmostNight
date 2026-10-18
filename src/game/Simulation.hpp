@@ -574,7 +574,7 @@ class Simulation {
   public:
     static constexpr std::size_t MaximumActiveEnemies =
         EnemySystem::MaxActiveEnemies;
-    static constexpr int StageClearWave = 12;
+    static constexpr int StageClearWave = 2 * WaveDirector::BossWaveInterval;
 
     explicit Simulation(GameBalance balance = GameBalance::defaults(),
                         MapDefinition map = MapDefinition::defaults(),

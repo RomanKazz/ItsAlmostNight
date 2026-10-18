@@ -184,7 +184,7 @@ void runGameBalanceTests() {
              "groupSize": 1, "groupInterval": 0.5},
             {"budget": 7, "basic": 0, "fast": 1, "heavy": 1,
              "groupSize": 1, "groupInterval": 0.5},
-            {"budget": 8, "basic": 1, "fast": 1, "heavy": 1, "boss": true,
+            {"budget": 8, "basic": 1, "fast": 1, "heavy": 1, "boss": false,
              "groupSize": 1, "groupInterval": 0.5}
         ]
     })json";

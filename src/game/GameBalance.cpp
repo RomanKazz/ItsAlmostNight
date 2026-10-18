@@ -465,7 +465,7 @@ GameBalance GameBalance::defaults() {
             {40, 10, 5, 2, 2, 0, 0, 1, false, 4, 1.4},
             {55, 19, 8, 2, 2, 0, 0, 1, false, 5, 1.4},
             {75, 16, 8, 3, 2, 0, 2, 2, false, 5, 1.2, 0, 1},
-            {100, 21, 10, 5, 4, 0, 1, 2, true, 6, 1.1, 1, 1},
+            {100, 21, 10, 5, 4, 0, 1, 2, false, 6, 1.1, 1, 1},
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
@@ -580,10 +580,6 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
         std::array<WaveDefinition, GameBalance::WaveCount> parsed{};
         for (std::size_t index = 0; index < parsed.size(); ++index) {
             parsed[index] = parseWave(waves.at(index));
-        }
-        if (!parsed.back().boss) {
-            throw std::runtime_error(
-                "sixth wave template must contain boss");
         }
         result.balance.waves = parsed;
     } catch (const std::exception& error) {

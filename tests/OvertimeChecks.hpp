@@ -228,7 +228,7 @@ inline void checkOvertime() {
         first.maxHealth * overtimeDifficulty(2).health, 1e-8, "replayed night resumes existing pressure");
     run->tick(1);
     requireNear(run->snapshot().overtimeSeconds, 3.0, 1e-12, "resumed combat continues the clock");
-    saved.wave = saved.bestWave = 11;
+    saved.wave = saved.bestWave = Simulation::StageClearWave - 1;
     saved.overtimeSeconds = 120;
     run->returnToMainMenu();
     require(run->loadSuspendedRunState(saved), "boss pressure checkpoint loads");
@@ -255,6 +255,16 @@ inline void checkOvertime() {
     requireNear(run->snapshot().overtimeSeconds, 125.0, 1e-12, "endless night continues pressure");
     require(run->snapshot().activeEnemyCount > enteringCount,
         "endless-night reinforcement spawning runs despite its intentionally zero countdown");
+    saved.wave = saved.bestWave = 12;
+    run->returnToMainMenu();
+    require(run->loadSuspendedRunState(saved) && run->snapshot().state == RunState::StageClear,
+        "old completed twelfth-night checkpoints remain loadable");
+    require(run->enterFinalNight(), "legacy completed stages can continue into endless night");
+    const auto legacy = run->saveSuspendedRunState();
+    require(legacy.wave == 12 && legacy.stageCleared && legacy.resumeState == RunState::StageClear,
+        "legacy endless checkpoint does not skip ahead to the new sixteenth-night clear");
+    run->returnToMainMenu();
+    require(run->loadSuspendedRunState(legacy), "legacy endless checkpoint round-trips");
     auto corrupt = replay;
     corrupt.overtimeSeconds = -1;
     run->returnToMainMenu();

@@ -24,6 +24,8 @@ struct WavePlan {
 class WaveDirector {
   public:
     static constexpr int ConfiguredWaveCount = 6;
+    // Boss cadence is independent of the six configured roster templates.
+    static constexpr int BossWaveInterval = 8;
     static constexpr std::size_t MaximumWaveEnemies = 512;
 
     explicit WaveDirector(

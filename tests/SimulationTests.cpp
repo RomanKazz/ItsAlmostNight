@@ -852,7 +852,7 @@ void runSimulationTests() {
         startNight.startWaveEarly = ian::StartWaveEarlyCommand{};
         ian::PlayerCommand clearNight;
         clearNight.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
-        for (int wave = 1; wave < 6; ++wave) {
+        for (int wave = 1; wave < ian::WaveDirector::BossWaveInterval; ++wave) {
             resolveLevelUps(bossNight);
             bossNight.tick(0.0, startNight);
             bossNight.tick(0.0, clearNight);

@@ -59,7 +59,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             "FORT DEFENDED", centerY - 145.0F,
             46.0F, {255, 205, 92, 255});
         drawCenteredSdfUiText(
-            "STAGE CLEARED  •  WAVE 12 BOSS DEFEATED",
+            "STAGE CLEARED  •  BOSS DEFEATED",
             centerY - 78.0F, 19.0F, {229, 219, 190, 255});
         drawCenteredSdfUiText(
             "Your rewards are secured. Bank the run, or test the build",

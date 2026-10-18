@@ -190,7 +190,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         }
     }
     if (composition.boss) {
-        const int bossCycle = normalizedWave / ConfiguredWaveCount;
+        const int bossCycle = normalizedWave / BossWaveInterval;
         const double bossHealthMultiplier =
             healthMultiplier *
             (1.0 + 0.35 * static_cast<double>(bossCycle - 1));
@@ -286,7 +286,10 @@ int WaveDirector::applyEliteUpgrades(int wave) {
 WaveDefinition WaveDirector::composition(int wave) const {
     const int normalizedWave = std::max(1, wave);
     if (normalizedWave <= ConfiguredWaveCount) {
-        return definitions_[static_cast<std::size_t>(normalizedWave - 1)];
+        WaveDefinition result = definitions_[static_cast<std::size_t>(normalizedWave - 1)];
+        // Override legacy sixth-night boss flags from older wave configs.
+        result.boss = normalizedWave % BossWaveInterval == 0;
+        return result;
     }
 
     WaveDefinition result = definitions_.back();
@@ -302,7 +305,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.bee += growth / 4;
     result.airTank += growth / 6;
     result.splitter += (growth + 3) / 4;
-    result.boss = normalizedWave % ConfiguredWaveCount == 0;
+    result.boss = normalizedWave % BossWaveInterval == 0;
     result.groupSize = std::min(
         10, definitions_.back().groupSize + extraWaves / 4);
     result.groupInterval = std::max(
