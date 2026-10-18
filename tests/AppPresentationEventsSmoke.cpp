@@ -218,6 +218,99 @@ struct AppPresentationTestAccess {
             }
             UnloadImage(image);
         }
+        // The real App shares one selection path across buildings and tools.
+        app->simulation_.startRun();
+        PlayerCommand godmode;
+        godmode.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        app->simulation_.tick(1.0 / 60.0, godmode);
+        auto buildSnapshot = app->simulation_.snapshot();
+        buildSnapshot.coreMaxHealth = 500;
+        buildSnapshot.coreLevel = 1;
+        buildSnapshot.unlockedBuildings.fill(true);
+        const auto catalog = makeConstructionHotbarLayout(buildSnapshot.unlockedBuildings, true, 1, true);
+        app->actionMode_ = ActionMode::Buildings;
+        app->selectConstructionHotbarItem(buildSnapshot, *catalog.indexOf(ModularBuildPiece::Foundation));
+        app->selectNextActionModeItem(buildSnapshot);
+        bool construction = app->foundationBuildMode_ && app->modularBuildPiece_ == ModularBuildPiece::Foundation;
+        app->selectNextBuildingItem(buildSnapshot);
+        construction &= app->modularBuildPiece_ == ModularBuildPiece::Ramp;
+        app->selectNextBuildingItem(buildSnapshot);
+        construction &= !app->foundationBuildMode_ && !app->pendingBuildingCancel_ &&
+            app->pendingBuildingSelection_ == BuildingType::GunTurret;
+        app->selectNextBuildingItem(buildSnapshot, -1);
+        construction &= app->foundationBuildMode_ && app->modularBuildPiece_ == ModularBuildPiece::Ramp;
+        if (!construction) std::cerr << "Construction selection failed\n";
+        // Verify context at the actual preview/drag boundary using a live frame.
+        const auto frame = app->simulation_.placeFoundation({.2,
+            app->simulation_.terrain().getHeight(.2, 4.2), 4.2});
+        construction &= frame.has_value();
+        if (frame) {
+            buildSnapshot = app->simulation_.snapshot();
+            const double cell = app->simulation_.terrain().config().cellSize;
+            const Vec3 center{(frame->anchor.x + 1.0) * cell, frame->floorHeight,
+                (frame->anchor.z + 1.0) * cell};
+            buildSnapshot.playerPosition = {center.x, center.y + 3, center.z + 3};
+            buildSnapshot.playerYaw = 0;
+            buildSnapshot.playerPitch = -std::atan2(3.0, 3.0);
+            buildSnapshot.aimedModularBuilding = frame->id;
+            buildSnapshot.aimedModularBuildingCandidate = frame->id;
+            app->selectModularBuildPiece(ModularBuildPiece::Foundation);
+            app->updateModularPlacementPreview(buildSnapshot);
+            construction &= app->modularBuildPiece_ == ModularBuildPiece::FloorPlatform &&
+                app->platformFramePreview_ && app->platformFramePreview_->valid() &&
+                app->platformFramePreview_->anchor.x == frame->anchor.x &&
+                app->platformFramePreview_->anchor.z == frame->anchor.z &&
+                app->platformFramePreview_->storey == 1;
+            if (!construction) std::cerr << "Platform center did not propose a supported upper floor\n";
+            app->beginModularPlacementDrag();
+            construction &= app->modularDragPiece_ == ModularBuildPiece::FloorPlatform;
+            buildSnapshot.aimedModularBuilding.reset();
+            buildSnapshot.aimedModularBuildingCandidate.reset();
+            app->updateModularPlacementPreview(buildSnapshot);
+            construction &= app->modularBuildPiece_ == ModularBuildPiece::FloorPlatform &&
+                app->modularDragStorey_ == 1;
+            if (!construction) std::cerr << "Platform drag failed\n";
+            const bool floorPlaced = app->finishModularPlacementDrag();
+            construction &= floorPlaced;
+            if (!floorPlaced) std::cerr << "Platform drag failed to commit the upper floor\n";
+            buildSnapshot = app->simulation_.snapshot();
+            buildSnapshot.aimedModularBuilding.reset();
+            buildSnapshot.aimedModularBuildingCandidate.reset();
+            app->updateModularPlacementPreview(buildSnapshot);
+            construction &= app->modularBuildPiece_ == ModularBuildPiece::Foundation &&
+                app->modularAutomaticFoundationPreviews_.empty();
+            if (!construction) std::cerr << "Platform return to ground failed\n";
+            // Aiming at the ground frame's outer edge extends its ground row.
+            buildSnapshot.playerPosition = {center.x, center.y + 3, center.z + 3};
+            const double edgeZ = frame->anchor.z * cell + .04 * cell;
+            buildSnapshot.playerPitch = -std::atan2(3.0, buildSnapshot.playerPosition.z - edgeZ);
+            buildSnapshot.aimedModularBuilding = frame->id;
+            buildSnapshot.aimedModularBuildingCandidate = frame->id;
+            app->updateModularPlacementPreview(buildSnapshot);
+            construction &= app->modularBuildPiece_ == ModularBuildPiece::Foundation &&
+                app->platformFramePreview_ && app->platformFramePreview_->storey == 0 &&
+                app->platformFramePreview_->anchor != frame->anchor;
+            if (!construction) std::cerr << "Platform edge did not extend the ground row\n";
+            const auto upper = std::ranges::find_if(buildSnapshot.platformFrames,
+                [](const PlatformFrameInstance& candidate) { return candidate.storey == 1; });
+            construction &= upper != buildSnapshot.platformFrames.end();
+            if (upper != buildSnapshot.platformFrames.end()) {
+                buildSnapshot.playerPosition = {center.x, upper->floorHeight + 3, center.z + 3};
+                buildSnapshot.playerPitch = -std::atan2(3.0, 3.0);
+                buildSnapshot.aimedModularBuilding = upper->id;
+                buildSnapshot.aimedModularBuildingCandidate = upper->id;
+                app->updateModularPlacementPreview(buildSnapshot);
+                construction &= app->modularBuildPiece_ == ModularBuildPiece::FloorPlatform &&
+                    app->platformFramePreview_ && app->platformFramePreview_->storey == 2;
+                buildSnapshot.playerPitch = -std::atan2(3.0, buildSnapshot.playerPosition.z - edgeZ);
+                app->updateModularPlacementPreview(buildSnapshot);
+                construction &= app->modularBuildPiece_ == ModularBuildPiece::FloorPlatform &&
+                    app->platformFramePreview_ && app->platformFramePreview_->storey == 1 &&
+                    app->platformFramePreview_->anchor.z != upper->anchor.z;
+            }
+        }
+        okay &= construction;
+        if (!construction) std::cerr << "Unified construction selection or contextual platform/drag failed\n";
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }

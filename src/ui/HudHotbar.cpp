@@ -1,3 +1,4 @@
+#include "ui/UiViewport.hpp"
 #include "ui/HudHotbar.hpp"
 
 #include "buildings/BuildingHotbarLayout.hpp"
@@ -29,9 +30,10 @@ struct HotbarSlot {
     bool available{};
     bool upgradeAvailable{};
     Texture2D icon{};
+    bool gapBefore{};
 };
 
-void drawHotbarSlots(
+float drawHotbarSlots(
     GameUi& ui, std::span<const HotbarSlot> slots,
     float selectionPosition, float selectionAlpha,
     bool showSlotLabels = false,
@@ -40,35 +42,49 @@ void drawHotbarSlots(
     float verticalOffset = 0.0F,
     double invalidActionRemaining = 0.0,
     bool showSwitchLabel = false,
-    const ResourceCost* availableResources = nullptr) {
-    if (slots.empty()) return;
+    const ResourceCost* availableResources = nullptr,
+    bool avoidVitals = false) {
+    if (slots.empty()) return 0.0F;
 
     const bool iconLayout = std::ranges::any_of(
         slots, [](const HotbarSlot& slot) {
             return IsTextureValid(slot.icon);
         });
-    constexpr float Gap = 7.0F;
-    constexpr float SlotSize = 96.0F;
-    constexpr float SlotRadius = 15.0F;
-    constexpr float KeyBadgeRadius = 14.45F;
-    constexpr float KeyFontSize = 16.32F;
-    constexpr float InnerSize = 86.0F;
-    constexpr float InnerRadius = 11.0F;
-    constexpr float SurfaceHeight = 82.0F;
+    constexpr float GroupGap = 28.0F;
+    const float screenWidth = static_cast<float>(uiScreenWidth());
+    const auto groups = std::ranges::count_if(slots,
+        [](const HotbarSlot& slot) { return slot.gapBefore; });
+    const float naturalWidth = 96.0F * static_cast<float>(slots.size()) +
+        7.0F * static_cast<float>(slots.size() - 1U) +
+        GroupGap * static_cast<float>(groups);
+    const float slotScale = std::min(1.0F,
+        std::max(1.0F, screenWidth - 80.0F) / naturalWidth);
+    const float Gap = 7.0F * slotScale;
+    const float SlotSize = 96.0F * slotScale;
+    const float SlotRadius = 15.0F * slotScale;
+    const float KeyBadgeRadius = 14.45F * slotScale;
+    const float KeyFontSize = 16.32F * slotScale;
+    const float InnerSize = 86.0F * slotScale;
+    const float InnerRadius = 11.0F * slotScale;
+    const float SurfaceHeight = 82.0F * slotScale;
     constexpr Color SlotColor{104, 60, 37, 255};
     constexpr Color ShadowColor{147, 115, 73, 255};
     constexpr Color SurfaceColor{230, 188, 147, 255};
-    const float screenWidth =
-        static_cast<float>(GetScreenWidth());
-    const float gapWidth =
-        Gap * static_cast<float>(slots.size() - 1U);
-    const float totalWidth =
-        SlotSize * static_cast<float>(slots.size()) +
-        gapWidth;
-    const float startX =
-        (screenWidth - totalWidth) * 0.5F;
-    const float slotY = static_cast<float>(GetScreenHeight()) -
-        SlotSize - 20.0F + verticalOffset;
+    const float totalWidth = naturalWidth * slotScale;
+    const float startX = (screenWidth - totalWidth) * 0.5F;
+    std::vector<float> slotPositions;
+    slotPositions.reserve(slots.size());
+    float cursorX = startX;
+    for (const HotbarSlot& slot : slots) {
+        if (slot.gapBefore) cursorX += GroupGap * slotScale;
+        slotPositions.push_back(cursorX);
+        cursorX += SlotSize + Gap;
+    }
+    // A fully unlocked creative catalog is wider than the center of the HUD.
+    // Lift only that long row clear of the player's health/resource bars.
+    const float vitalsClearance = avoidVitals && startX < 290.0F ? 188.0F : 0.0F;
+    const float slotY = static_cast<float>(uiScreenHeight()) -
+        SlotSize - 20.0F - vitalsClearance + verticalOffset;
     selectionPosition = std::clamp(
         selectionPosition, 0.0F,
         static_cast<float>(slots.size() - 1U));
@@ -132,9 +148,11 @@ void drawHotbarSlots(
                   invalidActionRemaining / 0.22, 0.0, 1.0))
         : 0.0F;
     if (selectionAlpha > 0.01F && !slots.empty()) {
-        const float selectionX =
-            startX + selectionPosition *
-                         (SlotSize + Gap) + invalidShake;
+        const auto leftIndex = static_cast<std::size_t>(selectionPosition);
+        const auto rightIndex = std::min(leftIndex + 1U, slots.size() - 1U);
+        const float selectionX = std::lerp(
+            slotPositions[leftIndex], slotPositions[rightIndex],
+            selectionPosition - static_cast<float>(leftIndex)) + invalidShake;
         const float nearestSlotDistance = std::min(
             0.5F,
             std::abs(selectionPosition - std::round(selectionPosition)));
@@ -161,30 +179,31 @@ void drawHotbarSlots(
             8, 2.5F,
             {255, 250, 224,
              alpha(255.0F * selectionAlpha)});
-        const Vector2 selectionBadgeCenter{
-            selectionX + 5.0F,
-            slotY - frameLift + 5.0F};
-        DrawRing(
-            selectionBadgeCenter,
-            KeyBadgeRadius + 2.0F,
-            KeyBadgeRadius + 5.0F,
-            0.0F, 360.0F, 32,
-            {255, 186, 72,
-             alpha(72.0F * selectionAlpha)});
-        DrawRing(
-            selectionBadgeCenter,
-            KeyBadgeRadius,
-            KeyBadgeRadius + 2.5F,
-            0.0F, 360.0F, 32,
-            {255, 250, 224,
-             alpha(255.0F * selectionAlpha)});
+        if (!slots[static_cast<std::size_t>(std::round(selectionPosition))].key.empty()) {
+            const Vector2 selectionBadgeCenter{
+                selectionX + 5.0F * slotScale,
+                slotY - frameLift + 5.0F * slotScale};
+            DrawRing(
+                selectionBadgeCenter,
+                KeyBadgeRadius + 2.0F,
+                KeyBadgeRadius + 5.0F,
+                0.0F, 360.0F, 32,
+                {255, 186, 72,
+                 alpha(72.0F * selectionAlpha)});
+            DrawRing(
+                selectionBadgeCenter,
+                KeyBadgeRadius,
+                KeyBadgeRadius + 2.5F,
+                0.0F, 360.0F, 32,
+                {255, 250, 224,
+                 alpha(255.0F * selectionAlpha)});
+        }
     }
     for (std::size_t index = 0; index < slots.size();
          ++index) {
         const HotbarSlot& slot = slots[index];
         const float x =
-            startX + static_cast<float>(index) *
-                         (SlotSize + Gap) +
+            slotPositions[index] +
             (slot.selected ? invalidShake : 0.0F);
         const float proximity = std::max(
             0.0F,
@@ -196,7 +215,7 @@ void drawHotbarSlots(
             easedProximity * selectionAlpha;
         const float raisedY = slotY - 7.0F * selectionAmount;
         const Rectangle bounds{x, raisedY, SlotSize, SlotSize};
-        const float innerInset = 5.0F;
+        const float innerInset = 5.0F * slotScale;
         const Rectangle shadowBounds{
             x + innerInset, raisedY + innerInset,
             InnerSize, InnerSize};
@@ -251,7 +270,7 @@ void drawHotbarSlots(
 
         const bool hasIcon = IsTextureValid(slot.icon);
         if (hasIcon) {
-            const float IconSize = iconLayout ? 74.0F : 62.0F;
+            const float IconSize = (iconLayout ? 74.0F : 62.0F) * slotScale;
             const float scale = IconSize / static_cast<float>(
                 std::max(slot.icon.width, slot.icon.height));
             const float width = static_cast<float>(slot.icon.width) * scale;
@@ -260,26 +279,28 @@ void drawHotbarSlots(
                 {0, 0, static_cast<float>(slot.icon.width),
                  static_cast<float>(slot.icon.height)},
                 {x + (SlotSize - width) * 0.5F,
-                 raisedY + (iconLayout ? 8.0F : 26.0F) +
+                 raisedY + (iconLayout ? 8.0F : 26.0F) * slotScale +
                      (IconSize - height) * 0.5F,
                  width, height}, {}, 0.0F,
                 slot.available ? WHITE : Color{160, 160, 160, 210});
         }
-        const Vector2 keyBadgeCenter{x + 5.0F, raisedY + 5.0F};
-        DrawCircleV(keyBadgeCenter, KeyBadgeRadius, SlotColor);
+        if (!slot.key.empty()) {
+            const Vector2 keyBadgeCenter{x + 5.0F * slotScale, raisedY + 5.0F * slotScale};
+            DrawCircleV(keyBadgeCenter, KeyBadgeRadius, SlotColor);
 
-        const Vector2 keySize = measureUiText(slot.key, KeyFontSize);
-        SdfUiTextStyle keyStyle{};
-        keyStyle.fillColor = keyColor;
-        keyStyle.outlineColor = {49, 49, 49, 255};
-        keyStyle.shadowColor = {49, 49, 49, 255};
-        keyStyle.shadowOffsetPixels = {0.0F, 2.4F};
-        keyStyle.outlinePixels = 1.8F;
-        drawStyledSdfUiText(
-            slot.key,
-            {keyBadgeCenter.x - keySize.x * 0.5F,
-             raisedY - 6.0F},
-            KeyFontSize, keyStyle);
+            const Vector2 keySize = measureUiText(slot.key, KeyFontSize);
+            SdfUiTextStyle keyStyle{};
+            keyStyle.fillColor = keyColor;
+            keyStyle.outlineColor = {49, 49, 49, 255};
+            keyStyle.shadowColor = {49, 49, 49, 255};
+            keyStyle.shadowOffsetPixels = {0.0F, 2.4F};
+            keyStyle.outlinePixels = 1.8F;
+            drawStyledSdfUiText(
+                slot.key,
+                {keyBadgeCenter.x - keySize.x * 0.5F,
+                 raisedY - 6.0F * slotScale},
+                KeyFontSize, keyStyle);
+        }
         if (!hasIcon && (showSlotLabels || iconLayout)) {
             const Color labelColor = !slot.available
                 ? Color{112, 108, 101, 190}
@@ -343,6 +364,7 @@ void drawHotbarSlots(
         }
     }
 
+    return slotY;
 }
 
 void drawConstructionHotbar(
@@ -359,8 +381,8 @@ void drawConstructionHotbar(
             snapshot.sandboxMode || snapshot.unlimitedResources);
     const auto modularLabel = [](ModularBuildPiece piece) {
         switch (piece) {
-        case ModularBuildPiece::Foundation: return "FOUNDATION";
-        case ModularBuildPiece::FloorPlatform: return "FLOOR";
+        case ModularBuildPiece::Foundation:
+        case ModularBuildPiece::FloorPlatform: return "PLATFORM";
         case ModularBuildPiece::Ramp: return "RAMP";
         case ModularBuildPiece::Wall: return "WALL";
         }
@@ -372,20 +394,23 @@ void drawConstructionHotbar(
         const ConstructionHotbarItem& item = layout.items[index];
         if (item.modularPiece) {
             const ModularBuildPiece piece = *item.modularPiece;
+            const bool selected = view.foundationBuildMode &&
+                view.selectedModularBuildPiece == modularBuildHotbarIndex(piece).value_or(0U);
+            const ModularBuildPiece costPiece = selected
+                ? view.activeModularBuildPiece : piece;
             const ResourceCost cost = snapshot.modularBuildingCosts[
-                static_cast<std::size_t>(piece)];
+                static_cast<std::size_t>(costPiece)];
             slots.push_back({
                 .key = Keys[index],
                 .label = modularLabel(piece),
                 .cost = cost,
-                .selected = view.foundationBuildMode &&
-                    view.selectedModularBuildPiece ==
-                        modularBuildHotbarIndex(piece).value_or(0U),
+                .selected = selected,
                 .available = snapshot.unlimitedResources ||
                     canAfford(
                         cost, snapshot.wood,
                         snapshot.stone, snapshot.crystals),
                 .icon = ui.modularBuildingTexture(piece),
+                .gapBefore = item.gapBefore,
             });
             continue;
         }
@@ -400,83 +425,38 @@ void drawConstructionHotbar(
                 .selected = !view.foundationBuildMode &&
                     snapshot.selectedBuilding == type,
                 .available = snapshot.unlimitedResources ||
-                    canAfford(
-                        cost, snapshot.wood,
-                        snapshot.stone, snapshot.crystals),
+                    ((snapshot.sandboxMode ||
+                      buildingLimitCategory(type) == BuildingLimitCategory::None ||
+                      snapshot.placedBuildingCount < snapshot.totalBuildingLimit) &&
+                     canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals)),
                 .icon = ui.buildingTexture(type),
             });
         }
     }
     const ResourceCost stock{snapshot.wood, snapshot.stone, snapshot.crystals};
-    drawHotbarSlots(
+    const float slotY = drawHotbarSlots(
         ui, slots,
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha,
         false, true,
         {},
         transitionOffset, view.invalidActionRemaining, false,
-        snapshot.unlimitedResources ? nullptr : &stock);
-}
-
-void drawBuildHotbar(
-    GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view, float transitionOffset) {
-    if (view.buildingHotbarCategory ==
-        BuildingHotbarCategory::Modular) {
-        drawConstructionHotbar(ui, snapshot, view,
-                               transitionOffset);
-        return;
-    }
-    constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "[", "]", ";",
-    };
-    const BuildingHotbarLayout layout =
-        makeBuildingHotbarLayout(
-            snapshot.unlockedBuildings,
-            view.buildingHotbarCategory,
-            snapshot.coreMaxHealth > 0.0,
-            snapshot.coreLevel,
-            snapshot.sandboxMode || snapshot.unlimitedResources);
-    std::vector<HotbarSlot> slots;
-    slots.reserve(layout.count);
-    for (std::size_t index = 0; index < layout.count; ++index) {
-        const BuildingType type = layout.types[index];
-        const std::size_t typeIndex = static_cast<std::size_t>(type);
-        const ResourceCost cost =
-            snapshot.buildingCosts[typeIndex];
-        const bool selected =
-            snapshot.selectedBuilding &&
-            *snapshot.selectedBuilding == type;
-        const bool affordable = snapshot.unlimitedResources ||
-            ((snapshot.sandboxMode || buildingLimitCategory(type) == BuildingLimitCategory::None ||
-                snapshot.placedBuildingCount < snapshot.totalBuildingLimit) &&
-             canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals));
-        slots.push_back({
-            .key = Keys[index],
-            .label = buildingDisplayName(type),
-            .cost = cost,
-            .selected = selected,
-            .available = affordable,
-            .icon = ui.buildingTexture(type),
-        });
-    }
-    const ResourceCost stock{snapshot.wood, snapshot.stone, snapshot.crystals};
-    drawHotbarSlots(
-        ui, slots,
-        view.buildHotbarSelectionPosition,
-        view.buildHotbarSelectionAlpha,
-        false, true, {},
-        transitionOffset, view.invalidActionRemaining, false,
-        snapshot.unlimitedResources ? nullptr : &stock);
-    if (snapshot.selectedBuilding && buildingLimitCategory(*snapshot.selectedBuilding) == BuildingLimitCategory::Structure &&
+        snapshot.unlimitedResources ? nullptr : &stock, true);
+    if (!view.foundationBuildMode && snapshot.selectedBuilding && buildingLimitCategory(*snapshot.selectedBuilding) == BuildingLimitCategory::Structure &&
         !snapshot.unlimitedResources && !snapshot.sandboxMode) {
         const std::string count = localizeText("BUILDINGS") + " " + std::to_string(snapshot.placedBuildingCount) +
             " / " + std::to_string(snapshot.totalBuildingLimit);
         const Vector2 size = measureUiText(count, 12);
         drawUiText(count, {(static_cast<float>(uiScreenWidth())-size.x)*.5F,
-            static_cast<float>(uiScreenHeight())-211+transitionOffset}, 12,
+            slotY - 95.0F}, 12,
             snapshot.placedBuildingCount >= snapshot.totalBuildingLimit ? Color{255, 101, 90, 255} : Color{255, 239, 204, 255});
     }
+}
+
+void drawBuildHotbar(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    const HudViewState& view, float transitionOffset) {
+    drawConstructionHotbar(ui, snapshot, view, transitionOffset);
 }
 
 void drawLootInventory(

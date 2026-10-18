@@ -509,6 +509,7 @@ if (showGameplayHud) {
             .selectedModularBuildPiece =
                 modularBuildHotbarIndex(
                     modularBuildPiece_).value_or(0U),
+            .activeModularBuildPiece = modularBuildPiece_,
             .buildingHotbarCategory =
                 buildingHotbarCategory_,
             .buildHotbarSelectionPosition =

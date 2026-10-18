@@ -309,9 +309,6 @@ class App {
     void selectNextActionModeItem(
         const SimulationSnapshot& snapshot,
         int direction = 1);
-    void selectNextBuildingCategory(
-        const SimulationSnapshot& snapshot,
-        int direction = 1);
     void selectNextBuildingItem(
         const SimulationSnapshot& snapshot,
         int direction = 1);

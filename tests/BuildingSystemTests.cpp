@@ -33,19 +33,36 @@ void runBuildingSystemTests() {
                 allUnlocked, true, 3, false);
         require(
             creativeEconomy.count == 0U &&
-                creativeConstruction.count == 8U &&
-                creativeConstruction.items[0].modularPiece ==
-                    ian::ModularBuildPiece::Foundation &&
-                creativeConstruction.items[1].buildingType ==
-                    ian::BuildingType::Wall &&
-                creativeConstruction.items[7].modularPiece ==
-                    ian::ModularBuildPiece::Ramp,
-            "creative construction catalog combines modular, perimeter, and production structures");
-        require(levelOneConstruction.count == 8U && levelTwoConstruction.count == 8U &&
-                levelThreeConstruction.count == 8U &&
-                levelOneConstruction.items[0].modularPiece == ian::ModularBuildPiece::Foundation &&
-                levelOneConstruction.items[7].modularPiece == ian::ModularBuildPiece::Ramp,
-            "all construction tools are available at Core level one");
+                creativeConstruction.count == ian::MaximumBuildingHotbarSlots &&
+                creativeConstruction.items[0].buildingType == ian::BuildingType::GunTurret &&
+                creativeConstruction.indexOf(ian::BuildingType::Gate) &&
+                creativeConstruction.indexOf(ian::BuildingType::LumberMill) &&
+                creativeConstruction.items[19].modularPiece == ian::ModularBuildPiece::Foundation &&
+                creativeConstruction.items[19].gapBefore &&
+                creativeConstruction.items[20].modularPiece == ian::ModularBuildPiece::Ramp,
+            "one construction catalog combines defenses, production, platforms and ramps");
+        require(levelOneConstruction.count == 21U && levelTwoConstruction.count == 21U &&
+                levelThreeConstruction.count == 21U,
+            "unified catalog preserves every unlocked structure at Core level one");
+        require(creativeConstruction.indexOf(ian::ModularBuildPiece::FloorPlatform) ==
+                creativeConstruction.indexOf(ian::ModularBuildPiece::Foundation) &&
+                ian::modularBuildHotbarIndex(ian::ModularBuildPiece::FloorPlatform) ==
+                ian::modularBuildHotbarIndex(ian::ModularBuildPiece::Foundation),
+            "foundation and floor share one visible platform slot");
+        for (std::size_t i = 0; i < creativeConstruction.count; ++i) {
+            const auto& item = creativeConstruction.items[i];
+            require(item.modularPiece.has_value() != item.buildingType.has_value(),
+                "every unified slot has exactly one placement type");
+            for (std::size_t j = 0; j < i; ++j) {
+                const auto& other = creativeConstruction.items[j];
+                require(!(item.buildingType && item.buildingType == other.buildingType) &&
+                        !(item.modularPiece && item.modularPiece == other.modularPiece),
+                    "unified catalog never duplicates a structure or tool");
+            }
+        }
+        const auto beforeCore = ian::makeConstructionHotbarLayout(allUnlocked, false, 0, true);
+        require(beforeCore.count == 1U && beforeCore.items[0].buildingType == ian::BuildingType::Core,
+            "unified catalog shows only Core before its placement");
     }
     std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
@@ -178,16 +195,14 @@ void runBuildingSystemTests() {
         ian::makeConstructionHotbarLayout(
             unlocked, true, 8);
     require(
-        combinedHotbar.count == 4U &&
-            combinedHotbar.items[0].modularPiece ==
-                ian::ModularBuildPiece::Foundation &&
-            combinedHotbar.items[1].buildingType ==
-                ian::BuildingType::Wall &&
-            combinedHotbar.items[2].modularPiece ==
-                ian::ModularBuildPiece::FloorPlatform &&
-            combinedHotbar.items[3].modularPiece ==
-                ian::ModularBuildPiece::Ramp,
-        "combined construction appends later unlocks on the right");
+        combinedHotbar.count == 5U &&
+            combinedHotbar.items[0].buildingType == ian::BuildingType::GunTurret &&
+            combinedHotbar.items[1].buildingType == ian::BuildingType::Turret &&
+            combinedHotbar.items[2].buildingType == ian::BuildingType::Wall &&
+            combinedHotbar.items[3].modularPiece == ian::ModularBuildPiece::Foundation &&
+            combinedHotbar.items[3].gapBefore &&
+            combinedHotbar.items[4].modularPiece == ian::ModularBuildPiece::Ramp,
+        "normal catalog filters locked buildings and separates construction tools");
 
     {
         ian::BuildingSystem expandingRadius;

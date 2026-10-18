@@ -618,6 +618,8 @@
       "C CATEGORY": "C КАТЕГОРИЯ",
       "WHEEL ITEM": "КОЛЕСО ПОСТРОЙКА",
       "PLATFORMS": "ПЛАТФОРМЫ",
+      "PLATFORM": "ПЛАТФОРМА",
+      "Builds foundations on the ground and floors above platforms.": "На земле — фундамент, над платформой — этаж.",
       "HOLD TAB  |  RELEASE TO SELECT": "УДЕРЖИВАЙТЕ TAB  |  ОТПУСТИТЕ ДЛЯ ВЫБОРА",
       "FOUNDATION": "ФУНДАМЕНТ",
       "FLOOR": "ПОЛ",

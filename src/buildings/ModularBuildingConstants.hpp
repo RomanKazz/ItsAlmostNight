@@ -18,15 +18,17 @@ enum class ModularBuildPiece {
 };
 
 inline constexpr std::size_t ModularBuildPieceCount = 4;
-inline constexpr std::array<ModularBuildPiece, 3>
+inline constexpr std::array<ModularBuildPiece, 2>
     ModularBuildHotbarOrder{
         ModularBuildPiece::Foundation,
-        ModularBuildPiece::FloorPlatform,
         ModularBuildPiece::Ramp,
     };
 
 [[nodiscard]] constexpr std::optional<std::size_t>
 modularBuildHotbarIndex(ModularBuildPiece piece) {
+    if (piece == ModularBuildPiece::FloorPlatform) {
+        piece = ModularBuildPiece::Foundation;
+    }
     for (std::size_t index = 0;
          index < ModularBuildHotbarOrder.size(); ++index) {
         if (ModularBuildHotbarOrder[index] == piece) {

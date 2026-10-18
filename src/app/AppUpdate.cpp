@@ -337,24 +337,8 @@ void App::update() {
             (actionMode_ == ActionMode::Buildings ? 1.0F : -1.0F) *
                 static_cast<float>(frameSeconds / 0.28),
         0.0F, 1.0F);
-    const BuildingHotbarLayout buildingLayout =
-        makeBuildingHotbarLayout(
-            hotbarSnapshot.unlockedBuildings,
-            buildingHotbarCategory_,
-            hotbarSnapshot.coreMaxHealth > 0.0,
-            hotbarSnapshot.coreLevel,
-            hotbarSnapshot.sandboxMode ||
-                hotbarSnapshot.unlimitedResources);
     const BuildingType highlightedBuilding =
-        hotbarSnapshot.selectedBuilding.value_or(
-            lastBuildingSelection_);
-    const float buildingTarget = static_cast<float>(
-        buildingLayout.indexOf(highlightedBuilding)
-            .value_or(0U));
-    buildHotbarSelectionPosition_ +=
-        (buildingTarget -
-         buildHotbarSelectionPosition_) *
-        hotbarBlend;
+        hotbarSnapshot.selectedBuilding.value_or(lastBuildingSelection_);
     const ConstructionHotbarLayout constructionLayout =
         makeConstructionHotbarLayout(
             hotbarSnapshot.unlockedBuildings,
@@ -380,16 +364,10 @@ void App::update() {
         (weaponTarget - weaponHotbarSelectionPosition_) *
         hotbarBlend;
     const bool constructionHotbarActive =
-        actionMode_ == ActionMode::Buildings &&
-        buildingHotbarCategory_ ==
-            BuildingHotbarCategory::Modular;
-    const float buildAlphaTarget =
-        actionMode_ == ActionMode::Buildings &&
-                !constructionHotbarActive
-            ? 1.0F
-            : 0.0F;
-    const float foundationAlphaTarget =
-        constructionHotbarActive ? 1.0F : 0.0F;
+        actionMode_ == ActionMode::Buildings;
+    const float buildAlphaTarget = constructionHotbarActive ? 1.0F : 0.0F;
+    const float foundationAlphaTarget = buildAlphaTarget;
+    buildHotbarSelectionPosition_ = foundationHotbarSelectionPosition_;
     const float weaponAlphaTarget =
         actionMode_ == ActionMode::Equipment ? 1.0F : 0.0F;
     buildHotbarSelectionAlpha_ +=
@@ -930,9 +908,9 @@ void App::update() {
     const auto& eventSnapshot = simulation_.snapshot();
     recordMetaProgression(events, eventSnapshot);
     if (actionMode_ == ActionMode::Buildings &&
-        buildingHotbarCategory_ == BuildingHotbarCategory::Base &&
-        eventSnapshot.coreId) {
-        selectNextBuildingCategory(eventSnapshot, 1);
+        lastBuildingSelection_ == BuildingType::Core &&
+        !foundationBuildMode_ && eventSnapshot.coreId) {
+        selectConstructionHotbarItem(eventSnapshot, 0U);
     }
     if (selectBuildingAfterCorePlacement_) {
         if (actionMode_ != ActionMode::Buildings) {
@@ -941,21 +919,13 @@ void App::update() {
                    foundationBuildMode_) {
             selectBuildingAfterCorePlacement_ = false;
         } else {
-            const BuildingHotbarLayout layout =
-                makeBuildingHotbarLayout(
-                    eventSnapshot.unlockedBuildings,
-                    buildingHotbarCategory_, true,
-                    eventSnapshot.coreLevel,
-                    eventSnapshot.sandboxMode ||
-                        eventSnapshot.unlimitedResources);
+            const ConstructionHotbarLayout layout = makeConstructionHotbarLayout(
+                eventSnapshot.unlockedBuildings, true, eventSnapshot.coreLevel,
+                eventSnapshot.sandboxMode || eventSnapshot.unlimitedResources);
             if (layout.count > 0U) {
-                const BuildingType building =
-                    layout.indexOf(lastBuildingSelection_)
-                        ? lastBuildingSelection_
-                        : layout.types[0];
-                lastBuildingSelection_ = building;
                 pendingBuildingCancel_ = false;
-                pendingBuildingSelection_ = building;
+                selectConstructionHotbarItem(eventSnapshot,
+                    layout.indexOf(lastBuildingSelection_).value_or(0U));
             }
         }
     }

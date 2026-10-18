@@ -25,8 +25,11 @@
 The simulation floor entity is `PlatformFrame`. It always occupies a 2x2
 block; its anchor advances on the one-cell placement grid, including odd and
 negative coordinates. Placement exposes
-separate foundation and upper-floor tools: foundations validate terrain at
-storey zero, while floor platforms require an existing supported frame below.
+one contextual platform tool: terrain aim places a foundation at storey zero;
+aiming at a platform center proposes the next floor, while its edge extends the
+current storey. Floors still require an existing supported frame below.
+Defenses, producers and construction tools share one hotbar, with a gap before
+platforms and ramps. C only cycles equipment, never construction categories.
 The one-cell placement step is shared by buildings, platforms, walls and ramps.
 Footprints retain their original size: buildings up to 2x2, platforms 2x2 and
 ramps 2x4. Occupancy prevents overlaps.

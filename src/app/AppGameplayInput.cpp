@@ -274,8 +274,9 @@ void App::processGameplayInput(bool controlDown,
                 selectActionMode(
                     ActionMode::Buildings, currentSnapshot);
                 buildingHotbarCategory_ =
-                    buildingHotbarCategory(type);
+                    BuildingHotbarCategory::Modular;
                 lastBuildingSelection_ = type;
+                pendingBuildingCancel_ = false;
                 pendingBuildingSelection_ = type;
             };
         const Vector2 rawMouseDelta = GetMouseDelta();
@@ -331,9 +332,7 @@ void App::processGameplayInput(bool controlDown,
              keyPressed(
                  userSettings_.controls,
                  ControlAction::Dash));
-        if (actionMode_ == ActionMode::Buildings &&
-            buildingHotbarCategory_ ==
-                BuildingHotbarCategory::Modular) {
+        if (actionMode_ == ActionMode::Buildings) {
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 ConstructionKeys{
                     KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
@@ -348,7 +347,8 @@ void App::processGameplayInput(bool controlDown,
                         currentSnapshot.unlimitedResources);
             for (std::size_t keyIndex = 0;
                  keyIndex < layout.count; ++keyIndex) {
-                if (IsKeyPressed(ConstructionKeys[keyIndex])) {
+                if (ConstructionKeys[keyIndex] != KEY_NULL &&
+                    IsKeyPressed(ConstructionKeys[keyIndex])) {
                     selectConstructionHotbarItem(
                         currentSnapshot, keyIndex);
                 }
@@ -369,61 +369,6 @@ void App::processGameplayInput(bool controlDown,
                             currentSnapshot,
                             buildingItemWheelAccumulator_ > 0.0
                                 ? -1 : 1);
-                        buildingItemWheelAccumulator_ = 0.0;
-                        buildingItemWheelArmed_ = false;
-                    }
-                }
-            } else if (
-                buildingItemWheelReleaseRemaining_ > 0.0 ||
-                !buildingItemWheelArmed_) {
-                buildingItemWheelReleaseRemaining_ = std::max(
-                    0.0,
-                    buildingItemWheelReleaseRemaining_ -
-                        static_cast<double>(GetFrameTime()));
-                if (buildingItemWheelReleaseRemaining_ <= 0.0) {
-                    buildingItemWheelArmed_ = true;
-                    buildingItemWheelAccumulator_ = 0.0;
-                }
-            }
-        } else if (actionMode_ == ActionMode::Buildings) {
-            constexpr std::array<int, MaximumBuildingHotbarSlots>
-                BuildingKeys{
-                    KEY_ONE, KEY_TWO, KEY_THREE,
-                    KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO, KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACKET, KEY_RIGHT_BRACKET, KEY_SEMICOLON,
-                };
-            const BuildingHotbarLayout layout =
-                makeBuildingHotbarLayout(
-                    currentSnapshot.unlockedBuildings,
-                    buildingHotbarCategory_,
-                    currentSnapshot.coreMaxHealth > 0.0,
-                    currentSnapshot.coreLevel,
-                    currentSnapshot.sandboxMode ||
-                        currentSnapshot.unlimitedResources);
-            for (std::size_t keyIndex = 0;
-                 keyIndex < layout.count; ++keyIndex) {
-                if (IsKeyPressed(BuildingKeys[keyIndex])) {
-                    const BuildingType type =
-                        layout.types[keyIndex];
-                    selectBuildingMode(type);
-                }
-            }
-            constexpr double BuildingWheelThreshold = 0.55;
-            constexpr double BuildingWheelReleaseSeconds = 0.10;
-            if (std::abs(wheel) > 0.01F) {
-                buildingItemWheelReleaseRemaining_ =
-                    BuildingWheelReleaseSeconds;
-                if (buildingItemWheelArmed_) {
-                    buildingItemWheelAccumulator_ = std::clamp(
-                        buildingItemWheelAccumulator_ +
-                            static_cast<double>(wheel),
-                        -1.0, 1.0);
-                    if (std::abs(buildingItemWheelAccumulator_) >=
-                        BuildingWheelThreshold) {
-                        selectNextBuildingItem(
-                            currentSnapshot,
-                            buildingItemWheelAccumulator_ > 0.0
-                                ? -1
-                                : 1);
                         buildingItemWheelAccumulator_ = 0.0;
                         buildingItemWheelArmed_ = false;
                     }
@@ -469,12 +414,6 @@ void App::processGameplayInput(bool controlDown,
                     currentSnapshot,
                     hotbarWheel > 0.0F ? -1 : 1);
             }
-        }
-        if (actionMode_ == ActionMode::Buildings && buildingHotbarCategory_ ==
-                BuildingHotbarCategory::Modular &&
-            keyPressed(userSettings_.controls,
-                       ControlAction::UpgradeWeapon)) {
-            selectNextBuildingItem(currentSnapshot);
         }
         const bool cancelBuildingPressed =
             IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
@@ -531,9 +470,8 @@ void App::processGameplayInput(bool controlDown,
         }
         pendingUnlimitedResources_ =
             pendingUnlimitedResources_ || IsKeyPressed(KEY_O);
-        if (keyPressed(
-                userSettings_.controls,
-                ControlAction::ToggleTool)) {
+        if (actionMode_ == ActionMode::Equipment &&
+            keyPressed(userSettings_.controls, ControlAction::ToggleTool)) {
             selectNextActionModeItem(currentSnapshot);
         }
         if (buildingManagementActive &&

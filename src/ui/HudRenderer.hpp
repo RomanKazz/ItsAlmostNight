@@ -27,6 +27,7 @@ struct HudViewState {
     float hotbarModeBlend{};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
+    ModularBuildPiece activeModularBuildPiece{ModularBuildPiece::Foundation};
     BuildingHotbarCategory buildingHotbarCategory{
         BuildingHotbarCategory::Base};
     float buildHotbarSelectionPosition{};

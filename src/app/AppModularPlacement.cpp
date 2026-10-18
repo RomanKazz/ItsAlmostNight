@@ -207,7 +207,8 @@ void App::clearModularPlacementDrag() {
 
 void App::selectModularBuildPiece(
     ModularBuildPiece piece) {
-    if (!modularBuildHotbarIndex(piece)) {
+    if (!modularBuildHotbarIndex(piece) ||
+        piece == ModularBuildPiece::FloorPlatform) {
         piece = ModularBuildPiece::Foundation;
     }
     modularBuildPiece_ = piece;
@@ -285,6 +286,12 @@ void App::updateModularPlacementPreview(
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
+
+    // One visible platform tool; its effective placement type follows the
+    // aimed surface. Keep that type fixed while a drag is in progress.
+    if (isPlatformBuildPiece(modularBuildPiece_) && !modularDragPiece_) {
+        modularBuildPiece_ = ModularBuildPiece::Foundation;
+    }
 
     if (!modularDragUsesAutomaticFoundation_) {
         modularAutomaticFoundationPreviews_.clear();
@@ -1050,6 +1057,10 @@ void App::updateModularPlacementPreview(
             }
         }
     }
+    if (isPlatformBuildPiece(modularBuildPiece_) &&
+        !modularDragPiece_ && platformPlacementTarget) {
+        modularBuildPiece_ = ModularBuildPiece::FloorPlatform;
+    }
     if (modularBuildPiece_ ==
             ModularBuildPiece::FloorPlatform &&
         !modularDragPiece_ &&
@@ -1172,32 +1183,8 @@ void App::updateModularPlacementPreview(
         }
     }
 
-    if (modularBuildPiece_ ==
-        ModularBuildPiece::FloorPlatform) {
-        if (rawHit) {
-            const FloorPlatformFoundationPlacement composite =
-                simulation_.previewFloorPlatformWithFoundation(
-                    *rawHit);
-            modularAutomaticFoundationPreviews_ = {
-                composite.foundation};
-            platformFramePreview_ = composite.floor;
-            foundationTerrainHit_ = *rawHit;
-            modularSnapHit_ = *rawHit;
-            modularSnapMarker_.reset();
-            modularPreviewAnchor_ =
-                composite.foundation.anchor;
-            wallPreview_.reset();
-            rampPreview_.reset();
-            return;
-        }
-        platformFramePreview_.reset();
-        wallPreview_.reset();
-        rampPreview_.reset();
-        foundationTerrainHit_.reset();
-        modularSnapHit_.reset();
-        modularSnapMarker_.reset();
-        modularPreviewAnchor_.reset();
-        return;
+    if (isPlatformBuildPiece(modularBuildPiece_) && !modularDragPiece_) {
+        modularBuildPiece_ = ModularBuildPiece::Foundation;
     }
 
     if (!rawHit) {

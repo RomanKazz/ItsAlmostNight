@@ -87,10 +87,10 @@ const std::vector<Entry>& catalog() {
         for (std::size_t i = 0; i < buildings.size(); ++i) result.push_back({
             "building:" + std::to_string(static_cast<int>(buildings[i])), UnlockCategory::Buildings,
             static_cast<int>(buildings[i]), std::string(buildingDisplayName(buildings[i])), std::string(descriptions[i]), {}, {}});
-        constexpr std::array<std::string_view, 3> modularNames{"FOUNDATION", "PLATFORM", "RAMP"};
-        constexpr std::array<std::string_view, 3> modularDescriptions{
-            "A foundation for your fort on uneven terrain.",
-            "A platform for building above ground.", "Connects different heights in your fort."};
+        constexpr std::array<std::string_view, 2> modularNames{"PLATFORM", "RAMP"};
+        constexpr std::array<std::string_view, 2> modularDescriptions{
+            "Builds foundations on the ground and floors above platforms.",
+            "Connects different heights in your fort."};
         for (std::size_t i = 0; i < ModularBuildHotbarOrder.size(); ++i) {
             const int index = static_cast<int>(ModularBuildHotbarOrder[i]);
             result.push_back({"modular:" + std::to_string(index), UnlockCategory::Buildings, -index - 1,

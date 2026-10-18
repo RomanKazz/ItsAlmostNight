@@ -7,7 +7,7 @@
 namespace ian {
 inline std::string_view modularDescription(ModularBuildPiece piece) {
     switch (piece) {
-    case ModularBuildPiece::Foundation: return "A stable base for buildings on uneven ground.";
+    case ModularBuildPiece::Foundation: return "Builds foundations on the ground and floors above platforms.";
     case ModularBuildPiece::FloorPlatform: return "A raised floor for expanding your fort across multiple levels.";
     case ModularBuildPiece::Wall: return "Blocks enemies and protects your defenses.";
     case ModularBuildPiece::Ramp: return "Connects floors at different heights.";

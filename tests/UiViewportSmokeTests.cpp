@@ -243,12 +243,17 @@ int main(int argc, char** argv) {
         UnloadImage(image);
     }
     snapshot.coreMaxHealth = 500;
+    snapshot.coreLevel = 1;
     snapshot.coreHealth = 350;
     snapshot.playerMaxRecoverableArmor = 25;
     snapshot.playerRecoverableArmor = 20;
     snapshot.unlockedBuildings.fill(true);
+    snapshot.unlimitedResources = true;
     const HudViewState view{.actionMode = ActionMode::Buildings, .hotbarModeBlend = 1.0F,
-        .buildingHotbarCategory = BuildingHotbarCategory::Defense};
+        .foundationBuildMode = true,
+        .activeModularBuildPiece = ModularBuildPiece::FloorPlatform,
+        .foundationHotbarSelectionPosition = 19.0F,
+        .foundationHotbarSelectionAlpha = 1.0F};
     const Camera3D camera{{0, 4, 10}, {0, 0, 0}, {0, 1, 0}, 60, CAMERA_PERSPECTIVE};
     for (Vector2 resolution : {Vector2{640, 360}, Vector2{1024, 768},
             Vector2{1280, 800}, Vector2{1280, 1024}, Vector2{800, 1200},
@@ -357,6 +362,47 @@ int main(int argc, char** argv) {
             require(ExportImage(capture, path.string().c_str()), "HUD screenshot exported");
         }
         UnloadImage(capture);
+    }
+    if (argc > 1) {
+        snapshot.unlimitedResources = false;
+        snapshot.unlockedBuildings.fill(false);
+        for (const auto type : {BuildingType::Core, BuildingType::GunTurret,
+                               BuildingType::Cannon, BuildingType::LumberMill,
+                               BuildingType::Gate}) {
+            snapshot.unlockedBuildings[static_cast<std::size_t>(type)] = true;
+        }
+        snapshot.selectedBuilding = BuildingType::GunTurret;
+        snapshot.placedBuildingCount = 1;
+        snapshot.totalBuildingLimit = 3;
+        for (const bool corePlaced : {true, false}) {
+            snapshot.coreMaxHealth = corePlaced ? 500 : 0;
+            if (!corePlaced) snapshot.selectedBuilding = BuildingType::Core;
+            auto compactView = view;
+            compactView.foundationBuildMode = false;
+            compactView.foundationHotbarSelectionPosition = 0;
+            for (int frame = 0; frame < 3; ++frame) {
+                BeginDrawing();
+                ClearBackground({40, 60, 50, 255});
+                const ScopedUiCanvas canvas;
+                drawHud(ui, snapshot, compactView, camera, {});
+                EndDrawing();
+            }
+            Image compact = LoadImageFromScreen();
+            const auto logical = UiViewport::fromScreen(
+                {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())});
+            const int rowY = compact.height - static_cast<int>(50.0F * logical.scale *
+                static_cast<float>(compact.height) / static_cast<float>(GetScreenHeight()));
+            int visibleSlots = 0;
+            for (int x = compact.width / 4; x < compact.width * 3 / 4; ++x) {
+                const Color pixel = GetImageColor(compact, x, rowY);
+                visibleSlots += pixel.r > 110 && pixel.g > 80 && pixel.r > pixel.b + 25;
+            }
+            require(visibleSlots > 40, "normal-run and Core-only construction hotbars remain visible");
+            require(ExportImage(compact, (std::filesystem::path(argv[1]) /
+                (corePlaced ? "hotbar-normal.png" : "hotbar-before-core.png")).string().c_str()),
+                "normal-run and Core-only hotbar screenshots exported");
+            UnloadImage(compact);
+        }
     }
     ui.shutdown();
     shutdownUiText();
