@@ -77,6 +77,47 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         "upgrade prompt is one compact row anchored over the building");
     UnloadImageColors(compactPixels);UnloadImageColors(affordablePixels);
     UnloadImage(compact);UnloadImage(affordable);
+    // Prime the appearance at a real perspective depth, then turn away in a
+    // single frame while the old prompt is still held by MissingGrace/fade.
+    const Camera3D worldCamera{{0,0,8},{0,0,0},{0,1,0},60,CAMERA_PERSPECTIVE};
+    const auto drawWorldPrompt=[&](InteractionPromptRenderer& painter,
+        const std::optional<InteractionPrompt>& current,const Camera3D& view) {
+        BeginDrawing();BeginTextureMode(target);ClearBackground({24,32,40,255});
+        painter.draw(current,view,ui,controls);EndTextureMode();EndDrawing();
+    };
+    const auto visiblePixels=[](Image image) {
+        const auto* pixels=LoadImageColors(image);int changed=0;
+        for(int i=0;i<image.width*image.height;++i)
+            changed+=pixels[i].r!=24 || pixels[i].g!=32 || pixels[i].b!=40;
+        UnloadImageColors(const_cast<Color*>(pixels));return changed;
+    };
+    for(float degrees : {70.0F,89.9F,90.0F,90.1F,110.0F,180.0F}) {
+        InteractionPromptRenderer painter;
+        for(int frame=0;frame<12;++frame) drawWorldPrompt(painter,upgrade,worldCamera);
+        auto turned=worldCamera;
+        const float angle=degrees*DEG2RAD;
+        turned.target={std::sin(angle),0,8-std::cos(angle)};
+        drawWorldPrompt(painter,std::nullopt,turned);
+        Image image=LoadImageFromTexture(target.texture);
+        require(visiblePixels(image)==0,
+            "cached upgrade price disappears off camera, including either side of the projection plane");
+        UnloadImage(image);
+    }
+    // At the right edge the price is genuinely clipped, not shifted inward.
+    auto edgeCamera=worldCamera;
+    const float edgeAngle=std::atan((1280.0F-8.0F-640.0F)/(360.0F/std::tan(30*DEG2RAD)));
+    edgeCamera.target={-std::sin(edgeAngle),0,8-std::cos(edgeAngle)};
+    InteractionPromptRenderer edgePainter;
+    for(int frame=0;frame<12;++frame) drawWorldPrompt(edgePainter,upgrade,edgeCamera);
+    Image edge=LoadImageFromTexture(target.texture);ImageFlipVertical(&edge);
+    int edgeInk=0;
+    for(int y=0;y<edge.height;++y) {
+        const auto c=GetImageColor(edge,edge.width-1,y);
+        edgeInk+=c.r!=24 || c.g!=32 || c.b!=40;
+    }
+    require(edgeInk>10,"world upgrade price leaves the screen instead of sticking to its edge");
+    if(captureDirectory) ExportImage(edge,(std::filesystem::path(captureDirectory)/"upgrade-world-edge.png").string().c_str());
+    UnloadImage(edge);
     require(InputKeycap::label(controls,ControlAction::Interact)=="F","unified prompt preserves remapped action key");
     for(const auto screen:{Vector2{640,360},Vector2{1024,768},Vector2{1920,1080},Vector2{800,1200}})
         for(const auto anchor:{Vector2{0,0},screen,Vector2{screen.x*.5F,screen.y*.5F}}) {

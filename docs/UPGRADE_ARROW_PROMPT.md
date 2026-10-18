@@ -19,3 +19,13 @@ Optional captures: `ian_run_upgrade_ui_smoke /tmp/upgrade-prompts`.
 
 Results: full Debug CTest 42/42; Release upgrade UI smoke passed. Both builds
 complete without new compiler warnings.
+
+World anchoring follow-up: the price pill is no longer clamped into the screen.
+Its cached anchor is rechecked against the current camera before perspective
+sizing, so a fast turn cannot project a fading target through the camera plane.
+The row exits the viewport with its building. Perspective render regressions
+cover immediate 70–180 degree turns, both sides of the 90-degree plane and
+partial clipping at a screen edge.
+
+Follow-up validation: Debug CTest 42/42; Release upgrade UI smoke passed;
+Debug and Release builds passed. The clipped-edge capture was inspected.

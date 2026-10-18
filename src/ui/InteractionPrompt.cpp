@@ -116,8 +116,8 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
     const float height=size+paddingY*2+stockHeight;
     Rectangle pill{projected.x-width*.5F-paddingX,
         projected.y-size*.5F-paddingY,width+paddingX*2,height};
-    pill.x=std::clamp(pill.x,4.0F,std::max(4.0F,static_cast<float>(uiScreenWidth())-pill.width-4));
-    pill.y=std::clamp(pill.y,4.0F,std::max(4.0F,static_cast<float>(uiScreenHeight())-pill.height-4));
+    // This is a world-anchored billboard. Let it leave the viewport naturally;
+    // clamping its rectangle would pin a departing building's price to the HUD.
     DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
     const float left=pill.x+paddingX,centerY=pill.y+paddingY+size*.5F;
     const Texture2D arrow=ui.coreMenuTexture(CoreMenuTexture::UpgradeGreen);
@@ -303,7 +303,10 @@ void InteractionPromptRenderer::drawPrompt(
     const ControlSettings& controls,float opacity) {
     if(prompt.targetKind==InteractionPromptTargetKind::Building &&
         prompt.input==ControlAction::Upgrade && prompt.cost) {
-        drawCompactUpgrade(prompt,camera,ui,controls,opacity);
+        // MissingGrace/fade can retain the previous target after a fast turn.
+        // Revalidate that cached world anchor before perspective sizing: near
+        // the camera plane its projection grows without bound and flips behind us.
+        if(projectable(prompt,camera)) drawCompactUpgrade(prompt,camera,ui,controls,opacity);
         return;
     }
     const auto anchor=uiWorldToScreen(prompt.worldAnchor,camera);
