@@ -23,29 +23,102 @@ EnemySystem tank(Vec3 position = {0, 2.35, -7}) {
 }
 void corePressure() {
     auto enemies = tank();
+    auto buildings = Base;
+    buildings[1].health = 20; // One real headbutt breaks the outer wall.
     FlowField flow;
-    flow.rebuild({0,0}, Base);
+    flow.rebuild({0,0}, buildings);
     double charge = 0;
-    int hits = 0;
-    double firstHit = 0;
-    bool crossedWall = false;
+    int coreHits = 0;
+    double lastCoreHit = 0;
+    bool hitWall = false;
     // A nearby player cannot kite this role away from the base.
-    for (int tick = 0; tick < 800; ++tick) {
-        const auto attacks = enemies.tick(Step, Base, flow, Vec3{.5,1.7,-6});
+    for (int tick = 0; tick < 1200 && coreHits < 2; ++tick) {
+        const auto attacks = enemies.tick(Step, buildings, flow, Vec3{.5,1.7,-6});
         if (enemies.enemies()[0].airTankWindupRemaining > 0) charge += Step;
-        crossedWall |= enemies.enemies()[0].position.z > -3.5;
-        require(enemies.playerAttacks().empty(), "air tank prioritizes the Core over a nearby player");
+        require(enemies.playerAttacks().empty(), "air tank prioritizes base structures over a nearby player");
+        bool wallDestroyed = false;
         for (const auto& hit : attacks) {
-            require(hit.targetId == Base[0].id && !hit.ram, "tank crosses the wall and hits the Core without boss-only events");
+            require(!hit.ram, "tank headbutt does not emit boss-only ram events");
             requireNear(hit.damage, 36, 1e-9, "heavy strike uses configured damage");
             require(charge > .85, "a visible windup precedes every heavy strike");
-            if (hits++ == 0) firstHit = tick * Step;
-            else require(tick * Step - firstHit > 2.8, "recovery leaves time to react between headbutts");
+            if (hit.targetId == Base[1].id) {
+                require(coreHits == 0, "the wall on the flight path is attacked before the Core");
+                hitWall = true;
+                buildings[1].health -= hit.damage;
+                wallDestroyed = buildings[1].health <= 0;
+            } else {
+                require(hit.targetId == Base[0].id && hitWall,
+                    "after breaking the outer building, the tank continues towards the Core");
+                if (coreHits > 0) require(tick * Step - lastCoreHit > 2.8,
+                    "recovery leaves time to react between headbutts");
+                lastCoreHit = tick * Step;
+                ++coreHits;
+            }
             charge = 0;
         }
-        if (hits >= 2) break;
+        if (wallDestroyed) {
+            buildings.erase(buildings.begin() + 1);
+            flow.rebuild({0,0}, buildings);
+        }
     }
-    require(crossedWall && hits >= 2, "tank bypasses ground fortifications and repeatedly threatens the Core");
+    require(hitWall && coreHits == 2, "tank breaks buildings in its path and still pressures the Core");
+}
+void pathStructures() {
+    for (const auto type : {BuildingType::GunTurret, BuildingType::Cannon, BuildingType::RepairStation}) {
+        auto buildings = std::vector<BuildingInstance>{Base[0]};
+        buildings.push_back({.id={911,1},.type=type,.gridPosition={0,-4},.health=1000,.maxHealth=1000});
+        // A closer structure off the flight corridor must not pull it sideways.
+        buildings.push_back({.id={912,1},.type=BuildingType::Wall,.gridPosition={-6,-6},.health=1000,.maxHealth=1000});
+        FlowField flow; flow.rebuild({0,0},buildings);
+        auto enemies = tank();
+        bool hit = false;
+        for (int tick=0; tick<600 && !hit; ++tick)
+            for (const auto& attack : enemies.tick(Step,buildings,flow)) {
+                require(attack.targetId==buildings[1].id,
+                    "tank attacks an on-route defense or utility building before the Core, ignoring unrelated side walls");
+                hit = true;
+            }
+        require(hit,"tank can hit every supported class of building in its flight corridor");
+    }
+    {
+        const std::array structures{
+            EnemyStructureTarget{.id={920,1},.position={.5,0,-4},.radius=.65,.modular=true},
+            EnemyStructureTarget{.id={921,1},.position={.5,0,-5.5},.radius=1.2,.modular=true,
+                .traversable=true,.attackable=false}};
+        FlowField flow; flow.rebuild({0,0},Base);
+        auto enemies = tank();
+        bool hit = false;
+        for (int tick=0; tick<600 && !hit; ++tick)
+            for (const auto& attack : enemies.tick(Step,Base,flow,{},structures)) {
+                require(attack.targetId==structures[0].id,
+                    "tank attacks modular walls while flying over walkable platform surfaces");
+                hit = true;
+            }
+        require(hit,"modular walls are valid tank targets");
+    }
+}
+void routeProgression() {
+    auto buildings = std::vector<BuildingInstance>{Base[0]};
+    buildings.push_back({.id={930,1},.type=BuildingType::GunTurret,.gridPosition={0,-2},.health=20,.maxHealth=20});
+    buildings.push_back({.id={931,1},.type=BuildingType::Wall,.gridPosition={0,-5},.health=20,.maxHealth=20});
+    constexpr std::array order{EntityId{931,1},EntityId{930,1},EntityId{900,1}};
+    auto enemies = tank({0,2.35,-9});
+    FlowField flow; flow.rebuild({0,0},buildings);
+    std::size_t destroyed = 0;
+    for (int tick=0; tick<1200 && destroyed<order.size(); ++tick) {
+        std::optional<EntityId> remove;
+        for (const auto& attack : enemies.tick(Step,buildings,flow)) {
+            require(attack.targetId==order[destroyed],
+                "flight-path priority is geometric, not the building array order");
+            ++destroyed;
+            remove = attack.targetId;
+        }
+        if (remove) {
+            std::erase_if(buildings,[&](const auto& building) { return building.id==*remove; });
+            if (destroyed<order.size()) flow.rebuild({0,0},buildings);
+        }
+    }
+    require(destroyed==order.size(),"tank destroys the wall, then the turret, and finally attacks the Core");
 }
 void controlAndDecoy() {
     auto enemies = tank({0,2.35,-3});
@@ -68,7 +141,7 @@ void controlAndDecoy() {
         require(gustTarget.enemies()[0].knockbackVelocity.z < 0, "actual blower gusts affect the tank");
     }
     auto lure = tank({0,2.35,-5});
-    auto buildings = Base;
+    auto buildings = std::vector<BuildingInstance>{Base[0]};
     buildings.push_back({.id={902,1},.type=BuildingType::DecoyBeacon,.gridPosition={-3,-4},.health=10000,.maxHealth=10000});
     FlowField flow;
     flow.rebuild({0,0}, buildings);
@@ -153,4 +226,4 @@ void wavesAndCompatibility() {
     static_assert(static_cast<int>(EnemyType::Bee)==9 && static_cast<int>(EnemyType::AirTank)==10);
 }
 }
-int main() { corePressure(); controlAndDecoy(); arenaPlayer(); wavesAndCompatibility(); }
+int main() { corePressure(); pathStructures(); routeProgression(); controlAndDecoy(); arenaPlayer(); wavesAndCompatibility(); }

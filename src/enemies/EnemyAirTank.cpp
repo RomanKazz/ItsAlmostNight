@@ -8,23 +8,55 @@ namespace ian {
 
 void EnemySystem::tickAirTank(EnemyInstance& enemy, double dt,
     std::optional<Vec3> playerPosition, bool prioritizePlayer) {
-    // The tank pressures the Core instead of being endlessly kited by a player.
-    // A beacon can redirect it. Challenge arenas still use their player target.
+    // Keep a prepared headbutt on its original target. New beacons and
+    // buildings only affect the next approach, never cancel the telegraph.
     const EnemyStructureTarget* target = nullptr;
-    for (const auto& structure : structureBuffer_) {
-        if (!structure.attackable || structure.traversable) continue;
-        // A new beacon pulse affects the next attack, never cancels a
-        // headbutt that has already committed to its target.
-        if (enemy.airTankWindupRemaining > 0) {
-            if (enemy.target == structure.id) { target = &structure; break; }
-            continue;
+    if (enemy.airTankWindupRemaining > 0) {
+        for (const auto& structure : structureBuffer_)
+            if (structure.attackable && !structure.traversable && enemy.target == structure.id) {
+                target = &structure;
+                break;
+            }
+    } else {
+        const EnemyStructureTarget* goal = nullptr;
+        for (const auto& structure : structureBuffer_) {
+            if (!structure.attackable || structure.traversable) continue;
+            if (enemy.decoyTarget && enemy.decoyRemaining > 0 && structure.id == *enemy.decoyTarget) {
+                goal = &structure;
+                break;
+            }
+            if ((!prioritizePlayer || !playerPosition) && structure.buildingType == BuildingType::Core)
+                goal = &structure;
         }
-        if (enemy.decoyTarget && enemy.decoyRemaining > 0) {
-            if (structure.id == *enemy.decoyTarget) { target = &structure; break; }
-        } else if ((!prioritizePlayer || !playerPosition) &&
-                   structure.buildingType == BuildingType::Core) {
-            target = &structure;
-            break;
+        target = goal;
+        if (goal) {
+            // Sweep the tank's horizontal body towards its destination and
+            // attack the first building in that corridor, including walls.
+            // Floors/ramps remain flight surfaces, never combat targets.
+            const double dx = goal->position.x - enemy.position.x;
+            const double dz = goal->position.z - enemy.position.z;
+            const double distance = std::hypot(dx, dz);
+            if (distance > 1e-9) {
+                const double x = dx / distance, z = dz / distance;
+                const double body = enemyCollisionCylinder(enemy).radius;
+                double firstContact = std::max(0.0, distance - body - goal->radius);
+                for (const auto& structure : structureBuffer_) {
+                    if (&structure == goal || !structure.attackable || structure.traversable) continue;
+                    const double offsetX = structure.position.x - enemy.position.x;
+                    const double offsetZ = structure.position.z - enemy.position.z;
+                    const double projection = offsetX * x + offsetZ * z;
+                    if (projection < 0 || projection > distance) continue;
+                    const double perpendicular = offsetX * z - offsetZ * x;
+                    const double radius = body + structure.radius;
+                    if (perpendicular * perpendicular > radius * radius) continue;
+                    const double contact = std::max(0.0,
+                        projection - std::sqrt(std::max(0.0, radius * radius - perpendicular * perpendicular)));
+                    if (contact < firstContact - 1e-6) {
+                        firstContact = contact;
+                        target = &structure;
+                    }
+                }
+            }
         }
     }
     const bool playerTarget = !target && prioritizePlayer && playerPosition.has_value();

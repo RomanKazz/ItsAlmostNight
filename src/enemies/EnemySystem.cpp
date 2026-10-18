@@ -392,6 +392,24 @@ double playerAggroRange(EnemyType type) {
     return 4.5;
 }
 
+Vec3 structureProjectileAim(const EnemyStructureTarget& structure) {
+    return {structure.position.x,
+        structure.attackSurfaceHeight.value_or(structure.position.y) +
+            (structure.buildingType == BuildingType::Core ? 1.05 : .70),
+        structure.position.z};
+}
+
+double structureContactDistance(const EnemyInstance& enemy,
+    const EnemyStructureTarget& structure, bool meleeApproach = false) {
+    const double horizontal = std::max(0.0,
+        std::hypot(structure.position.x - enemy.position.x,
+                   structure.position.z - enemy.position.z) -
+            structure.radius - enemyRadius(enemy));
+    if (enemy.type != EnemyType::Ranged || meleeApproach) return horizontal;
+    return std::hypot(horizontal,
+        structureProjectileAim(structure).y - (enemy.worldSurfaceHeight + 1.02));
+}
+
 bool structureIsVerticallyReachable(
     const EnemyInstance& enemy,
     const EnemyStructureTarget& structure) {
@@ -399,6 +417,12 @@ bool structureIsVerticallyReachable(
     // supports can still disappear through structural dependency damage.
     if (structure.traversable || !structure.attackable) {
         return false;
+    }
+    if (enemy.type == EnemyType::Ranged) {
+        // A physical shot can cross storeys; the melee navigation/support
+        // limits do not describe its reach. Keep a finite vertical range.
+        return std::abs(structureProjectileAim(structure).y -
+            (enemy.worldSurfaceHeight + 1.02)) <= attackRange(enemy.type);
     }
     if (enemyIsFlying(enemy.type)) {
         return structure.buildingType ==
@@ -458,11 +482,8 @@ StructureTargetSelection selectStructureTarget(
                         if (projection < 0 || perpendicular > building.radius+enemyRadius(enemy)) return;
                     }
                 }
-                const double contactDistance = std::max(
-                    0.0,
-                    std::hypot(offsetX, offsetZ) -
-                        building.radius -
-                        enemyRadius(enemy));
+                const double contactDistance =
+                    structureContactDistance(enemy, building, lureApproach);
                 if (contactDistance <= contactReach + 1e-6 &&
                     contactDistance < closestContactDistance) {
                     blocker = &building;
@@ -546,7 +567,8 @@ StructureTargetSelection selectStructureTarget(
             return;
         }
 
-        const double contactDistance = std::max(0.0, std::hypot(offsetX, offsetZ) - combinedRadius);
+        const double contactDistance =
+            structureContactDistance(enemy, building, lureApproach);
         const bool sapperPriority =
             !lureApproach && enemy.type == EnemyType::Sapper &&
             building.structuralImpact >
@@ -588,13 +610,7 @@ bool buildingIsInAttackRange(
                 enemy, building)) {
             return;
         }
-        const Vec3 center = building.position;
-        const double offsetX = center.x - enemy.position.x;
-        const double offsetZ = center.z - enemy.position.z;
-        const double contactDistance =
-            std::sqrt(offsetX * offsetX + offsetZ * offsetZ) -
-            building.radius -
-            enemyRadius(enemy);
+        const double contactDistance = structureContactDistance(enemy, building);
         if (contactDistance <= attackRange(enemy.type)) {
             found = true;
         }
@@ -902,10 +918,8 @@ bool EnemySystem::refreshStructureTargets(
             .maximumEnemySurfaceHeight =
                 building.baseHeight +
                     (building.platformStorey >= 0 ? 1.0 : 1.6),
-            .attackSurfaceHeight =
-                building.platformStorey >= 0
-                    ? std::optional<double>{building.baseHeight}
-                    : std::nullopt,
+            // Projectiles aim at the building, not at buried foundation feet.
+            .attackSurfaceHeight = building.baseHeight,
         });
     }
     incomingStructureBuffer_.insert(
@@ -1205,7 +1219,6 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 playerSharesAttackHeight(
                     enemy, *playerPosition) &&
                 (prioritizePlayerTarget ||
-                 enemy.type == EnemyType::Ranged ||
                  !buildingIsInAttackRange(
                     enemy, buildingGrid)) &&
                 (prioritizePlayerTarget ||
@@ -1602,13 +1615,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 const Vec3 origin{
                     enemy.position.x, originSurface + 1.02,
                     enemy.position.z};
-                Vec3 target = blocker->position;
-                target.y = blocker->attackSurfaceHeight
-                    ? *blocker->attackSurfaceHeight + 0.70
-                    : blocker->position.y +
-                          (blocker->buildingType == BuildingType::Core
-                               ? 1.05
-                               : 0.70);
+                const Vec3 target = structureProjectileAim(*blocker);
                 const double dx = target.x - origin.x;
                 const double dy = target.y - origin.y;
                 const double dz = target.z - origin.z;

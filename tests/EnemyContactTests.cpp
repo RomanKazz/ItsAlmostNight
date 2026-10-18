@@ -130,6 +130,68 @@ void lightImpactsAllowApproach() {
     requireNear(resolveAttackStats(base,sources).knockback,base.knockback*2,1e-9,
         "impact tome still doubles the new baseline at five powers");
 }
+void rangedBaseTargets() {
+    // The player is nearby, but already reachable structures should be besieged.
+    const std::vector<BuildingInstance> base{
+        {.id={1600,1},.type=BuildingType::Core,.gridPosition={0,0},.health=1000,.maxHealth=1000},
+        {.id={1601,1},.type=BuildingType::GunTurret,.gridPosition={0,-2},.health=1000,.maxHealth=1000}};
+    FlowField flow; flow.rebuild({0,0},base);
+    EnemySystem siege;
+    siege.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Ranged,.position={.5,.85,-7}}});
+    bool fired = false, hit = false;
+    for (int frame=0; frame<240 && !hit; ++frame) {
+        const auto attacks = siege.tick(Step,base,flow,Vec3{3,1.7,-6});
+        for (const auto& shot : siege.projectiles()) {
+            require(!shot.targetsPlayer && shot.targetId==base[1].id,
+                "wizard besieges the nearest building instead of always chasing the nearby player");
+            fired = true;
+        }
+        for (const auto& attack : attacks) hit |= attack.targetId==base[1].id;
+    }
+    require(fired && hit,"wizard damages a real base building after projectile travel");
+
+    // Same rule for a Core above a platform, independent of melee-storey access.
+    for (const double height : {.6, 4.0}) {
+        auto raised = std::vector<BuildingInstance>{base[0]};
+        raised[0].baseHeight=height; raised[0].platformStorey=height<1 ? 0 : 1;
+        flow.rebuild({0,0},raised);
+        EnemySystem wizard;
+        wizard.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Ranged,.position={.5,.85,-6}}});
+        bool damaged = false;
+        for (int frame=0; frame<240 && !damaged; ++frame) {
+            for (const auto& attack : wizard.tick(Step,raised,flow))
+                damaged |= attack.targetId==raised[0].id;
+            for (const auto& shot : wizard.projectiles())
+                require(shot.targetPosition.y>height+.6,
+                    "wizard aims at the raised building body instead of its ground support");
+        }
+        require(damaged,"ground wizard can shoot a raised Core within three-dimensional range");
+    }
+    // Tall foundations do not move the actual projectile target below the ground.
+    {
+        auto raised = std::vector<BuildingInstance>{base[0]};
+        raised[0].baseHeight=1.2; raised[0].foundationBottomHeight=-3;
+        flow.rebuild({0,0},raised);
+        EnemySystem wizard;
+        wizard.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Ranged,.position={.5,.85,-6}}});
+        wizard.tick(Step,raised,flow);
+        require(!wizard.projectiles().empty() && wizard.projectiles()[0].targetPosition.y>2,
+            "ranged foundation shot aims above the building base, not below terrain");
+    }
+    // The new height rule must not grant unlimited vertical range.
+    {
+        auto raised = std::vector<BuildingInstance>{base[0]};
+        raised[0].baseHeight=20; raised[0].platformStorey=5;
+        flow.rebuild({0,0},raised);
+        EnemySystem wizard;
+        wizard.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Ranged,.position={.5,.85,-6}}});
+        for (int frame=0; frame<60; ++frame) {
+            require(wizard.tick(Step,raised,flow).empty(),"wizard cannot damage an out-of-range high building");
+            require(wizard.projectiles().empty(),"wizard respects vertical projectile range");
+        }
+    }
+}
+
 void enemyDamageAtPlayerBoundary() {
     for (const auto type : {EnemyType::Basic,EnemyType::Ranged}) {
         auto balance = GameBalance::defaults();
@@ -181,4 +243,4 @@ void enemyDamageAtPlayerBoundary() {
 }
 
 }
-int main(){meleeGapAndSpikes();diagonalReach();supportQueries();raisedCore();lightImpactsAllowApproach();enemyDamageAtPlayerBoundary();}
+int main(){meleeGapAndSpikes();diagonalReach();supportQueries();raisedCore();lightImpactsAllowApproach();rangedBaseTargets();enemyDamageAtPlayerBoundary();}
