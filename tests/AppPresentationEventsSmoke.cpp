@@ -420,6 +420,40 @@ struct AppPresentationTestAccess {
                             candidate.anchor.z==neighborAnchor.z;
                     });
                     app->clearModularPlacementDrag();
+                    // A successful placement must not instantly propose a
+                    // third storey at the unchanged aim. Small jitter is safe;
+                    // looking elsewhere or reselecting explicitly re-arms it.
+                    const auto blocked=app->modularFloorPreviewBlockedAim_;
+                    bool rearm=blocked.has_value() && !app->platformFramePreview_;
+                    if (blocked) {
+                        auto unchanged=app->simulation_.snapshot();
+                        unchanged.playerPosition={blocked->x,blocked->y+3,blocked->z};
+                        unchanged.playerYaw=0;unchanged.playerPitch=-PI*.5;
+                        unchanged.aimedModularBuilding.reset();
+                        unchanged.aimedModularBuildingCandidate.reset();
+                        for (double jitter : {0.0,.08,-.08,0.0}) {
+                            unchanged.playerPosition.x=blocked->x+jitter;
+                            app->updateModularPlacementPreview(unchanged);
+                            rearm &= !app->platformFramePreview_ && !app->foundationTerrainHit_ &&
+                                app->modularFloorPreviewBlockedAim_.has_value();
+                        }
+                        unchanged.playerPosition.x=blocked->x+.8;
+                        app->updateModularPlacementPreview(unchanged);
+                        rearm &= !app->modularFloorPreviewBlockedAim_;
+                        unchanged.playerPosition.x=blocked->x;
+                        app->updateModularPlacementPreview(unchanged);
+                        rearm &= app->platformFramePreview_ && app->platformFramePreview_->valid() &&
+                            app->platformFramePreview_->storey==3;
+                        app->modularFloorPreviewBlockedAim_=*blocked;
+                        app->selectModularBuildPiece(ModularBuildPiece::Foundation);
+                        app->updateModularPlacementPreview(unchanged);
+                        rearm &= !app->modularFloorPreviewBlockedAim_ && app->platformFramePreview_ &&
+                            app->platformFramePreview_->storey==3;
+                        app->clearModularPlacementDrag();
+                        rearm &= !app->finishModularPlacementDrag() && !app->modularFloorPreviewBlockedAim_;
+                    }
+                    deckAim &= rearm;
+                    if (!rearm) std::cerr << "Placement instantly proposed another storey or failed to re-arm after retargeting\n";
                 }
             }
         }

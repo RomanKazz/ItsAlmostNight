@@ -29,6 +29,22 @@ bool App::finishModularPlacementDrag() {
                 bounceStep;
         };
     bool placedAny = false;
+    const auto blockImmediateFloorPreview = [&] {
+        if (!placedAny || !isPlatformBuildPiece(*modularDragPiece_) ||
+            !modularDragTargetFloorHeight_) return;
+        const auto& snapshot = simulation_.snapshot();
+        const double cosPitch = std::cos(snapshot.playerPitch);
+        const Vec3 direction{std::sin(snapshot.playerYaw)*cosPitch,
+            std::sin(snapshot.playerPitch),-std::cos(snapshot.playerYaw)*cosPitch};
+        const GridCoord end = modularDragEnd_.value_or(modularDragStart_.value_or(GridCoord{}));
+        modularFloorPreviewBlockedAim_ = rampSocketAimOnFloor(snapshot.playerPosition,
+            direction,*modularDragTargetFloorHeight_).value_or(Vec3{
+                (end.x+1.0)*cellSize,*modularDragTargetFloorHeight_,(end.z+1.0)*cellSize});
+        platformFramePreview_.reset();
+        foundationTerrainHit_.reset();
+        modularPreviewAnchor_.reset();
+        modularPreviewVisualOrigin_.reset();
+    };
     simulation_.beginModularPlacementBatch();
     if (modularDragUsesAutomaticFoundation_ &&
         modularDragTargetFloorHeight_) {
@@ -128,6 +144,7 @@ bool App::finishModularPlacementDrag() {
             }
         }
         simulation_.endModularPlacementBatch();
+        blockImmediateFloorPreview();
         clearModularPlacementDrag();
         modularSnapHit_.reset();
         modularSnapMarker_.reset();
@@ -284,6 +301,7 @@ bool App::finishModularPlacementDrag() {
         }
     }
     simulation_.endModularPlacementBatch();
+    blockImmediateFloorPreview();
     clearModularPlacementDrag();
     modularSnapHit_.reset();
     modularSnapMarker_.reset();

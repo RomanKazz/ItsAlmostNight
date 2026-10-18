@@ -33,3 +33,24 @@ the supplied visual origin. Additional regressions cover the half-overlapping
 ground edge and an occupied upper floor magnetizing to a neighbouring valid
 footprint; actual placement is committed and checked against that ghost.
 Existing contextual platform/drag coverage remains.
+
+## Post-placement preview
+
+Successful platform/floor placement now suppresses automatic stacking at the
+unchanged aim. The guard is anchored to the newly placed deck plane after the
+player has been raised onto it, and lasts until the aim moves more than 0.65
+cells, leaves that plane, or the platform tool is explicitly reselected.
+Horizontal edge extension remains available immediately. This also applies to
+a dragged row and automatic foundation+floor placement; failed placements and
+ramps do not arm it. Run/tool reset clears this private presentation state.
+
+Regression coverage commits an actual floor and checks unchanged aim, repeated
+small mouse movements, retargeting, explicit reselection and unsuccessful
+commit handling. No gameplay/public interfaces or save formats change.
+
+Validation for this follow-up: Debug/Release builds pass; the App construction
+presentation regression and Release gameplay suite pass. Full Debug is 41/42:
+`ian_render_performance_smoke` reports prepared-viewmodel pixel mismatches and
+also fails an isolated rerun. That renderer-only target does not use the
+modified App placement code. The failure is recorded rather than weakening
+its pixel comparison or changing unrelated viewmodel rendering.

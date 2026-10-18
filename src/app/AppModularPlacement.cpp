@@ -212,6 +212,7 @@ void App::selectModularBuildPiece(
         piece = ModularBuildPiece::Foundation;
     }
     modularBuildPiece_ = piece;
+    modularFloorPreviewBlockedAim_.reset();
     clearModularPlacementDrag();
     platformFramePreview_.reset();
     wallPreview_.reset();
@@ -228,6 +229,7 @@ void App::selectModularBuildPiece(
 
 void App::setFoundationBuildMode(bool enabled) {
     foundationBuildMode_ = enabled;
+    modularFloorPreviewBlockedAim_.reset();
     if (enabled) {
         placementPreviewEntranceSeconds_ = 0.0;
     }
@@ -286,6 +288,17 @@ void App::updateModularPlacementPreview(
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
+
+    if (modularFloorPreviewBlockedAim_ && !modularDragPiece_) {
+        const auto aim = rampSocketAimOnFloor(snapshot.playerPosition,
+            lookDirection, modularFloorPreviewBlockedAim_->y);
+        // A small dead zone prevents placement recoil or mouse jitter from
+        // immediately re-enabling another storey under the same crosshair.
+        if (!aim || std::hypot(aim->x - modularFloorPreviewBlockedAim_->x,
+                aim->z - modularFloorPreviewBlockedAim_->z) > .65 * cellSize) {
+            modularFloorPreviewBlockedAim_.reset();
+        }
+    }
 
     const auto previousPlatformPreview = platformFramePreview_;
     const auto snapPlatformToFreeSpace = [&] {
@@ -1173,6 +1186,17 @@ void App::updateModularPlacementPreview(
                 targetAnchor = edge->extensionAnchor;
                 targetStorey = frame->storey;
                 targetFloorHeight = frame->floorHeight;
+            }
+            if (!edge && modularFloorPreviewBlockedAim_ &&
+                std::abs(frame->floorHeight - modularFloorPreviewBlockedAim_->y) <= 1e-6) {
+                platformFramePreview_.reset();
+                wallPreview_.reset();
+                rampPreview_.reset();
+                foundationTerrainHit_.reset();
+                modularSnapHit_.reset();
+                modularSnapMarker_.reset();
+                modularPreviewAnchor_.reset();
+                return;
             }
             if (!targetAnchor) {
                 targetAnchor = frame->anchor;

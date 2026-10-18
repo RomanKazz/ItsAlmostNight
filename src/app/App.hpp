@@ -800,6 +800,8 @@ class App {
     double rampSocketManualOverrideRemaining_{};
     std::optional<GridCoord> modularPreviewAnchor_;
     std::optional<Vec3> modularPreviewVisualOrigin_;
+    // Re-arm automatic stacking only after intentionally moving the aim.
+    std::optional<Vec3> modularFloorPreviewBlockedAim_;
     std::optional<GridCoord> modularDragStart_;
     std::optional<GridCoord> modularDragEnd_;
     std::optional<Vec3> modularDragOrigin_;

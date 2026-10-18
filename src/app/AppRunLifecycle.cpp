@@ -98,6 +98,7 @@ void App::resetRunClientState(
     rampSocketLostGraceRemaining_ = 0.0;
     rampSocketManualOverrideRemaining_ = 0.0;
     modularPreviewAnchor_.reset();
+    modularFloorPreviewBlockedAim_.reset();
     resetRunInputState();
     resetEquipmentActionMode(snapshot);
     DisableCursor();
