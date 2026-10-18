@@ -311,6 +311,150 @@ struct AppPresentationTestAccess {
         }
         okay &= construction;
         if (!construction) std::cerr << "Unified construction selection or contextual platform/drag failed\n";
+        // Continuous deck aiming: ignore stale broad candidates, cover mesh
+        // seams, and never extend a storey into its existing neighbour.
+        bool deckAim = frame.has_value();
+        if (frame) {
+            const double cell = app->simulation_.terrain().config().cellSize;
+            const double storeyHeight = modularStoreyHeight(app->simulation_.terrain().config());
+            GridCoord neighborAnchor{};
+            std::optional<PlatformFrameInstance> neighborBase, neighborTop;
+            for (const auto delta : {GridCoord{2,0,0},GridCoord{-2,0,0},
+                                      GridCoord{0,0,2},GridCoord{0,0,-2}}) {
+                neighborAnchor={frame->anchor.x+delta.x,0,frame->anchor.z+delta.z};
+                const Vec3 hit{(neighborAnchor.x+.5)*cell,frame->floorHeight,
+                    (neighborAnchor.z+.5)*cell};
+                if (app->simulation_.previewFoundationAtHeight(hit,frame->floorHeight).valid()) {
+                    auto groundAim=app->simulation_.snapshot();
+                    groundAim.playerPosition={(frame->anchor.x+1.0+delta.x*.505)*cell,
+                        frame->floorHeight+3,(frame->anchor.z+1.0+delta.z*.505)*cell};
+                    groundAim.playerYaw=0;groundAim.playerPitch=-PI*.5;
+                    groundAim.aimedModularBuilding.reset();groundAim.aimedModularBuildingCandidate.reset();
+                    app->clearModularPlacementDrag();
+                    app->selectModularBuildPiece(ModularBuildPiece::Foundation);
+                    app->updateModularPlacementPreview(groundAim);
+                    const bool groundMagnet=app->platformFramePreview_ && app->platformFramePreview_->valid() &&
+                        app->platformFramePreview_->storey==0 &&
+                        app->platformFramePreview_->anchor.x==neighborAnchor.x &&
+                        app->platformFramePreview_->anchor.z==neighborAnchor.z;
+                    deckAim &= groundMagnet;
+                    if (!groundMagnet) std::cerr << "Ground edge did not snap past the half-overlapping occupied cell\n";
+                }
+                neighborBase=app->simulation_.placeFoundationAtHeight(hit,frame->floorHeight);
+                if (neighborBase) {
+                    neighborTop=app->simulation_.placeFloorPlatform(
+                        neighborAnchor,1,frame->floorHeight+storeyHeight);
+                    break;
+                }
+            }
+            deckAim &= neighborBase.has_value() && neighborTop.has_value();
+            if (!neighborBase || !neighborTop) std::cerr << "Deck fixture neighbour failed " << bool(neighborBase) << '/' << bool(neighborTop) << '\n';
+            auto deckSnapshot=app->simulation_.snapshot();
+            app->clearModularPlacementDrag();
+            app->selectModularBuildPiece(ModularBuildPiece::Foundation);
+            // Every sample aims straight down through the deck. The candidate
+            // deliberately names the lower, wrong frame, as it did at mesh gaps.
+            for (double offset : {.65,1.0,1.49,1.51,1.99,2.0,2.01,2.49,2.51,3.0,3.35}) {
+                const bool alongX=neighborAnchor.x!=frame->anchor.x;
+                deckSnapshot.playerPosition={
+                    (alongX?std::min(frame->anchor.x,neighborAnchor.x)+offset:frame->anchor.x+1.0)*cell,
+                    frame->floorHeight+storeyHeight+3,
+                    (alongX?frame->anchor.z+1.0:std::min(frame->anchor.z,neighborAnchor.z)+offset)*cell};
+                deckSnapshot.playerYaw=0;deckSnapshot.playerPitch=-PI*.5;
+                deckSnapshot.aimedModularBuilding.reset();
+                deckSnapshot.aimedModularBuildingCandidate=frame->id;
+                app->updateModularPlacementPreview(deckSnapshot);
+                const bool valid=app->modularBuildPiece_==ModularBuildPiece::FloorPlatform &&
+                    app->platformFramePreview_ && app->platformFramePreview_->valid() &&
+                    app->platformFramePreview_->storey==2 &&
+                    app->platformFramePreview_->anchor.x>=std::min(frame->anchor.x,neighborAnchor.x) &&
+                    app->platformFramePreview_->anchor.x<=std::max(frame->anchor.x,neighborAnchor.x) &&
+                    app->platformFramePreview_->anchor.z>=std::min(frame->anchor.z,neighborAnchor.z) &&
+                    app->platformFramePreview_->anchor.z<=std::max(frame->anchor.z,neighborAnchor.z);
+                deckAim &= valid;
+                if (!valid) std::cerr << "Deck aim failed at offset " << offset << " error " <<
+                    (app->platformFramePreview_?int(app->platformFramePreview_->error):-1) << " anchor " << (app->platformFramePreview_?app->platformFramePreview_->anchor.x:-999) << '/' << (app->platformFramePreview_?app->platformFramePreview_->anchor.z:-999) << " level " << (app->platformFramePreview_?app->platformFramePreview_->storey:-1) << '\n';
+            }
+            if (neighborTop) {
+                // A genuinely exposed edge still extends the same storey.
+                deckSnapshot.playerPosition={(neighborAnchor.x+1)*cell,
+                    neighborTop->floorHeight+3,
+                    (neighborAnchor.z+(neighborAnchor.z>frame->anchor.z?1.95:.05))*cell};
+                app->updateModularPlacementPreview(deckSnapshot);
+                deckAim &= app->platformFramePreview_ && app->platformFramePreview_->storey==1 &&
+                    app->platformFramePreview_->anchor.z!=neighborAnchor.z;
+            }
+            if (neighborTop) {
+                const auto occupiedUpper=app->simulation_.placeFloorPlatform(
+                    frame->anchor,2,frame->floorHeight+2*storeyHeight);
+                deckAim &= occupiedUpper.has_value();
+                deckSnapshot=app->simulation_.snapshot();
+                const bool alongX=neighborAnchor.x!=frame->anchor.x;
+                // Aim from below the new upper floor at a half-overlapping
+                // footprint. The complete neighbouring footprint is free.
+                const double direction=alongX?(neighborAnchor.x-frame->anchor.x)/2.0
+                    :(neighborAnchor.z-frame->anchor.z)/2.0;
+                deckSnapshot.playerPosition={
+                    (alongX?frame->anchor.x+1.0+direction*1.10:frame->anchor.x+1.0)*cell,
+                    frame->floorHeight+storeyHeight+2,
+                    (alongX?frame->anchor.z+1.0:frame->anchor.z+1.0+direction*1.10)*cell};
+                deckSnapshot.playerYaw=0;deckSnapshot.playerPitch=-PI*.5;
+                app->updateModularPlacementPreview(deckSnapshot);
+                const bool magnet=app->platformFramePreview_ && app->platformFramePreview_->valid() &&
+                    app->platformFramePreview_->storey==2 &&
+                    app->platformFramePreview_->anchor.x==neighborAnchor.x &&
+                    app->platformFramePreview_->anchor.z==neighborAnchor.z &&
+                    std::abs(app->platformFramePreview_->floorHeight-frame->floorHeight-2*storeyHeight)<1e-6;
+                deckAim &= magnet;
+                if (!magnet) std::cerr << "Occupied floor did not magnetize to the free neighbour on the same storey\n";
+                if (magnet) {
+                    app->beginModularPlacementDrag();
+                    deckAim &= app->modularDragStart_ &&
+                        app->modularDragStart_->x==neighborAnchor.x &&
+                        app->modularDragStart_->z==neighborAnchor.z &&
+                        app->modularDragStorey_==2;
+                    deckAim &= app->finishModularPlacementDrag();
+                    const auto placed=app->simulation_.snapshot();
+                    deckAim &= std::ranges::any_of(placed.platformFrames,[&](const auto& candidate) {
+                        return candidate.storey==2 && candidate.anchor.x==neighborAnchor.x &&
+                            candidate.anchor.z==neighborAnchor.z;
+                    });
+                    app->clearModularPlacementDrag();
+                }
+            }
+        }
+        okay &= deckAim;
+        if (!deckAim) std::cerr << "Continuous platform targeting or exposed perimeter failed\n";
+        // An occupied footprint follows the same interpolated visual origin;
+        // validity changes must not teleport it back to the snapped grid cell.
+        const Camera3D footprintCamera{{2,15,1},{2,0,1},{0,0,-1},8,CAMERA_ORTHOGRAPHIC};
+        const PlatformFramePlacement occupiedFloor{.error=ModularPlacementError::Occupied,
+            .anchor={0,0,0},.floorHeight=0,.storey=1};
+        std::array<double,3> footprintCenter{};
+        for (std::size_t step=0;step<footprintCenter.size();++step) {
+            const Vec3 visual{1.0+static_cast<double>(step),0,1};
+            lighting.cameraPosition=footprintCamera.position;
+            app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});
+            BeginMode3D(footprintCamera);app->renderer_->beginWorldShader(lighting);
+            WorldMaterialState footprintMaterial{};footprintMaterial.unlitAmount=1;
+            app->renderer_->setWorldMaterial(footprintMaterial);
+            app->modularBuildingRenderer_.drawWorld({{},{},{},{},1},
+                {.platformFrame=&occupiedFloor,.visualOrigin=&visual});
+            app->renderer_->endWorldShader();EndMode3D();EndTextureMode();
+            Image capture=LoadImageFromTexture(target.texture);
+            auto* pixels=LoadImageColors(capture);int samples=0;double sumX=0;
+            for (int y=0;y<capture.height;++y) for(int x=0;x<capture.width;++x) {
+                const auto pixel=pixels[y*capture.width+x];
+                if (pixel.r>100 && pixel.r>pixel.g*1.5) { ++samples;sumX+=x; }
+            }
+            footprintCenter[step]=samples>0?sumX/samples:-1000;
+            UnloadImageColors(pixels);UnloadImage(capture);
+        }
+        const bool footprintSlide=footprintCenter[0]>0 &&
+            std::abs(footprintCenter[1]-footprintCenter[0])>40 &&
+            std::abs(footprintCenter[2]-2*footprintCenter[1]+footprintCenter[0])<2;
+        okay &= footprintSlide;
+        if (!footprintSlide) std::cerr << "Occupied floor preview skipped smooth visual origin\n";
         // Construction range also appears while inspecting Core with equipment.
         app->setFoundationBuildMode(false);
         app->actionMode_ = ActionMode::Equipment;

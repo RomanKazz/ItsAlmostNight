@@ -287,6 +287,51 @@ void App::updateModularPlacementPreview(
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
 
+    const auto previousPlatformPreview = platformFramePreview_;
+    const auto snapPlatformToFreeSpace = [&] {
+        if (modularDragPiece_ || !isPlatformBuildPiece(modularBuildPiece_) ||
+            !platformFramePreview_ || platformFramePreview_->valid()) return;
+        const auto source = *platformFramePreview_;
+        if (source.error != ModularPlacementError::Occupied &&
+            source.error != ModularPlacementError::ResourceBlocked &&
+            source.error != ModularPlacementError::NoSupport &&
+            source.error != ModularPlacementError::TerrainIntersection &&
+            source.error != ModularPlacementError::SupportTooLong) return;
+        const Vec3 aim = rampSocketAimOnFloor(snapshot.playerPosition, lookDirection,
+            source.floorHeight).value_or(Vec3{(source.anchor.x+1.0)*cellSize,
+                source.floorHeight,(source.anchor.z+1.0)*cellSize});
+        std::optional<PlatformFramePlacement> best;
+        double bestScore = std::numeric_limits<double>::infinity();
+        // At most twenty local candidates. Never change storey, height or
+        // relax collision/support/cost/range checks to hide an invalid site.
+        for (int dz=-2;dz<=2;++dz) for (int dx=-2;dx<=2;++dx) {
+            if ((dx==0 && dz==0) || dx*dx+dz*dz>6) continue;
+            const GridCoord anchor{source.anchor.x+dx,source.anchor.yLevel,source.anchor.z+dz};
+            const double x=(anchor.x+1.0)*cellSize, z=(anchor.z+1.0)*cellSize;
+            double score=(x-aim.x)*(x-aim.x)+(z-aim.z)*(z-aim.z);
+            if (previousPlatformPreview && previousPlatformPreview->valid() &&
+                previousPlatformPreview->storey==source.storey &&
+                previousPlatformPreview->anchor.x==anchor.x &&
+                previousPlatformPreview->anchor.z==anchor.z) score-=.12*cellSize*cellSize;
+            if (score>=bestScore) continue;
+            auto candidate = source.storey==0
+                ? simulation_.previewFoundationAtHeight(
+                    {(anchor.x+.5)*cellSize,source.floorHeight,(anchor.z+.5)*cellSize},
+                    source.floorHeight)
+                : simulation_.previewFloorPlatform(anchor,source.storey,source.floorHeight);
+            if (candidate.valid()) { best=candidate;bestScore=score; }
+        }
+        if (!best) return;
+        platformFramePreview_=*best;
+        const Vec3 center{(best->anchor.x+1.0)*cellSize,best->floorHeight,
+            (best->anchor.z+1.0)*cellSize};
+        foundationTerrainHit_=center;
+        modularSnapHit_=center;
+        modularSnapMarker_=center;
+        modularPreviewAnchor_=best->anchor;
+        if (modularEdgeExtensionAnchor_) modularEdgeExtensionAnchor_=best->anchor;
+    };
+
     // One visible platform tool; its effective placement type follows the
     // aimed surface. Keep that type fixed while a drag is in progress.
     if (isPlatformBuildPiece(modularBuildPiece_) && !modularDragPiece_) {
@@ -860,6 +905,11 @@ void App::updateModularPlacementPreview(
             terrainRayDistance);
     }
 
+    const double terrainOcclusionDistance = rawHit
+        ? (rawHit->x - snapshot.playerPosition.x) * lookDirection.x +
+          (rawHit->y - snapshot.playerPosition.y) * lookDirection.y +
+          (rawHit->z - snapshot.playerPosition.z) * lookDirection.z
+        : std::numeric_limits<double>::infinity();
     if (rawHit && modularBuildPiece_ == ModularBuildPiece::Foundation) {
         rawHit = foundationPlacementHit(*rawHit, cellSize);
     }
@@ -984,28 +1034,52 @@ void App::updateModularPlacementPreview(
         return;
     }
 
-    // Floor placement needs a continuous grid target. Exact visual
-    // picking contains intentional gaps between platform parts and
-    // may briefly return no hit while crossing a mesh or grid edge.
-    // Keep exact picking for outline/actions; use the broad-phase
-    // platform proxy for placement only.
-    std::optional<EntityId> platformPlacementTarget =
-        snapshot.aimedModularBuilding;
-    if (isPlatformBuildPiece(modularBuildPiece_) &&
-        snapshot.aimedModularBuildingCandidate) {
-        const EntityId candidate =
-            *snapshot.aimedModularBuildingCandidate;
-        const bool candidateIsFrame = std::any_of(
-            snapshot.platformFrames.begin(),
-            snapshot.platformFrames.end(),
-            [candidate](
-                const PlatformFrameInstance& frame) {
-                return frame.id == candidate;
-            });
-        if (candidateIsFrame) {
-            platformPlacementTarget = candidate;
+    // Pick a continuous deck plane, not decorative mesh parts or a broad
+    // candidate underneath the visible storey. Interior seams have no gaps.
+    std::optional<EntityId> platformPlacementTarget = snapshot.aimedModularBuilding;
+    if (isPlatformBuildPiece(modularBuildPiece_) && !modularDragPiece_) {
+        double nearest = terrainOcclusionDistance + .05;
+        std::optional<EntityId> deckTarget;
+        for (const auto& frame : snapshot.platformFrames) {
+            if (std::abs(lookDirection.y) <= 1e-5) continue;
+            const double surface = frame.floorHeight -
+                (snapshot.playerPosition.y < frame.floorHeight - .20 ? .20 : 0);
+            const double distance = (surface - snapshot.playerPosition.y) / lookDirection.y;
+            if (distance <= 0 || distance >= nearest) continue;
+            const double x = snapshot.playerPosition.x + lookDirection.x * distance;
+            const double z = snapshot.playerPosition.z + lookDirection.z * distance;
+            constexpr double SeamTolerance = 1e-6;
+            if (x < frame.anchor.x * cellSize - SeamTolerance ||
+                x > (frame.anchor.x + PlatformFrameWidthCells) * cellSize + SeamTolerance ||
+                z < frame.anchor.z * cellSize - SeamTolerance ||
+                z > (frame.anchor.z + PlatformFrameWidthCells) * cellSize + SeamTolerance ||
+                std::hypot(x - snapshot.playerPosition.x, z - snapshot.playerPosition.z) >
+                    terrain.config().buildPreviewDistance + cellSize) continue;
+            nearest = distance;
+            deckTarget = frame.id;
+        }
+        if (deckTarget) platformPlacementTarget = deckTarget;
+        else if (platformPlacementTarget && std::ranges::any_of(snapshot.platformFrames,
+            [&](const auto& frame) { return frame.id == *platformPlacementTarget; })) {
+            platformPlacementTarget.reset();
         }
     }
+    // Only exposed perimeter edges extend this storey. A joint between two
+    // decks is ordinary floor, even if visual picking chooses the other frame.
+    const auto exposedEdge = [&](const PlatformFrameInstance& frame,
+                                  bool underside = false) {
+        auto edge = platformEdgeSnapAtAim(frame.anchor, frame.floorHeight,
+            snapshot.playerPosition, lookDirection, cellSize, underside);
+        if (edge && std::ranges::any_of(snapshot.platformFrames, [&](const auto& other) {
+            return other.id != frame.id && other.storey == frame.storey &&
+                std::abs(other.floorHeight - frame.floorHeight) <= GroundPlatformHeightStep + 1e-6 &&
+                other.anchor.x < edge->extensionAnchor.x + PlatformFrameWidthCells &&
+                other.anchor.x + PlatformFrameWidthCells > edge->extensionAnchor.x &&
+                other.anchor.z < edge->extensionAnchor.z + PlatformFrameWidthCells &&
+                other.anchor.z + PlatformFrameWidthCells > edge->extensionAnchor.z;
+        })) edge.reset();
+        return edge;
+    };
     if (modularBuildPiece_ ==
             ModularBuildPiece::Foundation &&
         !modularDragPiece_ &&
@@ -1019,10 +1093,7 @@ void App::updateModularPlacementPreview(
                        candidate.storey == 0;
             });
         if (frame != snapshot.platformFrames.end()) {
-            const auto edge = platformEdgeSnapAtAim(
-                frame->anchor, frame->floorHeight,
-                snapshot.playerPosition,
-                lookDirection, cellSize);
+            const auto edge = exposedEdge(*frame);
             if (edge) {
                 const Vec3 targetHit{
                     (edge->extensionAnchor.x + 0.5) *
@@ -1053,6 +1124,7 @@ void App::updateModularPlacementPreview(
                     edge->extensionAnchor;
                 wallPreview_.reset();
                 rampPreview_.reset();
+                snapPlatformToFreeSpace();
                 return;
             }
         }
@@ -1093,11 +1165,7 @@ void App::updateModularPlacementPreview(
                 modularStoreyHeight(terrain.config());
             std::optional<PlatformEdgeSnap> edge;
             if (usePlatformEdges) {
-                edge = platformEdgeSnapAtAim(
-                    frame->anchor, frame->floorHeight,
-                    snapshot.playerPosition,
-                    lookDirection, cellSize,
-                    aimingAtUnderside);
+                edge = exposedEdge(*frame, aimingAtUnderside);
             }
             if (edge) {
                 modularEdgeExtensionAnchor_ =
@@ -1113,6 +1181,13 @@ void App::updateModularPlacementPreview(
                 simulation_.previewFloorPlatform(
                     *targetAnchor, targetStorey,
                     targetFloorHeight);
+            if (!edge && platformFramePreview_->error == ModularPlacementError::NoSupport) {
+                // Nearest-centre snapping near a perimeter can overhang half
+                // the supporting frame. Keep the complete footprint instead.
+                targetAnchor = frame->anchor;
+                platformFramePreview_ = simulation_.previewFloorPlatform(
+                    *targetAnchor, targetStorey, targetFloorHeight);
+            }
             const Vec3 targetHit{
                 (targetAnchor->x + 1.0) * cellSize,
                 targetFloorHeight,
@@ -1130,6 +1205,7 @@ void App::updateModularPlacementPreview(
             modularPreviewAnchor_ = *targetAnchor;
             wallPreview_.reset();
             rampPreview_.reset();
+            snapPlatformToFreeSpace();
             return;
         }
 
@@ -1178,6 +1254,7 @@ void App::updateModularPlacementPreview(
                 modularPreviewAnchor_ = targetAnchor;
                 wallPreview_.reset();
                 rampPreview_.reset();
+                snapPlatformToFreeSpace();
                 return;
             }
         }
@@ -1255,8 +1332,7 @@ void App::updateModularPlacementPreview(
             keptPrevious = true;
         }
     }
-    if (!keptPrevious &&
-        (!chosenValid || modularBuildPiece_ != ModularBuildPiece::Foundation)) {
+    if (!keptPrevious && !isPlatformBuildPiece(modularBuildPiece_)) {
         const int rawX = static_cast<int>(
             std::floor(rawHit->x / cellSize));
         const int rawZ = static_cast<int>(
@@ -1366,6 +1442,7 @@ void App::updateModularPlacementPreview(
         }
         rebuildModularPlacementLine();
     }
+    snapPlatformToFreeSpace();
 }
 
 void App::beginModularPlacementDrag() {

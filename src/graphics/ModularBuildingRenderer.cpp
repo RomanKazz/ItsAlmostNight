@@ -732,9 +732,6 @@ void ModularBuildingRenderer::drawWorld(
     }
 
     const bool obstructedSinglePreview =
-        (preview.platformFrame &&
-         previewOccupiesExistingBuilding(
-             preview.platformFrame->error)) ||
         (preview.wall &&
          previewOccupiesExistingBuilding(
              preview.wall->error)) ||
