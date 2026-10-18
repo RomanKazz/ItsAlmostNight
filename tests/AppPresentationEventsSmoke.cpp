@@ -48,6 +48,43 @@ struct AppPresentationTestAccess {
         bool okay=wandEvents && count(PresentationEffectType::ChainLightning)==2 && count(PresentationEffectType::Explosion)==1 &&
             count(PresentationEffectType::SawSplinter)==1 && count(PresentationEffectType::RoyalImpact)==1;
         if(!okay) std::cerr<<"Gameplay events did not queue their own independent presentation effects\n";
+        // Sustained hits share one per-enemy clock across damage sources.
+        const EntityId flashEnemy{58100,1}, otherEnemy{58101,1};
+        const auto flashKey = [](EntityId id) { return (static_cast<std::uint64_t>(id.generation)<<32U) | id.index; };
+        app->startEnemyHitFlash(flashEnemy);
+        const auto firstFlash = app->enemyHitFlashById_.at(flashKey(flashEnemy));
+        const std::array repeatedHits{
+            GameEvent{.type=GameEventType::ProjectileHit,.entityId=flashEnemy,.damage=1},
+            GameEvent{.type=GameEventType::PoisonHit,.entityId=flashEnemy,.damage=1},
+            GameEvent{.type=GameEventType::CannonHit,.entityId=flashEnemy,.damage=1}};
+        for(int hit=0;hit<30;++hit) app->processPresentationEvents(repeatedHits,snapshot);
+        app->startEnemyHitFlash(otherEnemy);
+        bool flashLimit = std::abs(firstFlash.nextAllowedAt-firstFlash.startedAt-1.0/6.0)<1e-9 &&
+            app->enemyHitFlashById_.at(flashKey(flashEnemy)).startedAt==firstFlash.startedAt &&
+            app->enemyHitFlashById_.contains(flashKey(otherEnemy));
+        // Simulate a frame in the dark gap: expired visuals must not erase the
+        // still-active throttle. This is what the old duration-based cleanup did.
+        auto& cooldownFlash=app->enemyHitFlashById_.at(flashKey(flashEnemy));
+        cooldownFlash.startedAt=GetTime()-.12;
+        cooldownFlash.nextAllowedAt=GetTime()+.06;
+        auto emptySnapshot=snapshot; emptySnapshot.enemies={};
+        const Camera3D flashCamera{{0,2,-6},{0,1,0},{0,1,0},60,CAMERA_PERSPECTIVE};
+        BeginDrawing(); BeginMode3D(flashCamera);
+        app->drawWorldEnemies(emptySnapshot,flashCamera);
+        EndMode3D(); EndDrawing();
+        flashLimit &= app->enemyHitFlashById_.contains(flashKey(flashEnemy));
+        if(app->enemyHitFlashById_.contains(flashKey(flashEnemy))) {
+            const double heldStart=app->enemyHitFlashById_.at(flashKey(flashEnemy)).startedAt;
+            app->startEnemyHitFlash(flashEnemy);
+            flashLimit &= app->enemyHitFlashById_.at(flashKey(flashEnemy)).startedAt==heldStart;
+            app->enemyHitFlashById_.at(flashKey(flashEnemy)).nextAllowedAt=GetTime()-.01;
+            app->startEnemyHitFlash(flashEnemy);
+            flashLimit &= app->enemyHitFlashById_.at(flashKey(flashEnemy)).startedAt>heldStart;
+        }
+        okay &= flashLimit;
+        if(!flashLimit) std::cerr<<"Enemy damage flashes exceeded six starts per second or lost their cooldown during cleanup\n";
+        app->effects_.clear();
+        app->processPresentationEvents(events,snapshot);
         std::erase_if(app->effects_,[](const auto& effect){return effect.type!=PresentationEffectType::ChainLightning;});
         const Camera3D camera{{0,2.3F,-6},{0,.9F,-1},{0,1,0},4.5F,CAMERA_ORTHOGRAPHIC};
         const auto target=LoadRenderTexture(800,600);

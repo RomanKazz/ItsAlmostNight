@@ -133,7 +133,8 @@ class App {
     static constexpr bool MinimalWorldVisuals = false;
     static constexpr double ToolSwapHideFraction = 0.42;
     static constexpr double ToolSwapDurationScale = 0.90;
-    static constexpr double EnemyHitFlashInterval = 1.0 / 30.0;
+    // Per enemy, shared by every damage source. Repeated hits never extend a flash.
+    static constexpr double EnemyHitFlashInterval = 1.0 / 6.0;
     static constexpr double EnemyHitFlashDuration = 0.105;
     static constexpr float EnemyHitFlashPeak = 0.92F;
 

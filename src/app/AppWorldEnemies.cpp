@@ -74,8 +74,10 @@ void App::drawWorldEnemies(
     const double splitSubTickSeconds = enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha());
     for (auto flash = enemyHitFlashById_.begin();
          flash != enemyHitFlashById_.end();) {
-        if (presentationSeconds >
-            flash->second.startedAt + EnemyHitFlashDuration) {
+        // The white flash ends before its cooldown. Retain the timestamp until
+        // both expire, otherwise the next hit would recreate it without a limit.
+        if (presentationSeconds > std::max(flash->second.nextAllowedAt,
+                flash->second.startedAt + EnemyHitFlashDuration)) {
             flash = enemyHitFlashById_.erase(flash);
         } else {
             ++flash;
