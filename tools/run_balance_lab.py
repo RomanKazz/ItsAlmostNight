@@ -20,6 +20,8 @@ LABELS = dict(zip(
     ["Турель", "Арбалет", "Пушка", "Катапульта", "Огнемёт", "Ракетница", "Тесла",
      "Лазер", "Мортира", "Шипы", "Замедляющая ловушка", "Ветродуй"]))
 PROFILES = {
+    "bounces": "4 рикошета",
+    "pierce": "4 пробивания",
     "base": "Без бонусов",
     "damage_rate": "2 урона + 2 скорости атаки",
     "quantity": "4 дополнительных снаряда",
@@ -89,7 +91,7 @@ small{display:block;margin-top:24px;color:#8fa399;line-height:1.6}a{color:#ffcf7
 <div class="filters">
 <label>Уровень<select id="level"><option>1</option><option selected>4</option><option>8</option></select></label>
 <label>Ситуация<select id="scene"><option value="heavy">Одиночный танк</option><option value="dense" selected>Плотная толпа</option><option value="fast">Быстрые разреженные</option><option value="flying">Воздушная группа</option></select></label>
-<label>Бонусы<select id="profile"><option value="base">Без бонусов</option><option value="damage_rate">2 урона + 2 скорости атаки</option><option value="quantity">4 дополнительных снаряда</option><option value="quantity_bounce_pierce" selected>2 снаряда + 1 отскок + 1 пробитие</option></select></label>
+<label>Бонусы<select id="profile"><option value="base">Без бонусов</option><option value="damage_rate">2 урона + 2 скорости атаки</option><option value="quantity">4 дополнительных снаряда</option><option value="quantity_bounce_pierce" selected>2 снаряда + 1 отскок + 1 пробитие</option><option value="bounces">4 рикошета</option><option value="pierce">4 пробивания</option></select></label>
 <label>Сортировка<select id="sort"><option value="dps_hp">Фактический DPS</option><option value="kills">Убийства</option><option value="prevented_leaks">Сдержанные прорывы</option><option value="control">Контроль</option><option value="gain">Рост от бонусов</option></select></label></div>
 <div class="table"><table><thead><tr><th>Сооружение</th><th>DPS, HP/с</th><th>К своей базе</th><th>Убийства</th><th>Прорывы</th><th>Сдержано*</th><th>Замедление**</th><th>Отбрасывание**</th><th>Полезные карточки</th><th>Стройка: Д / К / Кр</th><th>Пик снарядов</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p id="notes"></p><p>* Разница числа прорывов относительно пустой линии за то же время. При непрерывном пополнении состав входящего потока зависит от скорости убийств.<br>

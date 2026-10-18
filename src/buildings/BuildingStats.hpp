@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/AttackStats.hpp"
 
 #include <optional>
 
@@ -10,6 +11,7 @@ class CrystalMineSystem;
 
 struct BuildingStats {
     double maxHealth{};
+    std::optional<FinalAttackStats> finalAttack;
     std::optional<double> attackDamage;
     std::optional<double> pushStrength;
     std::optional<double> attackRange;

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
-#include "combat/AttackCollision.hpp"
 #include "core/Types.hpp"
+#include "combat/AttackArea.hpp"
 #include "enemies/EnemySystem.hpp"
 
 #include <span>
@@ -27,6 +27,7 @@ struct TrapHit {
     EntityId trapId;
     EnemyDamageResult result;
     BuildingType type{BuildingType::SpikeTrap};
+    bool critical{};
 };
 
 class TrapSystem {
@@ -48,6 +49,9 @@ class TrapSystem {
     [[nodiscard]] static double spikeDamage(std::uint8_t level);
     [[nodiscard]] static double spikeCooldown(std::uint8_t level);
 
+    [[nodiscard]] static AttackStats baseStats(BuildingType type, std::uint8_t level);
+    [[nodiscard]] FinalAttackStats finalStats(const BuildingInstance& building) const;
+    void setAttackModifiers(const AttackModifiers& modifiers) { modifiers_ = modifiers; }
     void reset();
     void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double radius,
@@ -61,17 +65,15 @@ class TrapSystem {
     [[nodiscard]] std::span<const TrapHit> hits() const;
 
   private:
-    AttackCollisionQuery query_;
     std::vector<TrapRuntime> traps_;
     std::vector<TrapActivation> activationBuffer_;
     std::vector<TrapHit> hitBuffer_;
     BuildingType bonusType_{BuildingType::Core};
-    double typeDamageMultiplier_{1.0};
-    double typeFireRateMultiplier_{1.0};
-    double damageMultiplier_{1.0};
-    double radiusMultiplier_{1.0};
-    double fireRateMultiplier_{1.0};
+    AttackModifiers modifiers_;
+    AttackModifiers typeModifiers_;
+    AttackCollisionQuery query_;
     double highGroundDamageMultiplier_{1.0};
+    std::uint64_t activationSerial_{};
     double reactiveShockDamage_{};
 };
 

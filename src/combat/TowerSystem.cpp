@@ -288,7 +288,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             // chain-discharge sequence, with independent visited IDs per bolt.
             const Vec3 base = buildingWorldPosition(*building);
             const Vec3 energy{base.x,base.y+TeslaEnergyHeight,base.z};
-            const auto discharge = [&](const FinalAttackStats& shotStats) {
+            const auto discharge = [&](const FinalAttackStats& eventStats, int instance) {
+                const auto shotStats = defenseInstanceStats(eventStats, building->type, instance);
                 if (!teslaQueryReady) { teslaQuery_.rebuild(enemies); teslaQueryReady=true; }
                 teslaVisited_.clear();
                 auto target = teslaQuery_.bounceTarget(enemies,energy,shotStats.range,
@@ -311,24 +312,25 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 applyTeslaChain(enemies,teslaQuery_,target->id,muzzle,shotStats,
                     ++shotSerial_ ^ (static_cast<std::uint64_t>(tower.buildingId.index)<<32U),teslaVisited_,
                     [&](const AttackHit& hit,Vec3 source,Vec3 end,int jump) {
+                        auto hitStats=shotStats;hitStats.damage=hit.payloadDamage;
                         shotBuffer_.push_back({.towerId=tower.buildingId,.targetId=hit.result.id,
                             .targetType=hit.result.type,.targetEliteAffixes=hit.result.eliteAffixes,
                             .origin=source,.hitPosition=end,.type=BuildingType::TeslaTower,
-                            .damage=hit.result.damage,.payloadDamage=shotStats.damage,
+                            .damage=hit.result.damage,.payloadDamage=hit.payloadDamage,
                             .muzzleIndex=static_cast<std::uint8_t>(std::min(jump,255)),
-                            .secondaryImpact=jump>0,.critical=hit.critical,.killed=hit.result.killed,.stats=shotStats});
+                            .secondaryImpact=jump>0,.critical=hit.critical,.killed=hit.result.killed,.stats=hitStats});
                     }, &teslaTargetCache_);
                 return true;
             };
             if (tower.sequenceRemaining>0) {
                 tower.sequenceDelay-=deltaSeconds;
                 while(tower.sequenceRemaining>0 && tower.sequenceDelay<=1e-12 && teslaDischarges<TeslaDischargesPerTick) {
-                    if(!discharge(tower.attack.stats)) {tower.sequenceRemaining=0;break;}
+                    if(!discharge(tower.attack.stats, effectiveAttackCount(tower.attack.stats.quantity,1)-tower.sequenceRemaining)) {tower.sequenceRemaining=0;break;}
                     --tower.sequenceRemaining;tower.sequenceDelay+=tower.sequenceInterval;
                 }
             }
             if(tower.fireCooldownRemaining<=0 && tower.sequenceRemaining==0 && tower.targetSearchCooldownRemaining<=0 && teslaDischarges<TeslaDischargesPerTick) {
-                if(discharge(stats)) {
+                if(discharge(stats,0)) {
                     tower.attack={tower.buildingId,stats};attackBuffer_.push_back(tower.attack);
                     tower.fireCooldownRemaining=stats.attackInterval+cooldownOvershoot;
                     tower.sequenceRemaining=effectiveAttackCount(stats.quantity,1)-1;
@@ -337,7 +339,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             }
             continue;
         }
-        const auto spawn = [&](const FinalAttackStats& shotStats, double yaw, double pitch) {
+        const auto spawn = [&](const FinalAttackStats& eventStats, double yaw, double pitch, int instance) {
+            const auto shotStats = defenseInstanceStats(eventStats, building->type, instance);
             const auto seed = ++shotSerial_ ^ (static_cast<std::uint64_t>(tower.buildingId.index) << 32U);
             // Uniform disk in the cone. Randomness changes real flight direction,
             // never whether a detected contact is allowed to deal damage.
@@ -363,7 +366,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         if (tower.sequenceRemaining > 0) {
             tower.sequenceDelay -= deltaSeconds;
             while (tower.sequenceRemaining > 0 && tower.sequenceDelay <= 1e-12) {
-                if (!spawn(tower.attack.stats, tower.sequenceYaw, tower.sequencePitch)) {
+                if (!spawn(tower.attack.stats, tower.sequenceYaw, tower.sequencePitch, effectiveAttackCount(tower.attack.stats.quantity,1)-tower.sequenceRemaining)) {
                     // Saturation is observable in the pool. Do not spin through
                     // millions of remaining instances when no slot is available.
                     tower.sequenceRemaining = 0;
@@ -473,7 +476,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             }
             if (tower.fireCooldownRemaining > 0) continue;
             auto focused = stats;
-            focused.damage *= laserFocusMultiplier(tower.laserFocusSeconds);
+            const double focusMultiplier = laserFocusMultiplier(tower.laserFocusSeconds);
+            focused.damage *= focusMultiplier;
             tower.attack = {tower.buildingId, focused};
             attackBuffer_.push_back(tower.attack);
             tower.fireCooldownRemaining = stats.attackInterval + cooldownOvershoot;
@@ -484,20 +488,21 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             bool primaryKilled=false;
             for(int ray=0;ray<rays && enemies.enemy(primary);++ray) {
                 std::optional<EntityId> fromTarget;
-                applyTeslaChain(enemies,teslaQuery_,primary,tower.laserOrigin,focused,
+                applyTeslaChain(enemies,teslaQuery_,primary,tower.laserOrigin,defenseInstanceStats(focused,building->type,ray),
                     ++shotSerial_ ^ tower.buildingId.index,teslaVisited_,
                     [&](const AttackHit& hit,Vec3 origin,Vec3 end,int jump) {
+                        auto hitStats=focused;hitStats.damage=hit.payloadDamage;
                         shotBuffer_.push_back({.towerId=tower.buildingId,.targetId=hit.result.id,
                             .targetType=hit.result.type,.targetEliteAffixes=hit.result.eliteAffixes,
                             .origin=origin,.hitPosition=end,.type=BuildingType::LaserTower,
-                            .damage=hit.result.damage,.payloadDamage=focused.damage,
-                            .secondaryImpact=jump>0,.critical=hit.critical,.killed=hit.result.killed,.stats=focused});
+                            .damage=hit.result.damage,.payloadDamage=hit.payloadDamage,
+                            .secondaryImpact=jump>0,.critical=hit.critical,.killed=hit.result.killed,.stats=hitStats});
                         if(laserBeams_.size()<MaximumLaserVisualSegments)
                             laserBeams_.push_back({tower.buildingId,fromTarget,hit.result.id,origin,end,
                                 tower.laserFocusSeconds/LaserFocusRampSeconds,.12,ray,rays});
                         fromTarget=hit.result.id;
                         primaryKilled|=hit.result.id==primary && hit.result.killed;
-                    },&teslaTargetCache_);
+                    },&teslaTargetCache_,BuildingType::LaserTower,1.0/focusMultiplier);
             }
             if(primaryKilled) {tower.laserFocusTarget.reset();tower.laserFocusSeconds=0;}
             continue;
@@ -560,14 +565,14 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         } else if (crossbow) {
             for (int instance = 0; instance < effectiveAttackCount(stats.quantity, 1); ++instance) {
                 if (!spawn(stats, tower.yaw + fanAngleDegrees(instance, effectiveAttackCount(stats.quantity, 1), stats.fanStepDegrees) * PiRadians / 180.0,
-                    tower.pitch)) break;
+                    tower.pitch, instance == effectiveAttackCount(stats.quantity,1)/2 ? 0 : 1)) break;
             }
         } else {
             // One snapshot and sequence per building. Compression leaves at least
             // 40% of the event period for the pause, independent of Quantity.
             tower.sequenceYaw = tower.yaw;
             tower.sequencePitch = missile ? tower.pitch : std::atan2(deltaY, std::hypot(deltaX, deltaZ));
-            tower.sequenceRemaining = spawn(stats, tower.sequenceYaw, tower.sequencePitch)
+            tower.sequenceRemaining = spawn(stats, tower.sequenceYaw, tower.sequencePitch, 0)
                 ? effectiveAttackCount(stats.quantity, 1) - 1 : 0;
             tower.sequenceInterval = gunBurstTiming(stats).interval;
             tower.sequenceDelay = tower.sequenceInterval;

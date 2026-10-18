@@ -1,6 +1,7 @@
 #include "ui/HudBuildingContextCard.hpp"
 
 #include "buildings/BuildingOrientation.hpp"
+#include "combat/DefenseTomeScaling.hpp"
 #include "ui/BuildingCardLayout.hpp"
 #include "ui/UiChamferedPlate.hpp"
 #include "ui/UiLabels.hpp"
@@ -152,8 +153,31 @@ void drawBuildingContextCard(
         add("RANGE", &BuildingStats::attackRange,1,"m");
         add("ARC", &BuildingStats::attackArcDegrees,0," deg");
         add("ATTACK RATE", &BuildingStats::attacksPerSecond,2,"/s");
-        add("PIERCING", &BuildingStats::piercingCount);
+        add("PIERCING", &BuildingStats::piercingCount,1);
         add("RADIUS", &BuildingStats::effectRadius,2,"m");
+        if (comparison.current.finalAttack && building.type != BuildingType::WindBlower) {
+            const auto addAttack = [&](std::string_view label, auto member, int decimals = 0, const char* suffix = "") {
+                std::optional<double> next;
+                if (comparison.next && comparison.next->finalAttack) next = static_cast<double>(comparison.next->finalAttack.value().*member);
+                rows[count++] = {label, static_cast<double>(comparison.current.finalAttack.value().*member), next, decimals, suffix};
+            };
+            addAttack("PROJECTILE COUNT", &AttackStats::quantity,1);
+            addAttack("PROJECTILE SPEED", &AttackStats::projectileSpeed, 1, "m/s");
+            addAttack("BOUNCES", &AttackStats::bounces,1);
+            addAttack("SIZE", &AttackStats::size, 2, "x");
+            addAttack("CRIT CHANCE", &AttackStats::critChance, 0, "%");
+            rows[count - 1].value *= 100.0;
+            if (rows[count - 1].next) *rows[count - 1].next *= 100.0;
+            addAttack("CRIT DAMAGE", &AttackStats::critDamage, 2, "x");
+            const auto& attack=*comparison.current.finalAttack;
+            const auto scaling=defenseTomeScaling(building.type);
+            if(effectiveAttackCount(attack.quantity,1)>effectiveAttackCount(attack.nativeQuantity,1))
+                rows[count++]={"EXTRA SHOT DAMAGE",100*scaling.extraInstanceDamage,std::nullopt,0,"%"};
+            if(effectiveAttackCount(attack.bounces)>effectiveAttackCount(attack.nativeBounces))
+                rows[count++]={"BOUNCE RETENTION",100*scaling.bounceRetention,std::nullopt,0,"%"};
+            if(effectiveAttackCount(attack.pierce)>effectiveAttackCount(attack.nativePierce))
+                rows[count++]={"PIERCE RETENTION",100*scaling.pierceRetention,std::nullopt,0,"%"};
+        }
         add("PUSH", &BuildingStats::pushStrength,1,"m/s");
         add("SLOW", &BuildingStats::slowPercent,0,"%");
         add("TARGETS", &BuildingStats::attractionTargets);

@@ -52,7 +52,12 @@ struct AttackStats {
     double fanStepDegrees{5.0};
 };
 
-struct FinalAttackStats : AttackStats {};
+struct FinalAttackStats : AttackStats {
+    // Authored counts are transient snapshot metadata, never saved upgrade power.
+    double nativeQuantity{1.0};
+    double nativeBounces{};
+    double nativePierce{};
+};
 // Stored stats retain fractions. Only a consumer creating/spending instances
 // converts the accumulated total to a whole count; fractions are never RNG.
 [[nodiscard]] inline int effectiveAttackCount(double value, int minimum = 0) {
@@ -80,6 +85,9 @@ inline constexpr double MinimumAttackCooldown = 0.025;
             static_cast<double>(std::numeric_limits<int>::max() - 1));
     };
     FinalAttackStats result;
+    result.nativeQuantity = base.quantity;
+    result.nativeBounces = base.bounces;
+    result.nativePierce = base.pierce;
     result.damage = std::max(0.0, value(AttackStat::Damage, base.damage));
     result.attackSpeed = std::max(0.001, value(AttackStat::AttackSpeed, base.attackSpeed));
     result.attackInterval = std::max(MinimumAttackCooldown,

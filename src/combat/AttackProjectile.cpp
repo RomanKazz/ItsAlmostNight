@@ -1,4 +1,5 @@
 #include "combat/AttackProjectile.hpp"
+#include "combat/DefenseTomeScaling.hpp"
 
 namespace ian {
 namespace {
@@ -115,11 +116,14 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
             remainingTime -= contact->distance / std::max(1e-9, stats.projectileSpeed);
             const bool secondary = !state.alreadyHitTargets.empty();
             state.alreadyHitTargets.push_back(contact->id);
-            const auto hit = applyAttackHit(enemies, contact->id, stats, state.velocity,
+            const auto contactStats = defenseContactStats(stats, projectile.type,
+                effectiveAttackCount(stats.bounces) - state.remainingBounces,
+                effectiveAttackCount(stats.pierce) - state.remainingPierce);
+            const auto hit = applyAttackHit(enemies, contact->id, contactStats, state.velocity,
                 (static_cast<std::uint64_t>(projectile.id.index) << 32U) ^ projectile.id.generation ^
                 (static_cast<std::uint64_t>(contact->id.index) * 0x9e3779b97f4a7c15ULL));
             if (hit) impacts_.push_back({projectile.sourceId, projectile.type, *hit,
-                projectile.position, stats.damage, projectile.muzzleIndex, secondary || projectile.shrapnel, stats, projectile.launchOrigin, projectile.shrapnel});
+                projectile.position, contactStats.damage, projectile.muzzleIndex, secondary || projectile.shrapnel, contactStats, projectile.launchOrigin, projectile.shrapnel});
             if (projectile.type == BuildingType::MissileLauncher) {
                 const double radius = missileExplosionRadius(stats);
                 blasts_.push_back({projectile.sourceId, projectile.position, radius});

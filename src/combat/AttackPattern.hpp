@@ -8,7 +8,7 @@ struct BurstTiming {
     double duration;
 };
 // Event frequency, instance count and intra-event spacing remain independent.
-// Density changes timing only: every instance retains its full snapshot damage.
+// Density changes timing only; damage weighting is resolved by the weapon.
 [[nodiscard]] inline BurstTiming gunBurstTiming(const FinalAttackStats& stats) {
     const int gaps = std::max(0, effectiveAttackCount(stats.quantity, 1) - 1);
     const double interval = std::min(

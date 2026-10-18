@@ -31,7 +31,7 @@ inline constexpr std::array DefenseAttackCompatibility{
         AttackStat::AttackSpeed, AttackStat::Range, AttackStat::Size, AttackStat::Knockback})},
     AttackStatCompatibility{BuildingType::LaserTower, attackStatMask({
         AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Quantity, AttackStat::Bounces,
-        AttackStat::BounceRange, AttackStat::CritChance, AttackStat::CritDamage, AttackStat::Knockback, AttackStat::Range})},
+        AttackStat::BounceRange, AttackStat::CritChance, AttackStat::CritDamage, AttackStat::Range})},
     AttackStatCompatibility{BuildingType::TeslaTower, attackStatMask({
         AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Quantity, AttackStat::Bounces,
         AttackStat::CritChance, AttackStat::CritDamage, AttackStat::Knockback, AttackStat::Range,
@@ -48,8 +48,12 @@ inline constexpr std::array DefenseAttackCompatibility{
     AttackStatCompatibility{BuildingType::Catapult, PhysicalAttackStats},
     AttackStatCompatibility{BuildingType::SpikeTrap, attackStatMask({
         AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Quantity,
-        AttackStat::Duration, AttackStat::Size, AttackStat::CritChance,
+        AttackStat::Size, AttackStat::CritChance,
         AttackStat::CritDamage, AttackStat::Knockback, AttackStat::Range})},
+    AttackStatCompatibility{BuildingType::Flamethrower, attackStatMask({
+        AttackStat::Damage, AttackStat::AttackSpeed, AttackStat::Duration,
+        AttackStat::Size, AttackStat::CritChance, AttackStat::CritDamage,
+        AttackStat::Knockback, AttackStat::Range})},
     AttackStatCompatibility{BuildingType::SlowTrap, attackStatMask({
         AttackStat::AttackSpeed, AttackStat::Duration, AttackStat::Size, AttackStat::Range})},
 };

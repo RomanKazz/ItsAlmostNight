@@ -28,7 +28,7 @@ constexpr std::array Types{BuildingType::GunTurret, BuildingType::Turret,
 constexpr std::array Names{"gun_turret", "crossbow", "cannon", "catapult", "flamethrower",
     "missile_launcher", "tesla", "laser", "mortar", "spikes", "slow_trap", "wind_blower"};
 constexpr std::array Scenes{"heavy", "dense", "fast", "flying"};
-constexpr std::array Profiles{"base", "damage_rate", "quantity", "quantity_bounce_pierce"};
+constexpr std::array Profiles{"base", "damage_rate", "quantity", "quantity_bounce_pierce", "bounces", "pierce"};
 constexpr std::array Levels{1, 4, 8};
 
 struct Result {
@@ -48,7 +48,8 @@ std::array<double, RunUpgradeEffectCount> powers(int profile) {
     else if (profile == 3) {
         add(RunUpgradeEffect::ProjectileCount, 2); add(RunUpgradeEffect::Bounces, 1);
         add(RunUpgradeEffect::Pierce, 1);
-    }
+    } else if (profile == 4) add(RunUpgradeEffect::Bounces, 4);
+    else if (profile == 5) add(RunUpgradeEffect::Pierce, 4);
     return result;
 }
 
@@ -228,7 +229,7 @@ int main(int argc, char** argv) {
                 const bool baseline=type==Types.size();
                 const auto building=baseline ? BuildingType::Core : Types[type];
                 const auto& cost=loaded.balance.buildings[static_cast<std::size_t>(building)];
-                for (int profile=0;profile<(baseline ? 1 : 4);++profile) {
+                for (int profile=0;profile<(baseline ? 1 : static_cast<int>(Profiles.size()));++profile) {
                     const auto result=battle(loaded.balance,building,level,static_cast<int>(scene),profile,seed,seconds*60);
                     csv << (baseline ? "no_defense" : Names[type]) << ',' << level << ',' << Scenes[scene] << ','
                         << Profiles[static_cast<std::size_t>(profile)] << ',' << seed << ',' << seconds << ','

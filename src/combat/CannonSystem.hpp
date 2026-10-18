@@ -2,6 +2,7 @@
 
 #include "buildings/BuildingSystem.hpp"
 #include "combat/CannonAttack.hpp"
+#include "combat/AttackProjectile.hpp"
 #include "core/Types.hpp"
 #include "enemies/EnemySystem.hpp"
 
@@ -31,6 +32,7 @@ struct CannonRuntime {
     double targetSearchCooldownRemaining{};
     double firingAnimationRemaining{};
     bool loaded{true};
+    AttackEvent attack;
 };
 
 struct CannonProjectile {
@@ -52,6 +54,15 @@ struct CannonProjectile {
     double visualScale{1.0};
     int clusterExplosionCount{};
     bool active{};
+    ProjectileConfiguration configuration;
+    ProjectileRuntimeState runtime;
+    void resetForReuse() {
+        const EntityId previousId = id;
+        auto history = std::move(runtime.alreadyHitTargets);
+        *this = {}; id = previousId;
+        runtime.alreadyHitTargets = std::move(history);
+        runtime.reset();
+    }
 };
 
 struct CannonExplosion {
@@ -73,6 +84,7 @@ struct CannonHit {
     EntityId cannonId;
     EnemyDamageResult result;
     BuildingType type{BuildingType::Cannon};
+    bool critical{};
 };
 
 class CannonSystem {
@@ -94,6 +106,11 @@ class CannonSystem {
     [[nodiscard]] static double explosionDamage(
         BuildingType type, std::uint8_t level);
 
+    [[nodiscard]] static AttackStats baseStats(BuildingType type, std::uint8_t level);
+    [[nodiscard]] FinalAttackStats finalStats(const BuildingInstance& building) const;
+    void setPreferMarkedTargets(bool enabled) { preferMarkedTargets_ = enabled; }
+    void setAttackModifiers(const AttackModifiers& modifiers) { modifiers_ = modifiers; }
+    [[nodiscard]] std::size_t droppedProjectiles() const { return pool_.dropped(); }
     void reset();
     void setAttackStyle(CannonAttackStyle style);
     void setTypeBonuses(BuildingType type, double damage, double fireRate);
@@ -113,24 +130,23 @@ class CannonSystem {
 
   private:
     void launch(const BuildingInstance& cannon, Vec3 targetPosition,
-                double yawRadians, double pitchRadians);
-    void launchProjectile(const BuildingInstance& cannon, Vec3 origin,
-                          Vec3 targetPosition, const CannonAttackProfile& profile, bool recordShot);
+                double yawRadians, double pitchRadians, const FinalAttackStats& stats);
+    bool launchProjectile(const BuildingInstance& cannon, Vec3 origin,
+                          Vec3 targetPosition, const CannonAttackProfile& profile, const FinalAttackStats& stats, bool recordShot);
     void explode(CannonProjectile& projectile, EnemySystem& enemies);
+    bool bounce(CannonProjectile& projectile, EnemySystem& enemies);
 
     std::vector<CannonRuntime> cannons_;
-    std::vector<CannonProjectile> projectiles_;
+    ProjectilePool<CannonProjectile> pool_{200000};
+    AttackCollisionQuery query_;
     std::vector<CannonExplosion> explosionBuffer_;
     std::vector<CannonShot> shotBuffer_;
     std::vector<CannonHit> hitBuffer_;
-    std::uint32_t nextProjectileIndex_{4000};
     CannonAttackStyle attackStyle_{CannonAttackStyle::Standard};
     BuildingType bonusType_{BuildingType::Core};
-    double typeDamageMultiplier_{1.0};
-    double typeFireRateMultiplier_{1.0};
-    double damageMultiplier_{1.0};
-    double radiusMultiplier_{1.0};
-    double fireRateMultiplier_{1.0};
+    AttackModifiers modifiers_;
+    bool preferMarkedTargets_{};
+    AttackModifiers typeModifiers_;
     double highGroundDamageMultiplier_{1.0};
     int clusterExplosionCount_{};
 };

@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "DefenseTomeScalingChecks.hpp"
 #include "combat/LaserAttack.hpp"
 #include "combat/TowerSystem.hpp"
 #include "combat/AttackStatCompatibility.hpp"
@@ -84,8 +85,11 @@ void multipleRaysAndBounces() {
         require(towers.laserBeams().size()==6,"real parallel and chained beam segments reach presentation");
         for(std::size_t ray=0;ray<3;++ray) {
             require(hits[ray*2].targetId!=hits[ray*2+1].targetId,"one chain cannot hit the same enemy twice");
-            requireNear(hits[ray*2].damage,hits[ray*2+1].damage,1e-8,"bounce retains full focused damage");
-            requireNear(hits[ray*2].damage,hits[0].damage,1e-8,"additional beams retain full damage");
+            requireNear(hits[ray*2+1].damage,hits[ray*2].damage*.5/
+                laserFocusMultiplier(towers.towers()[0].laserFocusSeconds),1e-8,
+                "bounced beam loses energy and does not inherit focus on another enemy");
+            requireNear(hits[ray*2].damage,hits[0].damage*(ray==0?1.0:.25),1e-8,
+                "main focused beam stays full strength and extra beams deal quarter damage");
         }
         fired=true;
     }
@@ -135,4 +139,4 @@ void progression() {
     require(restored->loadSuspendedRunState(*saved) && restored->snapshot().buildingBlueprintLevels[slot]==2,"laser save/load");
 }
 }
-int main(){focus();scaling();multipleRaysAndBounces();denseVolley();progression();}
+int main(){defense_tome_scaling_checks::run();focus();scaling();multipleRaysAndBounces();denseVolley();progression();}

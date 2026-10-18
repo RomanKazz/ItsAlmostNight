@@ -8,6 +8,7 @@ namespace ian {
 struct AttackHit {
     EnemyDamageResult result;
     bool critical{};
+    double payloadDamage{};
 };
 
 // Shared by travelling instances, explosions and traps. Armor/elite health
@@ -21,6 +22,6 @@ struct AttackHit {
         stats.damage * (critical ? stats.critDamage : 1.0) * enemies.markedDefenseDamage(target));
     if (!result) return std::nullopt;
     if (!result->killed) enemies.applyKnockback(target, direction, stats.knockback);
-    return AttackHit{*result, critical};
+    return AttackHit{*result, critical, stats.damage};
 }
 } // namespace ian
