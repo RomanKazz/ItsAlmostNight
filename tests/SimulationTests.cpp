@@ -700,9 +700,11 @@ void runSimulationTests() {
             "first timed night builds continuous pressure without overcrowding");
         timedNight.tick(4.0);
         require(
-            timedNight.snapshot().state == ian::RunState::WaveComplete &&
-                timedNight.snapshot().activeEnemyCount == 0U,
-            "dawn ends the fixed night and banishes remaining enemies");
+            timedNight.snapshot().state == ian::RunState::Wave &&
+                timedNight.snapshot().phaseTimeRemaining == 0.0 &&
+                timedNight.snapshot().activeEnemyCount > 0U &&
+                timedNight.snapshot().pendingEnemyCount == 0U,
+            "dawn stops reinforcements and requires clearing the survivors");
     }
     {
         ian::GameBalance balance = ian::GameBalance::defaults();

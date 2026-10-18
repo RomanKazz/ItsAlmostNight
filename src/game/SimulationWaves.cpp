@@ -337,6 +337,25 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
         ? std::clamp(1.0 - phaseTimeRemaining_ / phaseDuration_, 0.0, 1.0)
         : std::min(.99, waveCombatElapsed_ / 60.0);
     const int act = nightAct(progress);
+    // A scheduled boss must still arrive if a long tick crossed its final
+    // act, or the enemy pool was full at its normal entrance time.
+    if (act == 2 && waveBossSpawn_ && enemies_.activeCount() < MaximumActiveEnemies) {
+        EnemySpawn boss = *waveBossSpawn_;
+        const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, 2, 0);
+        if (const auto core = buildings_.core(); core && wavePortalPositions_[portal])
+            moveGroupToPortal(std::span<EnemySpawn>{&boss, 1}, *wavePortalPositions_[portal], core->gridPosition);
+        enemies_.spawnGroup(std::span<const EnemySpawn>{&boss, 1});
+        waveBossSpawn_.reset();
+    }
+    if (!finalNight_ && phaseTimeRemaining_ <= 0.0) {
+        // Close regular reinforcements without deleting live actors, their
+        // attacks, delayed splitter children, or the ordinary kill rewards.
+        nextWaveSpawnIndex_ = waveSpawnQueue_.size();
+        waveSpawnGroupsDue_ = 0U;
+        waveReplacementDemand_ = 0U;
+        wavePortalsActive_ = waveBossSpawn_.has_value();
+        return;
+    }
     if (act != waveEncounterAct_) {
         waveEncounterAct_ = act;
         waveGroupSerial_ = 0;
@@ -374,14 +393,6 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
         static_cast<double>(baseTarget) * nightPopulationScale(wavePattern_, wave_) * overtime.spawnRate)));
     const double interval = std::clamp(waveSpawnInterval_, .35, 2.0) /
         overtime.spawnRate * (surge ? .6 : 1.0);
-    if (act == 2 && waveBossSpawn_ && activeBefore < MaximumActiveEnemies) {
-        EnemySpawn boss = *waveBossSpawn_;
-        const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, 2, 0);
-        if (const auto core = buildings_.core(); core && wavePortalPositions_[portal])
-            moveGroupToPortal(std::span<EnemySpawn>{&boss, 1}, *wavePortalPositions_[portal], core->gridPosition);
-        enemies_.spawnGroup(std::span<const EnemySpawn>{&boss, 1});
-        waveBossSpawn_.reset();
-    }
     waveSpawnTimeRemaining_ -= deltaSeconds;
     while (waveSpawnTimeRemaining_ <= 0) {
         waveSpawnGroupsDue_ = std::min(std::size_t{2}, waveSpawnGroupsDue_ + 1);

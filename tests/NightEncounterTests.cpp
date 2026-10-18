@@ -17,7 +17,7 @@ void resolveChoices(Simulation& simulation) {
     if (simulation.snapshot().runShop.pending)
         require(simulation.closeRunShop(), "night fixture closes intermission shop");
 }
-std::unique_ptr<Simulation> fixture() {
+std::unique_ptr<Simulation> fixture(double nightSeconds = 60.0) {
     auto world = WorldConfig::defaults();
     world.terrainResolution = 33;
     world.terrainAmplitude = 0;
@@ -25,7 +25,9 @@ std::unique_ptr<Simulation> fixture() {
     world.pondMinimumCount = world.pondMaximumCount = 0;
     auto map = MapDefinition::defaults();
     map.obstacles.clear(); map.resources.clear();
-    auto result = std::make_unique<Simulation>(GameBalance::defaults(), map, world);
+    auto balance = GameBalance::defaults();
+    balance.gameplay.nightDurationSeconds = nightSeconds;
+    auto result = std::make_unique<Simulation>(balance, map, world);
     result->startRunFromSeed(PlayerClass::Vanguard, 73);
     PlayerCommand setup;
     setup.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
@@ -109,6 +111,140 @@ int main() {
     require(nightAct(.399) == 0 && nightAct(.4) == 1 && nightAct(.8) == 2 &&
         nightRegrouping(.38) && !nightRegrouping(.4) && nightRegrouping(.78),
         "brief warning windows precede each act change");
+
+    {
+        auto cleanup = fixture(12.0);
+        startNight(*cleanup);
+        cleanup->tick(11.5);
+        std::vector<EntityId> survivors;
+        for (const auto& enemy : cleanup->snapshot().enemies)
+            if (enemy.active) survivors.push_back(enemy.id);
+        require(!survivors.empty(), "cleanup fixture has survivors before dawn");
+        cleanup->takeEvents();
+        cleanup->tick(.5);
+        require(cleanup->snapshot().state == RunState::Wave &&
+            cleanup->snapshot().phaseTimeRemaining == 0 &&
+            cleanup->snapshot().pendingEnemyCount == 0 &&
+            !cleanup->snapshot().runShop.pending,
+            "countdown expiry stops reinforcements without opening the shop or ending combat");
+        require(cleanup->snapshot().activeEnemyCount == survivors.size() &&
+            std::ranges::all_of(cleanup->snapshot().enemies, [&](const auto& enemy) {
+                return !enemy.active || std::ranges::find(survivors, enemy.id) != survivors.end();
+            }), "dawn preserves exactly the surviving enemies instead of banishing or replacing them");
+        require(std::ranges::none_of(cleanup->snapshot().attackPortalPositions,
+            [](const auto& portal) { return portal.has_value(); }),
+            "portals close when the reinforcement countdown ends");
+        for (const auto& event : cleanup->takeEvents())
+            require(event.type != GameEventType::EnemyBanished && event.type != GameEventType::WaveCompleted &&
+                event.type != GameEventType::WaveRewardGranted,
+                "dawn neither banishes enemies nor grants completion rewards early");
+        const Vec3 before = cleanup->snapshot().enemies.front().position;
+        cleanup->tick(2);
+        const Vec3 after = cleanup->snapshot().enemies.front().position;
+        require(cleanup->snapshot().activeEnemyCount == survivors.size() &&
+            (before.x != after.x || before.z != after.z),
+            "survivors continue moving after dawn without new arrivals");
+        int killsAfterDawn = 0, xpAfterDawn = 0, completions = 0, rewards = 0;
+        for (const EntityId id : survivors) {
+            PlayerCommand attack;
+            attack.castChainLightning = CastChainLightningCommand{
+                .firstTarget = id, .damage = 1e12, .maximumTargets = 1};
+            cleanup->tick(0, attack);
+            for (const auto& event : cleanup->takeEvents()) {
+                if (event.type == GameEventType::EnemyKilled) ++killsAfterDawn;
+                if (event.type == GameEventType::ExperienceCollected) xpAfterDawn += event.amount;
+                if (event.type == GameEventType::WaveCompleted) ++completions;
+                if (event.type == GameEventType::WaveRewardGranted) ++rewards;
+            }
+            while (cleanup->snapshot().runUpgradeChoicePending)
+                require(cleanup->selectRunUpgrade(0), "cleanup fixture resolves earned XP choices");
+            if (cleanup->snapshot().activeEnemyCount > 0) {
+                require(cleanup->snapshot().state == RunState::Wave &&
+                    !cleanup->snapshot().runShop.pending,
+                    "partial cleanup neither ends the wave nor opens the shop");
+                cleanup->tick(.25);
+                require(cleanup->snapshot().activeEnemyCount < survivors.size(),
+                    "kills after dawn never request replacement groups");
+            }
+        }
+        for (const auto& pickup : cleanup->snapshot().coinPickups)
+            if (pickup.kind == PickupKind::Experience) xpAfterDawn += pickup.value;
+        require(killsAfterDawn == static_cast<int>(survivors.size()) &&
+            xpAfterDawn == killsAfterDawn * static_cast<int>(std::lround(cleanup->insightSystem().config().enemy[0])),
+            "all post-countdown kills retain their ordinary XP rewards");
+        require(cleanup->snapshot().state == RunState::WaveComplete &&
+            cleanup->snapshot().activeEnemyCount == 0 && cleanup->snapshot().runShop.pending &&
+            completions == 1 && rewards == 1,
+            "the last kill completes the night and opens exactly one rewarded shop intermission");
+        cleanup->tick(1);
+        for (const auto& event : cleanup->takeEvents())
+            require(event.type != GameEventType::WaveCompleted && event.type != GameEventType::WaveRewardGranted,
+                "completed cleanup cannot pay the reward twice");
+    }
+    {
+        auto splitCleanup = fixture(12.0);
+        startNight(*splitCleanup);
+        splitCleanup->tick(12);
+        PlayerCommand summon;
+        summon.spawnEnemy = SpawnEnemyCommand{.type = EnemyType::Splitter, .count = 1};
+        splitCleanup->tick(0, summon);
+        std::vector<EntityId> targets;
+        std::optional<EntityId> parent;
+        for (const auto& enemy : splitCleanup->snapshot().enemies) {
+            if (!enemy.active) continue;
+            if (enemy.type == EnemyType::Splitter) parent = enemy.id;
+            else targets.push_back(enemy.id);
+        }
+        require(parent.has_value(), "cleanup fixture spawns a splitter");
+        targets.push_back(*parent);
+        for (const EntityId id : targets) {
+            PlayerCommand attack;
+            attack.castChainLightning = CastChainLightningCommand{
+                .firstTarget = id, .damage = 1e12, .maximumTargets = 1};
+            splitCleanup->tick(0, attack);
+            resolveChoices(*splitCleanup);
+        }
+        require(splitCleanup->snapshot().activeEnemyCount == 0 &&
+            splitCleanup->snapshot().state == RunState::Wave && !splitCleanup->snapshot().runShop.pending,
+            "a dying last splitter keeps the night active until its delayed children arrive");
+        splitCleanup->tick(.4);
+        require(splitCleanup->snapshot().activeEnemyCount == 3 &&
+            std::ranges::all_of(splitCleanup->snapshot().enemies, [](const auto& enemy) {
+                return !enemy.active || enemy.type == EnemyType::Splitling;
+            }), "cleanup permits splitter children without resuming portal reinforcements");
+        targets.clear();
+        for (const auto& enemy : splitCleanup->snapshot().enemies)
+            if (enemy.active) targets.push_back(enemy.id);
+        for (const EntityId id : targets) {
+            PlayerCommand attack;
+            attack.castChainLightning = CastChainLightningCommand{
+                .firstTarget = id, .damage = 1e12, .maximumTargets = 1};
+            splitCleanup->tick(0, attack);
+            while (splitCleanup->snapshot().runUpgradeChoicePending)
+                require(splitCleanup->selectRunUpgrade(0), "split cleanup resolves XP choices");
+        }
+        require(splitCleanup->snapshot().state == RunState::WaveComplete,
+            "killing all delayed children completes the night");
+    }
+    {
+        auto pressure = fixture(12.0);
+        auto checkpoint = pressure->saveSuspendedRunState();
+        checkpoint.wave = checkpoint.bestWave = 10;
+        pressure->returnToMainMenu();
+        require(pressure->loadSuspendedRunState(checkpoint), "cleanup overtime checkpoint loads");
+        PlayerCommand god;
+        god.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        pressure->tick(0, god);
+        startNight(*pressure);
+        pressure->tick(12);
+        const auto alive = pressure->snapshot().activeEnemyCount;
+        pressure->tick(3);
+        require(pressure->snapshot().state == RunState::Wave &&
+            pressure->snapshot().activeEnemyCount == alive,
+            "ordinary late-night cleanup stays active without replenishment");
+        requireNear(pressure->snapshot().overtimeSeconds, 15.0, 1e-12,
+            "overtime continues through cleanup on ordinary nights as well as boss nights");
+    }
 
     auto strong = fixture();
     const auto checkpoint = strong->saveSuspendedRunState();

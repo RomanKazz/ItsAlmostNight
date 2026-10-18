@@ -219,40 +219,17 @@ void Simulation::updateRunPhase(
 void Simulation::updateCombat(double deltaSeconds) {
     if (state_ == RunState::Wave || enemies_.activeCount() > 0) {
         if (state_ == RunState::Wave) {
-            const bool bossPendingOrAlive = waveBossSpawn_.has_value() ||
-                std::ranges::any_of(enemies_.enemies(), [](const EnemyInstance& enemy) {
-                    return enemy.active && enemy.type == EnemyType::Boss;
-                });
             if (!sandboxMode_ && !challengeActive() && wave_ > gameplay_.overtime.afterWave) {
-                const double combatSeconds = finalNight_ || bossPendingOrAlive
-                    ? deltaSeconds : std::min(deltaSeconds, phaseTimeRemaining_);
-                overtimeSeconds_ = std::min(1'000'000'000.0, overtimeSeconds_ + combatSeconds);
+                // Clearing the survivors is still combat, including after the
+                // reinforcement countdown expires.
+                overtimeSeconds_ = std::min(1'000'000'000.0, overtimeSeconds_ + deltaSeconds);
                 enemies_.setOvertimeDifficulty(overtimeDifficulty(overtimeSeconds_, gameplay_.overtime));
             }
             if (!finalNight_) {
                 phaseTimeRemaining_ = std::max(
                     0.0, phaseTimeRemaining_ - deltaSeconds);
-                if (phaseTimeRemaining_ <= 0.0 && !bossPendingOrAlive) {
-                    // Dawn banishes the remaining horde. Resetting actors
-                    // deliberately produces no kill XP, Coins, loot, splits,
-                    // or volatile elite explosions.
-                    for (const EnemyInstance& enemy : enemies_.enemies()) {
-                        if (!enemy.active) continue;
-                        events_.push_back({
-                            .type = GameEventType::EnemyBanished,
-                            .entityId = enemy.id,
-                            .enemyType = enemy.type,
-                            .enemyEliteAffixes = enemy.eliteAffixes,
-                            .position = enemy.position,
-                        });
-                    }
-                    enemies_.reset();
-                    enemies_.clearProjectiles();
-                    completeWave();
-                    return;
-                }
             }
-            if(finalNight_ || phaseTimeRemaining_>0 || waveBossSpawn_) tickWaveSpawning(deltaSeconds);
+            tickWaveSpawning(deltaSeconds);
         }
         updateTrapCombat(deltaSeconds);
 
@@ -568,7 +545,9 @@ void Simulation::updateCombat(double deltaSeconds) {
     // during building phases even when there are no enemies.
     updateTowerCombat(deltaSeconds);
     updateCannonCombat(deltaSeconds);
-    if (forceWaveCompletion_ && state_ == RunState::Wave) {
+    const bool survivorsCleared = !finalNight_ && phaseTimeRemaining_ <= 0.0 &&
+        !waveBossSpawn_ && enemies_.activeCount() == 0U && !enemies_.hasPendingSplits();
+    if (state_ == RunState::Wave && (forceWaveCompletion_ || survivorsCleared)) {
         forceWaveCompletion_ = false;
         completeWave();
     }

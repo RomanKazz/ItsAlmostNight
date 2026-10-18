@@ -1308,6 +1308,13 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
+    if (phaseState == RunState::Wave && !snapshot.finalNight &&
+        snapshot.phaseTimeRemaining <= 0.0) {
+        drawCenteredSdfUiText(
+            "ENEMIES: " + std::to_string(snapshot.activeEnemyCount + snapshot.pendingEnemyCount),
+            96.0F, 12.15F, {255, 222, 155, 255});
+    }
+
     const bool forecastVisible = !snapshot.sandboxMode && snapshot.coreMaxHealth > 0 &&
         (phaseState == RunState::BuildPhase || phaseState == RunState::Sunset);
     if (forecastVisible) {
