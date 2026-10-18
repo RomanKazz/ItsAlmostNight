@@ -1095,10 +1095,11 @@ std::span<const EnemyAttack> EnemySystem::tick(
         enemy.knockbackVelocity.x *= knockbackDecay;
         enemy.knockbackVelocity.z *= knockbackDecay;
 
-        // Knockback owns movement briefly. Otherwise chase movement in this
-        // same tick can immediately cancel a melee impulse toward the player.
-        constexpr double MinimumKnockbackSpeed = 0.05;
-        if (knockbackSpeed > MinimumKnockbackSpeed) {
+        // Only an impulse stronger than locomotion owns movement. Weak hits
+        // still displace the body, but cannot repeatedly switch off its chase.
+        // Strong melee/blower impulses retain their full initial push.
+        const double minimumKnockbackSpeed = std::max(0.05, movementSpeed);
+        if (knockbackSpeed > minimumKnockbackSpeed) {
             continue;
         }
 

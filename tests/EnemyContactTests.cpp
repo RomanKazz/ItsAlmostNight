@@ -2,6 +2,10 @@
 #include "enemies/EnemySystem.hpp"
 #include "enemies/EnemyCollision.hpp"
 #include "combat/TrapSystem.hpp"
+#include "combat/TowerSystem.hpp"
+#include "combat/CannonSystem.hpp"
+#include "progression/DefenseAttackModifiers.hpp"
+#include "game/Simulation.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/TerrainHeightfield.hpp"
 #include <array>
@@ -96,5 +100,85 @@ void raisedCore() {
         require(reversals==0,"platform approach has no repeated up/down oscillations");
     }
 }
+void lightImpactsAllowApproach() {
+    const std::vector<BuildingInstance> core{{.id={1500,1},.type=BuildingType::Core,
+        .gridPosition={0,10},.health=10000,.maxHealth=10000}};
+    FlowField flow; flow.rebuild({0,10},core);
+    EnemySystem enemies;
+    enemies.spawnGroup(std::array{EnemySpawn{.type=EnemyType::Basic,.position={0,0,-8}}});
+    const auto id = enemies.enemies()[0].id;
+    const double light = TowerSystem::baseStats(BuildingType::Turret,1).knockback;
+    for (int tick=0;tick<60;++tick) {
+        if (tick % 6 == 0) enemies.applyKnockback(id,{0,0,-1},light);
+        enemies.tick(Step,core,flow);
+    }
+    require(enemies.enemies()[0].position.z > -7,
+        "even repeated light tower impacts cannot keep chase switched off");
+    const auto before = enemies.enemies()[0].position;
+    enemies.applyKnockback(id,{0,0,-1},8);
+    enemies.tick(Step,core,flow);
+    require(enemies.enemies()[0].position.z < before.z,
+        "a strong deliberate impulse still pushes against chase movement");
+    require(TowerSystem::baseStats(BuildingType::WindBlower,1).knockback >= 8 &&
+        CannonSystem::baseStats(BuildingType::Cannon,1).knockback < 1,
+        "native cannon impact is light while the blower retains its control role");
+    std::array<double,RunUpgradeEffectCount> powers{};
+    powers[runUpgradeIndex(RunUpgradeEffect::AttackKnockback)] = 5;
+    const auto modifiers = defenseAttackCardModifiers(powers);
+    const auto base = CannonSystem::baseStats(BuildingType::Cannon,1);
+    const std::array sources{modifiers};
+    requireNear(resolveAttackStats(base,sources).knockback,base.knockback*2,1e-9,
+        "impact tome still doubles the new baseline at five powers");
 }
-int main(){meleeGapAndSpikes();diagonalReach();supportQueries();raisedCore();}
+void enemyDamageAtPlayerBoundary() {
+    for (const auto type : {EnemyType::Basic,EnemyType::Ranged}) {
+        auto balance = GameBalance::defaults();
+        balance.gameplay.nightDurationSeconds = 120;
+        auto& wave = balance.waves[0];
+        wave.basic = type==EnemyType::Basic ? 1 : 0;
+        wave.ranged = type==EnemyType::Ranged ? 1 : 0;
+        wave.budget = type==EnemyType::Basic ? 1 : 3;
+        auto map = MapDefinition::defaults();
+        map.playerSpawn = {0,0,-4};
+        map.obstacles.clear(); map.resources.clear();
+        map.enemySpawnAnchors = {{0,0,-24}};
+        auto world = WorldConfig::defaults();
+        world.terrainResolution = 33;
+        world.terrainAmplitude = world.terrainSurfaceNoiseAmplitude = 0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        auto run = std::make_unique<Simulation>(balance,map,world);
+        run->startRunFromSeed(PlayerClass::Vanguard,73);
+        PlayerCommand god; god.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        run->tick(0,god);
+        PlayerCommand place; place.placeBuilding = PlaceBuildingCommand{BuildingType::Core,{0,0},0};
+        run->tick(0,place);
+        while (run->snapshot().runUpgradeChoicePending) require(run->selectRunUpgrade(0),"fixture resolves upgrades");
+        if (run->snapshot().runShop.pending) require(run->closeRunShop(),"fixture closes shop");
+        run->tick(0,god);
+        PlayerCommand start; start.startWaveEarly = StartWaveEarlyCommand{};
+        run->tick(0,start);
+        run->takeEvents();
+        bool hit = false;
+        for (int frame=0;frame<1500 && !hit;++frame) {
+            run->tick(Step);
+            for (const auto& event : run->takeEvents()) {
+                if (event.type!=GameEventType::PlayerDamaged || !event.sourceId) continue;
+                const auto attacker = std::ranges::find(run->snapshot().enemies,*event.sourceId,&EnemyInstance::id);
+                require(attacker!=run->snapshot().enemies.end(),"melee/projectile damage retains its attacker");
+                require(event.amount==static_cast<int>(attacker->damage*2),
+                    "real enemy melee and projectile hits double only at the player boundary");
+                hit = true;
+            }
+        }
+        require(hit,"both a melee enemy and a ranged enemy can hit the player fixture");
+        PlayerCommand debug; debug.damagePlayer = DamagePlayerCommand{3};
+        run->tick(0,debug);
+        const auto events = run->takeEvents();
+        require(std::ranges::any_of(events,[](const auto& event) {
+            return event.type==GameEventType::PlayerDamaged && !event.sourceId && event.amount==3;
+        }),"debug damage is not doubled together with enemy attacks");
+    }
+}
+
+}
+int main(){meleeGapAndSpikes();diagonalReach();supportQueries();raisedCore();lightImpactsAllowApproach();enemyDamageAtPlayerBoundary();}

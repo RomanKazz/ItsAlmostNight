@@ -1,5 +1,6 @@
 #include "combat/TowerSystem.hpp"
 #include "combat/DefenseTargeting.hpp"
+#include "combat/DefenseTomeScaling.hpp"
 #include "combat/DefenseRuntimeSupport.hpp"
 #include "combat/DefenseAiming.hpp"
 #include "combat/AttackPattern.hpp"
@@ -171,6 +172,7 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
         stats.projectileSpeed = 0; stats.spreadDegrees = 0; stats.knockback = 0.18;
         stats.bounces = 2 + (level - 1) / 3; stats.bounceRange = 4.5; stats.burstInterval = 0.12;
     }
+    stats.knockback = defenseBaseKnockback(type, stats.knockback);
     return stats;
 }
 

@@ -3,6 +3,11 @@
 #include "combat/AttackStats.hpp"
 
 namespace ian {
+// Keep light native impact, with deliberate crowd control reserved for the
+// blower and the knockback tome. Applied before resolving tome modifiers.
+[[nodiscard]] constexpr double defenseBaseKnockback(BuildingType type, double authored) {
+    return type == BuildingType::WindBlower ? authored : authored * .25;
+}
 struct DefenseTomeScaling {
     double extraInstanceDamage{1.0};
     double bounceRetention{1.0};

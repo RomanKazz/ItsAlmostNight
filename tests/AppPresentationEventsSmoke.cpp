@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "app/AppRenderSupport.hpp"
 #include <filesystem>
 #include <algorithm>
 #include <cstdlib>
@@ -138,6 +139,47 @@ struct AppPresentationTestAccess {
         }
         if(upperInk>20 || lowerInk<100) {
             std::cerr<<"Wind preview contains legacy gate geometry or is invisible: "<<upperInk<<" / "<<lowerInk<<"\n";okay=false;
+        }
+        // Exercise the actual burn pass on every airborne rig: their roots
+        // are below the native body, so a root-anchored flame floats underneath.
+        const Camera3D burnCamera{{0,2.4F,7},{0,2.4F,0},{0,1,0},6,CAMERA_ORTHOGRAPHIC};
+        for (const auto type : {EnemyType::Basic,EnemyType::Flying,EnemyType::Bee,EnemyType::AirTank,EnemyType::Boss}) {
+            std::array<EnemyInstance,1> enemies{};
+            auto& enemy = enemies[0];
+            enemy.id = {900+static_cast<std::uint32_t>(type),1};
+            enemy.type = type; enemy.active = true; enemy.health = enemy.maxHealth = 100;
+            enemy.state = EnemyState::MoveToCore;
+            enemy.bossHoverOffset = .6;
+            snapshot.enemies = enemies;
+            snapshot.elapsedSeconds = .31;
+            app->effects_.clear();
+            app->effects_.push_back({.type=PresentationEffectType::EnemyBurn,.entityId=enemy.id,
+                .remaining=1,.duration=1});
+            app->renderer_->beginFrame();
+            BeginTextureMode(target);ClearBackground({29,47,57,255});
+            BeginMode3D(burnCamera);app->renderer_->beginWorldShader(lighting);
+            app->drawWorldEnemies(snapshot,burnCamera);
+            app->renderer_->endWorldShader();EndMode3D();EndTextureMode();
+            auto root = app_detail::enemyRenderPosition(enemy);
+            root.y += static_cast<float>(app->simulation_.terrain().getHeight(0,0));
+            const auto bounds = app->renderer_->enemyWorldBounds(app_detail::enemyModelVisual(enemy),
+                root,0,app_detail::enemyVisualScale(type));
+            const float expected = enemyIsFlying(type) || type==EnemyType::Boss ? bounds.min.y : root.y;
+            const bool attached = app->burnVisualCandidates_.size()==1 &&
+                std::abs(app->burnVisualCandidates_[0].position.y-expected)<.01F;
+            if (!attached) { std::cerr<<"Burn detached from native body: "<<static_cast<int>(type)<<'\n';okay=false; }
+            Image image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+            int orange=0;
+            for(int y=0;y<image.height;++y)for(int x=0;x<image.width;++x) {
+                const auto p=GetImageColor(image,x,y);
+                orange += p.r>210 && p.g>60 && p.g<210 && p.b<80;
+            }
+            if(orange<100){std::cerr<<"Burn invisible on rig "<<static_cast<int>(type)<<'\n';okay=false;}
+            if(const char* capture=std::getenv("IAN_AIR_FIRE_CAPTURE")) {
+                std::filesystem::create_directories(capture);
+                ExportImage(image,(std::filesystem::path(capture)/("burn-"+std::to_string(static_cast<int>(type))+".png")).string().c_str());
+            }
+            UnloadImage(image);
         }
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;

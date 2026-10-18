@@ -50,6 +50,9 @@ void Simulation::damagePlayer(
         playerRespawnProtectionRemaining_ > 0.0) {
         return;
     }
+    // Scale enemy hits at the player boundary: structure damage, debug hits
+    // and falls keep their original values. Dead owners still carry an ID.
+    if (attackerId) damage *= 2.0;
     const double mitigatedDamage =
         ignoreArmor
             ? damage

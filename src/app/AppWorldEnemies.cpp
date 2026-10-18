@@ -586,6 +586,10 @@ void App::drawWorldEnemies(
             enemyModelVisual(enemy), candidate.position,
             static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
         const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
+        // Flying rigs hover above their root. Start fire at the body, not in
+        // the empty space between the rig origin and its authored silhouette.
+        if (enemyIsFlying(enemy.type) || enemy.type == EnemyType::Boss)
+            candidate.position.y = bounds.min.y;
         // Fit to the authored body instead of burying flames inside wide models.
         // Clamp weapon/wing extents so a protruding accessory cannot detach fire.
         burnSurfaceRadii[rank] = std::clamp(

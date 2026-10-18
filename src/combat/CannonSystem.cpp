@@ -169,7 +169,7 @@ AttackStats CannonSystem::baseStats(BuildingType type, std::uint8_t level) {
     stats.projectileSpeed = type == BuildingType::Catapult ? CatapultProjectileSpeed : ProjectileSpeed;
     if (type == BuildingType::Mortar) stats.projectileSpeed = MortarHorizontalSpeed;
     stats.duration = type == BuildingType::Mortar ? 8.0 : 4.0;
-    stats.knockback = BaseExplosionImpulse + 0.35 * (level - 1);
+    stats.knockback = defenseBaseKnockback(type, BaseExplosionImpulse + 0.35 * (level - 1));
     stats.spreadDegrees = 0.0;
     return stats;
 }
