@@ -123,6 +123,7 @@ EnemyModelVisual enemyModelVisual(EnemyType type) {
         return EnemyModelVisual::Mage;
     case EnemyType::Sapper:
         return EnemyModelVisual::Sapper;
+    case EnemyType::Bee: return EnemyModelVisual::Bee;
     case EnemyType::Flying:
         return EnemyModelVisual::Flying;
     case EnemyType::Boss:
@@ -136,6 +137,7 @@ EnemyModelVisual enemyModelVisual(EnemyType type) {
 }
 
 EnemyModelVisual enemyModelVisual(const EnemyInstance& enemy) {
+    if(enemy.type==EnemyType::Bee) return enemy.eliteAffixes?EnemyModelVisual::BeeElite:EnemyModelVisual::Bee;
     return enemy.type==EnemyType::Flying && enemy.summonerId
         ? EnemyModelVisual::BossSummon : enemyModelVisual(enemy.type);
 }
@@ -145,6 +147,11 @@ EnemyAnimationVisual enemyAnimationVisual(
     if (enemy.hitAnimationRemaining > 0.0 &&
         enemy.state != EnemyState::Dead) {
         return EnemyAnimationVisual::Hit;
+    }
+    if(enemy.type==EnemyType::Bee) {
+        if(enemy.beeWindupRemaining>0 || (enemy.attackCooldownRemaining>2.6 && enemy.beeRepositionRemaining>0))
+            return EnemyAnimationVisual::RangedAttack;
+        return enemy.state==EnemyState::MoveToCore?EnemyAnimationVisual::Run:EnemyAnimationVisual::Idle;
     }
     switch (enemy.state) {
     case EnemyState::MoveToCore:
@@ -164,7 +171,7 @@ EnemyAnimationVisual enemyAnimationVisual(
     case EnemyState::BossStormWindup:
         if (enemy.type==EnemyType::Boss && enemy.state!=EnemyState::BossSlamWindup)
             return EnemyAnimationVisual::RangedAttack;
-        if (enemy.type == EnemyType::Ranged) {
+        if (enemy.type == EnemyType::Ranged || enemy.type==EnemyType::Bee) {
             return EnemyAnimationVisual::RangedAttack;
         }
         if (enemy.type == EnemyType::Sapper) {
@@ -183,6 +190,7 @@ float enemyVisualScale(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
         return 0.55F;
+    case EnemyType::Bee: return .70F;
     case EnemyType::Flying:
         return 0.52F;
     case EnemyType::Heavy:
@@ -244,6 +252,7 @@ Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
         static_cast<float>(enemy.position.x-std::sin(enemy.portalExitYaw)*slip),
         enemy.type == EnemyType::Boss
             ? static_cast<float>(enemy.bossHoverOffset)
+            : enemy.type == EnemyType::Bee ? .80F
             : enemy.type == EnemyType::Flying
             ? 1.25F
             : static_cast<float>(0.02 + enemy.surfaceHeightOffset) +
@@ -257,6 +266,13 @@ float enemyAnimationSeconds(
     if (enemy.hitAnimationRemaining > 0.0) {
         return static_cast<float>(
             0.22 - enemy.hitAnimationRemaining);
+    }
+    if(enemy.type==EnemyType::Bee) {
+        const double windup=enemy.eliteAffixes?1.0:.75;
+        if(enemy.beeWindupRemaining>0)return static_cast<float>(windup-enemy.beeWindupRemaining);
+        if(enemy.attackCooldownRemaining>2.6 && enemy.beeRepositionRemaining>0)
+            return static_cast<float>(windup+2.8-enemy.attackCooldownRemaining);
+        return static_cast<float>((elapsedSeconds)*enemy.locomotionRate);
     }
     if (enemy.state == EnemyState::BossRamWindup) {
         return static_cast<float>(

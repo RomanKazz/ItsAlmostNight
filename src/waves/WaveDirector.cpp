@@ -72,6 +72,7 @@ int enemyBudgetCost(EnemyType type) {
         return 3;
     case EnemyType::Sapper:
         return 4;
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return 3;
     case EnemyType::Splitter:
@@ -114,7 +115,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         };
         composition.basic = bounded(composition.basic); composition.fast = bounded(composition.fast);
         composition.heavy = bounded(composition.heavy); composition.ranged = bounded(composition.ranged);
-        composition.flying = bounded(composition.flying);
+        composition.flying = bounded(composition.flying); composition.bee=bounded(composition.bee);
         composition.splitter = bounded(composition.splitter);
     }
     const double waveIndex =
@@ -141,6 +142,8 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     append(EnemyType::Ranged, composition.ranged, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Flying, composition.flying, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
+    append(EnemyType::Bee, composition.bee, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Splitter, composition.splitter, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
@@ -291,6 +294,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.heavy += (growth + 1) / 2;
     result.ranged += growth / 2;
     result.flying += growth / 3;
+    result.bee += growth / 4;
     result.splitter += (growth + 3) / 4;
     result.boss = normalizedWave % ConfiguredWaveCount == 0;
     result.groupSize = std::min(
@@ -304,6 +308,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
         result.heavy * enemyBudgetCost(EnemyType::Heavy) +
         result.ranged * enemyBudgetCost(EnemyType::Ranged) +
         result.flying * enemyBudgetCost(EnemyType::Flying) +
+        result.bee * enemyBudgetCost(EnemyType::Bee) +
         result.splitter * enemyBudgetCost(EnemyType::Splitter);
     return result;
 }
@@ -335,7 +340,7 @@ void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
             height = 0.85;
         } else if (type == EnemyType::Sapper) {
             height = 0.78;
-        } else if (type == EnemyType::Flying) {
+        } else if (enemyIsFlying(type)) {
             height = 2.4;
         } else if (type == EnemyType::Splitter) {
             height = 1.05;

@@ -279,7 +279,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 .type = magic.impact ? GameEventType::EnemyMagicImpact
                                      : GameEventType::EnemyMagicFired,
                 .sourceId = magic.ownerId,
-                .enemyType = magic.royal ? EnemyType::Boss : EnemyType::Ranged,
+                .enemyType = magic.stinger ? EnemyType::Bee : magic.royal ? EnemyType::Boss : EnemyType::Ranged,
                 .position = magic.position,
                 .intensity = magic.dissipating ? 0.55 : 1.0,
             });

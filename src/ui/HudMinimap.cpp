@@ -1052,8 +1052,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             result.radius = 4.6F;
             result.color = {255, 123, 55, 255};
             result.priority = 6;
-        } else if (type == EnemyType::Flying) {
-            result.color = {220, 105, 232, 250};
+        } else if (enemyIsFlying(type)) {
+            result.color = type==EnemyType::Bee?Color{255,205,54,250}:Color{220,105,232,250};
             result.priority = 2;
         } else if (type == EnemyType::Splitter) {
             result.radius = 3.0F;

@@ -183,8 +183,10 @@ void GameUi::initialize() {
     }
     constexpr std::array EnemyIconPaths{
         "assets/ui/enemies/basic.png", "assets/ui/enemies/fast.png", "assets/ui/enemies/heavy.png", "assets/ui/enemies/boss.png",
-        "assets/ui/enemies/ranged.png", "assets/ui/enemies/sapper.png", "assets/ui/enemies/flying.png", "assets/ui/enemies/splitter.png"};
+        "assets/ui/enemies/ranged.png", "assets/ui/enemies/sapper.png", "assets/ui/enemies/flying.png", "assets/ui/enemies/splitter.png",
+        "assets/ui/enemies/splitter.png", "assets/ui/enemies/bee_icon.png"};
     for (std::size_t index = 0; index < enemyIcons_.size(); ++index) {
+        if(index==static_cast<std::size_t>(EnemyType::Splitling))continue;
         enemyIcons_[index] = loadTexture(EnemyIconPaths[index]);
         smoothHudIcon(enemyIcons_[index]);
     }

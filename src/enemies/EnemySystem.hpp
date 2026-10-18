@@ -35,7 +35,12 @@ enum class EnemyType : std::uint8_t {
     Flying,
     Splitter,
     Splitling,
+    Bee,
 };
+
+[[nodiscard]] constexpr bool enemyIsFlying(EnemyType type) {
+    return type == EnemyType::Flying || type == EnemyType::Bee;
+}
 
 enum class EnemyState {
     Spawn,
@@ -170,6 +175,10 @@ struct EnemyInstance {
     double portalArrivalRemaining{};
     double portalExitYaw{};
     double aiUpdateRemaining{};
+    double beeWindupRemaining{};
+    double beeRepositionRemaining{};
+    Vec3 beeAim{};
+    bool beeTargetsPlayer{};
     // Height above terrain supplied by modular floors/ramps. Kept separate
     // from authored model/capsule Y so existing combat dimensions stay valid.
     double surfaceHeightOffset{};
@@ -295,6 +304,7 @@ struct EnemyMagicEvent {
     bool impact{};
     bool dissipating{};
     bool royal{};
+    bool stinger{};
 };
 
 struct EnemyProjectile {
@@ -312,6 +322,7 @@ struct EnemyProjectile {
     bool targetsPlayer{true};
     bool active{true};
     bool royal{};
+    bool stinger{};
     double duration{3.0};
 };
 
@@ -443,6 +454,7 @@ class EnemySystem {
     void trackPlayerVelocity(
         double deltaSeconds, std::optional<Vec3> playerPosition);
     void recordBossWindupDamage(EnemyInstance& enemy, double damage);
+    void tickBee(EnemyInstance& enemy, double dt, std::optional<Vec3> playerPosition);
     void updateProjectiles(
         double deltaSeconds,
         const std::vector<BuildingInstance>& buildings,

@@ -5,6 +5,6 @@
     { "budget": 40, "basic": 10, "fast": 5, "heavy": 2, "ranged": 2, "sapper": 0, "flying": 0, "splitter": 1, "groupSize": 4, "groupInterval": 1.4 },
     { "budget": 55, "basic": 19, "fast": 8, "heavy": 2, "ranged": 2, "sapper": 0, "flying": 0, "splitter": 1, "groupSize": 5, "groupInterval": 1.4 },
     { "budget": 75, "basic": 19, "fast": 8, "heavy": 4, "ranged": 2, "sapper": 0, "flying": 2, "splitter": 2, "groupSize": 5, "groupInterval": 1.2 },
-    { "budget": 100, "basic": 24, "fast": 10, "heavy": 6, "ranged": 4, "sapper": 0, "flying": 2, "splitter": 2, "boss": true, "groupSize": 6, "groupInterval": 1.1 }
+    { "budget": 100, "basic": 24, "fast": 10, "heavy": 6, "ranged": 4, "sapper": 0, "flying": 1, "bee": 1, "splitter": 2, "boss": true, "groupSize": 6, "groupInterval": 1.1 }
   ]
 }

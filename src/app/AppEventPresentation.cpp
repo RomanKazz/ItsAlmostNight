@@ -216,7 +216,7 @@ void App::processPresentationEvents(
                              : PresentationEffectType::EnemyMagicCast,
                       event.position, impact ? 0.48 : 0.24,
                       static_cast<float>(event.intensity), event.sourceId);
-            if(!effects_.empty()) effects_.back().variant=event.enemyType==EnemyType::Boss ? 1 : 0;
+            if(!effects_.empty()) effects_.back().variant=event.enemyType==EnemyType::Bee ? 2 : event.enemyType==EnemyType::Boss ? 1 : 0;
         }
         if (event.type == GameEventType::PlayerDashed) {
             Vec3 dustPosition = event.position;

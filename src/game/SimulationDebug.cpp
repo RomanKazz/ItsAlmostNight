@@ -26,6 +26,7 @@ double enemyHeight(EnemyType type) {
         return 0.85;
     case EnemyType::Sapper:
         return 0.78;
+    case EnemyType::Bee: return 2.10;
     case EnemyType::Flying:
         return 2.4;
     case EnemyType::Splitter:

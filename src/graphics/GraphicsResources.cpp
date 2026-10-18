@@ -1323,6 +1323,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/enemies/ultimate/wizard.gltf");
     enemySapperModel_.load(
         "assets/models/enemies/ultimate/sapper.gltf");
+    enemyBeeModel_.load("assets/models/enemies/ultimate/armabee.gltf");
+    enemyBeeEliteModel_.load("assets/models/enemies/ultimate/armabee_evolved.gltf");
+    enemyBeeAnimations_.load("assets/models/enemies/ultimate/armabee.gltf");
+    enemyBeeEliteAnimations_.load("assets/models/enemies/ultimate/armabee_evolved.gltf");
     enemyFlyingModel_.load(
         "assets/models/enemies/ultimate/flying.gltf");
     enemyBossSummonModel_.load("assets/models/enemies/ultimate/alpaking-summon.gltf");
@@ -1559,6 +1563,8 @@ void GraphicsResources::shutdown() {
     enemySplitlingAnimations_.unload();
     enemySplitterAnimations_.unload();
     enemyFlyingAnimations_.unload();
+    enemyBeeAnimations_.unload();
+    enemyBeeEliteAnimations_.unload();
     enemySapperAnimations_.unload();
     enemyMovementAnimations_.unload();
     enemyMushroomKingAnimations_.unload();
@@ -1570,6 +1576,8 @@ void GraphicsResources::shutdown() {
     enemySplitlingModel_.unload();
     enemySplitterModel_.unload();
     enemyFlyingModel_.unload();
+    enemyBeeModel_.unload();
+    enemyBeeEliteModel_.unload();
     enemySapperModel_.unload();
     enemyMageModel_.unload();
     enemyWarriorModel_.unload();

@@ -32,6 +32,7 @@ float enemyFlameScale(EnemyType type) {
     case EnemyType::Splitter: return 1.35F;
     case EnemyType::Splitling: return 0.62F;
     case EnemyType::Fast: return 0.82F;
+    case EnemyType::Bee:
     case EnemyType::Flying: return 0.78F;
     case EnemyType::Basic:
     case EnemyType::Ranged:
@@ -418,7 +419,9 @@ void App::drawWorldEnemies(
     }
     rlDrawRenderBatchActive();
     EndBlendMode();
-    if (!snapshot.enemyProjectiles.empty()) {
+    const bool beeCharging=std::ranges::any_of(snapshot.enemies,[](const auto& enemy){
+        return enemy.active && enemy.type==EnemyType::Bee && enemy.beeWindupRemaining>0;});
+    if (!snapshot.enemyProjectiles.empty() || beeCharging) {
         WorldMaterialState magicMaterial{};
         magicMaterial.unlitAmount = 1;
         magicMaterial.screenAoAmount = 0;
@@ -429,6 +432,16 @@ void App::drawWorldEnemies(
             renderer_->setWorldMaterial(magicMaterial);
             renderer_->beginColorOnlyWorldEffects();
             fire_wand_effect::beginBatch(headPass);
+            if(headPass && beeCharging) for(const auto& enemy:snapshot.enemies) {
+                if(!enemy.active || enemy.type!=EnemyType::Bee || enemy.beeWindupRemaining<=0 ||
+                    !presentation::portalArrivalVisible(enemy,{camera.position.x,camera.position.y,camera.position.z})) continue;
+                const float progress=static_cast<float>(1-enemy.beeWindupRemaining/(enemy.eliteAffixes?1.0:.75));
+                const Vector3 center{static_cast<float>(enemy.position.x+std::sin(enemy.yaw)*.43),
+                    static_cast<float>(enemy.worldSurfaceHeight+2.10),static_cast<float>(enemy.position.z+std::cos(enemy.yaw)*.43)};
+                if(!enemyVisible(center,1))continue;
+                const auto basis=enemy_magic_effect::basis(center,camera.position);
+                enemy_magic_effect::star(center,basis,.06F+.15F*progress,static_cast<float>(snapshot.elapsedSeconds)*7,{255,231,91,255});
+            }
             for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
                 if (!projectile.active || !enemyVisible(enemy_magic_effect::point(projectile.position), 2)) continue;
                 enemy_magic_effect::projectile(projectile, camera.position, snapshot.elapsedSeconds,

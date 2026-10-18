@@ -24,6 +24,7 @@ double knockbackMultiplier(EnemyType type) {
     case EnemyType::Boss: return 0.15;
     case EnemyType::Ranged: return 0.85;
     case EnemyType::Sapper: return 0.55;
+    case EnemyType::Bee:
     case EnemyType::Flying: return 0.7;
     case EnemyType::Splitter: return 0.45;
     case EnemyType::Splitling: return 1.2;
@@ -199,7 +200,7 @@ std::optional<EntityId> EnemySystem::nearestEnemyInArc(
         position, radius, [&](const SpatialEntry& entry) {
             const EnemyInstance* enemy = findEnemy(entry.id);
             if (enemy == nullptr || !enemy->active ||
-                (!includeFlying && enemy->type == EnemyType::Flying) ||
+                (!includeFlying && enemyIsFlying(enemy->type)) ||
                 std::abs(enemy->worldSurfaceHeight - position.y) >
                     maximumSurfaceHeightDifference) {
                 return;
@@ -274,7 +275,7 @@ std::optional<EntityId> EnemySystem::densestEnemyInArc(
         position, radius, [&](const SpatialEntry& candidate) {
             const EnemyInstance* enemy = findEnemy(candidate.id);
             if (enemy == nullptr || !enemy->active ||
-                (!includeFlying && enemy->type == EnemyType::Flying)) return;
+                (!includeFlying && enemyIsFlying(enemy->type))) return;
             const double deltaX = candidate.position.x - position.x;
             const double deltaZ = candidate.position.z - position.z;
             const double distanceSquared =
@@ -294,7 +295,7 @@ std::optional<EntityId> EnemySystem::densestEnemyInArc(
                 [this, &count, includeFlying](const SpatialEntry& entry) {
                     const EnemyInstance* nearby = findEnemy(entry.id);
                     if (nearby != nullptr && nearby->active &&
-                        (includeFlying || nearby->type != EnemyType::Flying)) ++count;
+                        (includeFlying || !enemyIsFlying(nearby->type))) ++count;
                 });
             if (count > bestCount ||
                 (count == bestCount &&

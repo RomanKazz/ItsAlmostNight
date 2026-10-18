@@ -42,6 +42,7 @@ double challengeEnemyCenterHeight(EnemyType type) {
     case EnemyType::Heavy: return 1.0;
     case EnemyType::Ranged: return 0.85;
     case EnemyType::Sapper: return 0.78;
+    case EnemyType::Bee:
     case EnemyType::Flying: return 2.4;
     case EnemyType::Splitter: return 1.05;
     case EnemyType::Splitling: return 0.55;
@@ -172,13 +173,14 @@ void Simulation::activateChallengeColumn(EntityId id) {
         EnemyType type;
         int count;
     };
-    std::array<Candidate, 7> candidates{{
+    std::array<Candidate, 8> candidates{{
         {EnemyType::Basic, composition.basic},
         {EnemyType::Fast, composition.fast},
         {EnemyType::Heavy, composition.heavy},
         {EnemyType::Ranged, composition.ranged},
         {EnemyType::Sapper, composition.sapper},
         {EnemyType::Flying, composition.flying},
+        {EnemyType::Bee, composition.bee},
         {EnemyType::Splitter, composition.splitter},
     }};
     std::vector<EnemyType> pool;

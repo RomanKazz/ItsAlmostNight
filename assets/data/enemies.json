@@ -37,5 +37,6 @@
       "summonLimit": 12,
       "transitionDamageMultiplier": 0.35
     }
-  }
+  },
+  "bee": { "health": 7.0, "speed": 2.6, "damage": 10.0 }
 }

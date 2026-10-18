@@ -210,7 +210,9 @@ InsightConfig loadInsightConfig(const std::filesystem::path& path) {
             readValue(*it, "milestoneWave", config.milestoneWave);
             readValue(*it, "bossWave", config.bossWave);
             readValue(*it, "milestoneWaveInterval", config.milestoneWaveInterval);
-            readArray(*it, "enemy", config.enemy);
+            if(const auto old=it->find("enemy");old!=it->end() && old->is_array() && old->size()==9) {
+                for(std::size_t i=0;i<9;++i)if((*old)[i].is_number())config.enemy[i]=(*old)[i].get<double>();
+            } else readArray(*it, "enemy", config.enemy);
             readArray(*it, "resourcePerUnit", config.resourcePerUnit);
             readArray(*it, "resourceDepleted", config.resourceDepleted);
             readArray(*it, "building", config.building);

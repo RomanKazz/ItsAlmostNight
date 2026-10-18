@@ -119,12 +119,12 @@ struct CollisionBody {
             structure.minimumEnemySurfaceHeight ||
         enemy.worldSurfaceHeight - 1e-6 >
             structure.maximumEnemySurfaceHeight ||
-        (enemy.type == EnemyType::Flying &&
+        (enemyIsFlying(enemy.type) &&
          structure.buildingType != BuildingType::Core)) {
         return false;
     }
 
-    if (enemy.type != EnemyType::Flying) {
+    if (!enemyIsFlying(enemy.type)) {
         const double maximumCollisionHeight =
             maximumGroundStructureInteractionHeight(
                 enemy.type, enemy.position.y + enemy.worldSurfaceHeight);
@@ -178,6 +178,7 @@ EnemyCapsule enemyCapsule(EnemyType type) {
         return {.radius = 0.42, .segmentHalfHeight = 0.32};
     case EnemyType::Sapper:
         return {.radius = 0.44, .segmentHalfHeight = 0.30};
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return {.radius = 0.42, .segmentHalfHeight = 0.24};
     case EnemyType::Splitter:
@@ -197,7 +198,7 @@ namespace {
 struct CylinderDimensions { double radius, height, bottom; };
 // EnemyType order. Measured native silhouettes at the gameplay import scale;
 // rounded outward to cover small walk squash and the authored protrusions.
-constexpr std::array<CylinderDimensions, 9> PhysicalCylinders{{
+constexpr std::array<CylinderDimensions, 10> PhysicalCylinders{{
     {0.86, 1.62, 0.0}, // Pink Blob
     {1.06, 1.60, 0.0}, // Ninja
     {1.34, 2.65, 0.0}, // Mushnub
@@ -207,6 +208,7 @@ constexpr std::array<CylinderDimensions, 9> PhysicalCylinders{{
     {1.27, 0.92, 1.74}, // Dragon, wing envelope and rendered hover offset
     {1.27, 2.03, 0.0}, // spiky splitter
     {0.66, 1.04, 0.0}, // splitling
+    {.64, 1.24, 1.32}, // Armabee body, wings remain passable
 }};
 CylinderDimensions cylinderDimensions(EnemyType type) {
     const auto index = static_cast<std::size_t>(type);

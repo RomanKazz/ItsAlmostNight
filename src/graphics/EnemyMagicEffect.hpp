@@ -49,6 +49,20 @@ inline void orb(Vector3 center, Basis b, float radius, double time, float fade=1
     star(planePoint(Vector3Add(inner,Vector3Scale(b.front,radius*.02F)),b.right,b.up,
         -radius*.28F,radius*.26F),b,radius*.28F,0,opacity(WHITE,fade));
 }
+inline void stinger(Vector3 center,Vector3 velocity,Vector3 camera,float scale,float fade=1) {
+    const Vector3 direction=fire_wand_effect::normalized(velocity,{0,0,1});
+    const Basis b=basis(center,camera);
+    const Vector3 side=fire_wand_effect::normalized(Vector3CrossProduct(direction,b.front),b.right);
+    const Vector3 tip=Vector3Add(center,Vector3Scale(direction,.30F*scale));
+    const Vector3 back=Vector3Add(center,Vector3Scale(direction,-.18F*scale));
+    const Vector3 left=Vector3Add(back,Vector3Scale(side,.075F*scale));
+    const Vector3 right=Vector3Add(back,Vector3Scale(side,-.075F*scale));
+    rlNormal3f(b.front.x,b.front.y,b.front.z);
+    vertex(tip,opacity({255,255,220,255},fade));vertex(left,opacity({255,185,22,255},fade));vertex(center,opacity({255,245,126,255},fade));
+    vertex(tip,opacity({255,255,220,255},fade));vertex(center,opacity({255,245,126,255},fade));vertex(right,opacity({223,105,14,255},fade));
+    vertex(left,opacity({255,185,22,255},fade));vertex(back,opacity({255,240,98,255},fade));vertex(center,opacity({255,245,126,255},fade));
+    vertex(back,opacity({255,240,98,255},fade));vertex(right,opacity({223,105,14,255},fade));vertex(center,opacity({255,245,126,255},fade));
+}
 inline Vector3 projectileHead(const EnemyProjectile& shot,float interpolation) {
     return Vector3Lerp(point(shot.previousPosition),point(shot.position),
                       std::clamp(interpolation,0.0F,1.0F));
@@ -60,6 +74,16 @@ inline void projectile(const EnemyProjectile& shot,Vector3 camera,double time,
     const Basis b=basis(head,camera);
     const double clock=time+static_cast<double>(shot.id.index%97U)*.13;
     const float radius=static_cast<float>(shot.radius);
+    if(shot.stinger) {
+        if(headPass) stinger(head,point(shot.velocity),camera,1);
+        else {
+            const Vector3 back=Vector3Add(head,Vector3Scale(fire_wand_effect::normalized(point(shot.velocity),{0,0,1}),-.60F));
+            const Vector3 wing=Vector3Scale(b.right,.045F);
+            vertex(Vector3Add(head,wing),{255,219,65,150});
+            vertex(back,{255,145,20,0});vertex(Vector3Subtract(head,wing),{255,249,182,200});
+        }
+        return;
+    }
     if(headPass) { orb(head,b,radius,clock,1,shot.royal); return; }
     const float age=static_cast<float>(std::max(0.0,shot.duration-shot.lifetimeRemaining));
     const Vector3 backward=Vector3Negate(fire_wand_effect::normalized(point(shot.velocity),{0,0,1}));
@@ -79,11 +103,21 @@ inline void projectile(const EnemyProjectile& shot,Vector3 camera,double time,
     }
 }
 inline void burst(Vector3 center,Vector3 camera,float progress,float scale,
-                  bool impact,bool detailed,std::uint32_t seed,bool royal=false) {
+                  bool impact,bool detailed,std::uint32_t seed,bool royal=false,bool stinger=false) {
     if(progress<0 || progress>=1 || scale<=0) return;
     const Basis b=basis(center,camera);
     const float ease=1-std::pow(1-progress,3.0F);
     const float fade=1-fire_wand_effect::ease((progress-.45F)/.55F);
+    if(stinger) {
+        rlNormal3f(b.front.x,b.front.y,b.front.z);
+        star(center,b,(impact?.24F:.16F)*scale*(1+ease),progress*2,opacity({255,239,129,255},fade));
+        if(detailed) for(int i=0;i<5;++i) {
+            const float angle=static_cast<float>(i)*2*PI/5+static_cast<float>(seed%7U);
+            star(planePoint(center,b.right,b.up,std::cos(angle)*ease*.5F*scale,std::sin(angle)*ease*.5F*scale),
+                b,.045F*(1-progress)*scale,angle,opacity({255,183,33,255},fade));
+        }
+        return;
+    }
     const float radius=(impact?.27F:.17F)*scale*(.55F+ease);
     rlNormal3f(b.front.x,b.front.y,b.front.z);
     const int count=impact?6:4;

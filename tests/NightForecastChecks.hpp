@@ -7,7 +7,7 @@
 
 inline void checkNightForecast(ian::GameUi& ui, const char* captureDirectory) {
     using namespace ian;
-    for (int role = 0; role < 8; ++role) {
+    for (int role = 0; role < static_cast<int>(GameBalance::EnemyTypeCount); ++role) {
         const auto texture = ui.enemyTexture(static_cast<EnemyType>(role));
         require(IsTextureValid(texture) && texture.width == 256 && texture.height == 256,
             "every forecast enemy has a dedicated compact icon");

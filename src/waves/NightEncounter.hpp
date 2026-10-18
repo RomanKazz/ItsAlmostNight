@@ -25,7 +25,7 @@ struct NightForecast {
 
 [[nodiscard]] inline std::array<int, GameBalance::EnemyTypeCount> waveEnemyCounts(const WaveDefinition& wave) {
     return {wave.basic, wave.fast, wave.heavy, wave.boss ? 1 : 0,
-            wave.ranged, 0, wave.flying, wave.splitter, 0};
+            wave.ranged, 0, wave.flying, wave.splitter, 0, wave.bee};
 }
 
 [[nodiscard]] inline NightPattern nightPattern(const WaveDefinition& base, int wave, std::uint32_t seed) {
@@ -34,7 +34,7 @@ struct NightForecast {
     std::size_t count = 1;
     if (base.fast > 0) choices[count++] = NightPattern::Blitz;
     if (base.heavy > 0) choices[count++] = NightPattern::Siege;
-    if (base.flying > 0) choices[count++] = NightPattern::AirRaid;
+    if (base.flying > 0 || base.bee > 0) choices[count++] = NightPattern::AirRaid;
     if (base.ranged > 0) choices[count++] = NightPattern::Crossfire;
     const auto hash = mixBits64(static_cast<std::uint64_t>(seed) ^
         static_cast<std::uint64_t>(std::max(1, wave)) * 0x9e3779b97f4a7c15ULL);
@@ -46,7 +46,7 @@ struct NightForecast {
     base.sapper = 0; // Retired role; old wave data must not bring it back.
     // The tutorial opening stays exactly the configured first-night roster.
     const auto available = waveEnemyCounts(base);
-    if (base.fast == 0 && base.heavy == 0 && base.ranged == 0 && base.flying == 0 && base.splitter == 0)
+    if (base.fast == 0 && base.heavy == 0 && base.ranged == 0 && base.flying == 0 && base.splitter == 0 && base.bee == 0)
         return base;
     const int act = std::clamp(requestedAct, 0, 2);
     std::array<int, GameBalance::EnemyTypeCount> weights{};
@@ -83,7 +83,9 @@ struct NightForecast {
         weight(EnemyType::Flying, act == 1 ? 35 : 0);
         break;
     }
-    constexpr std::array<int, GameBalance::EnemyTypeCount> Costs{1, 2, 5, 0, 3, 4, 3, 4, 0};
+    if(base.bee>0) weight(EnemyType::Bee,pattern==NightPattern::AirRaid?25:
+        pattern==NightPattern::Crossfire?20:pattern==NightPattern::RoyalCourt?15:5);
+    constexpr std::array<int, GameBalance::EnemyTypeCount> Costs{1, 2, 5, 0, 3, 4, 3, 4, 0, 3};
     std::int64_t originalBudget = 0;
     int totalWeight = 0;
     for (std::size_t i = 0; i < weights.size(); ++i) {
@@ -110,7 +112,7 @@ struct NightForecast {
     if (spent != budget) return base;
     WaveDefinition result = base;
     result.basic = counts[0]; result.fast = counts[1]; result.heavy = counts[2];
-    result.ranged = counts[4]; result.sapper = counts[5]; result.flying = counts[6]; result.splitter = counts[7];
+    result.ranged = counts[4]; result.sapper = counts[5]; result.flying = counts[6]; result.splitter = counts[7]; result.bee=counts[9];
     result.budget = spent;
     return result;
 }

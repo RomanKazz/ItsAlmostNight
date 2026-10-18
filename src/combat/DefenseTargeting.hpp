@@ -19,11 +19,11 @@ inline constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
 
 [[nodiscard]] inline bool projectileDefenseCanTarget(
     BuildingType type, const EnemyInstance& enemy, double surfaceHeight) {
-    if (enemy.type == EnemyType::Flying && !defenseCanTargetFlying(type)) return false;
+    if (enemyIsFlying(enemy.type) && !defenseCanTargetFlying(type)) return false;
     if (type == BuildingType::WindBlower) return enemy.type != EnemyType::Boss &&
         std::abs(enemy.worldSurfaceHeight - surfaceHeight) <= 1.25;
     return type != BuildingType::GunTurret ||
-        (enemy.type != EnemyType::Flying &&
+        (!enemyIsFlying(enemy.type) &&
          std::abs(enemy.worldSurfaceHeight - surfaceHeight) <=
              GunTurretMaximumSurfaceHeightDifference);
 }

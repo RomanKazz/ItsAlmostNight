@@ -52,7 +52,7 @@ void updateEnemySurface(
     if (terrain == nullptr) {
         return;
     }
-    if (enemy.type == EnemyType::Flying || enemy.type == EnemyType::Boss) {
+    if (enemyIsFlying(enemy.type) || enemy.type == EnemyType::Boss) {
         // Flying visuals hover above the terrain. Keep their terrain base in
         // simulation state so defenses can aim at the same world-space
         // height that presentation uses.
@@ -121,7 +121,7 @@ bool playerSharesAttackHeight(
 void moveEnemyHorizontally(
     EnemyInstance& enemy, Vec3 delta,
     EnemyNavigationView navigation) {
-    if (enemy.type == EnemyType::Flying ||
+    if (enemyIsFlying(enemy.type) ||
         navigation.collisionWorld == nullptr) {
         enemy.position.x += delta.x;
         enemy.position.z += delta.z;
@@ -330,6 +330,7 @@ double wanderStrength(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
         return 0.2;
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return 0.24;
     case EnemyType::Heavy:
@@ -368,6 +369,7 @@ double playerAggroRange(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
         return 5.5;
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return 6.0;
     case EnemyType::Ranged:
@@ -396,7 +398,7 @@ bool structureIsVerticallyReachable(
     if (structure.traversable || !structure.attackable) {
         return false;
     }
-    if (enemy.type == EnemyType::Flying) {
+    if (enemyIsFlying(enemy.type)) {
         return structure.buildingType ==
                BuildingType::Core;
     }
@@ -602,7 +604,7 @@ bool buildingBlocksPathToPlayer(
     const EnemyInstance& enemy,
     const BuildingQueryGrid& buildingGrid,
     Vec3 playerPosition) {
-    if (enemy.type == EnemyType::Flying) {
+    if (enemyIsFlying(enemy.type)) {
         return false;
     }
 
@@ -1053,7 +1055,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
         enemy.steeringTime += deltaSeconds;
         const double waterMultiplier =
-            terrain != nullptr && enemy.type != EnemyType::Flying
+            terrain != nullptr && !enemyIsFlying(enemy.type)
                 ? terrain->waterMovementMultiplier(
                       enemy.position.x, enemy.position.z)
                 : 1.0;
@@ -1098,6 +1100,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
             continue;
         }
 
+        if(enemy.type==EnemyType::Bee) {
+            tickBee(enemy,deltaSeconds,playerPosition);
+            continue;
+        }
         const double terrainHeight = terrain != nullptr
             ? terrain->getHeight(
                   enemy.position.x, enemy.position.z)
@@ -1108,7 +1114,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             : structureBuffer_.end();
         const bool lured = lureWaypoint && lureTarget != structureBuffer_.end();
         const auto navigationWaypoint = lured ? lureWaypoint :
-            prioritizePlayerTarget || enemy.type == EnemyType::Flying
+            prioritizePlayerTarget || enemyIsFlying(enemy.type)
                 ? std::optional<Vec3>{}
                 : multiLevelWaypoint(
                       *multiLevelNavigation, enemy,
@@ -1389,7 +1395,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         double directionX = toCoreX / coreDistance;
         double directionZ = toCoreZ / coreDistance;
         const auto flowDirection =
-            prioritizePlayerTarget || enemy.type == EnemyType::Flying ||
+            prioritizePlayerTarget || enemyIsFlying(enemy.type) ||
                     navigationWaypoint
                 ? std::optional<Vec3>{}
                 : flowField.directionAt(enemy.position);
@@ -1488,7 +1494,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 enemy, buildingGrid, directionX, directionZ, {coreX,0,coreZ}, lured);
         const double lureContactDistance=lured
             ? std::max(0.0,coreDistance-lureTarget->radius-enemyRadius(enemy)) : 0;
-        const bool approachBlocked=lured && enemy.type!=EnemyType::Flying && targetSelection.target &&
+        const bool approachBlocked=lured && !enemyIsFlying(enemy.type) && targetSelection.target &&
             targetSelection.contactDistance<=lureContactDistance;
         const EnemyStructureTarget* blocker = lured && !approachBlocked ? &*lureTarget : targetSelection.target;
         double closestContactDistance = lured && !approachBlocked ? lureContactDistance : targetSelection.contactDistance;

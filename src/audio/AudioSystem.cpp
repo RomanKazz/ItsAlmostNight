@@ -320,6 +320,9 @@ void AudioSystem::playEvent(
         return;
     }
     switch (event.type) {
+    case GameEventType::EnemyMagicFired:
+        if(event.enemyType==EnemyType::Bee)playCue(AudioCue::BowShot,event.position,snapshot,.16F,32.0F,.10);
+        break;
     case GameEventType::SawSplinterLaunched:
         playAt(
             woodBreak_, event.position, snapshot, 0.22F,

@@ -661,6 +661,9 @@ void App::processGameplayInput(bool controlDown,
                 debugSpawnType_ = EnemyType::Flying;
                 break;
             case EnemyType::Flying:
+                debugSpawnType_ = EnemyType::Bee;
+                break;
+            case EnemyType::Bee:
                 debugSpawnType_ = EnemyType::Splitter;
                 break;
             case EnemyType::Splitter:

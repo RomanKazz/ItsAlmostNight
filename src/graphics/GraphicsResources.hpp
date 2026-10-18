@@ -364,6 +364,12 @@ class GraphicsResources {
     [[nodiscard]] const ModelResource& enemyMageModel() const;
     [[nodiscard]] ModelResource& enemySapperModel();
     [[nodiscard]] const ModelResource& enemySapperModel() const;
+    [[nodiscard]] ModelResource& enemyBeeModel();
+    [[nodiscard]] const ModelResource& enemyBeeModel() const;
+    [[nodiscard]] ModelResource& enemyBeeEliteModel();
+    [[nodiscard]] const ModelResource& enemyBeeEliteModel() const;
+    [[nodiscard]] const ModelAnimationsResource& enemyBeeAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource& enemyBeeEliteAnimations() const;
     [[nodiscard]] ModelResource& enemyFlyingModel();
     [[nodiscard]] const ModelResource& enemyFlyingModel() const;
     [[nodiscard]] ModelResource& enemyBossSummonModel();
@@ -514,6 +520,8 @@ class GraphicsResources {
     ModelResource enemyMageModel_;
     ModelResource enemySapperModel_;
     ModelResource enemyFlyingModel_;
+    ModelResource enemyBeeModel_;
+    ModelResource enemyBeeEliteModel_;
     ModelResource enemyBossModel_;
     ModelResource enemyBossSummonModel_;
     ModelResource enemySplitterModel_;
@@ -528,6 +536,8 @@ class GraphicsResources {
     ModelAnimationsResource enemyMovementAnimations_;
     ModelAnimationsResource enemySapperAnimations_;
     ModelAnimationsResource enemyFlyingAnimations_;
+    ModelAnimationsResource enemyBeeAnimations_;
+    ModelAnimationsResource enemyBeeEliteAnimations_;
     ModelAnimationsResource enemyBossAnimations_;
     ModelAnimationsResource enemyBossSummonAnimations_;
     RenderTextureResource sceneTarget_;

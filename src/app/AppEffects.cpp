@@ -343,7 +343,7 @@ void App::drawPresentationEffects(
                 static_cast<float>(1 - effect.remaining / effect.duration), effect.scale,
                 effect.type == PresentationEffectType::EnemyMagicImpact,
                 renderer_->settings().particles,
-                effect.entityId ? effect.entityId->index : 0, effect.variant==1);
+                effect.entityId ? effect.entityId->index : 0, effect.variant==1, effect.variant==2);
         }
         fire_wand_effect::endBatch();
         renderer_->endColorOnlyWorldEffects();

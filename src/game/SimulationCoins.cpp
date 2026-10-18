@@ -21,6 +21,7 @@ double coinDropChance(EnemyType type, bool elite) {
     case EnemyType::Heavy:
         return 0.70;
     case EnemyType::Ranged:
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return 0.45;
     case EnemyType::Sapper:
@@ -43,6 +44,7 @@ int coinDropAmount(EnemyType type) {
         return 3;
     case EnemyType::Ranged:
     case EnemyType::Sapper:
+    case EnemyType::Bee:
     case EnemyType::Flying:
         return 2;
     case EnemyType::Splitter:

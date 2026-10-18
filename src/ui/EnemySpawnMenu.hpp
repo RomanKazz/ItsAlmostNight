@@ -30,7 +30,7 @@ struct Entry {
     const char* role;
     const char* description;
 };
-inline constexpr std::array<Entry, 8> Enemies{{
+inline constexpr std::array<Entry, 9> Enemies{{
     {EnemyType::Basic, "BASIC", "THE HORDE", "Classic crowd. Perfect for\ntrying out a full wave."},
     {EnemyType::Fast, "FAST", "QUICK FEET", "Fast runners that close\nthe distance quickly."},
     {EnemyType::Heavy, "HEAVY", "TOUGH TARGET", "A sturdy front line for\ntesting sustained damage."},
@@ -38,6 +38,7 @@ inline constexpr std::array<Entry, 8> Enemies{{
     {EnemyType::Ranged, "RANGED", "KEEP YOUR DISTANCE", "Ranged attackers for testing\nincoming projectiles."},
     {EnemyType::Flying, "FLYING", "ABOVE THE GROUND", "Airborne enemies for testing\nanti-air defenses."},
     {EnemyType::Splitter, "SPLITTER", "THREE LITTLE SURPRISES", "Splits into three little enemies\nwhen defeated."},
+    {EnemyType::Bee, "ARMABEE", "STINGER VOLLEY", "Flying shooter. Elites use\nits evolved model and a fan volley."},
     {EnemyType::Splitling, "SPLITLING", "SMALL BUT LIVELY", "The little splitter offspring,\nspawned directly."},
 }};
 inline constexpr std::array<EliteAffix, 4> Variants{

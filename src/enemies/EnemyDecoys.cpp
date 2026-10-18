@@ -148,13 +148,13 @@ void EnemySystem::updateDecoyBeacons(double deltaSeconds,
             auto* enemy=findEnemy(entry.id);
             if(!enemy || !enemy->active || enemy->type==EnemyType::Boss || enemy->decoyTarget ||
                 enemy->spawnAnimationRemaining>0 || enemy->portalArrivalRemaining>0 || enemy->splitAnimationRemaining>0) return;
-            if(enemy->type!=EnemyType::Flying && std::abs(enemy->worldSurfaceHeight-beacon.position.y)>1.0) return;
+            if(!enemyIsFlying(enemy->type) && std::abs(enemy->worldSurfaceHeight-beacon.position.y)>1.0) return;
             const double dx=enemy->position.x-beacon.position.x,dz=enemy->position.z-beacon.position.z;
             const double distance=dx*dx+dz*dz;
             if(distance>radius*radius) return;
             const auto& path=decoyNavigation_[i*Clearances.size()+clearanceClass(*enemy)];
             const int slot=fieldIndex(path,enemy->position);
-            if(enemy->type!=EnemyType::Flying && (slot<0 || path.distance[static_cast<std::size_t>(slot)]<0)) return;
+            if(!enemyIsFlying(enemy->type) && (slot<0 || path.distance[static_cast<std::size_t>(slot)]<0)) return;
             if((enemy->eliteAffixes ? DecoyBeaconDuration*.5 : DecoyBeaconDuration)<=beacon.pulseAge) return;
             std::size_t insert=0;
             while(insert<count && (nearest[insert].distance<distance ||
@@ -180,7 +180,7 @@ std::optional<Vec3> EnemySystem::decoyWaypoint(const EnemyInstance& enemy) const
     if(!enemy.decoyTarget || enemy.decoyRemaining<=0)return std::nullopt;
     const auto beacon=std::ranges::find(decoyBeacons_,*enemy.decoyTarget,&DecoyBeaconRuntime::buildingId);
     if(beacon==decoyBeacons_.end())return std::nullopt;
-    if(enemy.type==EnemyType::Flying)return beacon->position;
+    if(enemyIsFlying(enemy.type))return beacon->position;
     if(std::abs(enemy.worldSurfaceHeight-beacon->position.y)>1.0)return std::nullopt;
     const auto& field=decoyNavigation_[static_cast<std::size_t>(beacon-decoyBeacons_.begin())*Clearances.size()+clearanceClass(enemy)];
     const int slot=fieldIndex(field,enemy.position);

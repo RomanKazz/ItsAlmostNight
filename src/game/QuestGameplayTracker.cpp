@@ -63,6 +63,7 @@ std::string_view enemyId(EnemyType type) {
     case EnemyType::Boss: return "boss";
     case EnemyType::Ranged: return "ranged";
     case EnemyType::Sapper: return "sapper";
+    case EnemyType::Bee: return "bee";
     case EnemyType::Flying: return "flying";
     case EnemyType::Splitter: return "splitter";
     case EnemyType::Splitling: return "splitling";
