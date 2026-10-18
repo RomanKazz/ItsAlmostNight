@@ -18,7 +18,7 @@ Initial balance requires a real run: Fury gives approximately ×2.25 raw DPS whe
 
 ## Presentation
 
-Floating authored 3D pickups replace flat icon cards: a cyan horseshoe magnet, a violet lightning bolt and a golden pouch with coins. See [pickup models](POWERUP_PICKUP_MODELS.md) for assets and the generator. HUD timer chips retain their geometric emblems. Fury surrounds living defenses with two flowing violet/lavender energy filaments, a soft haze, rising orbiting sparks with curved wakes, and sparse glints. Vertex alpha gives the ribbons and glow soft edges without particle textures or square billboards. Each building has an independent phase; aura height follows its upgraded model. Activation eases in over 0.4 seconds, expiry fades over the final second. No large flame silhouettes or ground circles remain. Active buffs retain the low-opacity HUD edge tint.
+Floating authored 3D pickups replace flat icon cards: a cyan horseshoe magnet, a violet lightning bolt and a golden pouch with coins. See [pickup models](POWERUP_PICKUP_MODELS.md) for assets and the generator. The bottom HUD timer chips have been removed. Fury surrounds living defenses with two flowing violet/lavender energy filaments, a soft haze, rising orbiting sparks with curved wakes, and sparse glints. Vertex alpha gives the ribbons and glow soft edges without particle textures or square billboards. Each building has an independent phase; aura height follows its upgraded model. Activation eases in over 0.4 seconds, expiry fades over the final second. No large flame silhouettes or ground circles remain. Active buffs use animated screen-edge vignettes: warm amber/gold with small coin glints for Gold Rush, violet/lavender flowing wisps for Fury, and a quieter cyan edge for Magnet. The aiming area and the former timer-chip area remain clear. The vignette eases in over 0.65 seconds and fades over the last 1.4 seconds. Reduce flashes removes brightness pulsing and softens sparks while retaining continuous movement; pausing freezes animation with simulation time. Both buffs can appear together with reduced combined intensity. The mesh is bounded and uses vertex colors without new textures, shaders, allocations or screen-sized render targets.
 
 Solid pickups write depth. Energy effects test world depth without writing it, and cull beyond 65 units with a distance fade and fewer sparks at long range. Reduce-flashes settings disable glow/glint pulsing while preserving continuous ribbon and spark motion. Animation uses simulation time so pause freezes it. The drawing uses fixed loops and stack values, with no per-frame particle allocations or persistent effect state. Buff strengths and durations remain unchanged.
 
@@ -60,3 +60,23 @@ Automatic tests cover deterministic drop rates, collection distance, refresh/exp
 The Fury presentation pass rebuilds Debug and Release without new compiler warnings; `git diff --check` is clean. Full Debug CTest: **17/18**; Release GPU presentation/occlusion suite: **1/1**. The linker still reports the existing duplicate `libian_simulation.a` warning. The preceding gameplay/debug-grant pass also passed **17/18 in ASan/UBSan** without sanitizer diagnostics; sanitizers were not rerun for this drawing-only pass. All powerup/tome tests and new Fury GPU checks pass. Debug-grant tests cover all three types, immediate activation, repeated Fury without compounding, invalid enum/run state, tab access, mouse/Enter activation, hidden copy controls and isolation from selected permanent upgrades. English landscape and Russian portrait menu captures were inspected. Fury GPU checks additionally verify movement between frames, full expiry, final-second fade, continued movement with Reduce flashes enabled and foreground occlusion; multi-frame captures use real turret, cannon and catapult models.
 
 The remaining failure is the pre-existing `ian_run_menus_smoke` assertion `native window retains upgrade names after the SDF cache warms under scissor`, also reproduced in isolated Debug retries. It is outside these gameplay/HUD changes.
+
+
+## Screen vignette revision — 2026-10-18
+
+Removed every bottom powerup timer chip; gameplay duration and buff strength are
+unchanged. The existing `powerup_drawing::drawHud` signature is unchanged.
+Screen vignettes share the simulation clock, so pause freezes their motion.
+
+Full Debug CTest: **42/42**. Debug and Release vignette-only GPU checks also pass:
+separate palettes, animated contours/sparks, clear central half and former timer
+area, smooth entrance/expiry, continuous motion with Reduce flashes, combined
+buffs, 800×1200 portrait and 1600×900 landscape. Native frames over the defense
+models were inspected. `IAN_POWERUP_VIGNETTES_ONLY=1` runs the focused check;
+`IAN_CAPTURE_POWERUP_VIGNETTES=<directory>` exports its frames. No save or
+simulation interfaces changed.
+
+A standalone Release measurement on the current Mac, 600 offscreen frames at
+1600×900, adds about **0.23 ms/frame for Fury and Gold Rush together** (0.005 ms
+clear-only baseline). This measures this overlay, not total game performance.
+A redundant full-contour glow pass was removed after the initial measurement.

@@ -2792,6 +2792,11 @@ int main() {
         return 77;
     }
 
+    if (std::getenv("IAN_POWERUP_VIGNETTES_ONLY")) {
+        const bool valid = checkPowerupVignette();
+        CloseWindow();
+        return valid ? 0 : 1;
+    }
     if (std::getenv("IAN_WANDS_ONLY")) {
         int result = 0;
         {

@@ -67,7 +67,9 @@ inline bool checkFuryAnimation(ian::Renderer& renderer) {
         }
         if(blocked) DrawCube({2,2,3.5F},16,12,.5F,{18,30,49,255});
         powerup_drawing::drawWorld(snapshot,camera,renderer,reduced);
-        EndMode3D(); EndTextureMode();
+        EndMode3D();
+        if (models) powerup_drawing::drawHud(snapshot.powerups, float(time), 960, 600, reduced);
+        EndTextureMode();
         Image image=LoadImageFromTexture(target.get().texture); ImageFlipVertical(&image); return image;
     };
     const auto difference=[](Image a,Image b) {
@@ -94,6 +96,95 @@ inline bool checkFuryAnimation(ian::Renderer& renderer) {
             ExportImage(frame,(std::filesystem::path{directory}/("fury-"+std::to_string(i)+".png")).string().c_str()); UnloadImage(frame);
         }
     }
+    return valid;
+}
+
+inline bool checkPowerupVignette() {
+    using namespace ian;
+    RenderTextureResource target;
+    if (!target.load(960, 600)) return false;
+    constexpr Color Background{34, 53, 71, 255};
+    const auto capture = [&](PowerupType type, float time, double remaining, bool reduced) {
+        PowerupRunState state{};
+        state.remaining[static_cast<std::size_t>(type)] = remaining;
+        BeginTextureMode(target.get());
+        ClearBackground(Background);
+        powerup_drawing::drawHud(state, time, 960, 600, reduced);
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.get().texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto difference = [](Image a, Image b) {
+        long total = 0;
+        for (int y = 0; y < a.height; ++y) for (int x = 0; x < a.width; ++x) {
+            const Color first = GetImageColor(a, x, y), second = GetImageColor(b, x, y);
+            total += std::abs(int(first.r) - int(second.r)) +
+                std::abs(int(first.g) - int(second.g)) + std::abs(int(first.b) - int(second.b));
+        }
+        return total;
+    };
+    Image idle = capture(PowerupType::Fury, 2, 0, false);
+    bool valid = true;
+    for (const auto type : {PowerupType::Fury, PowerupType::GoldRush}) {
+        const double duration = PowerupDefinitions[static_cast<std::size_t>(type)].duration;
+        Image first = capture(type, 2, duration - 2, false);
+        Image later = capture(type, 3.5F, duration - 2, false);
+        Image fading = capture(type, 2, .1, false);
+        Image arrival = capture(type, 2, duration, false);
+        Image reduced = capture(type, 2, duration - 2, true);
+        Image reducedLater = capture(type, 3.5F, duration - 2, true);
+        int blockedCenter = 0;
+        for (int y = 150; y < 450; ++y) for (int x = 240; x < 720; ++x) {
+            const Color pixel = GetImageColor(first, x, y);
+            blockedCenter += pixel.r != Background.r || pixel.g != Background.g || pixel.b != Background.b;
+        }
+        const Color edge = GetImageColor(first, 4, 300);
+        const bool palette = type == PowerupType::GoldRush
+            ? edge.r > edge.b + 20 && edge.g > Background.g
+            : edge.b > edge.r + 25 && edge.r > Background.r;
+        const long visible = difference(idle, first);
+        const bool effectValid = palette && blockedCenter == 0 && visible > 1'000'000 &&
+            difference(first, later) > 100'000 && difference(idle, fading) < visible / 10 &&
+            difference(idle, arrival) == 0 && difference(reduced, reducedLater) > 50'000;
+        if (!effectValid) std::cerr << "Vignette palette/center/visible/motion: " << int(type) << ' ' <<
+            palette << ' ' << blockedCenter << ' ' << visible << ' ' << difference(first, later) <<
+            " edge RGB " << int(edge.r) << ' ' << int(edge.g) << ' ' << int(edge.b) << '\n';
+        valid &= effectValid;
+        if (const char* directory = std::getenv("IAN_CAPTURE_POWERUP_VIGNETTES")) {
+            std::filesystem::create_directories(directory);
+            const std::string name = type == PowerupType::GoldRush ? "gold-rush" : "fury";
+            ExportImage(first, (std::filesystem::path(directory) / (name + "-0.png")).string().c_str());
+            ExportImage(later, (std::filesystem::path(directory) / (name + "-1.png")).string().c_str());
+            ExportImage(fading, (std::filesystem::path(directory) / (name + "-fade.png")).string().c_str());
+        }
+        for (Image image : {first, later, fading, arrival, reduced, reducedLater}) UnloadImage(image);
+    }
+    for (const Vector2 size : {Vector2{800, 1200}, Vector2{1600, 900}}) {
+        const int width = int(size.x), height = int(size.y);
+        if (!target.load(width, height)) { valid = false; break; }
+        PowerupRunState combined{};
+        combined.remaining = {4, 12, 18};
+        BeginTextureMode(target.get());
+        ClearBackground(Background);
+        powerup_drawing::drawHud(combined, 2, width, height, false);
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.get().texture);
+        ImageFlipVertical(&image);
+        int blocked = 0;
+        for (int y = height / 4; y < height * 3 / 4; ++y)
+            for (int x = width / 4; x < width * 3 / 4; ++x) {
+                const Color pixel = GetImageColor(image, x, y);
+                blocked += pixel.r != Background.r || pixel.g != Background.g || pixel.b != Background.b;
+            }
+        if (blocked != 0) std::cerr << "Combined vignette blocks center: " << width << 'x' << height << '\n';
+        valid &= blocked == 0;
+        if (const char* directory = std::getenv("IAN_CAPTURE_POWERUP_VIGNETTES"))
+            ExportImage(image, (std::filesystem::path(directory) / ("combined-" +
+                std::to_string(width) + "x" + std::to_string(height) + ".png")).string().c_str());
+        UnloadImage(image);
+    }
+    UnloadImage(idle);
     return valid;
 }
 
@@ -133,5 +224,5 @@ inline bool checkPowerupPresentation(ian::Renderer& renderer) {
         ExportImage(image,"/tmp/ian-powerups-hud-2026-10-11/powerups.png");
     }
     UnloadImage(image); shutdownUiText();
-    return cyan>100 && purple>100 && gold>100 && checkFuryAnimation(renderer);
+    return cyan>100 && purple>100 && gold>100 && checkFuryAnimation(renderer) && checkPowerupVignette();
 }

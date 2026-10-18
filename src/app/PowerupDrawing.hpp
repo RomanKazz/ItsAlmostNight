@@ -1,9 +1,7 @@
 #pragma once
 #include "game/Simulation.hpp"
 #include "graphics/Renderer.hpp"
-#include "ui/UiMenuStyle.hpp"
 #include "ui/WorldBillboard.hpp"
-#include "ui/PowerupIcon.hpp"
 #include <raymath.h>
 #include <rlgl.h>
 #include <cmath>
@@ -190,30 +188,163 @@ inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera
     rlDrawRenderBatchActive(); rlEnableBackfaceCulling(); EndBlendMode(); rlEnableDepthMask();
     drawFury(snapshot,camera,renderer,reduceFlashes);
 }
+// A bounded, texture-free edge mesh keeps the aiming area completely clear.
+// Alpha wash and additive wisps share the same continuous contour: no panels,
+// countdown text, full-screen render target, or shader compilation on pickup.
 inline void drawHud(const PowerupRunState& state, float time, int width, int height, bool reduceFlashes) {
-    int count = 0;
-    for (double timer : state.remaining) if (timer > 0) ++count;
-    if (!count) return;
-    const float w = 188, gap = 12, y = float(height)-178;
-    float x = (float(width)-(w+gap)*float(count)+gap)*.5F;
-    for (std::size_t i=0;i<PowerupTypeCount;++i) {
-        if (state.remaining[i] <= 0) continue;
-        const auto type = static_cast<PowerupType>(i);
-        const Color tint = color(type);
-        // Soft edge tint, clear center; accessibility disables pulsing/glints.
-        const unsigned char alpha = reduceFlashes ? 7 : static_cast<unsigned char>(13+3*std::sin(time*1.5F));
-        DrawRectangleGradientH(0,0,70,height,{tint.r,tint.g,tint.b,alpha},{tint.r,tint.g,tint.b,0});
-        DrawRectangleGradientH(width-70,0,70,height,{tint.r,tint.g,tint.b,0},{tint.r,tint.g,tint.b,alpha});
-        menuStyle::panel({x,y,w,57}, 1.0F, {24,35,32,235});
-        drawPowerupIconGeometry(type,[&](Vector2 a,Vector2 b,Vector2 c) {
-            const auto v = [&](Vector2 p) { return Vector2{x+26+p.x*13,y+24+p.y*13}; };
-            DrawTriangle(v(c),v(b),v(a),tint); DrawTriangle(v(a),v(b),v(c),tint);
-        });
-        menuStyle::text(PowerupDefinitions[i].name,{x+49,y+5,w-57,25},14,{255,247,215,255},UiFontRole::Display);
-        menuStyle::text(TextFormat("%.0fs",std::ceil(state.remaining[i])),{x+49,y+28,w-57,19},15,tint);
-        const float progress = float(state.remaining[i]/PowerupDefinitions[i].duration);
-        DrawRectangleRec({x+9,y+48,(w-18)*progress,3},tint);
-        x += w+gap;
+    if (width <= 0 || height <= 0) return;
+    const int active = static_cast<int>(std::ranges::count_if(state.remaining,
+        [](double remaining) { return remaining > 0.0; }));
+    if (active == 0) return;
+    constexpr int Segments = 96;
+    static constexpr std::array<float, 8> Bands{0, .07F, .16F, .29F, .45F, .63F, .82F, 1};
+    constexpr std::array<float, 8> Wash{1, .81F, .58F, .34F, .16F, .055F, .01F, 0};
+    const float halfWidth = float(width) * .5F, halfHeight = float(height) * .5F;
+    const float shortSide = float(std::min(width, height));
+    const auto ease = [](float value) {
+        const float t = std::clamp(value, 0.0F, 1.0F);
+        return t * t * (3 - 2 * t);
+    };
+    const auto vertex = [](Vector2 point, Color tint, float alpha) {
+        rlColor4ub(tint.r, tint.g, tint.b,
+            static_cast<unsigned char>(255 * std::clamp(alpha, 0.0F, 1.0F)));
+        rlVertex2f(point.x, point.y);
+    };
+    struct EdgeSample {
+        std::array<Vector2, Bands.size()> points;
+        Color tint;
+        float corner;
+    };
+    rlDrawRenderBatchActive();
+    rlDisableBackfaceCulling();
+    rlSetTexture(0);
+    for (std::size_t effect = 0; effect < PowerupTypeCount; ++effect) {
+        const float remaining = float(state.remaining[effect]);
+        if (remaining <= 0) continue;
+        const auto type = static_cast<PowerupType>(effect);
+        const bool gold = type == PowerupType::GoldRush;
+        const bool fury = type == PowerupType::Fury;
+        const float arrival = ease((float(PowerupDefinitions[effect].duration) - remaining) / .65F);
+        const float departure = ease(remaining / 1.4F);
+        const float strength = arrival * departure * (active > 1 ? .76F : 1.0F);
+        if (strength <= 0) continue;
+        const float pulse = reduceFlashes ? .88F : .91F + .09F * std::sin(time * 1.6F);
+        const float opacity = strength * pulse * (fury ? .40F : gold ? .47F : .18F);
+        const float depth = shortSide * (fury ? .17F : gold ? .155F : .105F);
+        const float phase = time * (fury ? -.40F : .22F) + float(effect) * 1.7F;
+        const auto sample = [&](float angle) {
+            const float c = std::cos(angle), s = std::sin(angle);
+            const float major = std::max(std::abs(c), std::abs(s));
+            const float corner = std::min(std::abs(c), std::abs(s)) / major;
+            const float wave = .92F + .075F * std::sin(angle * 5 + phase * 1.8F) +
+                .045F * std::sin(angle * 9 - phase);
+            EdgeSample result{};
+            for (std::size_t band = 0; band < Bands.size(); ++band) {
+                const float inset = depth * Bands[band] * wave * (1 + .38F * corner * corner);
+                result.points[band] = {
+                    halfWidth + (halfWidth - inset) * c / major,
+                    halfHeight + (halfHeight - inset) * s / major};
+            }
+            const float flow = .5F + .5F * std::sin(angle * 3 + phase);
+            result.tint = gold ? Color{255, static_cast<unsigned char>(179 + 39 * flow), 42, 255}
+                : fury ? Color{static_cast<unsigned char>(148 + 58 * flow), 62, 255, 255}
+                       : Color{58, 203, 255, 255};
+            result.corner = .76F + .24F * corner * corner;
+            return result;
+        };
+        BeginBlendMode(BLEND_ALPHA);
+        rlBegin(RL_TRIANGLES);
+        EdgeSample rimPrevious = sample(0);
+        for (int segment = 1; segment <= Segments; ++segment) {
+            const EdgeSample next = sample(float(segment) * 2 * PI / Segments);
+            const auto emit = [&](const EdgeSample& edge, std::size_t band) {
+                vertex(edge.points[band], edge.tint, opacity * Wash[band] * edge.corner);
+            };
+            for (std::size_t band = 0; band + 1 < Bands.size(); ++band) {
+                emit(rimPrevious, band); emit(next, band); emit(next, band + 1);
+                emit(rimPrevious, band); emit(next, band + 1); emit(rimPrevious, band + 1);
+            }
+            rimPrevious = next;
+        }
+        rlEnd();
+        EndBlendMode();
+        BeginBlendMode(BLEND_ADDITIVE);
+        if (fury || gold) {
+            // Short, feathered arcs travel along the rim rather than forming
+            // a static frame or streaking through the crosshair.
+            constexpr int ArcSegments = 24;
+            constexpr std::array<float, 5> CrossSection{-1, -.38F, 0, .38F, 1};
+            constexpr std::array<float, 5> ArcAlpha{0, .22F, 1, .22F, 0};
+            const Color light = gold ? Color{255, 231, 142, 255} : Color{226, 145, 255, 255};
+            rlSetTexture(0);
+            rlBegin(RL_TRIANGLES);
+            for (int arc = 0; arc < 3; ++arc) {
+                const float seed = float(arc) * 2.094395F;
+                struct ArcSample { std::array<Vector2, 5> points; float opacity; };
+                const auto arcSample = [&](float t) {
+                    const float angle = seed + phase * .32F + t * .55F;
+                    const EdgeSample edge = sample(angle);
+                    const float taper = std::sin(t * PI);
+                    const float inset = .19F + .10F * std::sin(angle * 4 - phase * 2);
+                    ArcSample result{};
+                    for (std::size_t band = 0; band < CrossSection.size(); ++band)
+                        result.points[band] = Vector2Lerp(edge.points.front(), edge.points.back(),
+                            inset + CrossSection[band] * .10F * taper);
+                    result.opacity = strength * (reduceFlashes ? .07F : .11F) * taper * taper;
+                    return result;
+                };
+                const auto emit = [&](const ArcSample& point, std::size_t band) {
+                    vertex(point.points[band], light, point.opacity * ArcAlpha[band]);
+                };
+                ArcSample previous = arcSample(0);
+                for (int segment = 0; segment < ArcSegments; ++segment) {
+                    const ArcSample next = arcSample(float(segment + 1) / ArcSegments);
+                    for (std::size_t band = 0; band + 1 < CrossSection.size(); ++band) {
+                        emit(previous, band); emit(next, band); emit(next, band + 1);
+                        emit(previous, band); emit(next, band + 1); emit(previous, band + 1);
+                    }
+                    previous = next;
+                }
+            }
+            rlEnd();
+        }
+        const int sparkCount = gold ? 20 : fury ? 14 : 6;
+        for (int spark = 0; spark < sparkCount; ++spark) {
+            const float seed = float(spark) * .618034F + float(effect) * .31F;
+            const float age = seed + time * (gold ? .14F : .19F);
+            const float life = age - std::floor(age);
+            const float angle = seed * 2 * PI + time * (gold ? -.055F : .095F);
+            const EdgeSample edge = sample(angle);
+            const float drift = .15F + .46F * life;
+            const Vector2 point = Vector2Lerp(edge.points.front(), edge.points.back(), drift);
+            const float visibility = std::sin(life * PI) * strength * (reduceFlashes ? .40F : .65F);
+            const float size = shortSide * (.0024F + .0012F * float(spark % 3));
+            const Color tint = gold ? Color{255, 222, 117, 255} : fury
+                ? Color{229, 174, 255, 255} : Color{165, 239, 255, 255};
+            DrawCircleGradient(point, size * 3.8F,
+                Fade(color(type), visibility * .13F), BLANK);
+            if (gold && spark % 4 == 0) {
+                // Small elliptical coin glints stay at the border, away from combat.
+                DrawEllipse(static_cast<int>(point.x), static_cast<int>(point.y), size * .72F, size * 1.05F,
+                    Fade({255, 185, 37, 255}, visibility));
+                DrawEllipse(static_cast<int>(point.x - size * .18F), static_cast<int>(point.y - size * .12F),
+                    size * .22F, size * .63F, Fade({255, 248, 190, 255}, visibility));
+            } else {
+                const std::array<Vector2, 8> points{{{0, -1.6F}, {.16F, -.16F}, {1, 0}, {.16F, .16F},
+                    {0, 1.6F}, {-.16F, .16F}, {-1, 0}, {-.16F, -.16F}}};
+                rlSetTexture(0);
+                rlBegin(RL_TRIANGLES);
+                for (std::size_t i = 0; i < points.size(); ++i) {
+                    const Vector2 a = Vector2Add(point, Vector2Scale(points[i], size));
+                    const Vector2 b = Vector2Add(point, Vector2Scale(points[(i + 1) % points.size()], size));
+                    vertex(point, tint, visibility); vertex(a, tint, 0); vertex(b, tint, 0);
+                }
+                rlEnd();
+            }
+        }
+        EndBlendMode();
     }
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
 }
 } // namespace ian::powerup_drawing
