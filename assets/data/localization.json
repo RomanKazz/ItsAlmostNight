@@ -3,6 +3,16 @@
   "languages": {
     "en": {},
     "ru": {
+      "SITES": "МЕСТА",
+      "CHESTS": "СУНДУКИ",
+      "SUPPLIES": "ПРИПАСЫ",
+      "FOREST": "ЛЕС",
+      "DESERT": "ПУСТЫНЯ",
+      "SNOW": "СНЕГ",
+      "CORRUPTED": "СКВЕРНА",
+      "RELIEF": "РЕЛЬЕФ",
+      "WATER": "ВОДА",
+      "PATHS": "ТРОПЫ",
       "DECOY": "ПРИМАНКА",
       "Decoy": "Приманка",
       "Light pulses lure nearby enemies. Upgrade all copies.": "Световые импульсы отвлекают врагов. Улучшает все приманки.",

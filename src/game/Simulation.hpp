@@ -353,6 +353,8 @@ struct SimulationSnapshot {
     int terrainResolution;
     double terrainWorldSize;
     std::span<const float> terrainSamples;
+    // Presentation reads the existing world roads without generating a second terrain.
+    std::span<const TerrainPathDefinition> terrainPaths;
     std::span<const PondDefinition> ponds;
     std::span<const MapObstacle> mapObstacles;
     std::span<const CollisionBox> collisionBoxes;

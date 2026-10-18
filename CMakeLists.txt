@@ -233,6 +233,8 @@ add_library(ian_ui
     src/ui/HudRenderer.cpp
     src/ui/HudRunStateOverlay.cpp
     src/ui/HudMinimap.cpp
+    src/ui/MinimapLandscape.cpp
+    src/ui/MinimapMarkers.cpp
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
     src/ui/TargetHealthBar.cpp
@@ -649,6 +651,13 @@ if(BUILD_TESTING)
     set_tests_properties(ian_run_upgrade_ui_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 30 LABELS "graphics;ui;integration")
+    add_executable(ian_ui_viewport_smoke tests/UiViewportSmokeTests.cpp)
+    target_link_libraries(ian_ui_viewport_smoke PRIVATE ian_ui ian_settings)
+    ian_set_warnings(ian_ui_viewport_smoke)
+    add_test(NAME ian_ui_viewport_smoke COMMAND ian_ui_viewport_smoke)
+    set_tests_properties(ian_ui_viewport_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     add_executable(ian_quest_menu_smoke tests/QuestMenuSmokeTests.cpp)
     target_link_libraries(ian_quest_menu_smoke PRIVATE ian_ui)
     target_include_directories(ian_quest_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
@@ -695,7 +704,7 @@ if(BUILD_TESTING)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke ian_shop_menu_smoke ian_meta_shop_tests)
+        foreach(target ian_ui_viewport_smoke ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke ian_shop_menu_smoke ian_meta_shop_tests)
             target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
         endforeach()

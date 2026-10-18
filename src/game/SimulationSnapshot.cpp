@@ -257,6 +257,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .terrainWorldSize =
             terrain_.config().terrainWorldSize,
         .terrainSamples = terrain_.samples(),
+        .terrainPaths = terrain_.paths(),
         .ponds = terrain_.ponds(),
         .mapObstacles = std::span<const MapObstacle>{map_.obstacles},
         .collisionBoxes =

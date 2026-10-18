@@ -1,7 +1,7 @@
+#include "ui/UiViewport.hpp"
 #include "ui/HudRenderer.hpp"
 
 #include "game/Simulation.hpp"
-#include "world/VisualBiomes.hpp"
 #include "core/PerformanceStats.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiText.hpp"
@@ -50,6 +50,8 @@ void drawExpandedObjectiveList(
     const SimulationSnapshot& snapshot,
     float mapPanelX, float mapPanelY,
     float mapPanelHeight, float expansion) {
+    if (snapshot.objectives.empty() &&
+        !snapshot.tutorialObjective) return;
     const float visibility = std::clamp(
         (expansion - 0.48F) / 0.30F, 0.0F, 1.0F);
     if (visibility <= 0.001F) return;
@@ -65,7 +67,7 @@ void drawExpandedObjectiveList(
     const float panelY = std::max(28.0F, mapPanelY + 8.0F);
     const float availableHeight = std::min(
         mapPanelHeight - 16.0F,
-        static_cast<float>(GetScreenHeight()) - panelY - 24.0F);
+        static_cast<float>(uiScreenHeight()) - panelY - 24.0F);
     constexpr float HeaderHeight = 40.0F;
     constexpr float RowHeight = 52.0F;
     constexpr float RowGap = 7.0F;
@@ -106,16 +108,10 @@ void drawExpandedObjectiveList(
         footerHeight;
     const Rectangle panel{
         panelX, panelY, PanelWidth, panelHeight};
-    DrawRectangleRounded(
-        panel, 0.06F, 8,
-        withAlpha({45, 31, 24, 238}));
-    DrawRectangleRoundedLinesEx(
-        panel, 0.06F, 8, 2.0F,
-        withAlpha({126, 72, 43, 255}));
-    drawUiText(
-        "OBJECTIVES",
-        {panel.x + 14.0F, panel.y + 10.0F},
-        16.0F, withAlpha({255, 241, 211, 255}));
+    menuStyle::panel(panel, .8F, withAlpha(menuStyle::Frame));
+    menuStyle::text("OBJECTIVES",
+        {panel.x + 14, panel.y + 5, panel.width - 28, 30},
+        17, withAlpha(menuStyle::Cream), UiFontRole::Display);
 
     int rowIndex = 0;
     const auto drawRow = [&](std::string_view title,
@@ -127,9 +123,7 @@ void drawExpandedObjectiveList(
             panel.y + HeaderHeight +
                 static_cast<float>(rowIndex) * (RowHeight + RowGap),
             panel.width - 16.0F, RowHeight};
-        DrawRectangleRounded(
-            row, 0.12F, 7,
-            withAlpha({70, 49, 37, 245}));
+        drawSolidRoundedRect(row, .12F, withAlpha(menuStyle::Inset));
         const Vector2 iconCenter{row.x + 19.0F, row.y + 20.0F};
         DrawPoly(iconCenter, 4, 6.5F, 45.0F, withAlpha(accent));
         DrawPolyLines(
@@ -166,14 +160,12 @@ void drawExpandedObjectiveList(
             const Rectangle track{
                 titleX, row.y + 36.0F,
                 row.x + row.width - 9.0F - titleX, 5.0F};
-            DrawRectangleRounded(
-                track, 0.8F, 4,
-                withAlpha({104, 60, 37, 210}));
+            drawSolidRoundedRect(track, .8F, withAlpha({123, 134, 128, 255}));
             if (fraction > 0.001F) {
-                DrawRectangleRounded(
+                drawSolidRoundedRect(
                     {track.x, track.y, track.width * fraction,
                      track.height},
-                    0.8F, 4, withAlpha(accent));
+                    .8F, withAlpha(accent));
             }
         } else if (reward > 0) {
             const std::string rewardText =
@@ -243,6 +235,16 @@ Vector2 minimapPoint(
     Rectangle bounds, float scale, double playerYaw,
     double centerWorldX, double centerWorldZ,
     double worldX, double worldZ) {
+    // The map texture is rendered north-up. Most of its terrain vertices
+    // reach this path with zero yaw; avoid trigonometry for every vertex.
+    if (playerYaw == 0.0) {
+        return {
+            bounds.x + bounds.width * 0.5F +
+                static_cast<float>(worldX - centerWorldX) * scale,
+            bounds.y + bounds.height * 0.5F +
+                static_cast<float>(worldZ - centerWorldZ) * scale,
+        };
+    }
     const Vector2 offset = rotateMinimapOffset(
         worldX - centerWorldX,
         worldZ - centerWorldZ,
@@ -251,68 +253,6 @@ Vector2 minimapPoint(
         bounds.x + bounds.width * 0.5F + offset.x * scale,
         bounds.y + bounds.height * 0.5F + offset.y * scale,
     };
-}
-
-double minimapTerrainHeight(
-    const SimulationSnapshot& snapshot,
-    double worldX, double worldZ) {
-    if (snapshot.terrainResolution < 2 ||
-        snapshot.terrainSamples.empty() ||
-        snapshot.terrainWorldSize <= 0.0) {
-        return 0.0;
-    }
-    const int resolution = snapshot.terrainResolution;
-    const double halfSize = snapshot.terrainWorldSize * 0.5;
-    const double sampleX = std::clamp(
-        (worldX + halfSize) / snapshot.terrainWorldSize *
-            static_cast<double>(resolution - 1),
-        0.0, static_cast<double>(resolution - 1));
-    const double sampleZ = std::clamp(
-        (worldZ + halfSize) / snapshot.terrainWorldSize *
-            static_cast<double>(resolution - 1),
-        0.0, static_cast<double>(resolution - 1));
-    const int x0 = static_cast<int>(std::floor(sampleX));
-    const int z0 = static_cast<int>(std::floor(sampleZ));
-    const int x1 = std::min(x0 + 1, resolution - 1);
-    const int z1 = std::min(z0 + 1, resolution - 1);
-    const auto sample = [&](int x, int z) {
-        return static_cast<double>(snapshot.terrainSamples[
-            static_cast<std::size_t>(z) *
-                static_cast<std::size_t>(resolution) +
-            static_cast<std::size_t>(x)]);
-    };
-    const double amountX = sampleX - static_cast<double>(x0);
-    const double amountZ = sampleZ - static_cast<double>(z0);
-    const double north = std::lerp(
-        sample(x0, z0), sample(x1, z0), amountX);
-    const double south = std::lerp(
-        sample(x0, z1), sample(x1, z1), amountX);
-    return std::lerp(north, south, amountZ);
-}
-
-Color minimapHeightColor(double height) {
-    constexpr std::array<double, 7> Levels{
-        -7.0, -4.0, -1.0, 2.0, 5.0, 9.0, 15.0};
-    constexpr std::array<Color, 7> Colors{{
-        {31, 61, 47, 255},
-        {38, 73, 49, 255},
-        {49, 88, 51, 255},
-        {65, 103, 56, 255},
-        {83, 111, 63, 255},
-        {103, 112, 74, 255},
-        {121, 118, 92, 255},
-    }};
-    if (height <= Levels.front()) return Colors.front();
-    for (std::size_t index = 1U; index < Levels.size(); ++index) {
-        if (height > Levels[index]) continue;
-        const float amount = static_cast<float>(std::clamp(
-            (height - Levels[index - 1U]) /
-                (Levels[index] - Levels[index - 1U]),
-            0.0, 1.0));
-        return ColorLerp(
-            Colors[index - 1U], Colors[index], amount);
-    }
-    return Colors.back();
 }
 
 constexpr int CompassFrameSegments = 64;
@@ -339,7 +279,8 @@ void drawRoundedCompassPlate(
         const float angle = -PI * 0.5F -
             static_cast<float>(segment) * 2.0F * PI /
                 static_cast<float>(CompassFrameSegments);
-        const float contourRadius = radius + spikeLength *
+        const float contourRadius = radius + radius * .006F *
+            (std::sin((angle + rotation) * 7 + .8F) + .45F * std::sin((angle + rotation) * 13)) + spikeLength *
             roundedCardinalSpike(
                 angle + rotation, spikeHalfAngle);
         points[static_cast<std::size_t>(segment + 1)] = {
@@ -352,171 +293,111 @@ void drawRoundedCompassPlate(
 }
 
 void drawRoundedPlayerMarker(
-    Vector2 center, float scale, Color fill) {
-    const Color outline{49, 49, 49, 255};
-    const Vector2 outerTip{center.x, center.y - 11.0F * scale};
-    const Vector2 outerLeft{
-        center.x - 6.8F * scale, center.y + 1.5F * scale};
-    const Vector2 outerRight{
-        center.x + 6.8F * scale, center.y + 1.5F * scale};
-    DrawTriangle(outerTip, outerLeft, outerRight, outline);
-    DrawCircleV(
-        {center.x, center.y + 2.0F * scale},
-        7.2F * scale, outline);
-
-    const Vector2 innerTip{center.x, center.y - 8.2F * scale};
-    const Vector2 innerLeft{
-        center.x - 4.4F * scale, center.y + 1.2F * scale};
-    const Vector2 innerRight{
-        center.x + 4.4F * scale, center.y + 1.2F * scale};
-    DrawTriangle(innerTip, innerLeft, innerRight, fill);
-    DrawCircleV(
-        {center.x, center.y + 2.0F * scale},
-        4.9F * scale, fill);
-}
-
-Color minimapBiomeColor(const SimulationSnapshot& snapshot,
-    const visual_biomes::Layout& biomes, double x, double z) {
-    const Color original = minimapHeightColor(minimapTerrainHeight(snapshot, x, z));
-    const auto color = visual_biomes::groundColor(biomes, static_cast<float>(x), static_cast<float>(z),
-        {original.r / 255.0F, original.g / 255.0F, original.b / 255.0F});
-    return {static_cast<unsigned char>(std::clamp(color[0] * 255, 0.0F, 255.0F)),
-        static_cast<unsigned char>(std::clamp(color[1] * 255, 0.0F, 255.0F)),
-        static_cast<unsigned char>(std::clamp(color[2] * 255, 0.0F, 255.0F)), 255};
-}
-
-void drawMinimapTerrain(
-    const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float mapScale,
-    double viewRadius, float expanded, double mapYaw) {
-    const auto biomes = visual_biomes::generate(snapshot.terrainSeed, snapshot.terrainWorldSize);
-    const int cells = expanded > 0.55F ? 64 : 28;
-    const double cellWorld = viewRadius * 2.0 /
-        static_cast<double>(cells);
-    const int verticesPerAxis = cells + 1;
-    std::array<Color, 65U * 65U> colors{};
-    for (int z = 0; z <= cells; ++z) {
-        for (int x = 0; x <= cells; ++x) {
-            const double worldX = snapshot.playerPosition.x - viewRadius +
-                static_cast<double>(x) * cellWorld;
-            const double worldZ = snapshot.playerPosition.z - viewRadius +
-                static_cast<double>(z) * cellWorld;
-            colors[static_cast<std::size_t>(z) *
-                       static_cast<std::size_t>(verticesPerAxis) +
-                   static_cast<std::size_t>(x)] =
-                minimapBiomeColor(snapshot, biomes, worldX, worldZ);
-        }
-    }
-    const auto emit = [&](int x, int z) {
-        const Color color = colors[
-            static_cast<std::size_t>(z) *
-                static_cast<std::size_t>(verticesPerAxis) +
-            static_cast<std::size_t>(x)];
-        rlColor4ub(color.r, color.g, color.b, color.a);
-        const double worldX = snapshot.playerPosition.x - viewRadius +
-            static_cast<double>(x) * cellWorld;
-        const double worldZ = snapshot.playerPosition.z - viewRadius +
-            static_cast<double>(z) * cellWorld;
-        const Vector2 point = minimapPoint(
-            mapBounds, mapScale, mapYaw,
-            snapshot.playerPosition.x,
-            snapshot.playerPosition.z,
-            worldX, worldZ);
-        rlVertex2f(point.x, point.y);
+    Vector2 center, float scale, Color fill, float heading = 0) {
+    const auto point = [&](float x, float y) {
+        return Vector2{center.x + (x * std::cos(heading) - y * std::sin(heading)) * scale,
+            center.y + (x * std::sin(heading) + y * std::cos(heading)) * scale};
     };
-    rlBegin(RL_TRIANGLES);
-    for (int z = 0; z < cells; ++z) {
-        for (int x = 0; x < cells; ++x) {
-            emit(x, z);
-            emit(x, z + 1);
-            emit(x + 1, z);
-            emit(x + 1, z);
-            emit(x, z + 1);
-            emit(x + 1, z + 1);
-        }
-    }
-    rlEnd();
-    rlColor4ub(255, 255, 255, 255);
-}
-
-void drawMinimapPonds(
-    const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float mapScale,
-    double viewRadius, float expanded, double mapYaw) {
-    const auto mapPoint = [&snapshot, mapBounds, mapScale, mapYaw](
-                              double x, double z) {
-        return minimapPoint(
-            mapBounds, mapScale, mapYaw,
-            snapshot.playerPosition.x,
-            snapshot.playerPosition.z, x, z);
+    const auto chevron = [&](float size, Color color) {
+        const Vector2 tip = point(0, -11 * size), left = point(-7 * size, 7 * size),
+            notch = point(0, 4 * size), right = point(7 * size, 7 * size);
+        DrawTriangle(tip, left, notch, color);
+        DrawTriangle(tip, notch, right, color);
     };
-    const auto biomes = visual_biomes::generate(snapshot.terrainSeed, snapshot.terrainWorldSize);
-    const int segments = expanded > 0.55F ? 40 : 24;
-    const Color water{53, 158, 181, 225};
-    const Color shore{127, 215, 207, 205};
-    for (const PondDefinition& pond : snapshot.ponds) {
-        const double pondExtent =
-            std::max(pond.radiusX, pond.radiusZ) + pond.bayRadius;
-        if (std::hypot(
-                pond.x - snapshot.playerPosition.x,
-                pond.z - snapshot.playerPosition.z) >
-            viewRadius + pondExtent) {
-            continue;
-        }
-        const Vector2 center = mapPoint(pond.x, pond.z);
-        std::array<Vector2, 40> points{};
-        const double sine = std::sin(pond.rotation);
-        const double cosine = std::cos(pond.rotation);
-        for (int segment = 0; segment < segments; ++segment) {
-            const double angle =
-                static_cast<double>(segment) * 2.0 * PI /
-                static_cast<double>(segments);
-            const double organicRadius =
-                1.0 + std::sin(angle * 3.0 + pond.phase) * 0.095 +
-                std::sin(angle * 5.0 - pond.phase * 1.37) * 0.052 +
-                std::sin(angle * 7.0 + pond.phase * 0.61) * 0.026;
-            const double localX =
-                std::cos(angle) * pond.radiusX * organicRadius;
-            const double localZ =
-                std::sin(angle) * pond.radiusZ * organicRadius;
-            points[static_cast<std::size_t>(segment)] = mapPoint(
-                pond.x + localX * cosine - localZ * sine,
-                pond.z + localX * sine + localZ * cosine);
-        }
-        for (int segment = 0; segment < segments; ++segment) {
-            const int next = (segment + 1) % segments;
-            DrawTriangle(
-                center,
-                points[static_cast<std::size_t>(next)],
-                points[static_cast<std::size_t>(segment)], water);
-            DrawLineEx(
-                points[static_cast<std::size_t>(segment)],
-                points[static_cast<std::size_t>(next)],
-                std::lerp(0.7F, 1.4F, expanded), shore);
-        }
-        const Vector2 bayCenter = mapPoint(
-            pond.x + std::cos(pond.bayAngle) * pond.radiusX * 0.72,
-            pond.z + std::sin(pond.bayAngle) * pond.radiusZ * 0.72);
-        DrawCircleV(
-            bayCenter,
-            static_cast<float>(pond.bayRadius) * mapScale,
-            water);
-        if (pond.islandRadius > 0.0) {
-            const Vector2 island = mapPoint(
-                pond.islandX, pond.islandZ);
-            DrawCircleV(
-                island,
-                static_cast<float>(pond.islandRadius) * mapScale,
-                minimapBiomeColor(snapshot, biomes, pond.islandX, pond.islandZ));
-            DrawCircleLinesV(
-                island,
-                static_cast<float>(pond.islandRadius) * mapScale,
-                {112, 139, 88, 220});
-        }
-    }
+    chevron(1.28F, {20, 23, 20, 255});
+    chevron(1.0F, fill);
 }
 
 constexpr float CachedFrameMapDiameter = 800.0F;
+
+void drawMapIcons(GameUi& ui, const SimulationSnapshot& snapshot,
+                  Rectangle bounds, double radius, float expanded, float renderScale) {
+    const Vector2 center{bounds.x + bounds.width * .5F, bounds.y + bounds.height * .5F};
+    const float scale = bounds.width / static_cast<float>(2 * radius);
+    struct Occupied { Vector2 point; float radius; };
+    std::vector<Occupied> occupied;
+    occupied.reserve(ui.minimapMarkers().size());
+    for (const MinimapMarker& marker : ui.minimapMarkers()) {
+        if (marker.icon == MapIcon::Wood && !marker.highlighted) {
+            const int cellX = static_cast<int>(std::floor(marker.position.x / 24));
+            const int cellZ = static_cast<int>(std::floor(marker.position.z / 24));
+            if (((cellX % 3 + 3) % 3) != 1 || ((cellZ % 3 + 3) % 3) != 1) continue;
+        }
+        const Vector2 point = minimapPoint(bounds, scale, 0,
+            snapshot.playerPosition.x, snapshot.playerPosition.z, marker.position.x, marker.position.z);
+        const bool important = marker.priority >= 3;
+        float size = std::lerp(important ? 19.0F : 14.0F, important ? 32.0F : 24.0F, expanded) * renderScale;
+        if (!important && marker.count == 1) size *= .82F;
+        const float distance = Vector2Distance(point, center);
+        if (distance > bounds.width * .5F - size * .65F - 3 * renderScale ||
+            (!important && distance < 17 * renderScale)) continue;
+        const float collisionRadius = size * .36F;
+        // Keep chest/challenge markers; decorative/resource markers yield first.
+        if (marker.priority < 5 && std::ranges::any_of(occupied, [&](const Occupied& other) {
+            return Vector2Distance(point, other.point) < collisionRadius + other.radius;
+        })) continue;
+        occupied.push_back({point, collisionRadius});
+        if (marker.highlighted) {
+            DrawCircleV(point, size * .48F, {255, 206, 65, 100});
+            DrawCircleLinesV(point, size * .49F, {255, 232, 132, 245});
+        }
+        const Texture2D texture = ui.mapIconTexture(marker.icon);
+        if (IsTextureValid(texture)) {
+            // The target rotates with the compass; counter-rotate each symbol.
+            DrawTexturePro(texture, {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {point.x, point.y, size, size}, {size * .5F, size * .5F},
+                static_cast<float>(snapshot.playerYaw) * RAD2DEG, WHITE);
+        } else {
+            DrawCircleV(point, size * .28F, {255, 230, 175, 255});
+            DrawCircleLinesV(point, size * .28F, BLACK);
+        }
+    }
+}
+
+void drawMapLegend(GameUi& ui, Rectangle mapBounds, float expansion) {
+    if (expansion < .9F) return;
+    constexpr std::array icons{MapIcon::Count, MapIcon::Base, MapIcon::Boss,
+        MapIcon::Ruins, MapIcon::Chest, MapIcon::Supplies, MapIcon::Challenge,
+        MapIcon::Wood, MapIcon::Stone, MapIcon::Crystal,
+        MapIcon::Forest, MapIcon::Desert, MapIcon::Snow, MapIcon::Corrupted,
+        MapIcon::Mountain};
+    constexpr std::array<std::string_view, 15> labels{"PLAYER", "BASE", "BOSS",
+        "SITES", "CHESTS", "SUPPLIES", "CHALLENGES", "WOOD", "STONE", "CRYSTALS",
+        "FOREST", "DESERT", "SNOW", "CORRUPTED", "RELIEF"};
+    const float row = std::clamp(mapBounds.height / 17.0F, 26.0F, 40.0F);
+    const float x = mapBounds.x + mapBounds.width + 86;
+    const float y = mapBounds.y + (mapBounds.height - row * 17 - 20) * .5F;
+    const Rectangle panel{x, y, 220, row * 17 + 20};
+    DrawRectangleRounded(panel, .06F, 8, {24, 26, 23, 226});
+    DrawRectangleRoundedLinesEx(panel, .06F, 8, 1.5F, {160, 147, 122, 140});
+    for (std::size_t i = 0; i < 17; ++i) {
+        const float top = y + 10 + static_cast<float>(i) * row;
+        const Vector2 iconCenter{x + 28, top + row * .5F};
+        std::string_view label;
+        if (i < icons.size()) {
+            label = labels[i];
+            if (icons[i] == MapIcon::Count) drawRoundedPlayerMarker(iconCenter, .95F, {255, 238, 192, 255});
+            else {
+                const Texture2D texture = ui.mapIconTexture(icons[i]);
+                if (IsTextureValid(texture)) DrawTexturePro(texture,
+                    {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                    {iconCenter.x - row*.46F, top + row*.04F, row*.92F, row*.92F}, {}, 0, WHITE);
+            }
+        } else if (i == 15) {
+            label = "WATER";
+            DrawEllipse(static_cast<int>(iconCenter.x), static_cast<int>(iconCenter.y), 16, 10, {92, 248, 223, 255});
+            DrawEllipse(static_cast<int>(iconCenter.x), static_cast<int>(iconCenter.y), 13, 8, {5, 167, 186, 255});
+        } else {
+            label = "PATHS";
+            for (int dash = 0; dash < 3; ++dash) DrawLineEx(
+                {iconCenter.x-16+dash*12.0F, iconCenter.y+3-dash*3.0F},
+                {iconCenter.x-9+dash*12.0F, iconCenter.y+1-dash*3.0F}, 3, {238, 211, 139, 255});
+        }
+        if (i > 0) DrawLineEx({x+12, top}, {x+208, top}, 1, {216, 197, 158, 20});
+        drawUiText(label, {x + 55, top + (row-17)*.5F},
+            fitObjectiveText(label, 15, 10, 150), {255, 238, 202, 255});
+    }
+}
 
 void ensureMinimapFrameTarget(GameUi& ui) {
     if (ui.minimapFrameTargetReady() ||
@@ -530,16 +411,16 @@ void ensureMinimapFrameTarget(GameUi& ui) {
     constexpr float frameScale = CachedFrameMapDiameter / 150.0F;
     constexpr float outerPadding = 6.0F * frameScale;
     constexpr float lightPadding = 2.8F * frameScale;
-    constexpr float outerSpikeLength = 7.0F * frameScale;
-    constexpr float lightSpikeLength = 6.2F * frameScale;
+    constexpr float outerSpikeLength = 1.4F * frameScale;
+    constexpr float lightSpikeLength = 1.0F * frameScale;
     constexpr float spikeHalfAngle = 0.13F;
     drawRoundedCompassPlate(
         center, mapRadius + outerPadding, outerSpikeLength,
-        spikeHalfAngle, 0.0F, {49, 49, 49, 255});
+        spikeHalfAngle, 0.0F, {18, 23, 22, 255});
     drawRoundedCompassPlate(
         center, mapRadius + lightPadding, lightSpikeLength,
-        spikeHalfAngle, 0.0F, {221, 221, 221, 255});
-    // The collapsed border is rotationally symmetric and never changes.
+        spikeHalfAngle, 0.0F, {255, 230, 175, 255});
+    // The collapsed border is static in compass coordinates.
     // Cache its 64-segment mesh with the compass frame instead of rebuilding
     // and submitting it every HUD frame.
     constexpr float borderThickness = 3.0F * frameScale;
@@ -548,7 +429,7 @@ void ensureMinimapFrameTarget(GameUi& ui) {
         mapRadius - borderThickness,
         mapRadius,
         0.0F, 360.0F, 64,
-        {221, 221, 221, 255});
+        {255, 230, 175, 255});
     ui.endMinimapFrameTarget();
 }
 
@@ -562,6 +443,7 @@ minimapRenderPerformanceStats() noexcept {
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                     float expansion, MinimapHudPass pass) {
     const bool prepareOnly = pass == MinimapHudPass::Prepare;
+    const ScopedUiCanvas canvas;
     minimapPerformanceStats = {};
     auto minimapSectionStart = PerformanceClock::now();
     if (expansion < 0.0F) return;
@@ -569,14 +451,17 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float expanded =
         rawExpansion * rawExpansion * (3.0F - 2.0F * rawExpansion);
     const float screenMinimum = static_cast<float>(
-        std::min(GetScreenWidth(), GetScreenHeight()));
+        std::min(uiScreenWidth(), uiScreenHeight()));
     const float collapsedMapSize = std::clamp(
-        screenMinimum * 0.16F, 120.0F, 156.0F);
+        screenMinimum * 0.185F, 130.0F, 168.0F);
+    const float objectiveWidth = snapshot.objectives.empty() && !snapshot.tutorialObjective
+        ? 0.0F : 314.0F;
     const float expandedMapSize = std::max(
         collapsedMapSize,
         std::min(
-            static_cast<float>(GetScreenWidth()) * 0.68F,
-            static_cast<float>(GetScreenHeight()) * 0.70F));
+            static_cast<float>(uiScreenWidth()) * 0.68F,
+            std::min(static_cast<float>(uiScreenHeight()) * 0.74F,
+                static_cast<float>(uiScreenWidth()) - objectiveWidth - 330.0F)));
     const float displayMapSize = std::lerp(
         collapsedMapSize, expandedMapSize, expanded);
     const float panelPadding = std::lerp(4.0F, 20.0F, expanded);
@@ -586,12 +471,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         collapsedMapSize + 4.0F * 2.0F;
     const float collapsedCompassMargin = 32.0F;
     const float collapsedPanelX =
-        static_cast<float>(GetScreenWidth()) -
+        static_cast<float>(uiScreenWidth()) -
         collapsedPanelWidth - 12.0F - collapsedCompassMargin;
     const float expandedPanelX =
-        (static_cast<float>(GetScreenWidth()) - panelWidth) * 0.5F;
+        (static_cast<float>(uiScreenWidth()) - panelWidth + objectiveWidth - 290.0F) * 0.5F;
     const float expandedPanelY =
-        static_cast<float>(GetScreenHeight()) * 0.5F -
+        static_cast<float>(uiScreenHeight()) * 0.5F -
         displayMapSize * 0.5F - panelPadding - headerHeight;
     const float panelX = std::lerp(
         collapsedPanelX, expandedPanelX, expanded);
@@ -612,21 +497,17 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<double>(worldLimit),
         static_cast<double>(expanded));
 
+    const double compassYaw = snapshot.playerYaw * (1.0 - expanded);
+    const double centerWorldX = snapshot.playerPosition.x * (1.0 - expanded);
+    const double centerWorldZ = snapshot.playerPosition.z * (1.0 - expanded);
+
     if (!prepareOnly && expanded > 0.001F) {
         DrawRectangle(
-            0, 0, GetScreenWidth(), GetScreenHeight(),
-            {24, 11, 5,
+            0, 0, uiScreenWidth(), uiScreenHeight(),
+            {11, 19, 18,
              static_cast<unsigned char>(
-                 std::lround(168.0F * expanded))});
+                 std::lround(192.0F * expanded))});
     }
-    if (!prepareOnly && expanded > 0.35F) {
-        drawUiText(
-            "TACTICAL MAP",
-            {panelX + panelPadding,
-             panelY + 15.0F},
-            18.0F, {224, 205, 171, 255});
-    }
-
     const int desiredTargetSize = expanded > 0.55F
         ? 768
         : 512;
@@ -654,40 +535,33 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         std::max(displayMapSize, 1.0F);
     constexpr double MapYaw = 0.0;
 
-    DrawRectangleRec(mapBounds, {29, 43, 35, 255});
-    drawMinimapTerrain(
-        snapshot, mapBounds, mapScale,
-        viewRadius, expanded, MapYaw);
-    drawMinimapPonds(
-        snapshot, mapBounds, mapScale, viewRadius, expanded, MapYaw);
+    // Only copy the landscape view, not the snapshot's owned progression lists.
+    SimulationSnapshot mapSnapshot{};
+    mapSnapshot.terrainSeed = snapshot.terrainSeed;
+    mapSnapshot.terrainSamples = snapshot.terrainSamples;
+    mapSnapshot.terrainResolution = snapshot.terrainResolution;
+    mapSnapshot.terrainWorldSize = snapshot.terrainWorldSize;
+    mapSnapshot.terrainPaths = snapshot.terrainPaths;
+    mapSnapshot.ponds = snapshot.ponds;
+    mapSnapshot.resourceNodes = snapshot.resourceNodes;
+    mapSnapshot.playerPosition.x = centerWorldX;
+    mapSnapshot.playerPosition.z = centerWorldZ;
+    mapSnapshot.playerYaw = compassYaw;
+    ui.drawMinimapLandscape(mapSnapshot, mapBounds, viewRadius);
+    ui.updateMinimapMarkers(snapshot);
     const Vector2 mapCenter{
         mapBounds.x + mapSize * 0.5F,
         mapBounds.y + mapSize * 0.5F,
     };
-    DrawCircleLinesV(
-        mapCenter, mapSize * 0.425F,
-        {116, 135, 91, 95});
-    DrawLineEx(
-        {mapBounds.x + mapSize * 0.5F, mapBounds.y},
-        {mapBounds.x + mapSize * 0.5F,
-         mapBounds.y + mapSize},
-        renderScale, {214, 205, 169, 24});
-    DrawLineEx(
-        {mapBounds.x, mapBounds.y + mapSize * 0.5F},
-        {mapBounds.x + mapSize,
-         mapBounds.y + mapSize * 0.5F},
-        renderScale, {214, 205, 169, 24});
 
     const float symbolScale =
         std::lerp(1.0F, 1.55F, expanded) * renderScale;
     const auto mapPoint =
-        [&snapshot, mapBounds, mapScale, mapYaw = MapYaw](
+        [centerWorldX, centerWorldZ, mapBounds, mapScale, mapYaw = MapYaw](
             double worldX, double worldZ) {
             return minimapPoint(
                 mapBounds, mapScale, mapYaw,
-                snapshot.playerPosition.x,
-                snapshot.playerPosition.z,
-                worldX, worldZ);
+                centerWorldX, centerWorldZ, worldX, worldZ);
         };
     const float pointMargin = 12.0F * symbolScale;
     const auto pointVisible = [mapBounds, pointMargin](Vector2 point) {
@@ -697,160 +571,13 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             point.y <= mapBounds.y + mapBounds.height + pointMargin;
     };
 
-    BeginScissorMode(
+    beginUiScissor(
         static_cast<int>(mapBounds.x),
         static_cast<int>(mapBounds.y),
         static_cast<int>(mapBounds.width),
         static_cast<int>(mapBounds.height));
 
-    for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active) {
-            continue;
-        }
-        const Vector2 point = mapPoint(
-            resource.position.x, resource.position.z);
-        if (!pointVisible(point)) {
-            continue;
-        }
-        if (isDestructibleProp(resource.type)) {
-            if (!snapshot.unlimitedResources) {
-                continue;
-            }
-            const float size = 2.8F * symbolScale;
-            const Color color = resource.type == ResourceType::Barrel
-                ? Color{203, 120, 61, 245}
-                : resource.type == ResourceType::ItemCrate
-                    ? Color{242, 190, 60, 250}
-                    : Color{174, 112, 59, 245};
-            DrawRectangleRec(
-                {point.x - size, point.y - size,
-                 size * 2.0F, size * 2.0F},
-                {31, 24, 19, 220});
-            if (resource.type == ResourceType::Barrel) {
-                DrawRectangleRec(
-                    {point.x - size * 0.62F, point.y - size * 0.82F,
-                     size * 1.24F, size * 1.64F}, color);
-                DrawLineEx(
-                    {point.x - size * 0.68F, point.y},
-                    {point.x + size * 0.68F, point.y},
-                    std::max(1.0F, symbolScale), {57, 37, 25, 255});
-            } else {
-                DrawRectangleRec(
-                    {point.x - size * 0.76F, point.y - size * 0.76F,
-                     size * 1.52F, size * 1.52F}, color);
-                DrawLineEx(
-                    {point.x - size * 0.58F, point.y - size * 0.58F},
-                    {point.x + size * 0.58F, point.y + size * 0.58F},
-                    std::max(1.0F, symbolScale), {67, 43, 27, 255});
-                DrawLineEx(
-                    {point.x + size * 0.58F, point.y - size * 0.58F},
-                    {point.x - size * 0.58F, point.y + size * 0.58F},
-                    std::max(1.0F, symbolScale), {67, 43, 27, 255});
-                if (resource.type == ResourceType::ItemCrate) {
-                    DrawCircleV(point, 1.1F * symbolScale,
-                                {255, 242, 165, 255});
-                }
-            }
-            continue;
-        }
-        if (!isHarvestableResource(resource.type)) {
-            continue;
-        }
-        const float radius =
-            (resource.type == ResourceType::Wood ? 1.35F : 1.2F) *
-            symbolScale;
-        DrawRectangleRec(
-            {point.x - radius, point.y - radius,
-             radius * 2.0F, radius * 2.0F},
-            resource.type == ResourceType::Wood
-                ? Color{91, 143, 75, 125}
-                : resource.type == ResourceType::Crystal
-                    ? Color{183, 92, 226, 180}
-                    : Color{143, 149, 145, 135});
-    }
-
-    if (snapshot.unlimitedResources) {
-        for (const WorldLandmarkInstance& landmark :
-             snapshot.worldLandmarks) {
-            const Vector2 point = mapPoint(
-                landmark.position.x, landmark.position.z);
-            if (!pointVisible(point)) {
-                continue;
-            }
-            const float size = 5.0F * symbolScale;
-            const Color fill = landmark.activated
-                ? Color{96, 220, 137, 255}
-                : landmark.type == WorldLandmarkType::Mine
-                    ? Color{151, 164, 184, 255}
-                    : Color{220, 157, 73, 255};
-            DrawCircleV(point, size + 2.0F, {28, 21, 17, 235});
-            if (landmark.type == WorldLandmarkType::Mine) {
-                DrawPoly(point, 4, size, 45.0F, fill);
-                DrawLineEx(
-                    {point.x - size * 0.48F,
-                     point.y + size * 0.34F},
-                    {point.x + size * 0.48F,
-                     point.y - size * 0.34F},
-                    std::max(1.2F, 1.4F * symbolScale),
-                    {245, 235, 211, 255});
-            } else {
-                DrawCircleV(point, size, fill);
-                DrawRectangleRec(
-                    {point.x - size * 0.19F,
-                     point.y - size * 0.70F,
-                     size * 0.38F, size * 1.40F},
-                    {245, 235, 211, 255});
-                DrawLineEx(
-                    {point.x - size * 0.62F, point.y},
-                    {point.x + size * 0.62F, point.y},
-                    std::max(1.2F, 1.4F * symbolScale),
-                    {245, 235, 211, 255});
-            }
-        }
-    }
-
-    const bool mapRevealsChests =
-        snapshot.unlimitedResources ||
-        snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
-    if (mapRevealsChests || std::ranges::any_of(
-            snapshot.lootChests,
-            [](const LootChestInstance& chest) {
-                return chest.revealed;
-            })) {
-        for (const LootChestInstance& chest : snapshot.lootChests) {
-            if (chest.looseLoot ||
-                (!mapRevealsChests && !chest.revealed)) continue;
-            const Vector2 point = mapPoint(
-                chest.position.x, chest.position.z);
-            if (!pointVisible(point)) {
-                continue;
-            }
-            const float size = 3.2F * symbolScale;
-            const Color color = chest.type == LootChestType::Stone
-                ? Color{170, 183, 195, 255}
-                : Color{225, 161, 72, 255};
-            DrawRectangleRec(
-                {point.x - size - 1.0F, point.y - size - 1.0F,
-                 size * 2.0F + 2.0F, size * 2.0F + 2.0F},
-                {31, 24, 19, 230});
-            DrawRectangleRec(
-                {point.x - size, point.y - size,
-                 size * 2.0F, size * 2.0F}, color);
-            DrawLineEx(
-                {point.x - size, point.y - size * 0.35F},
-                {point.x + size, point.y - size * 0.35F},
-                std::max(1.0F, symbolScale), {59, 43, 29, 255});
-            if (chest.loot.available && !chest.loot.collected) {
-                const Color lootColor =
-                    chest.loot.rarity == LootRarity::Rare
-                        ? Color{255, 170, 170, 255}
-                        : chest.loot.rarity == LootRarity::Uncommon
-                            ? Color{255, 228, 148, 255}
-                            : Color{185, 225, 255, 255};
-                DrawCircleV(point, 1.5F * symbolScale, lootColor);
-            }
-        }
-    }
+    drawMapIcons(ui, mapSnapshot, mapBounds, viewRadius, expanded, renderScale);
 
     const double cellSize = std::max(snapshot.worldCellSize, 0.01);
     const auto modularPoint =
@@ -916,51 +643,17 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
         switch (building.type) {
         case BuildingType::Core: {
-            const Vector2 delta{
-                point.x - mapCenter.x,
-                point.y - mapCenter.y};
-            const float distance = std::hypot(delta.x, delta.y);
-            if (distance <= 0.001F) {
-                DrawPoly(
-                    mapCenter, 4, 6.0F * symbolScale,
-                    45.0F, {255, 210, 83, 255});
-                break;
-            }
-            const Vector2 direction{
-                delta.x / distance, delta.y / distance};
-            const Vector2 perpendicular{
-                -direction.y, direction.x};
-            const float maximumDistance =
-                mapSize * 0.5F - 18.0F * renderScale;
-            const float markerDistance = std::min(
-                distance, maximumDistance);
-            const Vector2 marker{
-                mapCenter.x + direction.x * markerDistance,
-                mapCenter.y + direction.y * markerDistance};
-            const float pulse = 1.0F + 0.08F *
-                std::sin(static_cast<float>(GetTime()) * 5.5F);
-            const float arrowLength =
-                9.0F * symbolScale * pulse;
-            const float arrowWidth =
-                6.0F * symbolScale * pulse;
-            DrawCircleV(
-                marker, 8.5F * symbolScale,
-                {33, 27, 19, 225});
-            DrawTriangle(
-                {marker.x + direction.x * arrowLength,
-                 marker.y + direction.y * arrowLength},
-                {marker.x - direction.x * arrowLength * 0.55F +
-                     perpendicular.x * arrowWidth,
-                 marker.y - direction.y * arrowLength * 0.55F +
-                     perpendicular.y * arrowWidth},
-                {marker.x - direction.x * arrowLength * 0.55F -
-                     perpendicular.x * arrowWidth,
-                 marker.y - direction.y * arrowLength * 0.55F -
-                     perpendicular.y * arrowWidth},
-                {255, 207, 72, 255});
-            DrawCircleV(
-                marker, 2.0F * symbolScale,
-                {255, 247, 195, 255});
+            const Vector2 delta = Vector2Subtract(point, mapCenter);
+            const float distance = Vector2Length(delta);
+            const float maximum = mapSize * .5F - 18 * renderScale;
+            const Vector2 marker = Vector2Add(mapCenter,
+                Vector2Scale(delta, distance > maximum ? maximum / distance : 1));
+            const Texture2D texture = ui.mapIconTexture(MapIcon::Base);
+            const float size = std::lerp(25.0F, 39.0F, expanded) * renderScale;
+            if (IsTextureValid(texture)) DrawTexturePro(texture,
+                {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {marker.x, marker.y, size, size}, {size*.5F, size*.5F},
+                static_cast<float>(compassYaw) * RAD2DEG, WHITE);
             break;
         }
         case BuildingType::Turret:
@@ -979,7 +672,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 point,
                 (building.type == BuildingType::Cannon ? 3.5F : 3.0F) *
                     symbolScale,
-                {238, 182, 89, 245});
+                {64, 153, 243, 255});
             DrawCircleV(
                 point, 1.1F * symbolScale,
                 {73, 54, 38, 255});
@@ -1092,7 +785,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     if (expanded > 0.55F) {
         for (const EnemyInstance& enemy : snapshot.enemies) {
-            if (!enemy.active || enemy.state == EnemyState::Dead) {
+            if (!enemy.active || enemy.state == EnemyState::Dead || enemy.type == EnemyType::Boss) {
                 continue;
             }
             const Vector2 point = mapPoint(
@@ -1116,7 +809,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             EnemyMarkerCluster,
             EnemyClusterCells * EnemyClusterCells> clusters{};
         for (const EnemyInstance& enemy : snapshot.enemies) {
-            if (!enemy.active || enemy.state == EnemyState::Dead) {
+            if (!enemy.active || enemy.state == EnemyState::Dead || enemy.type == EnemyType::Boss) {
                 continue;
             }
             const Vector2 point = mapPoint(
@@ -1161,6 +854,18 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                     1.0F / static_cast<float>(cluster.count)),
                 cluster.appearance, cluster.count);
         }
+    }
+
+    for (const auto& enemy : snapshot.enemies) {
+        if (!enemy.active || enemy.state == EnemyState::Dead || enemy.type != EnemyType::Boss) continue;
+        const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
+        if (!pointVisible(point)) continue;
+        const Texture2D texture = ui.mapIconTexture(MapIcon::Boss);
+        const float size = std::lerp(25.0F, 38.0F, expanded) * renderScale;
+        if (IsTextureValid(texture)) DrawTexturePro(texture,
+            {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+            {point.x, point.y, size, size}, {size*.5F, size*.5F},
+            static_cast<float>(compassYaw) * RAD2DEG, WHITE);
     }
 
     const Vector2 player = mapPoint(
@@ -1288,12 +993,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float mapRadius = displayMapSize * 0.5F;
     const float outerPadding = 6.0F * frameScale;
     const float lightPadding = 2.8F * frameScale;
-    const float outerSpikeLength = 7.0F * frameScale;
-    const float lightSpikeLength = 6.2F * frameScale;
+    const float outerSpikeLength = 1.4F * frameScale;
+    const float lightSpikeLength = 1.0F * frameScale;
     constexpr float SpikeHalfAngle = 0.13F;
     const float shadowOffset = 4.0F * frameScale;
     const float compassRotation =
-        static_cast<float>(snapshot.playerYaw);
+        static_cast<float>(compassYaw);
     const float mapRotationDegrees =
         -compassRotation * RAD2DEG;
     const bool hasAttackWarning = std::ranges::any_of(
@@ -1347,28 +1052,60 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             displayMapCenter,
             mapRadius + outerPadding, outerSpikeLength,
             SpikeHalfAngle, compassRotation,
-            {49, 49, 49, 255});
+            {18, 23, 22, 255});
         drawRoundedCompassPlate(
             displayMapCenter,
             mapRadius + lightPadding, lightSpikeLength,
             SpikeHalfAngle, compassRotation,
-            {221, 221, 221, 255});
+            {255, 230, 175, 255});
     }
     ui.drawMinimapTarget(displayMapBounds, mapRotationDegrees);
+    if (expanded > .55F) {
+        // Small compass graduations share the cream/black menu palette.
+        for (int tick = 0; tick < 48; ++tick) {
+            const float angle = static_cast<float>(tick) * 2 * PI / 48 - compassRotation;
+            const Vector2 direction{std::cos(angle), std::sin(angle)};
+            const float tickLength = (tick % 4 == 0 ? 3.0F : 1.6F) * frameScale;
+            const float tickRadius = mapRadius + 1.8F * frameScale;
+            DrawLineEx(Vector2Add(displayMapCenter, Vector2Scale(direction, tickRadius)),
+                Vector2Add(displayMapCenter, Vector2Scale(direction, tickRadius - tickLength)),
+                tick % 4 == 0 ? 1.8F : 1.1F, {88, 76, 53, 255});
+        }
+    }
+    Vector2 displayPlayer = minimapPoint(displayMapBounds,
+        displayMapSize / static_cast<float>(2 * viewRadius), compassYaw,
+        centerWorldX, centerWorldZ, snapshot.playerPosition.x, snapshot.playerPosition.z);
+    const Vector2 playerOffset = Vector2Subtract(displayPlayer, displayMapCenter);
+    const float playerDistance = Vector2Length(playerOffset);
+    const float innerRadius = mapRadius - 15;
+    if (playerDistance > innerRadius) displayPlayer = Vector2Add(displayMapCenter,
+        Vector2Scale(playerOffset, innerRadius / playerDistance));
+    const float heading = static_cast<float>(snapshot.playerYaw - compassYaw);
+    const float coneLength = std::lerp(40.0F, 68.0F, expanded);
+    // Transparent fan, clipped analytically to the circular map.
+    const auto conePoint = [&](float angle) {
+        const Vector2 direction{std::cos(angle), std::sin(angle)};
+        const Vector2 relative = Vector2Subtract(displayPlayer, displayMapCenter);
+        const float dot = Vector2DotProduct(relative, direction);
+        const float available = -dot + std::sqrt(std::max(0.0F,
+            dot*dot + innerRadius*innerRadius - Vector2LengthSqr(relative)));
+        return Vector2Add(displayPlayer, Vector2Scale(direction, std::min(coneLength, available)));
+    };
+    for (int segment = 0; segment < 12; ++segment) {
+        const float a = heading - PI*.5F - .46F + static_cast<float>(segment) * .92F / 12;
+        DrawTriangle(displayPlayer, conePoint(a + .92F / 12), conePoint(a), {255, 249, 180, 38});
+    }
     const Color playerColor = snapshot.playerRespawning
-        ? Color{174, 181, 181, 240}
-        : Color{250, 250, 244, 255};
-    drawRoundedPlayerMarker(
-        displayMapCenter,
-        std::lerp(1.0F, 1.55F, expanded) * 1.25F,
-        playerColor);
+        ? Color{174, 181, 181, 240} : Color{255, 241, 199, 255};
+    drawRoundedPlayerMarker(displayPlayer,
+        std::lerp(1.0F, 1.55F, expanded) * 1.25F, playerColor, heading);
     if (expanded > 0.001F) {
         const float borderThickness = 3.0F * frameScale;
         DrawRing(
             displayMapCenter,
             displayMapSize * 0.5F - borderThickness,
             displayMapSize * 0.5F, 0.0F, 360.0F, 64,
-            {221, 221, 221, 255});
+            {255, 230, 175, 255});
     }
     for (std::size_t index = 0;
          index < snapshot.upcomingAttackDirections.size(); ++index) {
@@ -1378,7 +1115,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         const Vector2 offset = rotateMinimapOffset(
             CompassDirections[index].x,
             CompassDirections[index].y,
-            snapshot.playerYaw);
+            compassYaw);
         const float angleDegrees =
             std::atan2(offset.y, offset.x) * RAD2DEG;
         DrawRing(
@@ -1414,7 +1151,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     minimapSectionStart = PerformanceClock::now();
 
     const float compassRenderedSize =
-        std::lerp(20.0F, 28.0F, expanded);
+        std::lerp(22.0F, 42.0F, expanded);
     const float compassFontSize =
         compassRenderedSize / 1.68F;
     const float compassRadius =
@@ -1446,7 +1183,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 ? ColorLerp(
                       WHITE, warningColor,
                       0.42F + warningPulse * 0.58F)
-                : WHITE;
+                : Color{255, 238, 194, 255};
             drawUiText(label, position, renderedFontSize, labelColor);
         };
     constexpr std::array<std::string_view, 4> CompassLabels{{
@@ -1455,7 +1192,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         const Vector2 offset = rotateMinimapOffset(
             CompassDirections[index].x,
             CompassDirections[index].y,
-            snapshot.playerYaw);
+            compassYaw);
         drawCompassLabel(
             CompassLabels[index],
             {displayMapCenter.x + offset.x * compassRadius,
@@ -1466,6 +1203,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         snapshot, panelX, panelY,
         displayMapSize + panelPadding * 2.0F + headerHeight,
         expanded);
+    drawMapLegend(ui, displayMapBounds, expanded);
     minimapPerformanceStats.labelsMs =
         performanceMilliseconds(minimapSectionStart);
 }

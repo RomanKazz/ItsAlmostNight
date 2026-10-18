@@ -1,6 +1,9 @@
 #pragma once
 
 #include <raylib.h>
+#include "ui/MinimapLandscape.hpp"
+#include "ui/MinimapMarkers.hpp"
+#include <span>
 #include "progression/RunUpgrade.hpp"
 
 #include <string_view>
@@ -8,6 +11,7 @@
 #include <array>
 
 namespace ian {
+struct SimulationSnapshot;
 enum class BuildingType;
 enum class EnemyType : std::uint8_t;
 enum class ModularBuildPiece;
@@ -101,6 +105,11 @@ class GameUi {
         Rectangle bounds, float rotationDegrees = 0.0F) const;
     void updateMinimapTarget(int desiredSize);
     [[nodiscard]] int minimapTargetSize() const;
+    void prepareMinimapLandscape(const SimulationSnapshot& snapshot);
+    void drawMinimapLandscape(const SimulationSnapshot& snapshot, Rectangle bounds, double radius);
+    [[nodiscard]] Texture2D mapIconTexture(MapIcon icon) const;
+    void updateMinimapMarkers(const SimulationSnapshot& snapshot);
+    [[nodiscard]] std::span<const MinimapMarker> minimapMarkers() const { return minimapMarkers_; }
     [[nodiscard]] bool minimapTargetRefreshDue(
         double nowSeconds, double intervalSeconds,
         bool forceRefresh = false) const;
@@ -185,6 +194,9 @@ class GameUi {
     SliceInsets buttonInsets_{12, 10, 12, 14};
     SliceInsets barInsets_{12, 4, 12, 4};
     RenderTexture2D minimapTarget_{};
+    MinimapLandscape minimapLandscape_{};
+    std::vector<MinimapMarker> minimapMarkers_;
+    std::array<Texture2D, static_cast<std::size_t>(MapIcon::Count)> mapIcons_{};
     RenderTexture2D minimapFrameTarget_{};
     Shader minimapCircleShader_{};
     bool minimapTargetCacheValid_{};

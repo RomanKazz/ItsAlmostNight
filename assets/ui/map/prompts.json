@@ -1,0 +1,44 @@
+{
+  "generator": "Built-in image_gen",
+  "finalSize": [
+    256,
+    256
+  ],
+  "assets": [
+    {
+      "name": "chest",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: one closed squat golden-brown treasure chest, broad gold corner bands and a single large gold latch, orange wooden lid, very simple.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-36218f08-39f0-49d4-88ee-fb5c3d680d98.png"
+    },
+    {
+      "name": "wood",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: a compact cluster of three green pine trees, triangular broad lush green foliage layers, short orange-brown trunks, visibly a forest resource cluster.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-d1a07ec3-0a7f-4988-8799-1ac30b34e0ba.png"
+    },
+    {
+      "name": "stone",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: a compact pile of three chunky blue-gray quarry rocks with broad angular faces, one taller rock behind two shorter rocks, clearly a stone resource cluster.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-7e0a680d-3eb0-4d97-8cc3-869f87aef98c.png"
+    },
+    {
+      "name": "crystal",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: a compact cluster of three purple-magenta crystals, one tall center prism and two short side prisms, just two broad facets per crystal, vividly readable mineral resource cluster.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-cf303e6c-c66f-4b16-8b9f-28091b78337c.png"
+    },
+    {
+      "name": "ruins",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: a simple small ruined gray stone watchtower, two broken battlements, one large dark arched doorway and a short broken wall on one side, warm gray broad stone faces. No loose pebbles or small brick lines.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-6bd00e45-ee9a-459c-8b0e-63dce3d0cee7.png"
+    },
+    {
+      "name": "supplies",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: one squat orange-brown wooden barrel and one small orange wooden crate tucked beside it, two broad dark steel barrel hoops, simple diagonal brace on crate, visually one compact supply stash.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-466618bb-b2ca-4a93-820f-55fd00986663.png"
+    },
+    {
+      "name": "challenge",
+      "prompt": "Use case: stylized-concept. Asset type: a single game tactical-map icon, PNG on genuinely transparent background. Style: cheerful cartoon fantasy game UI, simple clean cel shading, large chunky silhouette, few broad color planes, no tiny details. Consistent thick pure-black outline on all outside and internal edges, approximately 18 pixels wide on a 1024 canvas (4.5 px at 256), rounded joins. Centered single isolated object occupying 78 percent of a square canvas, slight three-quarter view, flat graphic illustration, no text, no border frame, no badge, no ground, no cast shadow, no glow, no background. Must remain recognizable at 28 pixels. Subject: a short chunky ancient stone obelisk with a single large red-orange lightning-bolt emblem carved on its face, broad gray stone pedestal, visually a challenge shrine. No particles or floating objects.",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-73ca8397-4952-4f20-97cd-59e9cd44bec8.png"
+    }
+  ]
+}
