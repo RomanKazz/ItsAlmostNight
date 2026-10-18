@@ -248,6 +248,7 @@ void Simulation::processDebugCommands(
                         .type = GameEventType::BuildingDestroyed,
                         .entityId = damage->id,
                         .buildingType = damage->type,
+                        .building = core,
                         .position = buildingWorldPosition(*damage),
                     });
                     events_.push_back({

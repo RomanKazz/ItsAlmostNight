@@ -593,6 +593,79 @@ struct AppPresentationTestAccess {
             placementPixels[3]==0 && placementPixels[4]==0;
         okay &= placement;
         if (!placement) std::cerr << "Construction feedback failed animation, support deduplication or delay/expiry\n";
+        // Destruction travels through real App events, including the model's
+        // authored upgrade and delayed dust. Exercise both model and effect passes.
+        app->effects_.clear();app->soldBuildingVisuals_.clear();
+        const BuildingInstance wreck{.id={70100,1},.type=BuildingType::GunTurret,
+            .gridPosition={0,0},.rotation=2,.level=6,.health=0,.maxHealth=500};
+        const Vec3 wreckCenter=buildingWorldPosition(wreck);
+        const std::array destructionEvent{GameEvent{.type=GameEventType::BuildingDestroyed,
+            .entityId=wreck.id,.buildingType=wreck.type,.building=wreck,.position=wreckCenter}};
+        app->processPresentationEvents(destructionEvent,snapshot);
+        bool destruction=app->soldBuildingVisuals_.size()==1 &&
+            app->soldBuildingVisuals_[0].building && app->soldBuildingVisuals_[0].building->level==6 &&
+            app->soldBuildingVisuals_[0].building->rotation==2 &&
+            count(PresentationEffectType::Debris)==1 && app->effects_.back().variant==2;
+        const double debrisDelay=app->effects_.back().startDelayRemaining;
+        const Camera3D destructionCamera{{3,2.6F,-5},{static_cast<float>(wreckCenter.x),.65F,
+            static_cast<float>(wreckCenter.z)},{0,1,0},6,CAMERA_ORTHOGRAPHIC};
+        app->gameplayCamera_=destructionCamera;lighting.cameraPosition=destructionCamera.position;
+        const std::array<float,6> wreckTimes{0,.14F,.30F,.55F,.95F,1.10F};
+        std::array<int,6> wreckPixels{};
+        std::array<std::uint64_t,6> wreckHashes{};
+        for(std::size_t frameIndex=0;frameIndex<wreckTimes.size();++frameIndex) {
+            const float seconds=wreckTimes[frameIndex];
+            for(auto& visual:app->soldBuildingVisuals_)visual.remaining=visual.duration-seconds;
+            for(auto& effect:app->effects_) {
+                effect.startDelayRemaining=std::max(0.0,debrisDelay-seconds);
+                effect.remaining=effect.duration-std::max(0.0,seconds-debrisDelay);
+            }
+            app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});
+            BeginMode3D(destructionCamera);app->drawPresentationEffects(destructionCamera,lighting);
+            EndMode3D();EndTextureMode();
+            Image capture=LoadImageFromTexture(target.texture);auto* pixels=LoadImageColors(capture);
+            for(int i=0;i<capture.width*capture.height;++i) {
+                wreckPixels[frameIndex]+=pixels[i].r>70;
+                wreckHashes[frameIndex]=wreckHashes[frameIndex]*31U+pixels[i].r*65536U+
+                    pixels[i].g*256U+pixels[i].b;
+            }
+            UnloadImageColors(pixels);UnloadImage(capture);
+            if(const char* directory=std::getenv("IAN_DESTRUCTION_CAPTURE")) {
+                std::filesystem::create_directories(directory);
+                app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});
+                BeginMode3D(destructionCamera);app->renderer_->beginWorldShader(lighting);
+                WorldMaterialState wreckMaterial{};wreckMaterial.unlitAmount=.3F;
+                app->renderer_->setWorldMaterial(wreckMaterial);
+                DrawCube({static_cast<float>(wreckCenter.x),-.12F,static_cast<float>(wreckCenter.z)},
+                    5,.2F,5,{116,125,84,255});
+                app->drawSoldBuildingVisuals();app->renderer_->endWorldShader();
+                app->drawPresentationEffects(destructionCamera,lighting);EndMode3D();EndTextureMode();
+                Image modelCapture=LoadImageFromTexture(target.texture);ImageFlipVertical(&modelCapture);
+                ExportImage(modelCapture,(std::filesystem::path(directory)/
+                    ("destruction-"+std::to_string(frameIndex)+".png")).string().c_str());
+                UnloadImage(modelCapture);
+            }
+        }
+        destruction &= wreckPixels[0]==0 && wreckPixels[1]>100 && wreckPixels[2]>100 &&
+            wreckPixels[5]==0 && wreckHashes[1]!=wreckHashes[2];
+        app->effects_.clear();app->soldBuildingVisuals_.clear();
+        const PlatformFrameInstance fallingFrame{.id={70101,1},.anchor={0,0,0},.floorHeight=8,.storey=2};
+        const std::array collapseEvent{GameEvent{.type=GameEventType::ModularBuildingDestroyed,
+            .entityId=fallingFrame.id,.platformFrame=fallingFrame,.position={1,8,1},.structuralCollapse=true}};
+        app->processPresentationEvents(collapseEvent,snapshot);
+        destruction &= app->soldBuildingVisuals_.size()==1 &&
+            app->soldBuildingVisuals_[0].remaining>app->soldBuildingVisuals_[0].duration &&
+            app->effects_.back().startDelayRemaining>.6 && app->effects_.back().variant==1;
+        app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});
+        BeginMode3D(destructionCamera);
+        app->drawPresentationEffects(destructionCamera,lighting);EndMode3D();EndTextureMode();
+        Image delayed=LoadImageFromTexture(target.texture);auto* delayedPixels=LoadImageColors(delayed);
+        int premature=0;
+        for(int i=0;i<delayed.width*delayed.height;++i)premature+=delayedPixels[i].r>70;
+        UnloadImageColors(delayedPixels);UnloadImage(delayed);
+        destruction &= premature==0;
+        okay &= destruction;
+        if(!destruction)std::cerr << "Building destruction model, animation, dust delay or expiry failed\n";
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }

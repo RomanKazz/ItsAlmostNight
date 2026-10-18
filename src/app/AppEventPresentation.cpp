@@ -967,7 +967,7 @@ void App::processPresentationEvents(
                 });
             }
             Vec3 debrisPosition = event.position;
-            double debrisDelay = 0.0;
+            double debrisDelay = duration * .20;
             if (event.structuralCollapse) {
                 debrisPosition.y = simulation_.terrain().getHeight(
                     debrisPosition.x, debrisPosition.z) + 0.12;
@@ -975,11 +975,21 @@ void App::processPresentationEvents(
             }
             addEffect(
                 PresentationEffectType::Debris,
-                debrisPosition, 0.8, 1.0F,
-                std::nullopt, debrisDelay);
-            addCameraShake(
-                event.structuralCollapse ? 0.12 : 0.18,
-                event.structuralCollapse ? 0.035 : 0.08);
+                debrisPosition, .90,
+                event.buildingType ? std::clamp(static_cast<float>(
+                    buildingFootprintHalfExtent(*event.buildingType))*1.2F+.25F,.75F,1.65F) : 1.15F,
+                event.entityId, debrisDelay);
+            effects_.back().variant = !event.buildingType ||
+                *event.buildingType == BuildingType::Wall || *event.buildingType == BuildingType::Gate
+                    ? 1 : *event.buildingType == BuildingType::Core ? 3 : 2;
+            const double proximity = std::clamp(1.0 - std::hypot(
+                debrisPosition.x-eventSnapshot.playerPosition.x,
+                debrisPosition.z-eventSnapshot.playerPosition.z)/18.0,0.0,1.0);
+            if (proximity > 0 && !userSettings_.accessibility.reduceFlashes &&
+                explosionShakeCooldownRemaining_ <= 0) {
+                addCameraShake(.14,.025*proximity);
+                explosionShakeCooldownRemaining_=.20;
+            }
         } else if (
             (event.type == GameEventType::BuildingDamaged ||
              event.type ==

@@ -7,6 +7,7 @@
 #include "graphics/EnemyMagicEffect.hpp"
 #include "graphics/PropBreakEffect.hpp"
 #include "graphics/BuildingPlacementEffect.hpp"
+#include "graphics/BuildingDestructionEffect.hpp"
 #include "app/App.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
@@ -308,6 +309,7 @@ void App::drawPresentationEffects(
             return effect.type == PresentationEffectType::EnemyMagicCast ||
                    effect.type == PresentationEffectType::EnemyMagicImpact ||
                    effect.type == PresentationEffectType::RoyalImpact ||
+                   effect.type == PresentationEffectType::Debris ||
                    (effect.type == PresentationEffectType::BuildingPlaced && effect.variant == 0) ||
                    effect.type == PresentationEffectType::PropBreak;
         })) {
@@ -321,16 +323,28 @@ void App::drawPresentationEffects(
         renderer_->beginColorOnlyWorldEffects();
         fire_wand_effect::beginBatch();
         int constructionBursts = 0;
+        int destructionBursts = 0;
         for (const auto& effect : effects_) {
             if (effect.startDelayRemaining > 0 || effect.duration <= 0 ||
                 (effect.type != PresentationEffectType::EnemyMagicCast &&
                  effect.type != PresentationEffectType::EnemyMagicImpact &&
                  effect.type != PresentationEffectType::RoyalImpact &&
+                 effect.type != PresentationEffectType::Debris &&
                  effect.type != PresentationEffectType::BuildingPlaced &&
                  effect.type != PresentationEffectType::PropBreak)) continue;
             const Vector3 center = enemy_magic_effect::point(effect.position);
             const Vector3 delta = Vector3Subtract(center, camera.position);
             if (Vector3LengthSqr(delta) > 1600 || Vector3DotProduct(delta, cameraForward) < -1) continue;
+            if (effect.type == PresentationEffectType::Debris) {
+                if (effect.remaining <= 0 || effect.remaining >= effect.duration || destructionBursts >= 12) continue;
+                ++destructionBursts;
+                building_destruction_effect::burst(center,camera.position,
+                    static_cast<float>(1-effect.remaining/effect.duration),effect.scale,
+                    effect.entityId ? effect.entityId->index :
+                        static_cast<std::uint32_t>(std::abs(center.x*73+center.z*137)),
+                    renderer_->settings().particles,effect.variant);
+                continue;
+            }
             if (effect.type == PresentationEffectType::BuildingPlaced) {
                 if (effect.variant != 0 || effect.remaining <= 0 ||
                     effect.remaining >= effect.duration * .88 || constructionBursts >= 12) continue;
@@ -819,6 +833,7 @@ void App::drawPresentationEffects(
         if (effect.startDelayRemaining > 0.0 ||
             effect.type == PresentationEffectType::RoyalImpact ||
             effect.type == PresentationEffectType::PropBreak ||
+            effect.type == PresentationEffectType::Debris ||
             effect.type == PresentationEffectType::EnemyMagicCast ||
             effect.type == PresentationEffectType::EnemyMagicImpact ||
             effect.type == PresentationEffectType::EnemyBurn ||

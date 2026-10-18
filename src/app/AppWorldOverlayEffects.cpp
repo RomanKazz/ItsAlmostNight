@@ -3,6 +3,7 @@
 #include "buildings/BuildingOrientation.hpp"
 #include "game/ModularCombat.hpp"
 #include "graphics/CameraCulling.hpp"
+#include "graphics/BuildingDestructionEffect.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -18,8 +19,19 @@ using namespace app_detail;
 
 void App::drawSoldBuildingVisuals() {
     BeginBlendMode(BLEND_ALPHA);
+    int drawn = 0;
     for (const SoldBuildingVisual& visual :
          soldBuildingVisuals_) {
+        if (visual.remaining <= 0 || visual.duration <= 0) continue;
+        Vec3 pivot{};
+        const auto& config=simulation_.terrain().config();
+        if (visual.building) pivot=buildingWorldPosition(*visual.building);
+        else if (visual.platformFrame) pivot=modularBaseCenter(*visual.platformFrame,config);
+        else if (visual.modularWall) pivot=modularBaseCenter(*visual.modularWall,config);
+        else if (visual.ramp) pivot=modularBaseCenter(*visual.ramp,config);
+        else continue;
+        if (std::hypot(pivot.x-gameplayCamera_.position.x,pivot.z-gameplayCamera_.position.z)>40 || drawn>=24) continue;
+        ++drawn;
         const float progress = std::clamp(
             static_cast<float>(
                 1.0 -
@@ -56,12 +68,7 @@ void App::drawSoldBuildingVisuals() {
             fade = 1.0F -
                 smoothstep(0.72F, 1.0F, progress);
         } else {
-            const float collapse =
-                1.0F - smoothstep(0.08F, 1.0F, progress);
-            scale =
-                collapse *
-                (1.0F +
-                 std::sin(progress * PI) * 0.09F);
+            scale = building_destruction_effect::scaleAt(progress);
             sink = progress * progress * 0.42F;
             fade =
                 1.0F - smoothstep(0.45F, 1.0F, progress);
@@ -69,6 +76,12 @@ void App::drawSoldBuildingVisuals() {
         const auto alpha = static_cast<unsigned char>(
             std::lround(fade * 230.0F));
         const Color tint{255, 222, 174, alpha};
+        const float wobble=std::sin(progress*32)*std::exp(-progress*7)*4;
+        rlPushMatrix();
+        rlTranslatef(static_cast<float>(pivot.x),static_cast<float>(pivot.y),static_cast<float>(pivot.z));
+        rlRotatef(wobble,0,0,1);
+        rlScalef(1,building_destruction_effect::squashAt(progress),1);
+        rlTranslatef(-static_cast<float>(pivot.x),-static_cast<float>(pivot.y),-static_cast<float>(pivot.z));
         if (!visual.building) {
             const EntityId id =
                 visual.platformFrame
@@ -110,6 +123,7 @@ void App::drawSoldBuildingVisuals() {
                     fade,
                 },
                 {});
+            rlPopMatrix();
             rlPopMatrix();
             continue;
         }
@@ -329,6 +343,7 @@ void App::drawSoldBuildingVisuals() {
                          {151, 105, 62, alpha});
             }
         }
+        rlPopMatrix();
     }
     EndBlendMode();
 }

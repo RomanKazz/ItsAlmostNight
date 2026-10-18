@@ -1,3 +1,4 @@
+#include "game/BuildingDestructionVisual.hpp"
 #include "game/Simulation.hpp"
 
 #include "game/ChallengeArena.hpp"
@@ -366,6 +367,7 @@ void Simulation::updateCombat(double deltaSeconds) {
             }
             const double fortifiedDamage = isFortified(attack.targetId)
                 ? attack.damage * 0.65 : attack.damage;
+            const auto destroyedVisual = buildingBeforeLethalHit(buildings_,attack.targetId,fortifiedDamage);
             const auto damage =
                 buildings_.damage(
                     attack.targetId, fortifiedDamage);
@@ -514,6 +516,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     .type = GameEventType::BuildingDestroyed,
                     .entityId = damage->id,
                     .buildingType = damage->type,
+                    .building = destroyedVisual,
                     .position =
                         buildingWorldPosition(*damage),
                 });
@@ -641,6 +644,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
             }
         }
         for (const auto& [id, center] : buildingTargets) {
+            const auto destroyedVisual = buildingBeforeLethalHit(buildings_,id,BuildingDamage);
             const auto result =
                 buildings_.damage(id, BuildingDamage);
             if (!result) {
@@ -670,6 +674,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
                     .type = GameEventType::BuildingDestroyed,
                     .entityId = result->id,
                     .buildingType = result->type,
+                    .building = destroyedVisual,
                     .position = center,
                 });
                 worldStructuresDirty = true;

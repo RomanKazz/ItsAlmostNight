@@ -1,3 +1,4 @@
+#include "game/BuildingDestructionVisual.hpp"
 #include "game/Simulation.hpp"
 
 namespace ian {
@@ -12,6 +13,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             .position = activation.position,
             .amount = activation.affectedCount,
         });
+        const auto destroyedVisual = buildingBeforeLethalHit(buildings_,activation.trapId,activation.wearDamage);
         const auto wear = buildings_.damage(
             activation.trapId, activation.wearDamage);
         if (wear && wear->destroyed) {
@@ -19,6 +21,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
                 .type = GameEventType::BuildingDestroyed,
                 .entityId = wear->id,
                 .buildingType = wear->type,
+                .building = destroyedVisual,
                 .position = buildingWorldPosition(*wear),
             });
             syncWorldStructures();

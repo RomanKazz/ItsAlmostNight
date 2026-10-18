@@ -2,6 +2,7 @@
 #include <limits>
 #include "buildings/BuildingHotbarLayout.hpp"
 #include "buildings/BuildingSystem.hpp"
+#include "game/BuildingDestructionVisual.hpp"
 
 #include <numbers>
 #include <ranges>
@@ -311,6 +312,12 @@ void runBuildingSystemTests() {
         restoredWall != buildings.buildings().end() &&
             restoredWall->health == 75.0,
         "field repair updates damaged building health");
+    require(!ian::buildingBeforeLethalHit(buildings,wall->building.id,74.0),
+            "nonlethal hits do not capture destruction ghosts");
+    const auto wallVisual=ian::buildingBeforeLethalHit(buildings,wall->building.id,75.0);
+    require(wallVisual && wallVisual->gridPosition==wall->building.gridPosition &&
+                wallVisual->level==wall->building.level && wallVisual->rotation==wall->building.rotation,
+            "lethal hits retain the exact building model before erasing it");
     const auto destroyedWall = buildings.damage(wall->building.id, 75.0);
     require(destroyedWall.has_value() && destroyedWall->destroyed,
             "lethal building damage destroys instance");

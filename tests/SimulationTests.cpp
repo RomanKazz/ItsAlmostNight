@@ -1433,6 +1433,12 @@ void runSimulationTests() {
         destroyCore.damageCore = ian::DamageCoreCommand{100000.0};
         defeatSimulation.tick(1.0 / 60.0, destroyCore);
         const auto defeatEvents = defeatSimulation.takeEvents();
+        const auto destroyedCore=std::ranges::find(defeatEvents,ian::GameEventType::BuildingDestroyed,
+            &ian::GameEvent::type);
+        require(destroyedCore!=defeatEvents.end() && destroyedCore->building &&
+                destroyedCore->building->type==ian::BuildingType::Core &&
+                destroyedCore->building->id==destroyedCore->entityId,
+                "lethal core event retains its authored model for destruction presentation");
         require(
             defeatSimulation.snapshot().state ==
                     ian::RunState::Defeat &&

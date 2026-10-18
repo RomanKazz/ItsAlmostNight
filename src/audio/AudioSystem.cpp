@@ -471,6 +471,12 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::BuildingDestroyed:
     case GameEventType::ModularBuildingDestroyed:
+        // A collapsing row shares one crunch instead of restarting the clip
+        // for every piece in the same frame.
+        if (structureBreak_.loaded && !IsSoundPlaying(structureBreak_.sound)) {
+            playAt(structureBreak_, event.position, snapshot, .70F, variedPitch(.06F));
+        }
+        break;
     case GameEventType::BuildingSold:
         playAt(
             structureBreak_, event.position, snapshot, 0.82F,
