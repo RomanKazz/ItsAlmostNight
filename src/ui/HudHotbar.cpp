@@ -7,6 +7,7 @@
 #include "ui/HudFormatting.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
+#include "localization/Localization.hpp"
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -446,11 +447,10 @@ void drawBuildHotbar(
         const bool selected =
             snapshot.selectedBuilding &&
             *snapshot.selectedBuilding == type;
-        const bool affordable =
-            snapshot.unlimitedResources ||
-            canAfford(
-                cost, snapshot.wood,
-                snapshot.stone, snapshot.crystals);
+        const bool affordable = snapshot.unlimitedResources ||
+            ((snapshot.sandboxMode || buildingLimitCategory(type) == BuildingLimitCategory::None ||
+                snapshot.placedBuildingCount < snapshot.totalBuildingLimit) &&
+             canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals));
         slots.push_back({
             .key = Keys[index],
             .label = buildingDisplayName(type),
@@ -468,6 +468,15 @@ void drawBuildHotbar(
         false, true, {},
         transitionOffset, view.invalidActionRemaining, false,
         snapshot.unlimitedResources ? nullptr : &stock);
+    if (snapshot.selectedBuilding && buildingLimitCategory(*snapshot.selectedBuilding) == BuildingLimitCategory::Structure &&
+        !snapshot.unlimitedResources && !snapshot.sandboxMode) {
+        const std::string count = localizeText("BUILDINGS") + " " + std::to_string(snapshot.placedBuildingCount) +
+            " / " + std::to_string(snapshot.totalBuildingLimit);
+        const Vector2 size = measureUiText(count, 12);
+        drawUiText(count, {(static_cast<float>(uiScreenWidth())-size.x)*.5F,
+            static_cast<float>(uiScreenHeight())-211+transitionOffset}, 12,
+            snapshot.placedBuildingCount >= snapshot.totalBuildingLimit ? Color{255, 101, 90, 255} : Color{255, 239, 204, 255});
+    }
 }
 
 void drawLootInventory(

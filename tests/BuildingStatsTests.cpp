@@ -28,10 +28,8 @@ void runBuildingStatsTests() {
     const auto coreComparison = ian::compareBuildingStats(
         core, producers, ian::MaxBuildingLevel);
     require(
-        coreComparison.current.defenseBuildingLimit == 3.0 &&
-            coreComparison.next->defenseBuildingLimit == 5.0 &&
-            coreComparison.current.producerPerTypeLimit == 1.0 &&
-            coreComparison.next->producerPerTypeLimit == 2.0 &&
+        coreComparison.current.buildingLimit == 3.0 &&
+            coreComparison.next->buildingLimit == 5.0 &&
             coreComparison.current.woodCapacity == 120.0 &&
             coreComparison.current.stoneCapacity == 75.0 &&
             coreComparison.current.crystalCapacity == 75.0 &&

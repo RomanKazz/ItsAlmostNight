@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include <limits>
 #include "buildings/BuildingHotbarLayout.hpp"
 #include "buildings/BuildingSystem.hpp"
 
@@ -413,6 +414,64 @@ void runBuildingSystemTests() {
                 ian::BuildingType::SlowTrap) == 5,
         "all active defense types report the same shared capacity");
 
+    // Producers no longer have a separate per-type allowance.
+    ian::BuildingSystem sharedCapacity;
+    auto capacityCore = sharedCapacity.place(ian::BuildingType::Core, {0,0}, 0, 10000,10000,10000);
+    require(capacityCore.has_value(), "shared capacity core exists");
+    auto millA = sharedCapacity.place(ian::BuildingType::LumberMill, {-4,-4}, 0,10000,10000,10000);
+    auto millB = sharedCapacity.place(ian::BuildingType::LumberMill, {-4,0}, 0,10000,10000,10000);
+    auto capacityTurret = sharedCapacity.place(ian::BuildingType::GunTurret, {-4,4}, 0,10000,10000,10000);
+    require(millA && millB && capacityTurret && sharedCapacity.placedBuildingCount() == 3,
+        "two identical producers and a turret fit the same three-place budget");
+    for (auto type : {ian::BuildingType::Quarry, ian::BuildingType::GunTurret,
+            ian::BuildingType::SpikeTrap, ian::BuildingType::RepairStation, ian::BuildingType::DecoyBeacon}) {
+        require(sharedCapacity.placementCount(type) == 3 && sharedCapacity.placementLimit(type) == 3 &&
+            sharedCapacity.validate(type, {0,-4}, 10000,10000,10000).error == ian::PlacementError::LimitReached,
+            "every defense, support, trap and producer sees the exhausted shared budget");
+    }
+    require(sharedCapacity.place(ian::BuildingType::Wall, {3,0},0,10000,10000,10000).has_value() &&
+        sharedCapacity.place(ian::BuildingType::Gate, {5,0},0,10000,10000,10000).has_value() &&
+        sharedCapacity.placedBuildingCount() == 3,
+        "Core, walls and gates never consume shared places");
+    require(sharedCapacity.sell(millA->building.id).valid() && sharedCapacity.placedBuildingCount() == 2 &&
+        sharedCapacity.place(ian::BuildingType::Quarry, {0,-4},0,10000,10000,10000).has_value(),
+        "selling a producer frees a place for another type immediately");
+    require(sharedCapacity.damage(capacityTurret->building.id, 100000).has_value() &&
+        sharedCapacity.placedBuildingCount() == 2,
+        "destruction immediately frees shared capacity");
+    const auto capacityLegacyBuildings = sharedCapacity.buildings();
+    sharedCapacity.setBuildingLimitBonus(0);
+    ian::BuildingSystem legacyCapacity;
+    auto overBudget = capacityLegacyBuildings;
+    for (int i = 0; i < 8; ++i) {
+        auto copy = millB->building;
+        copy.id = {static_cast<std::uint32_t>(9000+i),1};
+        copy.gridPosition = {20+i*3, 0};
+        overBudget.push_back(copy);
+    }
+    require(legacyCapacity.restoreBuildings(overBudget, sharedCapacity.blueprintLevels(), 100) &&
+        legacyCapacity.placedBuildingCount() == 10 && legacyCapacity.totalBuildingLimit() == 3 &&
+        legacyCapacity.validate(ian::BuildingType::Quarry, {0,8},10000,10000,10000).error == ian::PlacementError::LimitReached,
+        "old over-budget bases retain every building and block only additional construction");
+    sharedCapacity.setBuildingLimitBonus(4);
+    for (int level = 1; level <= ian::MaxBuildingLevel; ++level) {
+        require(sharedCapacity.totalBuildingLimit() == 3 + 2*(level-1) + 4 &&
+            sharedCapacity.placementLimit(ian::BuildingType::LumberMill) == sharedCapacity.totalBuildingLimit(),
+            "every core level grants exactly two places while retaining additive bonuses");
+        if (level < ian::MaxBuildingLevel)
+            require(sharedCapacity.upgrade(capacityCore->building.id,10000,10000,10000).valid(),
+                "shared capacity fixture upgrades core");
+    }
+    sharedCapacity.setBuildingLimitBonus(0);
+    require(sharedCapacity.totalBuildingLimit() == 17, "core level eight has seventeen base places");
+    sharedCapacity.setSandboxMode(true);
+    require(sharedCapacity.placementLimit(ian::BuildingType::Quarry) == std::numeric_limits<int>::max(),
+        "godmode retains unlimited construction");
+    sharedCapacity.setSandboxMode(false);
+    sharedCapacity.reset();
+    require(sharedCapacity.totalBuildingLimit() == 3 && sharedCapacity.placedBuildingCount() == 0,
+        "reset clears shared buildings and capacity bonuses");
+
     ian::BuildingSystem cannonBuildings;
     const auto cannonCore =
         cannonBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
@@ -615,10 +674,11 @@ void runBuildingSystemTests() {
                 buildings.place(ian::BuildingType::CrystalMine, {8, 5}, 0, 20, 10).has_value() &&
                 buildings.place(ian::BuildingType::CrystalMine, {10, 3}, 0, 20, 10).has_value() &&
                 buildings.place(ian::BuildingType::CrystalMine, {10, 5}, 0, 20, 10).has_value(),
-            "maximum core level allows eight mines of each type");
-    require(buildings.validate(ian::BuildingType::CrystalMine, {8, 7}, 20, 10).error ==
-                ian::PlacementError::LimitReached,
-            "producer limit follows maximum core level");
+            "producers can use all available shared places without a per-type cap");
+    require(buildings.validate(ian::BuildingType::CrystalMine, {8, 7}, 1000, 1000).valid() &&
+        buildings.placementLimit(ian::BuildingType::CrystalMine) == 17 &&
+        buildings.placementCount(ian::BuildingType::CrystalMine) == buildings.placementCount(ian::BuildingType::Turret),
+        "a ninth producer is allowed when the shared seventeen-place budget has room");
 
     const ian::Vec3 player{0.0, 1.7, 6.0};
     const auto closeAim =

@@ -650,23 +650,16 @@ void App::drawCoreDefenseMenu() {
               ((1.0 + 0.15 * static_cast<double>(core.level)) /
                (1.0 + 0.15 * static_cast<double>(core.level - 1)))
         : core.maxHealth;
-    const std::array<StatRow, 7> rows{
+    const std::array<StatRow, 6> rows{
         StatRow{CoreMenuTexture::Heart, "HEALTH",
                 static_cast<int>(std::lround(core.maxHealth)),
                 static_cast<int>(std::lround(healthStep))},
         StatRow{CoreMenuTexture::Gear, "RANGE",
                 snapshot.coreBuildRadius,
                 snapshot.coreBuildRadius + (hasNextLevel ? CoreBuildRadiusPerLevel : 0)},
-        StatRow{CoreMenuTexture::Shield, "DEFENSES",
-                buildingLimitForCoreLevel(BuildingType::Turret,
-                                          core.level),
-                buildingLimitForCoreLevel(BuildingType::Turret,
-                                          nextLevel)},
-        StatRow{CoreMenuTexture::Gear, "PRODUCERS",
-                buildingLimitForCoreLevel(BuildingType::LumberMill,
-                                          core.level),
-                buildingLimitForCoreLevel(BuildingType::LumberMill,
-                                          nextLevel)},
+        StatRow{CoreMenuTexture::Shield, "BUILDINGS",
+                buildingLimitForCoreLevel(BuildingType::Turret, core.level) + snapshot.buildingLimitBonus,
+                buildingLimitForCoreLevel(BuildingType::Turret, nextLevel) + snapshot.buildingLimitBonus},
         StatRow{CoreMenuTexture::Wood, "WOOD",
                 coreResourceCapacity(ResourceCapacityType::Wood,
                                      core.level),

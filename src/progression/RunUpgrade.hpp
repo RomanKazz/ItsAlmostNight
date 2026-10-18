@@ -86,10 +86,12 @@ enum class RunUpgradeEffect {
     UnlockRepairStation,
     UnlockDecoyBeacon,
     UnlockWindBlower,
+    BuildingCapacity, // Shared placed-structure capacity tome; append-only save ID 68.
+    ExtraBuilding, // Slot-free +1 capacity purchase; append-only save ID 69.
     ResourceCapacity = RichResources, // Stable former yield-tome save ID.
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 68U;
+inline constexpr std::size_t RunUpgradeEffectCount = 70U;
 // Poison deals 25% of the triggering hit per second for four seconds.
 // Reapplication refreshes duration and retains the strongest dose.
 inline constexpr double PoisonDuration = 4.0;
@@ -117,7 +119,8 @@ struct RunTomeDefinition {
     std::uint32_t colorRgb;
 };
 
-inline constexpr std::array<RunTomeDefinition, 27> RunTomeDefinitions{{
+inline constexpr std::array<RunTomeDefinition, 28> RunTomeDefinitions{{
+    {RunUpgradeEffect::BuildingCapacity, "EXPANSION TOME", "BUILD", 0xE4B65A},
     {RunUpgradeEffect::BuildingHealth, "FORTITUDE TOME", "DEF", 0x78A7FF},
     {RunUpgradeEffect::ProductionSpeed, "INDUSTRY TOME", "PROD", 0x72DA92},
     {RunUpgradeEffect::Luck, "FORTUNE TOME", "LUCK", 0xA36CEF},
@@ -282,6 +285,8 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockRepairStation, "REPAIR STATION", "Repairs nearby walls and weapons every 2s. Upgrade all copies."},
         {RunUpgradeEffect::UnlockDecoyBeacon, "DECOY", "Light pulses lure nearby enemies. Upgrade all copies."},
         {RunUpgradeEffect::UnlockWindBlower, "WIND BLOWER", "Gusts push back crowds. Upgrade all copies."},
+        {RunUpgradeEffect::BuildingCapacity, "EXPANSION TOME", "+1 building capacity"},
+        {RunUpgradeEffect::ExtraBuilding, "+1 BUILDING", "+1 building capacity. No slot required."},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -469,13 +474,14 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr bool fixedRunUpgradePower(RunUpgradeEffect effect) {
-    return runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
+    return effect == RunUpgradeEffect::ExtraBuilding || runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
         effect == RunUpgradeEffect::RiskyInvestment ||
         effect == RunUpgradeEffect::RerollToken;
 }
 
 [[nodiscard]] constexpr bool discreteRunUpgradePower(RunUpgradeEffect effect) {
-    return effect == RunUpgradeEffect::Overkill || effect == RunUpgradeEffect::Ricochet ||
+    return effect == RunUpgradeEffect::BuildingCapacity || effect == RunUpgradeEffect::ExtraBuilding ||
+        effect == RunUpgradeEffect::Overkill || effect == RunUpgradeEffect::Ricochet ||
         effect == RunUpgradeEffect::TwinBatteries || effect == RunUpgradeEffect::ClusterPayload ||
         effect == RunUpgradeEffect::GunPiercing || effect == RunUpgradeEffect::GunShrapnel ||
         effect == RunUpgradeEffect::NightlyBomb;
@@ -503,7 +509,7 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return RunUpgradeRarity::Common;
+    if (effect == RunUpgradeEffect::ExtraBuilding || runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return RunUpgradeRarity::Common;
     if (runUpgradeCannonStyle(effect)) return RunUpgradeRarity::Rare;
     return effect == RunUpgradeEffect::RerollToken ? RunUpgradeRarity::Rare : RunUpgradeRarity::Epic;
 }
@@ -523,6 +529,8 @@ runUpgradeRarityProbabilities(double luck) {
     case RunUpgradeEffect::ClusterPayload:
     case RunUpgradeEffect::GunShrapnel:
         return 2;
+    case RunUpgradeEffect::BuildingCapacity:
+    case RunUpgradeEffect::ExtraBuilding:
     case RunUpgradeEffect::GunPiercing:
         return 3;
     case RunUpgradeEffect::LockChoice:

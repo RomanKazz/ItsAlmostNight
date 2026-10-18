@@ -25,12 +25,9 @@ BuildingStats buildingStatsAtLevel(
             (1.0 + 0.15 * static_cast<double>(level - 1)),
     };
     if (building.type == BuildingType::Core) {
-        stats.defenseBuildingLimit = static_cast<double>(
+        stats.buildingLimit = static_cast<double>(
             buildingLimitForCoreLevel(
                 BuildingType::Turret, level));
-        stats.producerPerTypeLimit = static_cast<double>(
-            buildingLimitForCoreLevel(
-                BuildingType::CrystalMine, level));
         stats.woodCapacity = static_cast<double>(
             coreResourceCapacity(ResourceCapacityType::Wood, level));
         stats.stoneCapacity = static_cast<double>(

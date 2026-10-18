@@ -41,6 +41,14 @@ const SimulationSnapshot& Simulation::snapshot() const {
         if (aimed != buildings_.buildings().end()) {
             aimedStats = compareBuildingStats(
                 *aimed, crystalMines_, MaxBuildingLevel);
+            if (aimed->type == BuildingType::Core) {
+                const auto addBonus = [&](BuildingStats& stats) {
+                    if (stats.buildingLimit) *stats.buildingLimit += buildings_.buildingLimitBonus();
+                };
+                addBonus(aimedStats->current);
+                if (aimedStats->previous) addBonus(*aimedStats->previous);
+                if (aimedStats->next) addBonus(*aimedStats->next);
+            }
             if (aimed->type == BuildingType::WindBlower) {
                 aimedFinalStats = towers_.finalStats(*aimed);
                 const auto updateWindStats = [&](BuildingStats& view, std::uint8_t level) {
@@ -318,6 +326,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .coreBuildRadius = sandboxMode_
             ? 0
             : buildings_.coreBuildRadius(),
+        .placedBuildingCount = buildings_.placedBuildingCount(),
+        .totalBuildingLimit = buildings_.totalBuildingLimit(),
+        .buildingLimitBonus = buildings_.buildingLimitBonus(),
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
         .buildingPreviewFinalAttackStats = previewFinalStats,

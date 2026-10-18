@@ -188,8 +188,7 @@ void drawBuildingContextCard(
         add("PER CYCLE", &BuildingStats::productionPerCycle);
         add("CYCLE TIME", &BuildingStats::productionInterval,1,"s");
         add("CAPACITY", &BuildingStats::producerCapacity);
-        add("DEFENSE LIMIT", &BuildingStats::defenseBuildingLimit);
-        add("EACH PRODUCER", &BuildingStats::producerPerTypeLimit);
+        add("BUILDINGS", &BuildingStats::buildingLimit);
         add("WOOD CAPACITY", &BuildingStats::woodCapacity);
         add("STONE CAPACITY", &BuildingStats::stoneCapacity);
         add("CRYSTAL CAPACITY", &BuildingStats::crystalCapacity);

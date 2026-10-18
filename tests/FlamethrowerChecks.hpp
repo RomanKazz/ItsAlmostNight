@@ -16,7 +16,7 @@ inline void checkFlamethrowerBuilding() {
     static_assert(runUpgradeIndex(RunUpgradeEffect::UpgradePickaxe) == 58);
     static_assert(runUpgradeIndex(RunUpgradeEffect::UnlockFlamethrower) == 59);
     require(runDefenseCard(RunUpgradeEffect::UnlockFlamethrower), "flamethrower uses shared defense cards");
-    require(buildingLimitCategory(BuildingType::Flamethrower) == BuildingLimitCategory::Defense,
+    require(buildingLimitCategory(BuildingType::Flamethrower) == BuildingLimitCategory::Structure,
         "flamethrower consumes the core defense limit");
     require(isDirectionalDefense(BuildingType::Flamethrower) && buildingRotationStepCount(BuildingType::Flamethrower)==8,
         "flamethrower supports placement and manual eight-way rotation");

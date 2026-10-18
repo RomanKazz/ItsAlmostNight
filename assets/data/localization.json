@@ -3,6 +3,13 @@
   "languages": {
     "en": {},
     "ru": {
+      "Building capacity": "к лимиту построек",
+      "Building capacity. No slot required.": "к лимиту построек. Не занимает слот.",
+      "EXPANSION TOME": "ТОМ РАСШИРЕНИЯ",
+      "+1 BUILDING": "+1 ПОСТРОЙКА",
+      "+1 building capacity": "+1 к лимиту построек",
+      "+1 building capacity. No slot required.": "+1 к лимиту построек. Не занимает слот.",
+      "Buildings": "Постройки",
       "SITES": "МЕСТА",
       "CHESTS": "СУНДУКИ",
       "SUPPLIES": "ПРИПАСЫ",

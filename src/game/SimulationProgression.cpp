@@ -92,6 +92,9 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 }
 
 void Simulation::refreshRunUpgradeRuntimeEffects() {
+    buildings_.setBuildingLimitBonus(runUpgradeCount(RunUpgradeEffect::BuildingCapacity) +
+        runUpgradeCount(RunUpgradeEffect::ExtraBuilding) +
+        shrineBonusCount(shrines_, ShrineKind::Buildings, RunUpgradeEffect::BuildingCapacity));
     const bool cardProgression = !sandboxMode_ && !unlimitedResources_;
     buildings_.setCombatCardProgressionEnabled(cardProgression);
     bool defenseLevelsChanged = false;
@@ -249,7 +252,7 @@ void Simulation::generateRunUpgradeChoices() {
     std::vector<RunUpgradeEffect> pool;
     pool.reserve(RunUpgradeEffectCount);
     for (const RunUpgradeDefinition& definition : RunUpgradeDefinitions) {
-        if (!runUpgradeAvailable(definition.effect)) continue;
+        if (definition.effect == RunUpgradeEffect::ExtraBuilding || !runUpgradeAvailable(definition.effect)) continue;
         if (definition.effect == RunUpgradeEffect::WiderChoice &&
             runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) continue;
         if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) continue;
@@ -380,6 +383,9 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::RecoverableArmor:
         playerMaxRecoverableArmor_ += 8.0 * power;
         playerRecoverableArmor_ += 8.0 * power;
+        break;
+    case RunUpgradeEffect::BuildingCapacity:
+    case RunUpgradeEffect::ExtraBuilding:
         break;
     case RunUpgradeEffect::BuildingHealth:
         runBuildingMaxHealthMultiplier_ += 0.12 * power;

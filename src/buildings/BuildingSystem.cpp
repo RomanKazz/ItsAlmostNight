@@ -270,11 +270,10 @@ BuildingLimitCategory buildingLimitCategory(
     case BuildingType::Catapult:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
-        return BuildingLimitCategory::Defense;
     case BuildingType::CrystalMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
-        return BuildingLimitCategory::Producer;
+        return BuildingLimitCategory::Structure;
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
@@ -288,21 +287,9 @@ BuildingLimitCategory buildingLimitCategory(
 
 int buildingLimitForCoreLevel(
     BuildingType type, std::uint8_t coreLevel) {
-    constexpr std::array DefenseLimits{
-        3, 5, 8, 12, 16, 21, 27, 34};
-    constexpr std::array PerTypeLimits{
-        1, 2, 3, 4, 5, 6, 7, 8};
-    const std::size_t index = static_cast<std::size_t>(
-        std::clamp<int>(coreLevel, 1, MaxBuildingLevel) - 1);
-    switch (buildingLimitCategory(type)) {
-    case BuildingLimitCategory::Defense:
-        return DefenseLimits[index];
-    case BuildingLimitCategory::Producer:
-        return PerTypeLimits[index];
-    case BuildingLimitCategory::None:
+    if (buildingLimitCategory(type) == BuildingLimitCategory::None)
         return std::numeric_limits<int>::max();
-    }
-    return std::numeric_limits<int>::max();
+    return 3 + 2 * (std::clamp<int>(coreLevel, 1, MaxBuildingLevel) - 1);
 }
 
 ResourceCost buildingUpgradeCost(const BuildingInstance& building) {
@@ -511,6 +498,7 @@ BuildingSystem::BuildingSystem(
     EconomyBalanceDefinition economy, int coreBuildRadius)
     : definitions_(definitions), economy_(economy), coreBuildRadius_(coreBuildRadius) {
     blueprintLevels_.fill(1);
+    buildingLimitBonus_ = 0;
 }
 
 void BuildingSystem::setCoreBuildRadius(int radius) {
@@ -752,36 +740,33 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
     return {PlacementError::None, requiredCost};
 }
 
+void BuildingSystem::setBuildingLimitBonus(int bonus) {
+    buildingLimitBonus_ = std::clamp(bonus, 0, std::numeric_limits<int>::max() - 32);
+}
+
+int BuildingSystem::placedBuildingCount() const {
+    return static_cast<int>(std::ranges::count_if(buildings_, [](const BuildingInstance& building) {
+        return buildingLimitCategory(building.type) == BuildingLimitCategory::Structure;
+    }));
+}
+
+int BuildingSystem::totalBuildingLimit() const {
+    if (sandboxMode_) return std::numeric_limits<int>::max();
+    const auto coreBuilding = core();
+    return buildingLimitForCoreLevel(BuildingType::Turret, coreBuilding ? coreBuilding->level : 1U) +
+        buildingLimitBonus_;
+}
+
 int BuildingSystem::placementCount(BuildingType type) const {
-    const BuildingLimitCategory category =
-        buildingLimitCategory(type);
-    return static_cast<int>(std::count_if(
-        buildings_.begin(), buildings_.end(),
-        [type, category](const BuildingInstance& building) {
-            if (category == BuildingLimitCategory::Defense) {
-                return buildingLimitCategory(building.type) ==
-                    BuildingLimitCategory::Defense;
-            }
-            return building.type == type;
-        }));
+    if (buildingLimitCategory(type) == BuildingLimitCategory::Structure)
+        return placedBuildingCount();
+    return static_cast<int>(std::ranges::count(buildings_, type, &BuildingInstance::type));
 }
 
 int BuildingSystem::placementLimit(BuildingType type) const {
-    if (sandboxMode_) {
-        return std::numeric_limits<int>::max();
-    }
-    int limit = definition(type).maxCount;
-    if (buildingLimitCategory(type) ==
-        BuildingLimitCategory::None) {
-        return limit;
-    }
-    const auto coreBuilding = core();
-    if (!coreBuilding) {
-        return 0;
-    }
-    return std::min(
-        limit,
-        buildingLimitForCoreLevel(type, coreBuilding->level));
+    if (sandboxMode_) return std::numeric_limits<int>::max();
+    if (buildingLimitCategory(type) == BuildingLimitCategory::None) return definition(type).maxCount;
+    return hasCore() ? totalBuildingLimit() : 0;
 }
 
 std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosition position,

@@ -580,6 +580,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     section("ECONOMY");
     row("Production", multiplier(stats.productionSpeed), multiplier(next.productionSpeed));
     row("Resource node capacity", multiplier(stats.resourceCapacity), multiplier(next.resourceCapacity));
+    row("Buildings", std::to_string(snapshot.totalBuildingLimit), std::to_string(projected.totalBuildingLimit));
     row("Build range", std::to_string(snapshot.coreBuildRadius) + "m", std::to_string(projected.coreBuildRadius) + "m");
     row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
@@ -766,6 +767,13 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
         projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.07); break;
     case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth += 12.0 * gain; break;
     case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
+    case RunUpgradeEffect::BuildingCapacity:
+    case RunUpgradeEffect::ExtraBuilding: {
+        const int extra = runUpgradeDiscreteAmount(effect, current + gain) - runUpgradeDiscreteAmount(effect, current);
+        projected.totalBuildingLimit += extra;
+        projected.buildingLimitBonus += extra;
+        break;
+    }
     case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::round(3.0 * gain)); break;
     case RunUpgradeEffect::GatheringSpeed: projected.upgradeStats.toolAttackSpeed *= ratio(1.0, 0.15); break;
     case RunUpgradeEffect::Luck: projected.upgradeStats.luck += 0.10 * gain; break;

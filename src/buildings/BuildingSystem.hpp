@@ -47,8 +47,7 @@ enum class BuildingType {
 
 enum class BuildingLimitCategory {
     None,
-    Defense,
-    Producer,
+    Structure,
 };
 
 [[nodiscard]] constexpr bool isRemovedStorageBuilding(
@@ -283,6 +282,11 @@ class BuildingSystem {
     [[nodiscard]] bool hasCore() const;
     [[nodiscard]] std::optional<BuildingInstance> core() const;
     [[nodiscard]] const std::vector<BuildingInstance>& buildings() const;
+    // Counted structures share one budget; Core, walls and gates are excluded.
+    void setBuildingLimitBonus(int bonus);
+    [[nodiscard]] int buildingLimitBonus() const { return buildingLimitBonus_; }
+    [[nodiscard]] int placedBuildingCount() const;
+    [[nodiscard]] int totalBuildingLimit() const;
     [[nodiscard]] int placementCount(BuildingType type) const;
     [[nodiscard]] int placementLimit(BuildingType type) const;
 
@@ -299,6 +303,7 @@ class BuildingSystem {
     std::array<BuildingBalanceDefinition, GameBalance::BuildingTypeCount> definitions_;
     EconomyBalanceDefinition economy_;
     int coreBuildRadius_;
+    int buildingLimitBonus_{};
     double maxHealthMultiplier_{1.0};
     bool newTowerBonusEnabled_{};
     bool sandboxMode_{};

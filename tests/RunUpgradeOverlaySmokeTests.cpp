@@ -86,6 +86,17 @@ int main(int argc, char** argv) {
     const auto venomProjected = ian::app_detail::previewRunUpgrade(venomPreview, 0);
     requireNear(ian::runPoisonChance(venomProjected.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::PoisonChance)]),
         .3, 1e-12, "legendary venom preview shows its thirty percent chance");
+    ian::SimulationSnapshot capacityPreview{};
+    capacityPreview.totalBuildingLimit = 4; capacityPreview.buildingLimitBonus = 1;
+    capacityPreview.runUpgradeChoiceCount = 1;
+    capacityPreview.runUpgradeChoices[0] = ian::RunUpgradeEffect::BuildingCapacity;
+    capacityPreview.runUpgradeRarities[0] = ian::RunUpgradeRarity::Rare;
+    capacityPreview.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::BuildingCapacity)] = 1.6;
+    require(ian::app_detail::previewRunUpgrade(capacityPreview, 0).totalBuildingLimit == 6,
+        "capacity preview floors accumulated fractional power, matching gameplay");
+    capacityPreview.shrines.offer = ian::ShrineKind::Buildings;
+    require(ian::app_detail::previewRunUpgrade(capacityPreview, 0).totalBuildingLimit == 5,
+        "shrine capacity preview always adds exactly one place");
     const Texture2D upgradeArrow = ui.coreMenuTexture(ian::CoreMenuTexture::UpgradeGreen);
     require(IsTextureValid(upgradeArrow) && upgradeArrow.width == 256 && upgradeArrow.height == 256,
         "building upgrade arrow loads as a 256x256 icon");
@@ -134,7 +145,7 @@ int main(int argc, char** argv) {
         shop.runShop.pending = true;
         shop.runShop.wave = 3;
         shop.coins = 35;
-        const std::array shopCards{ian::RunUpgradeEffect::Damage,ian::RunUpgradeEffect::MoveSpeed,
+        const std::array shopCards{ian::RunUpgradeEffect::ExtraBuilding,ian::RunUpgradeEffect::BuildingCapacity,
             ian::RunUpgradeEffect::UnlockQuarry,ian::RunUpgradeEffect::PoisonChance};
         for (std::size_t i=0;i<4;++i) {
             shop.runShop.offers[i] = {.effect=shopCards[i],.rarity=static_cast<ian::RunUpgradeRarity>(i),

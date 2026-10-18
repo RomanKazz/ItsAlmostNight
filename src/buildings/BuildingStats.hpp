@@ -27,8 +27,7 @@ struct BuildingStats {
     std::optional<double> attractionTargets;
     std::optional<double> repairPerSecond;
     std::optional<double> repairInterval;
-    std::optional<double> defenseBuildingLimit;
-    std::optional<double> producerPerTypeLimit;
+    std::optional<double> buildingLimit;
     std::optional<double> woodCapacity;
     std::optional<double> stoneCapacity;
     std::optional<double> crystalCapacity;

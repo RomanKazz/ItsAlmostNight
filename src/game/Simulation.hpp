@@ -365,6 +365,9 @@ struct SimulationSnapshot {
     std::array<bool, GameBalance::BuildingTypeCount>
         unlockedBuildings;
     int coreBuildRadius{};
+    int placedBuildingCount{};
+    int totalBuildingLimit{3};
+    int buildingLimitBonus{};
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts;
     std::optional<BuildingPreview> buildingPreview;

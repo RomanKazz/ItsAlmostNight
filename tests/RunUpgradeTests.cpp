@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "BuildingCapacityChecks.hpp"
 #include "DefenseCardProgressionChecks.hpp"
 #include "ProducerCardProgressionChecks.hpp"
 #include "WeaponCardProgressionChecks.hpp"
@@ -11,6 +12,7 @@
 #include <numeric>
 
 void runRunUpgradeTests() {
+    checkBuildingCapacityProgression();
     checkDefenseCardProgression();
     checkProducerCardProgression();
     checkWeaponCardProgression();
@@ -878,8 +880,8 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 54 && activeHammers == 22,
-        "streamlined pool contains 22 tomes and 32 blueprint, weapon or tool cards");
+    require(activeCount == 56 && activeHammers == 23,
+        "pool contains 23 tomes, existing blueprint/weapon cards and a slot-free capacity purchase");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
             retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight, overkill and high stakes are retired");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
