@@ -11,8 +11,69 @@
 #include <cmath>
 #include <chrono>
 #include <iostream>
+#include <cstdlib>
+#include <filesystem>
 
 namespace {
+bool selectionTerrainContact(ian::Renderer& renderer) {
+    const auto saved=renderer.settings();
+    auto& settings=renderer.settings();
+    settings.renderWidth=GetScreenWidth();settings.renderHeight=GetScreenHeight();
+    settings.pixelSize=1;settings.postProcessing=true;settings.ssao=false;
+    settings.inkOutlines=false;settings.paperGrain=false;settings.shadows=false;
+    const Camera3D camera{{0,0,8},{0,0,0},{0,1,0},45,CAMERA_PERSPECTIVE};
+    const auto slope=[] {
+        DrawTriangle3D({-5,-3,1.025F},{5,-3,1.025F},{5,1.15F,1.025F},WHITE);
+        DrawTriangle3D({-5,-3,1.025F},{5,1.15F,1.025F},{-5,-1.35F,1.025F},WHITE);
+    };
+    const auto render=[&](bool maskedTerrain,bool outline) {
+        renderer.beginFrame();
+        if(renderer.beginSelectionMaskPass(camera)) {
+            if(maskedTerrain) {renderer.setSelectionMaskColor(BLACK);slope();}
+            renderer.setSelectionMaskColor(WHITE);DrawCube({0,0,0},3,2,2,WHITE);
+            renderer.endSelectionMaskPass();
+        }
+        renderer.beginWorldPass({25,49,65,255},camera);BeginMode3D(camera);
+        ian::WorldLighting lighting{};lighting.cameraPosition=camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};material.unlitAmount=1;
+        material.screenAoAmount=0;material.inkOutlineEligible=false;
+        renderer.setWorldMaterial(material);DrawCube({0,0,0},3,2,2,{110,75,40,255});
+        slope();renderer.endWorldShader();EndMode3D();renderer.endWorldPass();
+        if(outline) renderer.drawSelectionOutline();
+        rlDrawRenderBatchActive();Image image=LoadImageFromScreen();renderer.endFrame();return image;
+    };
+    bool valid=true;
+    for(bool maskedTerrain:{false,true}) {
+        Image plain=render(maskedTerrain,false),selected=render(maskedTerrain,true);
+        const auto* a=LoadImageColors(plain);const auto* b=LoadImageColors(selected);
+        int exterior=0,seam=0;
+        const float pixelScale=static_cast<float>(plain.width)/static_cast<float>(GetScreenWidth());
+        const Vector2 cutLeft=Vector2Scale(GetWorldToScreen({-.8F,-.3F,1.025F},camera),pixelScale);
+        const Vector2 cutRight=Vector2Scale(GetWorldToScreen({.8F,.1F,1.025F},camera),pixelScale);
+        for(int y=0;y<plain.height;++y) for(int x=0;x<plain.width;++x) {
+            const auto i=y*plain.width+x;
+            if(std::abs(int(a[i].r)-int(b[i].r))+std::abs(int(a[i].g)-int(b[i].g))+
+                std::abs(int(a[i].b)-int(b[i].b))<60) continue;
+            ++exterior;
+            const float cutY=cutLeft.y+(static_cast<float>(x)-cutLeft.x)*
+                (cutRight.y-cutLeft.y)/(cutRight.x-cutLeft.x);
+            if(static_cast<float>(x)>cutLeft.x && static_cast<float>(x)<cutRight.x &&
+                std::abs(static_cast<float>(y)-cutY)<10*pixelScale) ++seam;
+        }
+        valid=valid && exterior>100 && seam<5;
+        std::cout<<"Selection terrain contact, seeded="<<maskedTerrain<<": exterior="<<exterior<<", seam="<<seam<<'\n';
+        if(const char* directory=std::getenv("IAN_CAPTURE_SELECTION_OCCLUSION")) {
+            std::filesystem::create_directories(directory);
+            const auto name=maskedTerrain?"terrain-seeded.png":"terrain-scene-depth.png";
+            ExportImage(selected,(std::filesystem::path(directory)/name).string().c_str());
+        }
+        UnloadImageColors(const_cast<Color*>(a));UnloadImageColors(const_cast<Color*>(b));
+        UnloadImage(plain);UnloadImage(selected);
+    }
+    renderer.clearSelectionOutline();renderer.settings()=saved;return valid;
+}
+
 bool firstCombatDraw(ian::Renderer& renderer) {
 #if defined(_WIN32)
     using GetInteger = void (__stdcall *)(unsigned int, int*);
@@ -277,6 +338,7 @@ int main() {
         frustum.intersects({{-100,-100,-100},{100,100,100}});
     Renderer renderer; renderer.initialize();
     valid = firstCombatDraw(renderer) && valid;
+    valid = selectionTerrainContact(renderer) && valid;
     renderer.settings().frameRateLimit = 0; renderer.applyFrameRateLimit();
     renderer.setGpuProfilingEnabled(true);
     std::size_t issued = 0;

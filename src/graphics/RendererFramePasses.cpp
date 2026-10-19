@@ -1238,6 +1238,7 @@ void Renderer::drawSelectionOutline() {
                 std::ceil(bounds.height * boundsScaleY))));
     }
     BeginShaderMode(shader);
+    SetShaderValueTexture(shader, selectionOutlineSelectionDepthLocation_,target.depth);
     if (depthOcclusionEnabled > 0.5F) {
         SetShaderValueTexture(
             shader, selectionOutlineSceneDepthLocation_,

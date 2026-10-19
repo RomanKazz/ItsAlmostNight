@@ -949,6 +949,7 @@ class Renderer {
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
     int selectionOutlineSceneDepthLocation_{-1};
+    int selectionOutlineSelectionDepthLocation_{-1};
     int selectionOutlineEffectCoverageLocation_{-1};
     int selectionOutlineEffectCoverageEnabledLocation_{-1};
     RenderTextureResource selectionEffectCoverage_;

@@ -1527,7 +1527,9 @@ void GraphicsResources::updateSelectionMask(
 
     requestedSelectionMaskWidth_ = desiredWidth;
     requestedSelectionMaskHeight_ = desiredHeight;
-    selectionMaskTarget_.load(desiredWidth, desiredHeight);
+    // Reuse the depth attachment for precise contour occlusion at contacts;
+    // storing depth in mask alpha alone loses shallow terrain intersections.
+    selectionMaskTarget_.loadWithDepthTexture(desiredWidth, desiredHeight);
     if (selectionMaskTarget_.valid()) {
         // The selection shader consumes the interpolated RGB mask as edge
         // coverage. Linear sampling gives its exterior contour a one-pixel
