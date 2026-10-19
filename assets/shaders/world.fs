@@ -743,7 +743,8 @@ void main()
         float crownShadowSide =
             1.0 - smoothstep(-0.12, 0.30, faceSunFacing);
         float crownFacetedFillRamp = clamp(
-            faceSunFacing*0.38 + 0.58, 0.0, 1.0);
+            faceSunFacing*0.33 + 0.67 + faceNormal.y*0.06,
+            0.0, 1.0);
         float crownRamp = clamp(
             mix(crownDirectRamp, crownFacetedFillRamp,
                 crownShadowSide*0.88) -
@@ -767,7 +768,7 @@ void main()
             treeLeafMidColor, treeLeafLightColor,
             clamp(treeHighlightStrength, 0.0, 1.0));
         vec3 filledLeafShadow = mix(
-            treeLeafShadowColor, treeLeafMidColor, 0.30);
+            treeLeafShadowColor, treeLeafMidColor, 0.65);
         vec3 leafColor = mix(
             filledLeafShadow, treeLeafMidColor, leafShadowToMid);
         leafColor = mix(
