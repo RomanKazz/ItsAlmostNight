@@ -745,9 +745,11 @@ void Simulation::updatePlayerActions(
             // Precise client aim may select authored geometry, but cannot open
             // a remote container through an arbitrary ID override.
             if (node != resources_.nodes().end() && node->active && isDestructibleProp(node->type) &&
-                geometry::length(geometry::subtract(node->position, playerPosition_)) <= gameplay_.resourceGatherRange + node->radius &&
+                geometry::length(geometry::subtract(node->position, playerPosition_)) <=
+                    gameplay_.resourceGatherRange*DestructiblePropInteractionRangeMultiplier + node->radius*node->visualScale*DestructiblePropColliderScale &&
                 (!command.aimedResourceHitPositionOverride ||
-                 geometry::length(geometry::subtract(*command.aimedResourceHitPositionOverride, playerPosition_)) <= gameplay_.resourceGatherRange + .05)) {
+                 geometry::length(geometry::subtract(*command.aimedResourceHitPositionOverride, playerPosition_)) <=
+                    gameplay_.resourceGatherRange*DestructiblePropInteractionRangeMultiplier + .05)) {
                 const Vec3 center = node->position;
                 const std::uint64_t seed = mixBits64(tick_ ^
                     (static_cast<std::uint64_t>(node->id.index) << 17U) ^

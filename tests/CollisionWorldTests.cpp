@@ -140,6 +140,17 @@ void runCollisionWorldTests() {
     require(stoppedByStone.z > 0.6,
             "authored stone sphere physically blocks player movement");
     resourceCollision.reset();
+    {
+        auto propNodes=treeNodes;
+        propNodes[0].type=ian::ResourceType::Barrel;
+        propNodes[0].position={0,0,0};propNodes[0].groundOffset=0;
+        propNodes[0].radius=1;propNodes[0].visualScale=1;propNodes[0].active=true;
+        ian::CollisionWorld propCollision;
+        propCollision.syncResourceCylinders(propNodes,{});
+        require(!propCollision.canOccupyCircle({.95,1,0},.1) &&
+            propCollision.canOccupyCircle({1.01,1,0},.1),
+            "container physical collision grows fifteen percent without an excessive footprint");
+    }
     const auto passedResetResource = resourceCollision.moveCircle(
         {0.0, 1.7, 3.0}, {0.0, 0.0, -6.0},
         ian::CollisionWorld::PlayerRadius);

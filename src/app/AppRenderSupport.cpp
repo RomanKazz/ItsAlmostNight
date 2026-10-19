@@ -657,7 +657,7 @@ std::optional<ResourceAimHit> preciseResourceAim(
              -std::cos(snapshot.playerYaw) * horizontal)},
     };
     std::optional<ResourceAimHit> result;
-    double closestDistance = MaximumDistance;
+    double closestDistance = MaximumDistance*DestructiblePropInteractionRangeMultiplier;
     for (const ResourceNode& node : snapshot.resourceNodes) {
         if (!node.active) {
             continue;
@@ -666,7 +666,7 @@ std::optional<ResourceAimHit> preciseResourceAim(
             node.position.x - snapshot.playerPosition.x;
         const double offsetZ =
             node.position.z - snapshot.playerPosition.z;
-        constexpr double BroadPhaseRadius = MaximumDistance + 3.0;
+        constexpr double BroadPhaseRadius = MaximumDistance*DestructiblePropInteractionRangeMultiplier + 3.0;
         if (offsetX * offsetX + offsetZ * offsetZ >
             BroadPhaseRadius * BroadPhaseRadius) {
             continue;
@@ -678,7 +678,8 @@ std::optional<ResourceAimHit> preciseResourceAim(
             static_cast<float>(node.position.z),
         };
         const auto distance = renderer.resourceRaycastDistance(
-            node.type, position, ray, MaximumDistance,
+            node.type, position, ray, isDestructibleProp(node.type)
+                ? MaximumDistance*DestructiblePropInteractionRangeMultiplier : MaximumDistance,
             node.visualVariant,
             static_cast<float>(node.visualScale),
             static_cast<float>(node.visualYaw));

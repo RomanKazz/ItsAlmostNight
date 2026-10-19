@@ -512,9 +512,11 @@ std::optional<EntityId> ResourceSystem::raycast(Vec3 origin, Vec3 direction,
             continue;
         }
 
+        const bool prop=isDestructibleProp(node.type);
         const auto distance = geometry::raySphereDistance(
-            origin, direction, node.position, node.radius);
-        if (distance && *distance <= maxDistance && *distance < closestDistance) {
+            origin, direction, node.position, node.radius*(prop?DestructiblePropColliderScale:1.0));
+        const double reach=maxDistance*(prop?DestructiblePropInteractionRangeMultiplier:1.0);
+        if (distance && *distance <= reach && *distance < closestDistance) {
             result = node.id;
             closestDistance = *distance;
         }

@@ -21,6 +21,8 @@ inline constexpr double StoneVisualModelScale = 0.60;
 inline constexpr double CrystalVisualModelScale = 1.7825;
 // The authored crystal origin already sits on its bottom surface.
 inline constexpr double CrystalVisualGroundOffset = 0.0;
+inline constexpr double DestructiblePropInteractionRangeMultiplier = 1.5;
+inline constexpr double DestructiblePropColliderScale = 1.15;
 inline constexpr std::array<double, StoneVisualVariantCount>
     StoneVisualGroundOffsets{
         0.196310, 0.191065, 0.171163,

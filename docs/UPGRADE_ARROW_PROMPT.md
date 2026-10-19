@@ -1,14 +1,20 @@
-# Compact upgrade price
+# Compact world interaction hints
 
 Building upgrade interactions again show the original green upgrade-arrow asset,
 resource icons and chunky price digits in one world-anchored row. A rounded
 black pill behind it uses alpha 102/255 (40% opacity), multiplied only by the
 existing appearance fade. A separate rounded-square keycap to the left shows the
-upgrade binding (U by default), with the hotbar's peach face and brown frame and
-lower edge. Its rounded square shape follows the supplied keycap reference.
+upgrade binding (U by default), with a warm cream face and
+deep chocolate frame and raised base. Its strongly rounded square shape and
+larger letter follow the user's close-up reference. The key is slightly taller
+than the price pill, separated by a small gap (0.12 of the arrow's height).
+There is no extra inner rim. The label is centred using its visible glyph bounds
+instead of the font's line box, including rebound keys.
+The complete row is lifted by 0.08 world-scaled metres. When held, the entire
+upper cap (outline, face and label) moves down over a fixed lower base.
 The dark letter has no outline or shadow. There is no extra Upgrade heading.
 Available resource amounts are light; missing amounts remain red. Producer
-stock/collection remains available when present. Other interaction cards keep
+stock/collection remains available when present. General interaction cards keep
 their existing style.
 
 The restored row follows the previous perspective/world-size calculation and
@@ -41,6 +47,35 @@ interaction cards are unchanged.
 Keycap validation: Debug/Release builds and upgrade UI smoke passed. The full
 Debug suite passed the other 41 checks; the upgrade UI regression was rerun
 successfully after fixing single-letter key widths. Captures were inspected.
-Pixel checks cover the hotbar colours, complete-group centring and rebinding;
+Pixel checks cover the keycap colours, complete-group centring and rebinding;
 the fast-turn and offscreen-clipping regressions remain in place. Public
 interfaces, gameplay and save data are unchanged.
+
+Crates, barrels and item crates now share the raised keycap and 40% black pill.
+The pill contains only `Open` (localized), with the actual interact key to its
+left. Its low world anchor is at 65% of the model's transformed bounds height, including
+terrain alignment, yaw and scale. It follows perspective and leaves the screen
+with its object instead of attaching below the crosshair or clamping to edges.
+The cached prop prompt is culled against the current camera during fade-out.
+Paid loot chests use the same world pill with `Open`, a coin icon and just the
+opening cost. The price is light at or above the cost, red below it; the player's
+current balance is never rendered here. The coin is optically lifted by 0.05
+arrow heights (about two pixels at typical prompt scale). Free-key and godmode pricing still use
+the actual opening cost. The chest hint sits 0.22 m above the transformed lid
+bounds; crates and barrels retain their lower anchor.
+Render checks compare exact funds with surplus funds (identical images), check
+the red insufficient-funds price and coin icon. Render checks cover world-anchor
+movement, fast turns, rebinding, fade geometry and both languages.
+
+Container interaction reach is 1.5 times resource gathering reach (3.9 m with
+the default 2.6 m reach). Client aim and authoritative interaction validation
+agree; ID overrides remain range-checked. Container selection and physical
+colliders grow by 15%, without changing model scale or harvesting distances.
+Resource raycast, collision-edge and actual E interaction tests cover this.
+
+Final validation: Debug and Release builds passed; full Debug CTest 42/42;
+latest Debug/Release interaction UI tests passed after the coin alignment tweak.
+Captures for affordable/unaffordable chests and moving prop anchors were
+inspected. An earlier parallel graphics run hit its 90-second timeout; the
+isolated graphics rerun passed, followed by the complete successful suite.
+No public interface or save format changes.

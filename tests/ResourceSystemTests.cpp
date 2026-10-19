@@ -12,6 +12,14 @@ void runResourceSystemTests() {
             {ian::ResourceType::Crate,{5,0,0},.6,1000,0,30},
             {ian::ResourceType::ItemCrate,{10,0,0},.6,1000,0,30},
             {ian::ResourceType::Wood,{15,0,0},.6,1000,10,30}});
+        require(props.raycast({0,0,4.3},{0,0,-1},2.6)==props.nodes()[0].id,
+            "containers can be targeted beyond gathering reach with fifty percent extra range");
+        require(!props.raycast({0,0,4.7},{0,0,-1},2.6) &&
+            !props.raycast({15,0,4.3},{0,0,-1},2.6),
+            "container reach remains bounded and does not extend tree harvesting");
+        require(props.raycast({.65,0,2},{0,0,-1},2.6)==props.nodes()[0].id &&
+            !props.raycast({.72,0,2},{0,0,-1},2.6),
+            "container target collider has a modest fifteen percent larger edge");
         for(std::size_t i=0;i<3;++i) {
             const auto id=props.nodes()[i].id;
             const auto hit=i==1?props.damage(id,.001):props.breakProp(id);

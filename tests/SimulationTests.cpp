@@ -47,18 +47,19 @@ void runSimulationTests() {
         for(std::size_t i=0;i<4;++i) {
             auto saved=run->saveSuspendedRunState();
             const auto node=saved.resourceNodes[i];
-            saved.playerPosition={node.position.x,node.position.y+1.7,node.position.z+1.8};
+            saved.playerPosition={node.position.x,node.position.y+1.7,node.position.z+3.7};
             run->returnToMainMenu();
             require(run->loadSuspendedRunState(saved),"container interaction fixture restores nearby player");
             ian::PlayerCommand open;open.interact=ian::InteractCommand{};open.overrideAimedResource=true;open.aimedResourceOverride=node.id;
             open.selectWeapon=ian::SelectWeaponCommand{ian::PlayerWeapon::Rifle};
+            open.aimedResourceHitPositionOverride=ian::Vec3{node.position.x,node.position.y+.8,node.position.z+.6};
             const auto countOpened=[](const auto& events){return std::ranges::count_if(events,[](const auto& event){
                 return event.type==ian::GameEventType::ResourceCollected;
             });};
             run->takeEvents(); run->tick(0,open);
             const auto events=run->takeEvents();
             require(countOpened(events)==(i<3?1:0) && run->snapshot().resourceNodes[i].active==(i==3),
-                "E opens each container while holding a rifle but never opens trees");
+                "E opens each container at extended reach while holding a rifle but never opens trees");
             if(i<3) {
                 const auto loot=run->snapshot().lootChests.size();
                 const auto pickups=run->snapshot().coinPickups.size();

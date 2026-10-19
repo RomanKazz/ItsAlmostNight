@@ -213,17 +213,19 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             cost.crystals = openingCost;
             const bool affordable = snapshot.unlimitedResources ||
                                     snapshot.coins >= openingCost;
+            const Vector3 chestPosition{static_cast<float>(chest->position.x),
+                static_cast<float>(chest->position.y),static_cast<float>(chest->position.z)};
+            const auto chestTransform=renderer_->lootChestWorldTransform(chest->type,
+                chestPosition,static_cast<float>(chest->yaw),0);
+            const auto bounds=chestTransform.worldBounds;
+            const Vector3 chestAnchor=chestTransform.valid
+                ? Vector3{(bounds.min.x+bounds.max.x)*.5F,
+                    bounds.max.y+.22F,(bounds.min.z+bounds.max.z)*.5F}
+                : Vector3{chestPosition.x,chestPosition.y+1.15F,chestPosition.z};
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Chest,
                 .targetId = chest->id,
-                .worldAnchor = {
-                    static_cast<float>(chest->position.x +
-                        chest->surfaceNormal.x * 1.42),
-                    static_cast<float>(chest->position.y +
-                        chest->surfaceNormal.y * 1.42),
-                    static_cast<float>(chest->position.z +
-                        chest->surfaceNormal.z * 1.42),
-                },
+                .worldAnchor = chestAnchor,
                 .surfaceNormal = {
                     static_cast<float>(chest->surfaceNormal.x),
                     static_cast<float>(chest->surfaceNormal.y),
@@ -239,7 +241,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                                     : InteractionState::Warning,
                 .cost = cost,
                 .availableCurrency = snapshot.unlimitedResources
-                    ? 99 : snapshot.coins,
+                    ? openingCost : snapshot.coins,
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = affordable
                     ? Color{214, 203, 181, 255}
@@ -251,12 +253,17 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     if (snapshot.aimedResource) {
         const auto prop = std::ranges::find(snapshot.resourceNodes, *snapshot.aimedResource, &ResourceNode::id);
         if (prop != snapshot.resourceNodes.end() && prop->active && isDestructibleProp(prop->type)) {
+            const Vector3 position{static_cast<float>(prop->position.x),static_cast<float>(prop->position.y),static_cast<float>(prop->position.z)};
+            const auto bounds=renderer_->destructiblePropWorldBounds(prop->type,position,
+                static_cast<float>(prop->visualYaw),static_cast<float>(prop->visualScale));
+            const Vector3 anchor=bounds.max.y>bounds.min.y
+                ? Vector3{(bounds.min.x+bounds.max.x)*.5F,bounds.min.y+(bounds.max.y-bounds.min.y)*.65F,(bounds.min.z+bounds.max.z)*.5F}
+                : Vector3{position.x,position.y+.45F,position.z};
             return finalize(InteractionPrompt{
                 .targetKind=InteractionPromptTargetKind::Resource,
                 .targetId=prop->id,
-                .worldAnchor={static_cast<float>(prop->position.x),
-                    static_cast<float>(prop->position.y + .85 * prop->visualScale),static_cast<float>(prop->position.z)},
-                .actionText="Break open", .input=ControlAction::Interact,
+                .worldAnchor=anchor,
+                .actionText="Open", .input=ControlAction::Interact,
                 .accentColor={255,218,117,255},
             });
         }

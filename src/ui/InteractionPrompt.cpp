@@ -76,26 +76,79 @@ PromptLayout layout(const InteractionPrompt& prompt,Vector2 anchor,Vector2 scree
     const Rectangle crosshair{screen.x*.5F-52*s,screen.y*.5F-36*s,104*s,72*s};
     if(CheckCollisionRecs(out.bounds,crosshair))
         out.bounds.y=std::clamp(crosshair.y-height-12*s,top,bottom);
-    // Small breakable props are aimed at the crosshair. Their former metre-
-    // high world anchors pushed the hint to the sky at close range.
-    if(prompt.targetKind==InteractionPromptTargetKind::Resource)
-        out.bounds.y=std::clamp(screen.y*.5F+44*s,top,bottom);
     out.bounds.x=std::round(out.bounds.x);out.bounds.y=std::round(out.bounds.y);
     return out;
 }
+struct WorldPromptProjection { Vector2 anchor;float size; };
+std::optional<WorldPromptProjection> worldPromptProjection(Vector3 anchor,const Camera3D& camera) {
+    const Vector2 projected=uiWorldToScreen(anchor,camera);
+    const Vector3 forward=Vector3Normalize(Vector3Subtract(camera.target,camera.position));
+    const Vector3 right=Vector3Normalize(Vector3CrossProduct(forward,camera.up));
+    const Vector3 up=Vector3Normalize(Vector3CrossProduct(right,forward));
+    const Vector2 projectedUp=uiWorldToScreen(Vector3Add(anchor,up),camera);
+    const float pixelsPerUnit=Vector2Distance(projected,projectedUp);
+    if(!std::isfinite(pixelsPerUnit) || pixelsPerUnit<=0) return std::nullopt;
+    return WorldPromptProjection{projected,pixelsPerUnit*BuildingUpgradePromptWorldHeight};
+}
+
+void drawPromptKeycap(Rectangle key,std::string_view label,bool pressed,float opacity) {
+    const ScopedUiFontRole font(UiFontRole::Display);
+    const float height=key.height;
+    const float stroke=height*.055F,depth=height*.13F;
+    // A rounded, raised cream key with a deep chocolate base, as in the reference.
+    constexpr Color keyFrame{61,37,25,255},keyFace{250,239,216,255},keySide{119,75,41,255};
+    constexpr Color keyInk{65,37,23,255};
+    // Fixed base below a travelling cap: the cap's outer outline moves with
+    // its face and letter, so pressing it also lowers the top border.
+    const Rectangle base{key.x,key.y+depth,key.width,key.height-depth};
+    drawSolidRoundedRect(base,.50F,hintStyle::fade(keyFrame,opacity));
+    Rectangle face{base.x+stroke,base.y+stroke,base.width-stroke*2,base.height-stroke*2};
+    drawSolidRoundedRect(face,.48F,hintStyle::fade(keySide,opacity));
+    if(pressed) key.y+=depth*.75F;
+    key.height-=depth;
+    drawSolidRoundedRect(key,.50F,hintStyle::fade(keyFrame,opacity));
+    face={key.x+stroke,key.y+stroke,key.width-stroke*2,key.height-stroke*2};
+    drawSolidRoundedRect(face,.48F,hintStyle::fade(keyFace,opacity));
+    const float keyFont=fitUiTextSize(label,height*.40F,height*.20F,
+        face.width-stroke*2,face.height);
+    const auto letterSize=measureUiText(label,keyFont);
+    // Centre the visible glyphs rather than their line box: this display font
+    // has unequal bearings above and below U, making line-centred keys look high.
+    const Font keyTypeface=uiFont();
+    const float glyphScale=letterSize.y/static_cast<float>(keyTypeface.baseSize);
+    float inkLeft=letterSize.x,inkTop=letterSize.y,inkRight=0,inkBottom=0,advance=0;
+    const std::string displayedLabel=localizeText(label);
+    for(std::size_t offset=0;offset<displayedLabel.size();) {
+        int byteCount=0;
+        const int codepoint=GetCodepointNext(displayedLabel.c_str()+offset,&byteCount);
+        offset+=static_cast<std::size_t>(std::max(byteCount,1));
+        const auto glyph=GetGlyphInfo(keyTypeface,codepoint);
+        const auto rect=GetGlyphAtlasRec(keyTypeface,codepoint);
+        if(codepoint!=' ') {
+            const float x=advance+static_cast<float>(glyph.offsetX)*glyphScale;
+            const float y=static_cast<float>(glyph.offsetY)*glyphScale;
+            inkLeft=std::min(inkLeft,x);inkTop=std::min(inkTop,y);
+            inkRight=std::max(inkRight,x+rect.width*glyphScale);
+            inkBottom=std::max(inkBottom,y+rect.height*glyphScale);
+        }
+        advance+=(glyph.advanceX>0?static_cast<float>(glyph.advanceX):rect.width)*glyphScale+letterSize.y*.02F;
+    }
+    SdfUiTextStyle letterStyle{};letterStyle.fillColor=hintStyle::fade(keyInk,opacity);
+    letterStyle.outlinePixels=0;letterStyle.shadowColor=BLANK;
+    drawStyledSdfUiText(label,{face.x+face.width*.5F-(inkLeft+inkRight)*.5F,
+        face.y+face.height*.5F-(inkTop+inkBottom)*.5F},keyFont,letterStyle);
+}
+
 // The compact world-space upgrade row predates the general interaction cards.
 // Keep its existing arrow, chunky numbers and per-resource affordability colours.
 void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
     const GameUi& ui,const ControlSettings& controls,float opacity) {
     const ScopedUiFontRole font(UiFontRole::Display);
-    const Vector2 projected=uiWorldToScreen(prompt.worldAnchor,camera);
-    const Vector3 forward=Vector3Normalize(Vector3Subtract(camera.target,camera.position));
-    const Vector3 right=Vector3Normalize(Vector3CrossProduct(forward,camera.up));
-    const Vector3 up=Vector3Normalize(Vector3CrossProduct(right,forward));
-    const Vector2 projectedUp=uiWorldToScreen(Vector3Add(prompt.worldAnchor,up),camera);
-    const float pixelsPerUnit=Vector2Distance(projected,projectedUp);
-    if(!std::isfinite(pixelsPerUnit) || pixelsPerUnit<=0) return;
-    const float size=pixelsPerUnit*BuildingUpgradePromptWorldHeight;
+    const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
+    if(!projection) return;
+    Vector2 projected=projection->anchor;
+    const float size=projection->size;
+    projected.y-=size*.4F;
     const float iconSize=size*.76F,fontSize=iconSize/1.68F,gap=size*.10F;
     struct Price { UiResourceIcon icon;int amount;int available; };
     const std::array prices{
@@ -117,35 +170,18 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
     // Centre the complete key + gap + price pill on the building's anchor.
     // Single letters stay square; longer rebound key names can widen the cap.
     const auto upgradeKey=InputKeycap::label(controls,ControlAction::Upgrade);
-    const float keyHeight=size*1.1F;
+    const float keyHeight=size*1.36F;
     const Vector2 keySize{std::max(keyHeight,
-        measureUiText(upgradeKey,keyHeight*.32F).x+keyHeight*.22F),keyHeight};
-    const float keyGap=size*.18F;
+        measureUiText(upgradeKey,keyHeight*.40F).x+keyHeight*.22F),keyHeight};
+    const float keyGap=size*.12F;
     Rectangle pill{projected.x-width*.5F-paddingX+(keySize.x+keyGap)*.5F,
         projected.y-size*.5F-paddingY,width+paddingX*2,height};
     // This is a world-anchored billboard. Let it leave the viewport naturally;
     // clamping its rectangle would pin a departing building's price to the HUD.
     DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
     const float left=pill.x+paddingX,centerY=pill.y+paddingY+size*.5F;
-    const bool pressed=InputKeycap::held(controls,ControlAction::Upgrade);
-    const float stroke=keySize.y*.045F,depth=keySize.y*.085F;
-    // Match the hotbar's peach surface, brown frame and recessed lower edge.
-    constexpr Color keyFrame{104,60,37,255},keyFace{230,188,147,255},keySide{147,115,73,255};
-    constexpr Color keyInk{52,43,43,255};
-    Rectangle key{pill.x-keyGap-keySize.x,centerY-keySize.y*.5F,keySize.x,keySize.y};
-    drawSolidRoundedRect(key,.28F,hintStyle::fade(keyFrame,opacity));
-    Rectangle face{key.x+stroke,key.y+stroke,key.width-stroke*2,key.height-stroke*2};
-    drawSolidRoundedRect(face,.22F,hintStyle::fade(keySide,opacity));
-    if(pressed) face.y+=depth*.7F;
-    face.height-=depth;
-    drawSolidRoundedRect(face,.22F,hintStyle::fade(keyFace,opacity));
-    const float keyFont=fitUiTextSize(upgradeKey,keySize.y*.32F,keySize.y*.20F,
-        face.width-stroke*2,face.height);
-    const auto letterSize=measureUiText(upgradeKey,keyFont);
-    SdfUiTextStyle letterStyle{};letterStyle.fillColor=hintStyle::fade(keyInk,opacity);
-    letterStyle.outlinePixels=0;letterStyle.shadowColor=BLANK;
-    drawStyledSdfUiText(upgradeKey,{face.x+(face.width-letterSize.x)*.5F,
-        face.y+(face.height-letterSize.y)*.5F},keyFont,letterStyle);
+    drawPromptKeycap({pill.x-keyGap-keySize.x,centerY-keySize.y*.5F,keySize.x,keySize.y},
+        upgradeKey,InputKeycap::held(controls,ControlAction::Upgrade),opacity);
     const Texture2D arrow=ui.coreMenuTexture(CoreMenuTexture::UpgradeGreen);
     if(IsTextureValid(arrow))DrawTexturePro(arrow,
         {0,0,static_cast<float>(arrow.width),static_cast<float>(arrow.height)},
@@ -177,9 +213,45 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
         const auto measured=measureUiText(text,fontSize);
         drawStyledSdfUiText(text,{left+iconSize+gap,y-measured.y*.5F},fontSize,style);
         const auto key=InputKeycap::label(controls,ControlAction::Interact);
-        const auto keySize=InputKeycap::size(key,size*.60F);
-        hintStyle::key({pill.x+pill.width-paddingX-keySize.x,y-keySize.y*.5F,keySize.x,keySize.y},
+        const auto stockKeySize=InputKeycap::size(key,size*.60F);
+        hintStyle::key({pill.x+pill.width-paddingX-stockKeySize.x,y-stockKeySize.y*.5F,stockKeySize.x,stockKeySize.y},
             key,false,opacity);
+    }
+}
+void drawContainerOpen(const InteractionPrompt& prompt,const Camera3D& camera,
+    const GameUi& ui,const ControlSettings& controls,float opacity) {
+    const ScopedUiFontRole font(UiFontRole::Display);
+    const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
+    if(!projection) return;
+    const auto [anchor,size]=*projection;
+    const float fontSize=size*.48F,padding=size*.28F,keyHeight=size*1.36F,keyGap=size*.12F;
+    const auto label=InputKeycap::label(controls,ControlAction::Interact);
+    const float keyWidth=std::max(keyHeight,measureUiText(label,keyHeight*.40F).x+keyHeight*.22F);
+    const auto textSize=measureUiText("Open",fontSize);
+    const bool priced=prompt.targetKind==InteractionPromptTargetKind::Chest && prompt.cost.has_value();
+    const std::string price=priced?std::to_string(prompt.cost->crystals):std::string{};
+    const float coinSize=size*.76F,priceGap=size*.16F;
+    const auto priceSize=measureUiText(price,fontSize);
+    const float priceWidth=priced?priceGap+coinSize+priceGap*.5F+priceSize.x:0;
+    const float pillWidth=textSize.x+priceWidth+padding*2,pillHeight=size*1.3F;
+    const float left=anchor.x-(keyWidth+keyGap+pillWidth)*.5F;
+    const Rectangle pill{left+keyWidth+keyGap,anchor.y-pillHeight*.5F,pillWidth,pillHeight};
+    DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
+    drawPromptKeycap({left,anchor.y-keyHeight*.5F,keyWidth,keyHeight},label,
+        InputKeycap::held(controls,ControlAction::Interact),opacity);
+    SdfUiTextStyle style{};style.fillColor=hintStyle::fade(UiWhite,opacity);
+    style.outlineColor=hintStyle::fade({20,24,20,255},opacity);style.outlinePixels=size*.065F;
+    style.shadowColor=hintStyle::fade({0,0,0,140},opacity);style.shadowOffsetPixels={0,size*.055F};
+    drawStyledSdfUiText("Open",{pill.x+padding,anchor.y-textSize.y*.5F},fontSize,style);
+    if(priced) {
+        float cursor=pill.x+padding+textSize.x+priceGap;
+        ui.drawResourceIcon({cursor,anchor.y-coinSize*.5F-size*.05F,coinSize,coinSize},UiResourceIcon::Coin,
+            hintStyle::fade(WHITE,opacity));
+        cursor+=coinSize+priceGap*.5F;
+        const bool enough=prompt.availableCurrency
+            ? *prompt.availableCurrency>=prompt.cost->crystals : prompt.state!=InteractionState::Warning;
+        style.fillColor=hintStyle::fade(enough?UiWhite:hintStyle::Warning,opacity);
+        drawStyledSdfUiText(price,{cursor,anchor.y-priceSize.y*.5F},fontSize,style);
     }
 }
 } // namespace
@@ -333,6 +405,12 @@ void InteractionPromptRenderer::drawPrompt(
         // Revalidate that cached world anchor before perspective sizing: near
         // the camera plane its projection grows without bound and flips behind us.
         if(projectable(prompt,camera)) drawCompactUpgrade(prompt,camera,ui,controls,opacity);
+        return;
+    }
+    if(prompt.input==ControlAction::Interact &&
+        ((prompt.targetKind==InteractionPromptTargetKind::Resource && !prompt.cost) ||
+            prompt.targetKind==InteractionPromptTargetKind::Chest)) {
+        if(projectable(prompt,camera)) drawContainerOpen(prompt,camera,ui,controls,opacity);
         return;
     }
     const auto anchor=uiWorldToScreen(prompt.worldAnchor,camera);

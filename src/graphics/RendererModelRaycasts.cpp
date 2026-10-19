@@ -606,7 +606,7 @@ std::optional<double> Renderer::resourceRaycastDistance(
             ? RockModelScale
             : type == ResourceType::Crystal
                 ? static_cast<float>(CrystalVisualModelScale) * visualScale
-                : visualScale;
+                : visualScale*static_cast<float>(DestructiblePropColliderScale);
     position.y += type == ResourceType::Wood
         ? static_cast<float>(TreeVisualGroundOffsets[
               visualVariant % TreeVisualVariantCount] * visualScale *

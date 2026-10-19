@@ -324,10 +324,10 @@ void CollisionWorld::syncResourceCylinders(
             resourceCylinders_.push_back({
                 .centerX = resource.position.x,
                 .centerZ = resource.position.z,
-                .radius = resource.radius * 0.78 * resource.visualScale,
+                .radius = resource.radius * 0.78 * resource.visualScale * DestructiblePropColliderScale,
                 .minimumBlockingEyeY = terrainHeight,
                 .maximumBlockingEyeY = terrainHeight +
-                    1.35 * resource.visualScale,
+                    1.35 * resource.visualScale * DestructiblePropColliderScale,
             });
             continue;
         }
