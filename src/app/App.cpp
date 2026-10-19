@@ -167,15 +167,11 @@ double App::toolSwingDurationFor(
     FirstPersonToolVisual visual) const {
     const bool quickTool = visual == FirstPersonToolVisual::Axe ||
         visual == FirstPersonToolVisual::Pickaxe;
-    const double speed =
-        runGatheringSpeedMultiplier(snapshot.runUpgradeStacks[
-            runUpgradeIndex(RunUpgradeEffect::AttackSpeed)]) *
-        (quickTool
-             ? runGatheringSpeedMultiplier(
-                   snapshot.runUpgradeStacks[runUpgradeIndex(
-                       RunUpgradeEffect::GatheringSpeed)])
-             : 1.0);
-    return static_cast<double>(activeToolTuning().swingDuration) / speed;
+    const double speed = quickTool
+        ? snapshot.upgradeStats.toolAttackSpeed
+        : snapshot.upgradeStats.playerAttackSpeed;
+    return static_cast<double>(activeToolTuning().swingDuration) /
+        std::max(0.05, speed);
 }
 
 App::App()

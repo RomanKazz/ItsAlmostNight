@@ -359,7 +359,6 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         runPlayerDamageMultiplier_ += 0.10 * power;
         break;
     case RunUpgradeEffect::AttackSpeed:
-        playerAttackSpeedMultiplier_ += 0.15 * power;
         break;
     case RunUpgradeEffect::MoveSpeed:
         runPlayerMoveSpeedMultiplier_ += 0.07 * power;

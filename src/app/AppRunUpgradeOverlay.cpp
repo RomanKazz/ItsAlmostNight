@@ -447,13 +447,17 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
         return snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
             ? "Upgrade weapon by one level" : "Unlock level 1 weapon";
     }
-    if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
+    if (effect == RunUpgradeEffect::AttackSpeed) {
+        const double gain = runUpgradeAppliedPowerGain(effect, rarity,
+            snapshot.runUpgradePower[runUpgradeIndex(effect)]);
+        return "+" + statNumber(10.0 * gain) + "% " + localizeText("Defense speed");
+    }
+    if (effect == RunUpgradeEffect::Damage) {
         const double gain = runUpgradeAppliedPowerGain(effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
-        const bool damage = effect == RunUpgradeEffect::Damage;
-        return "+" + statNumber((damage ? 10.0 : 15.0) * gain) + "% " +
-            localizeText(damage ? "Player damage" : "Attack speed") + " / +" +
-            statNumber((damage ? 12.0 : 10.0) * gain) + "% " +
-            localizeText(damage ? "Defense damage" : "Fire rate");
+        return "+" + statNumber(10.0 * gain) + "% " +
+            localizeText("Player damage") + " / +" +
+            statNumber(12.0 * gain) + "% " +
+            localizeText("Defense damage");
     }
     std::string description{runUpgradeDefinition(effect).description};
     if (fixedRunUpgradePower(effect)) return description;
@@ -760,8 +764,7 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     case RunUpgradeEffect::ResourceCapacity:
         projected.upgradeStats.resourceCapacity *= ratio(1.0, .20);
         break;
-    case RunUpgradeEffect::AttackSpeed:
-        projected.upgradeStats.playerAttackSpeed *= ratio(character ? character->attackSpeedMultiplier : 1.0, 0.15); break;
+    case RunUpgradeEffect::AttackSpeed: break;
     case RunUpgradeEffect::Damage: projected.playerDamageMultiplier *= ratio(1.0, 0.10); break;
     case RunUpgradeEffect::MoveSpeed:
         projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.07); break;

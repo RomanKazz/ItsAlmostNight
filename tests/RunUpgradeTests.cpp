@@ -800,9 +800,9 @@ void runRunUpgradeTests() {
         requireNear(shared->snapshot().upgradeStats.defenseDamage, baseStats.upgradeStats.defenseDamage * 1.24, 1e-12,
             "might adds defense damage at the same rarity");
         require(shared->grantDebugRunUpgrade(RunUpgradeEffect::AttackSpeed, RunUpgradeRarity::Rare),
-            "shared rapid tome grants both halves");
-        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed + 0.30, 1e-12,
-            "rapid retains original player weapon speed scaling");
+            "rapid tome upgrades defense speed");
+        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
+            "rapid leaves player weapon speed unchanged");
         requireNear(shared->snapshot().upgradeStats.defenseFireRate, baseStats.upgradeStats.defenseFireRate * 1.20, 1e-12,
             "rapid speeds up defenses too");
         requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed, 1e-12,
@@ -811,7 +811,7 @@ void runRunUpgradeTests() {
             "separate gathering tome is grantable");
         requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed * 1.30, 1e-12,
             "gathering speed uses rarity power rather than copy count");
-        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed + 0.30, 1e-12,
+        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
             "gathering speed leaves combat unchanged");
         const auto beforePerks = shared->snapshot();
         for (auto perk : {RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload,
@@ -820,8 +820,12 @@ void runRunUpgradeTests() {
         require(shared->snapshot().tomeCount == beforePerks.tomeCount,
             "weapon perks never consume tome capacity");
         auto checkpoint = shared->saveSuspendedRunState();
+        checkpoint.playerAttackSpeedMultiplier += 0.30;
+        checkpoint.toolAttackSpeedMultiplier += 0.30;
         shared->returnToMainMenu();
         require(shared->loadSuspendedRunState(checkpoint), "shared power and separate tool baseline resume");
+        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
+            "old rapid tome player-speed bonus is removed on load");
         requireNear(shared->snapshot().upgradeStats.defenseDamage, beforePerks.upgradeStats.defenseDamage, 1e-12,
             "defense half survives save/load without duplicate application");
         requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, beforePerks.upgradeStats.toolAttackSpeed, 1e-12,

@@ -4137,8 +4137,12 @@ void runSimulationTests() {
     {
         ian::Simulation baseGathering;
         ian::Simulation hastyGathering;
+        auto rapidOnly = std::make_unique<ian::Simulation>();
         baseGathering.startRun();
         hastyGathering.startRun();
+        rapidOnly->startRun();
+        require(rapidOnly->grantDebugRunUpgrade(ian::RunUpgradeEffect::AttackSpeed),
+                "rapid tome can be granted without gathering speed");
         require(hastyGathering.grantDebugRunUpgrade(ian::RunUpgradeEffect::AttackSpeed),
                 "combat haste coexists without multiplying tool speed");
         require(hastyGathering.grantDebugRunUpgrade(
@@ -4150,11 +4154,16 @@ void runSimulationTests() {
         selectAxe.overrideAimedResource = true;
         baseGathering.tick(0.0, selectAxe);
         hastyGathering.tick(0.0, selectAxe);
+        rapidOnly->tick(0.0, selectAxe);
         ian::PlayerCommand baseSwing;
         baseSwing.overrideAimedResource = true;
         baseSwing.usePickaxe = true;
         baseGathering.tick(0.0, baseSwing);
         hastyGathering.tick(0.0, baseSwing);
+        rapidOnly->tick(0.0, baseSwing);
+        requireNear(rapidOnly->snapshot().pickaxeCooldownRemaining,
+            baseGathering.snapshot().pickaxeCooldownRemaining, 1e-9,
+            "rapid tome does not change real axe attack cadence");
         requireNear(
             hastyGathering.snapshot().pickaxeCooldownRemaining * 1.15,
             baseGathering.snapshot().pickaxeCooldownRemaining,

@@ -505,9 +505,11 @@ bool Simulation::loadSuspendedRunState(
     playerDamageMultiplier_ = std::max(0.05, saved.playerDamageMultiplier);
     runPlayerDamageMultiplier_ = std::max(
         0.05, saved.runPlayerDamageMultiplier);
-    playerAttackSpeedMultiplier_ = std::max(
-        0.05, saved.playerAttackSpeedMultiplier);
-    toolAttackSpeedMultiplier_ = saved.toolAttackSpeedMultiplier;
+    // Older saves include the former Rapid Tome player-speed bonus. The tome
+    // now affects defenses only; restore the class baseline on load.
+    playerAttackSpeedMultiplier_ = savedClass
+        ? savedClass->attackSpeedMultiplier : 1.0;
+    toolAttackSpeedMultiplier_ = playerAttackSpeedMultiplier_;
     playerMoveSpeedMultiplier_ = std::max(
         0.05, saved.playerMoveSpeedMultiplier);
     runPlayerMoveSpeedMultiplier_ = std::max(
