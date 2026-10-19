@@ -300,20 +300,7 @@ void Simulation::generateRunUpgradeChoices() {
         runUpgradeChoiceCount_, firstRandomIndex + pool.size());
     for (std::size_t index = firstRandomIndex;
          index < runUpgradeChoiceCount_; ++index) {
-        std::size_t selected = chooseWeighted(pool);
-        // Keep one structure option when eligible, with the same owned/new draw
-        // for defenses and producers. Remaining choices use the complete pool.
-        if (index == 0U) {
-            std::vector<RunUpgradeEffect> blueprints;
-            for (const auto effect : pool) {
-                if (const auto building = runUpgradeBuilding(effect);
-                    building && runSlottedBuilding(*building)) blueprints.push_back(effect);
-            }
-            if (!blueprints.empty()) {
-                const auto effect = blueprints[chooseWeighted(blueprints)];
-                selected = static_cast<std::size_t>(std::find(pool.begin(), pool.end(), effect) - pool.begin());
-            }
-        }
+        const std::size_t selected = chooseWeighted(pool);
         runUpgradeChoices_[index] = pool[selected];
         randomState = mixBits64(randomState + 0xa0761d6478bd642fULL);
         const double roll = static_cast<double>(randomState >> 11U) *

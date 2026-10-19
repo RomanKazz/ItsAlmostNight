@@ -18,7 +18,7 @@ inline void checkWeaponCardProgression() {
         RunUpgradeEffect::UnlockClub,RunUpgradeEffect::UnlockIceWand,RunUpgradeEffect::UnlockFireWand};
     std::uint64_t random=578421;int owned=0;
     for(int i=0;i<40000;++i) owned+=chooseRunUpgradeOffer(pool,levels,random)==0;
-    require(owned>19400 && owned<20600,"weapon cards split owned upgrades and new acquisitions fifty/fifty");
+    require(owned>7600 && owned<8400,"owned weapon has one card's weight beside four new acquisitions");
     ResourceSystem nodes({{ResourceType::Wood,{0,0,0},.8,100,100,1},
         {ResourceType::Stone,{10,0,0},.8,100,100,1},
         {ResourceType::Crystal,{20,0,0},.8,100,100,1},

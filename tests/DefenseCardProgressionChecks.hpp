@@ -8,7 +8,7 @@
 
 inline void checkDefenseCardProgression() {
     using namespace ian;
-    // Distinguish a uniform choice of types from a 50/50 owned/new group draw.
+    // Owned and new defenses draw from one pool with equal per-card weight.
     std::array<int, RunUpgradeEffectCount> levels{};
     levels[runUpgradeIndex(RunUpgradeEffect::UnlockGunTurret)] = 7;
     const std::array pool{RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret,
@@ -17,9 +17,9 @@ inline void checkDefenseCardProgression() {
     std::uint64_t random = 749123;
     std::array<int, pool.size()> draws{};
     for (int i = 0; i < 100000; ++i) ++draws[chooseRunUpgradeOffer(pool, levels, random)];
-    require(draws[0] > 49000 && draws[0] < 51000, "defense offers split owned/new 50/50 with free slots");
+    require(draws[0] > 16000 && draws[0] < 17400, "owned defense has one card's weight in the shared pool");
     for (std::size_t i = 1; i < draws.size(); ++i)
-        require(draws[i] > 9400 && draws[i] < 10600, "new defense group distributes types evenly");
+        require(draws[i] > 16000 && draws[i] < 17400, "new defenses distribute evenly with owned defenses");
     levels[runUpgradeIndex(RunUpgradeEffect::UnlockTurret)] = 1;
     const std::array ownedPool{RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret};
     int gunDraws = 0;

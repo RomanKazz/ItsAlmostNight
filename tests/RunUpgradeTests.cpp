@@ -415,8 +415,8 @@ void runRunUpgradeTests() {
     require(normal->snapshot().runUpgradeChoicePending,
         "normal construction XP produces level-up cards");
     const auto offer = normal->snapshot();
-    require(runUpgradeBuilding(offer.runUpgradeChoices[0]).has_value(),
-        "free arsenal slot guarantees a new-building option");
+    require(offer.runUpgradeChoiceCount > 0,
+        "level-up offers eligible cards without forcing a building first");
     for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
         const auto offeredEffect = offer.runUpgradeChoices[index];
         require(offeredEffect != RunUpgradeEffect::GunPiercing && offeredEffect != RunUpgradeEffect::GunShrapnel &&
@@ -433,16 +433,19 @@ void runRunUpgradeTests() {
             offer.runUpgradeChoices[index] != RunUpgradeEffect::ProductionSpeed,
             "production improvements are absent before owning a producer");
     }
-    const auto pendingArsenal = normal->saveSuspendedRunState();
+    auto pendingArsenal = normal->saveSuspendedRunState();
+    pendingArsenal.runUpgradeChoices[0] = RunUpgradeEffect::UnlockTurret;
+    pendingArsenal.runUpgradeRarities[0] = RunUpgradeRarity::Common;
     auto normalRestored = std::make_unique<Simulation>(balance, map, world, fastInsight);
     normalRestored->returnToMainMenu();
     require(normalRestored->loadSuspendedRunState(pendingArsenal) &&
-        normalRestored->snapshot().runUpgradeChoices == offer.runUpgradeChoices &&
-        normalRestored->snapshot().runUpgradeRarities == offer.runUpgradeRarities &&
-        normalRestored->selectRunUpgrade(0) && normalRestored->snapshot().buildingArsenalCount ==
-            (offer.runUpgradeChoices[0] == RunUpgradeEffect::UnlockCannon ? 1 : 2),
+        normalRestored->snapshot().runUpgradeChoices == pendingArsenal.runUpgradeChoices &&
+        normalRestored->snapshot().runUpgradeRarities == pendingArsenal.runUpgradeRarities &&
+        normalRestored->selectRunUpgrade(0) && normalRestored->snapshot().buildingArsenalCount == 2,
         "resume preserves exact offers and selection acquires or upgrades a type");
-    require(normal->selectRunUpgrade(0), "normal acquisition selected");
+    normal->returnToMainMenu();
+    require(normal->loadSuspendedRunState(pendingArsenal) && normal->selectRunUpgrade(0),
+        "normal acquisition selected");
     for (auto blueprintEffect : {RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret,
                         RunUpgradeEffect::UnlockSpikeTrap, RunUpgradeEffect::UnlockSlowTrap,
                         RunUpgradeEffect::UnlockCatapult}) {
