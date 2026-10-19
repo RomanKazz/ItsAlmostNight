@@ -82,7 +82,10 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         if (previousStacks == 0) {
             freeChestOpeningAvailable_ = true;
         } else {
-            ++freeChestRerollsRemaining_;
+            chestOpeningCostMultiplier_ = std::max(
+                0.5, 1.0 - 0.15 * previousStacks);
+            lootChests_.setCoinCostMultiplier(
+                chestOpeningCostMultiplier_);
         }
         break;
     }

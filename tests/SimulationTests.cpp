@@ -1732,11 +1732,10 @@ void runSimulationTests() {
         lootEffects.grantLootUpgrade(
             ian::LootUpgradeEffect::Key);
         require(
-            lootEffects.snapshot().freeChestRerollsRemaining == 1 &&
-                std::abs(
-                    lootEffects.snapshot().chestOpeningCostMultiplier -
-                    1.0) < 1e-9,
-            "additional Chest Key stacks grant free rerolls without changing chest prices");
+            std::abs(
+                lootEffects.snapshot().chestOpeningCostMultiplier -
+                0.85) < 1e-9,
+            "additional Chest Key stacks discount paid chest openings");
 
         lootEffects.restartRun();
         require(

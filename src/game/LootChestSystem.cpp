@@ -507,38 +507,6 @@ ChestOpenResult LootChestSystem::open(
     return ChestOpenResult::Opened;
 }
 
-ChestRerollResult LootChestSystem::reroll(
-    EntityId id, int& coins, int cost) {
-    const auto chest = std::find_if(
-        chests_.begin(), chests_.end(),
-        [id](const LootChestInstance& value) { return value.id == id; });
-    if (chest == chests_.end()) return ChestRerollResult::None;
-    if (chest->looseLoot || chest->state != LootChestState::Open ||
-        !chest->loot.available || chest->loot.collected ||
-        chest->rerolling)
-        return ChestRerollResult::NotReady;
-    if (chest->rerollCount >= 3U)
-        return ChestRerollResult::AlreadyRerolled;
-    cost = std::max(0, cost);
-    if (coins < cost) return ChestRerollResult::InsufficientCoins;
-    coins -= cost;
-    const LootUpgradeEffect previous = chest->loot.effect;
-    ChestLoot target{};
-    std::uint64_t candidateRoll = chest->rerollCount + 1U;
-    do {
-        target = makeLoot(
-            chest->id, chest->position, candidateRoll++,
-            chest->purpose);
-    } while (target.effect == previous && candidateRoll < 32U);
-    ++chest->rerollCount;
-    chest->rerollTargetEffect = target.effect;
-    chest->rerollTargetRarity = target.rarity;
-    chest->rerollProgress = 0.0;
-    chest->rerolling = true;
-    chest->loot.available = false;
-    return ChestRerollResult::Rerolled;
-}
-
 std::optional<Vec3> LootChestSystem::revealNearest(
     Vec3 playerPosition) {
     LootChestInstance* nearest = nullptr;
@@ -718,11 +686,11 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::FuelJerrycan:
         return "Player attacks ignite enemies; stacks increase burn damage";
     case LootUpgradeEffect::Compass:
-        return "Points to nearby chests; range grows per stack; exploration chests grant a free reroll";
+        return "Points to nearby chests; range grows per stack";
     case LootUpgradeEffect::Nail:
         return "Every 5th hit chains lightning; stacks improve frequency, damage and jumps";
     case LootUpgradeEffect::Key:
-        return "First chest each day is free; extra stacks grant one free daily reroll";
+        return "First chest each day is free; extra stacks reduce chest prices by 15%";
     case LootUpgradeEffect::Map:
         return "Reveals chests; boss waves add one per stack";
     case LootUpgradeEffect::Anvil:

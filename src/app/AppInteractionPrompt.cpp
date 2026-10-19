@@ -153,30 +153,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetId = loot->loot.id,
                 .worldAnchor = {
                     static_cast<float>(visualPosition.x),
-                    static_cast<float>(visualPosition.y + 0.52),
+                    static_cast<float>(visualPosition.y + 0.78),
                     static_cast<float>(visualPosition.z),
                 },
                 .objectName = lootUpgradeName(loot->loot.effect),
                 .actionText = "Pick Up",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
-                .hint = keyboardKeyName(controlKey(
-                    userSettings_.controls, ControlAction::Interact)) +
-                    " TAKE · " +
-                    (loot->looseLoot
-                         ? std::string("CRATE DROP")
-                         : loot->rerollCount >= 3U
-                             ? std::string("REROLL USED")
-                             : keyboardKeyName(controlKey(
-                                   userSettings_.controls,
-                                   ControlAction::Upgrade)) +
-                                   (snapshot.freeChestRerollsRemaining > 0
-                                        ? " FREE REROLL · " +
-                                              std::to_string(snapshot.freeChestRerollsRemaining) +
-                                              " LEFT"
-                                        : " REROLL · " +
-                                              std::to_string(snapshot.chestRerollCoinCost) +
-                                              " COINS")),
                 .accentColor = loot->loot.rarity == LootRarity::Legendary
                     ? Color{255, 126, 38, 255}
                     : loot->loot.rarity == LootRarity::Rare

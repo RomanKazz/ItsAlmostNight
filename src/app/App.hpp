@@ -482,7 +482,6 @@ class App {
     bool pendingWeaponUpgrade_{};
     bool pendingBombThrow_{};
     bool pendingInteract_{};
-    std::optional<RerollChestCommand> pendingChestReroll_;
     bool pendingRevealChest_{};
     bool pendingDefeatAllEnemies_{};
     bool pendingToggleInvulnerability_{};

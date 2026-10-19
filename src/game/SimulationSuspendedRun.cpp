@@ -530,6 +530,11 @@ bool Simulation::loadSuspendedRunState(
     woodYieldMultiplier_ = std::max(0.05, saved.woodYieldMultiplier);
     chestOpeningCostMultiplier_ = std::max(
         0.05, saved.chestOpeningCostMultiplier);
+    const int extraKeys = std::max(0,
+        lootStacks_[lootUpgradeIndex(LootUpgradeEffect::Key)] - 1);
+    chestOpeningCostMultiplier_ = std::min(
+        chestOpeningCostMultiplier_,
+        std::max(0.5, 1.0 - 0.15 * extraKeys));
     playerBonusMaxHealth_ = std::max(0.0, saved.playerBonusMaxHealth);
     playerTemporaryHealth_ = std::max(0.0, saved.playerTemporaryHealth);
     playerRecoverableArmor_ = std::max(0.0, saved.playerRecoverableArmor);

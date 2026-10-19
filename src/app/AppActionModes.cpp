@@ -44,7 +44,6 @@ void App::resetRunInputState() {
     pendingWeaponUpgrade_ = false;
     pendingBombThrow_ = false;
     pendingInteract_ = false;
-    pendingChestReroll_.reset();
     pendingRevealChest_ = false;
     pendingDefeatAllEnemies_ = false;
     pendingToggleInvulnerability_ = false;

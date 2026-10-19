@@ -110,6 +110,17 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
     barrel.actionText="Open";barrel.cost.reset();
     auto challenge=barrel;challenge.targetKind=InteractionPromptTargetKind::Challenge;
     challenge.actionText="Challenge";
+    auto loot=barrel;loot.targetKind=InteractionPromptTargetKind::Loot;
+    loot.objectName="Gas Mask";loot.actionText="Pick Up";
+    loot.accentColor={255,170,170,255};
+    Image pickupOnly=render(loot,"loot-pickup-only.png");
+    int pickupInk=0;
+    for(int y=240;y<390;++y) for(int x=500;x<780;++x) {
+        const auto color=GetImageColor(pickupOnly,x,y);
+        pickupInk+=color.r!=24 || color.g!=32 || color.b!=40;
+    }
+    require(pickupInk>500,"loot shows a compact pickup control and item name");
+    UnloadImage(pickupOnly);
     auto chest=barrel;chest.targetKind=InteractionPromptTargetKind::Chest;
     chest.cost=ResourceCost{0,0,30};chest.availableCurrency=30;
     Image exactPrice=render(chest,"chest-open-affordable.png");
@@ -148,7 +159,7 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         UnloadImageColors(const_cast<Color*>(pixels));return changed;
     };
     for(float degrees : {70.0F,89.9F,90.0F,90.1F,110.0F,180.0F}) {
-      for(const auto& cached : {upgrade,barrel,chest,challenge}) {
+      for(const auto& cached : {upgrade,barrel,chest,challenge,loot}) {
         InteractionPromptRenderer painter;
         for(int frame=0;frame<12;++frame) drawWorldPrompt(painter,cached,worldCamera);
         auto turned=worldCamera;
@@ -220,6 +231,14 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         std::abs(movedTrialBounds.y-trialBounds.y+54)<=2,
         "Challenge key and pill follow the column's world anchor");
     UnloadImage(trial);UnloadImage(movedTrial);
+    Image pickup=render(loot,"loot-pickup-pill.png");
+    auto movedLoot=loot;movedLoot.worldAnchor={.5F,.3F,0};
+    Image movedPickup=render(movedLoot,"loot-pickup-pill-moved.png");
+    const auto pickupBounds=inkBounds(pickup),movedPickupBounds=inkBounds(movedPickup);
+    require(std::abs(movedPickupBounds.x-pickupBounds.x-90)<=2 &&
+        std::abs(movedPickupBounds.y-pickupBounds.y+54)<=2,
+        "loot name and pickup control follow the item in the world");
+    UnloadImage(pickup);UnloadImage(movedPickup);
     Rectangle early{};
     for(int frame=0;frame<32;++frame) {
         BeginDrawing();BeginTextureMode(target);ClearBackground({24,32,40,255});

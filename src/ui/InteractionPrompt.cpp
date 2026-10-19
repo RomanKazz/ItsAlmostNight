@@ -255,6 +255,49 @@ void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
         drawStyledSdfUiText(price,{cursor,anchor.y-priceSize.y*.5F},fontSize,style);
     }
 }
+
+void drawWorldLoot(const InteractionPrompt& prompt,const Camera3D& camera,
+    const ControlSettings& controls,float opacity) {
+    const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
+    if(!projection) return;
+    const auto [anchor,size]=*projection;
+    const float padding=size*.28F,keyHeight=size*1.36F,keyGap=size*.12F;
+    const float actionFont=size*.48F,titleFont=size*.39F;
+    const auto keyWidth=[&](std::string_view label) {
+        const ScopedUiFontRole font(UiFontRole::Display);
+        return std::max(keyHeight,measureUiText(label,keyHeight*.40F).x+keyHeight*.22F);
+    };
+    const auto drawLabel=[&](std::string_view label,Vector2 position,float fontSize,Color color,
+        UiFontRole role) {
+        const ScopedUiFontRole font(role);
+        SdfUiTextStyle style{};
+        style.fillColor=hintStyle::fade(color,opacity);
+        style.outlineColor=hintStyle::fade({20,24,20,255},opacity);
+        style.outlinePixels=size*.065F;
+        style.shadowColor=hintStyle::fade({0,0,0,140},opacity);
+        style.shadowOffsetPixels={0,size*.055F};
+        drawStyledSdfUiText(label,position,fontSize,style);
+    };
+
+    const ScopedUiFontRole display(UiFontRole::Display);
+    const auto interactKey=InputKeycap::label(controls,ControlAction::Interact);
+    const float interactWidth=keyWidth(interactKey);
+    const Vector2 actionSize=measureUiText(prompt.actionText,actionFont);
+    const float pickupWidth=actionSize.x+padding*2;
+    const float pickupGroupWidth=interactWidth+keyGap+pickupWidth;
+    const float rowY=anchor.y-size*.45F;
+    const float left=anchor.x-pickupGroupWidth*.5F;
+    const Rectangle pickupPill{left+interactWidth+keyGap,rowY-size*.65F,
+        pickupWidth,size*1.3F};
+    DrawRectangleRounded(pickupPill,1,16,hintStyle::fade({0,0,0,102},opacity));
+    drawPromptKeycap({left,rowY-keyHeight*.5F,interactWidth,keyHeight},interactKey,
+        InputKeycap::held(controls,ControlAction::Interact),opacity);
+    drawLabel(prompt.actionText,{pickupPill.x+padding,rowY-actionSize.y*.5F},
+        actionFont,UiWhite,UiFontRole::Display);
+    const Vector2 titleSize=measureUiText(prompt.objectName,titleFont);
+    drawLabel(prompt.objectName,{anchor.x-titleSize.x*.5F,rowY-size*1.48F-titleSize.y*.5F},
+        titleFont,prompt.accentColor,UiFontRole::MenuBodyBold);
+}
 } // namespace
 
 Rectangle interactionPromptPanelBounds(const InteractionPrompt& prompt,Vector2 anchor,Vector2 screen,
@@ -413,6 +456,11 @@ void InteractionPromptRenderer::drawPrompt(
             prompt.targetKind==InteractionPromptTargetKind::Chest ||
             prompt.targetKind==InteractionPromptTargetKind::Challenge)) {
         if(projectable(prompt,camera)) drawWorldAction(prompt,camera,ui,controls,opacity);
+        return;
+    }
+    if(prompt.targetKind==InteractionPromptTargetKind::Loot &&
+        prompt.input==ControlAction::Interact) {
+        if(projectable(prompt,camera)) drawWorldLoot(prompt,camera,controls,opacity);
         return;
     }
     const auto anchor=uiWorldToScreen(prompt.worldAnchor,camera);

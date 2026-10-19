@@ -620,10 +620,7 @@ void App::processGameplayInput(bool controlDown,
         }
         if (keyPressed(userSettings_.controls,
                       ControlAction::Upgrade)) {
-            if (currentSnapshot.aimedLoot) {
-                pendingChestReroll_ = RerollChestCommand{
-                    *currentSnapshot.aimedLoot};
-            } else if (buildingManagementActive && actionBuilding) {
+            if (buildingManagementActive && actionBuilding) {
                 const auto building = std::find_if(
                     currentSnapshot.buildings.begin(),
                     currentSnapshot.buildings.end(),

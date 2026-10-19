@@ -708,9 +708,6 @@ void Simulation::updatePlayerActions(
             const bool paidChest =
                 chest != lootChests_.chests().end() &&
                 lootChests_.openingCost(*chest) > 0;
-            const bool explorationChest =
-                chest != lootChests_.chests().end() &&
-                chest->purpose == LootChestPurpose::Exploration;
             const bool useFreeKey =
                 !unlimitedResources_ && paidChest &&
                 freeChestOpeningAvailable_ &&
@@ -724,12 +721,6 @@ void Simulation::updatePlayerActions(
             }
             if (result == ChestOpenResult::Opened && useFreeKey) {
                 freeChestOpeningAvailable_ = false;
-            }
-            if (result == ChestOpenResult::Opened && explorationChest &&
-                lootStacks_[lootUpgradeIndex(
-                    LootUpgradeEffect::Compass)] > 0) {
-                freeChestRerollsRemaining_ = saturatingAdd(
-                    freeChestRerollsRemaining_, 1);
             }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened
@@ -762,45 +753,6 @@ void Simulation::updatePlayerActions(
                 }
             }
         }
-    }
-    if (command.rerollChest) {
-        const auto rerollChest = std::ranges::find(
-            lootChests_.chests(), command.rerollChest->chestId,
-            [](const LootChestInstance& value) { return value.loot.id; });
-        const std::size_t rerollIndex = rerollChest == lootChests_.chests().end()
-            ? 0U
-            : std::min<std::size_t>(
-                  rerollChest->rerollCount,
-                  economy_.chestRerollCoinCosts.size() - 1U);
-        const bool useFreeReroll =
-            !unlimitedResources_ && freeChestRerollsRemaining_ > 0;
-        const int rerollCost = useFreeReroll
-            ? 0
-            : economy_.chestRerollCoinCosts[rerollIndex];
-        int availableCoins = unlimitedResources_
-            ? std::numeric_limits<int>::max()
-            : coins_;
-        const ChestRerollResult result = lootChests_.reroll(
-            command.rerollChest->chestId, availableCoins,
-            rerollCost);
-        if (result == ChestRerollResult::Rerolled &&
-            useFreeReroll) {
-            --freeChestRerollsRemaining_;
-        }
-        if (!unlimitedResources_) coins_ = availableCoins;
-        const GameEventType eventType =
-            result == ChestRerollResult::Rerolled
-                ? GameEventType::ChestRerolled
-                : result == ChestRerollResult::AlreadyRerolled
-                    ? GameEventType::ChestRerollAlreadyUsed
-                    : result == ChestRerollResult::InsufficientCoins
-                        ? GameEventType::EconomyPurchaseRejected
-                        : GameEventType::ChestRerollUnavailable;
-        events_.push_back({
-            .type = eventType,
-            .entityId = command.rerollChest->chestId,
-            .amount = rerollCost,
-        });
     }
     if (command.revealNearestChest) {
         const bool affordable = unlimitedResources_ ||

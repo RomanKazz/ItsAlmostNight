@@ -819,7 +819,6 @@ void App::update() {
             if (pendingInteract_) {
                 tickInput.interact = InteractCommand{};
             }
-            tickInput.rerollChest = pendingChestReroll_;
             if (pendingRevealChest_) {
                 tickInput.revealNearestChest =
                     RevealNearestChestCommand{};
@@ -892,7 +891,6 @@ void App::update() {
         pendingWeaponUpgrade_ = false;
         pendingBombThrow_ = false;
         pendingInteract_ = false;
-        pendingChestReroll_.reset();
         pendingRevealChest_ = false;
         pendingDefeatAllEnemies_ = false;
         pendingToggleInvulnerability_ = false;

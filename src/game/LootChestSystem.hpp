@@ -80,14 +80,6 @@ struct LootChestInstance {
 };
 
 enum class ChestOpenResult { None, Opened, InsufficientCoins, AlreadyOpen };
-enum class ChestRerollResult {
-    None,
-    Rerolled,
-    InsufficientCoins,
-    NotReady,
-    AlreadyRerolled,
-};
-
 struct LootPickup {
     EntityId lootId;
     LootRarity rarity;
@@ -111,8 +103,6 @@ class LootChestSystem {
         Vec3 origin, Vec3 direction, double maximumDistance) const;
     [[nodiscard]] ChestOpenResult open(
         EntityId id, int& coins, bool freeOpening = false);
-    [[nodiscard]] ChestRerollResult reroll(
-        EntityId id, int& coins, int cost = 10);
     [[nodiscard]] std::optional<Vec3> revealNearest(
         Vec3 playerPosition);
     void setCoinCostMultiplier(double multiplier);
