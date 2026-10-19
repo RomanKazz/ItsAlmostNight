@@ -27,7 +27,8 @@ class TargetHealthBar {
               const TerrainHeightfield& terrain,
               EnemyBoundsProvider enemyBoundsProvider = {},
               std::optional<EntityId> upgradePromptTarget = std::nullopt,
-              BuildingHeightProvider buildingHeightProvider = {});
+              BuildingHeightProvider buildingHeightProvider = {},
+              std::optional<EntityId> buildingLevelTarget = std::nullopt);
     void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id, double damage = 0.0);
@@ -113,7 +114,6 @@ class TargetHealthBar {
         healthAnimations_;
     std::uint64_t healthAnimationFrame_{};
     std::optional<ScreenHealthText> screenHealthText_;
-    std::optional<ScreenHealthText> screenLevelText_;
 };
 
 } // namespace ian

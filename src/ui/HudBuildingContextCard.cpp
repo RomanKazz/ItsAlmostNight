@@ -3,7 +3,6 @@
 #include "buildings/BuildingOrientation.hpp"
 #include "combat/DefenseTomeScaling.hpp"
 #include "ui/BuildingCardLayout.hpp"
-#include "ui/UiChamferedPlate.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiHintStyle.hpp"
@@ -92,9 +91,11 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
             std::lround(static_cast<float>(color.a) * opacity));
         return color;
     };
-    hintStyle::panel({x,y,width,height},scale,opacity);
-    DrawLineEx({x+16*scale,y+48*scale},{x+width-16*scale,y+48*scale},scale,faded(menuStyle::Card));
-    const ScopedUiFontRole body(UiFontRole::Body);
+    // Same translucent black surface as the world upgrade pill. Keep its
+    // corner radius at the hint's scale so table text has room at the corners.
+    const float roundness=std::min(1.0F,48*scale/std::min(width,height));
+    DrawRectangleRounded({x,y,width,height},roundness,16,faded({0,0,0,102}));
+    const ScopedUiFontRole body(UiFontRole::MenuBodyBold);
     const auto point = [=](float px, float py) { return Vector2{x+px*scale,y+py*scale}; };
     hintStyle::text(title,{x+16*scale,y+8*scale,330*scale,31*scale},19*scale,
         menuStyle::Gold,UiFontRole::Display,opacity);
@@ -103,33 +104,33 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
         drawSdfUiText(label, point(444-measureUiText(label,13).x,15),13*scale,
             faded({255,204,25,255}));
     }
-    drawSdfUiText("MAX HEALTH", point(16,62), 13*scale, faded({202,211,202,255}));
+    drawSdfUiText("MAX HEALTH", point(16,62), 14*scale, faded({202,211,202,255}));
     const std::string hp = statValue(maxHealth,0,"");
     const bool healthChanges = nextMaxHealth && std::abs(*nextMaxHealth-maxHealth)>.0001;
     const std::string nextHp = healthChanges ? statValue(*nextMaxHealth,0,"") : std::string{};
-    const float nextHpWidth = healthChanges ? measureUiText(nextHp,13).x : 0;
+    const float nextHpWidth = healthChanges ? measureUiText(nextHp,14).x : 0;
     const float hpRight = healthChanges ? 444-nextHpWidth-26 : 444;
-    drawSdfUiText(hp, point(hpRight-measureUiText(hp,13).x,62), 13*scale, faded(UiWhite));
+    drawSdfUiText(hp, point(hpRight-measureUiText(hp,14).x,62), 14*scale, faded(UiWhite));
     if (healthChanges) {
-        drawSdfUiText(">",point(444-nextHpWidth-20,62),13*scale,
+        drawSdfUiText(">",point(444-nextHpWidth-20,62),14*scale,
             faded({235,218,159,255}));
-        drawSdfUiText(nextHp,point(444-nextHpWidth,62),13*scale,
+        drawSdfUiText(nextHp,point(444-nextHpWidth,62),14*scale,
             faded({71,236,123,255}));
     }
     for (std::size_t i=0; i<rows.size(); ++i) {
         const auto& row=rows[i];
         const float rowY=91+static_cast<float>(i)*29;
-        drawSdfUiText(row.label, point(16,rowY), 12*scale,faded({202,211,202,255}));
+        drawSdfUiText(row.label, point(16,rowY), 13*scale,faded({202,211,202,255}));
         const auto current=statValue(row.value,row.decimals,row.suffix);
         const bool changes=row.next && std::abs(*row.next-row.value)>.0001;
         const auto next=changes ? statValue(*row.next,row.decimals,row.suffix) : std::string{};
-        const float nextWidth=changes ? measureUiText(next,13).x : 0;
+        const float nextWidth=changes ? measureUiText(next,14).x : 0;
         const float currentRight=changes ? 444-nextWidth-26 : 444;
-        drawSdfUiText(current,point(currentRight-measureUiText(current,13).x,rowY),13*scale,faded(UiWhite));
+        drawSdfUiText(current,point(currentRight-measureUiText(current,14).x,rowY),14*scale,faded(UiWhite));
         if (changes) {
-            drawSdfUiText(">",point(444-nextWidth-20,rowY),13*scale,
+            drawSdfUiText(">",point(444-nextWidth-20,rowY),14*scale,
                 faded({235,218,159,255}));
-            drawSdfUiText(next,point(444-nextWidth,rowY),13*scale,
+            drawSdfUiText(next,point(444-nextWidth,rowY),14*scale,
                 faded({71,236,123,255}));
         }
     }

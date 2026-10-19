@@ -2,6 +2,7 @@
 #include "ui/UiTomeIcon.hpp"
 #include "RewardBackdropChecks.hpp"
 #include "ShrinePromptChecks.hpp"
+#include "BuildingHoverChecks.hpp"
 #include "NightForecastChecks.hpp"
 #include "WeaponInventoryGraphicsChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
@@ -66,6 +67,7 @@ int main(int argc, char** argv) {
     checkNightForecast(ui,argc>1 ? argv[1] : nullptr);
     checkWeaponInventory(ui,argc>1 ? argv[1] : nullptr);
     checkShrineResourcePrompt(ui,argc>1 ? argv[1] : nullptr);
+    checkBuildingHoverUi(ui,argc>1 ? argv[1] : nullptr);
     const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");
     Image venomImage = LoadImageFromTexture(venomIcon);

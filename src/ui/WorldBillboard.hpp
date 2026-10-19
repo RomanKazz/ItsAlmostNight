@@ -23,6 +23,12 @@ void drawWorldBillboardText(
     Vector3 cameraUp, Color color,
     Color shadowColor = {24, 18, 14, 230});
 
+void drawWorldBillboardOutlinedText(
+    std::string_view text, Vector3 center, float worldSize,
+    const Camera3D& camera, Vector3 cameraRight,
+    Vector3 cameraUp, Color color, Color outlineColor,
+    Color shadowColor, float rotationDegrees = 0.0F);
+
 void drawWorldBillboardTexture(
     Texture2D texture, Vector3 center, Vector2 worldSize,
     const Camera3D& camera, Vector3 cameraUp,

@@ -9,6 +9,7 @@
 #include "ui/WorldBillboard.hpp"
 #include "world/TerrainHeightfield.hpp"
 #include "world/VisualBiomes.hpp"
+#include "localization/Localization.hpp"
 
 #include <raymath.h>
 #include <algorithm>
@@ -116,10 +117,10 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const TerrainHeightfield& terrain,
                            EnemyBoundsProvider enemyBoundsProvider,
                            std::optional<EntityId> upgradePromptTarget,
-                           BuildingHeightProvider buildingHeightProvider) {
+                           BuildingHeightProvider buildingHeightProvider,
+                           std::optional<EntityId> buildingLevelTarget) {
     const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
     screenHealthText_.reset();
-    screenLevelText_.reset();
     ++healthAnimationFrame_;
     const double frameSeconds = static_cast<double>(std::clamp(
         GetFrameTime(), 0.0F, 0.10F));
@@ -350,7 +351,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 .health = building->health,
                 .maxHealth = building->maxHealth,
                 .fillColor = {82, 210, 103, 255},
-                .buildingLevel = static_cast<int>(building->level),
+                .buildingLevel = buildingLevelTarget==building->id
+                    ? static_cast<int>(building->level) : 0,
             };
             if (upgradePromptTarget == building->id) {
                 const Vector3 forward = Vector3Normalize(
@@ -762,45 +764,15 @@ void TargetHealthBar::drawBillboard(
                              outerHeight * 0.5F +
                                  0.16F)),
             Vector3Scale(towardCamera, layerOffset * 4.0F));
-        const Vector2 screenCenter = GetWorldToScreen(
-            labelCenter, camera);
-        const Vector2 screenTop = GetWorldToScreen(
-            Vector3Add(labelCenter,
-                       Vector3Scale(cameraUp, 0.14F)), camera);
-        const float pixelHeight = Vector2Distance(
-            screenCenter, screenTop) * 2.0F;
-        if (visibleScreenPoint(screenCenter)) {
-            screenLevelText_ = ScreenHealthText{
-                .text = levelText,
-                .center = screenCenter,
-                .fontSize = std::clamp(
-                    pixelHeight / 1.68F, 9.0F, 25.0F),
-                .opacity = opacity,
-            };
-        }
+        const ScopedUiFontRole font(UiFontRole::Display);
+        const std::string label=localizeText(levelText);
+        drawWorldBillboardOutlinedText(label,labelCenter,.19F,
+            camera,cameraRight,cameraUp,withOpacity({255,235,174,255},opacity),
+            withOpacity({49,36,28,255},opacity),withOpacity({20,16,14,210},opacity));
     }
 }
 
 void TargetHealthBar::drawScreenOverlay() const {
-    if (screenLevelText_) {
-        const ScreenHealthText& level = *screenLevelText_;
-        const Vector2 measured = measureUiText(
-            level.text, level.fontSize);
-        SdfUiTextStyle style{};
-        style.fillColor = withOpacity(
-            {255, 235, 174, 255}, level.opacity);
-        style.outlineColor = withOpacity(
-            {49, 36, 28, 255}, level.opacity);
-        style.shadowColor = withOpacity(
-            {20, 16, 14, 210}, level.opacity);
-        style.shadowOffsetPixels = {0.0F, 3.0F};
-        style.outlinePixels = 2.0F;
-        drawStyledSdfUiText(
-            level.text,
-            {level.center.x - measured.x * 0.5F,
-             level.center.y - measured.y * 0.5F},
-            level.fontSize, style);
-    }
     if (!screenHealthText_) return;
     const ScreenHealthText& text = *screenHealthText_;
     const Vector2 measured = measureUiText(

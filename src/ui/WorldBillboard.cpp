@@ -94,9 +94,10 @@ float measureWorldBillboardText(
     const float scale =
         worldSize / static_cast<float>(font.baseSize);
     float totalWidth = 0.0F;
-    for (const char character : text) {
-        const int codepoint =
-            static_cast<unsigned char>(character);
+    for (std::size_t offset = 0; offset < text.size();) {
+        int byteCount = 0;
+        const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
+        offset += static_cast<std::size_t>(std::max(byteCount, 1));
         const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
         const Rectangle source =
             GetGlyphAtlasRec(font, codepoint);
@@ -121,9 +122,10 @@ void drawWorldBillboardText(
         worldSize / static_cast<float>(font.baseSize);
     float cursor =
         -measureWorldBillboardText(text, worldSize) * 0.5F;
-    for (const char character : text) {
-        const int codepoint =
-            static_cast<unsigned char>(character);
+    for (std::size_t offset = 0; offset < text.size();) {
+        int byteCount = 0;
+        const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
+        offset += static_cast<std::size_t>(std::max(byteCount, 1));
         const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
         const Rectangle source =
             GetGlyphAtlasRec(font, codepoint);
@@ -162,6 +164,96 @@ void drawWorldBillboardText(
             cameraUp, glyphSize,
             {glyphSize.x * 0.5F, glyphSize.y * 0.5F},
             0.0F, color);
+        cursor += advance * scale + WorldSpacing;
+    }
+}
+
+void drawWorldBillboardOutlinedText(
+    std::string_view text, Vector3 center, float worldSize,
+    const Camera3D& camera, Vector3 cameraRight,
+    Vector3 cameraUp, Color color, Color outlineColor,
+    Color shadowColor, float rotationDegrees) {
+    const Font font = uiFont();
+    const float scale =
+        worldSize / static_cast<float>(font.baseSize);
+    // Rotate the text's entire camera-facing plane around the word center.
+    // Rotating each glyph in place leaves the baseline horizontal.
+    const float rotation = rotationDegrees * DEG2RAD;
+    const float cosine = std::cos(rotation);
+    const float sine = std::sin(rotation);
+    const Vector3 textRight = Vector3Add(
+        Vector3Scale(cameraRight, cosine),
+        Vector3Scale(cameraUp, sine));
+    const Vector3 textUp = Vector3Subtract(
+        Vector3Scale(cameraUp, cosine),
+        Vector3Scale(cameraRight, sine));
+    const float outlineOffset = worldSize * 0.047F;
+    const float shadowOffset = worldSize * 0.065F;
+    constexpr Vector2 OutlineDirections[]{
+        {-1.0F, 0.0F}, {1.0F, 0.0F},
+        {0.0F, -1.0F}, {0.0F, 1.0F},
+        {-0.7F, -0.7F}, {0.7F, -0.7F},
+        {-0.7F, 0.7F}, {0.7F, 0.7F},
+    };
+    float cursor =
+        -measureWorldBillboardText(text, worldSize) * 0.5F;
+    for (std::size_t offset = 0; offset < text.size();) {
+        int byteCount = 0;
+        const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
+        offset += static_cast<std::size_t>(std::max(byteCount, 1));
+        const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
+        const Rectangle source =
+            GetGlyphAtlasRec(font, codepoint);
+        const float advance = static_cast<float>(
+            glyph.advanceX > 0
+                ? glyph.advanceX
+                : static_cast<int>(source.width));
+        const Vector2 glyphSize{
+            source.width * scale,
+            source.height * scale,
+        };
+        const Vector3 glyphCenter = Vector3Add(
+            Vector3Add(
+                center,
+                Vector3Scale(
+                    textRight,
+                    cursor + static_cast<float>(glyph.offsetX) * scale +
+                        glyphSize.x * 0.5F)),
+            Vector3Scale(
+                textUp,
+                (static_cast<float>(font.baseSize) * 0.5F -
+                 (static_cast<float>(glyph.offsetY) +
+                  source.height * 0.5F)) * scale));
+        const Vector2 glyphOrigin{
+            glyphSize.x * 0.5F, glyphSize.y * 0.5F};
+        const Vector3 shadowCenter = Vector3Add(
+            Vector3Add(
+                glyphCenter,
+                Vector3Scale(textRight, shadowOffset)),
+            Vector3Scale(textUp, -shadowOffset));
+        DrawBillboardPro(
+            camera, font.texture, source, shadowCenter,
+            cameraUp, glyphSize, glyphOrigin,
+            rotationDegrees, shadowColor);
+        for (const Vector2 direction : OutlineDirections) {
+            const Vector3 outlineCenter = Vector3Add(
+                Vector3Add(
+                    glyphCenter,
+                    Vector3Scale(
+                        textRight,
+                        direction.x * outlineOffset)),
+                Vector3Scale(
+                    textUp,
+                    direction.y * outlineOffset));
+            DrawBillboardPro(
+                camera, font.texture, source, outlineCenter,
+                cameraUp, glyphSize, glyphOrigin,
+                rotationDegrees, outlineColor);
+        }
+        DrawBillboardPro(
+            camera, font.texture, source, glyphCenter,
+            cameraUp, glyphSize, glyphOrigin,
+            rotationDegrees, color);
         cursor += advance * scale + WorldSpacing;
     }
 }
