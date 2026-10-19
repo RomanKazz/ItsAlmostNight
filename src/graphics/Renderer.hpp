@@ -80,7 +80,7 @@ struct WorldMaterialState {
     float treeRampSmoothness{0.19F};
     float treeHighlightStrength{0.90F};
     float treeTextureVariation{0.08F};
-    float treeLeafFlatness{0.45F};
+    float treeLeafFlatness{0.68F};
     float bushAmount{};
     Vector3 bushShadowColor{0.157F, 0.325F, 0.247F};
     Vector3 bushMidColor{0.333F, 0.498F, 0.224F};

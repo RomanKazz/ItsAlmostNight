@@ -714,6 +714,7 @@ void main()
             mix(0.58, hemisphere, 0.42), 0.0);
         litColor *= mix(0.82, 1.0, ao);
     }
+    float treeFaceFacing = lightFacing;
     if (treeAmount > 0.5)
     {
         float maximumShadowDarkening =
@@ -731,6 +732,7 @@ void main()
         {
             faceNormal = -faceNormal;
         }
+        treeFaceFacing = dot(faceNormal, lightDirection);
         vec3 crownNormal = normalize(mix(
             normal, faceNormal,
             clamp(treeLeafFlatness, 0.0, 1.0)));
@@ -743,11 +745,11 @@ void main()
         float crownShadowSide =
             1.0 - smoothstep(-0.12, 0.30, faceSunFacing);
         float crownFacetedFillRamp = clamp(
-            faceSunFacing*0.33 + 0.67 + faceNormal.y*0.06,
+            faceSunFacing*0.20 + 0.65 + faceNormal.y*0.03,
             0.0, 1.0);
         float crownRamp = clamp(
             mix(crownDirectRamp, crownFacetedFillRamp,
-                crownShadowSide*0.88) -
+                crownShadowSide*0.72) -
             castShadowAmount*0.12,
             0.0, 1.0);
         float rampSmoothness = clamp(treeRampSmoothness, 0.02, 0.28);
@@ -768,7 +770,7 @@ void main()
             treeLeafMidColor, treeLeafLightColor,
             clamp(treeHighlightStrength, 0.0, 1.0));
         vec3 filledLeafShadow = mix(
-            treeLeafShadowColor, treeLeafMidColor, 0.65);
+            treeLeafShadowColor, treeLeafMidColor, 0.78);
         vec3 leafColor = mix(
             filledLeafShadow, treeLeafMidColor, leafShadowToMid);
         leafColor = mix(
@@ -800,7 +802,7 @@ void main()
             smoothstep(0.22, 0.88, treeRamp)*shadowVisibility;
         litColor = applyStylizedWorldLight(
             treeColor, treeDirectAmount,
-            hemisphere, 1.0);
+            mix(hemisphere, faceNormal.y*0.5 + 0.5, leafMask*0.65), 1.0);
         litColor *= mix(0.86, 1.0, ao);
     }
     if (bushAmount > 0.5)
@@ -923,7 +925,9 @@ void main()
     // Add restrained bounce light only to object faces turned away from the
     // sun. Terrain and already-lit faces retain their existing values.
     float objectShadowSide =
-        (1.0 - smoothstep(-0.12, 0.48, lightFacing))*
+        (1.0 - smoothstep(-0.12, 0.48,
+            mix(lightFacing, treeFaceFacing,
+                step(0.5, treeAmount)*0.65)))*
         (1.0 - clamp(terrainAmount, 0.0, 1.0));
     litColor *= 1.0 + objectShadowSide*0.24;
 
