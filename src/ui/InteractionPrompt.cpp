@@ -218,7 +218,7 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
             key,false,opacity);
     }
 }
-void drawContainerOpen(const InteractionPrompt& prompt,const Camera3D& camera,
+void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
     const GameUi& ui,const ControlSettings& controls,float opacity) {
     const ScopedUiFontRole font(UiFontRole::Display);
     const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
@@ -227,7 +227,8 @@ void drawContainerOpen(const InteractionPrompt& prompt,const Camera3D& camera,
     const float fontSize=size*.48F,padding=size*.28F,keyHeight=size*1.36F,keyGap=size*.12F;
     const auto label=InputKeycap::label(controls,ControlAction::Interact);
     const float keyWidth=std::max(keyHeight,measureUiText(label,keyHeight*.40F).x+keyHeight*.22F);
-    const auto textSize=measureUiText("Open",fontSize);
+    const std::string_view action=prompt.targetKind==InteractionPromptTargetKind::Challenge?"CHALLENGE":"Open";
+    const auto textSize=measureUiText(action,fontSize);
     const bool priced=prompt.targetKind==InteractionPromptTargetKind::Chest && prompt.cost.has_value();
     const std::string price=priced?std::to_string(prompt.cost->crystals):std::string{};
     const float coinSize=size*.76F,priceGap=size*.16F;
@@ -242,7 +243,7 @@ void drawContainerOpen(const InteractionPrompt& prompt,const Camera3D& camera,
     SdfUiTextStyle style{};style.fillColor=hintStyle::fade(UiWhite,opacity);
     style.outlineColor=hintStyle::fade({20,24,20,255},opacity);style.outlinePixels=size*.065F;
     style.shadowColor=hintStyle::fade({0,0,0,140},opacity);style.shadowOffsetPixels={0,size*.055F};
-    drawStyledSdfUiText("Open",{pill.x+padding,anchor.y-textSize.y*.5F},fontSize,style);
+    drawStyledSdfUiText(action,{pill.x+padding,anchor.y-textSize.y*.5F},fontSize,style);
     if(priced) {
         float cursor=pill.x+padding+textSize.x+priceGap;
         ui.drawResourceIcon({cursor,anchor.y-coinSize*.5F-size*.05F,coinSize,coinSize},UiResourceIcon::Coin,
@@ -409,8 +410,9 @@ void InteractionPromptRenderer::drawPrompt(
     }
     if(prompt.input==ControlAction::Interact &&
         ((prompt.targetKind==InteractionPromptTargetKind::Resource && !prompt.cost) ||
-            prompt.targetKind==InteractionPromptTargetKind::Chest)) {
-        if(projectable(prompt,camera)) drawContainerOpen(prompt,camera,ui,controls,opacity);
+            prompt.targetKind==InteractionPromptTargetKind::Chest ||
+            prompt.targetKind==InteractionPromptTargetKind::Challenge)) {
+        if(projectable(prompt,camera)) drawWorldAction(prompt,camera,ui,controls,opacity);
         return;
     }
     const auto anchor=uiWorldToScreen(prompt.worldAnchor,camera);

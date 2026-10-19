@@ -108,6 +108,8 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
     UnloadImage(compact);UnloadImage(affordable);
     auto barrel=prompt;barrel.targetKind=InteractionPromptTargetKind::Resource;
     barrel.actionText="Open";barrel.cost.reset();
+    auto challenge=barrel;challenge.targetKind=InteractionPromptTargetKind::Challenge;
+    challenge.actionText="Challenge";
     auto chest=barrel;chest.targetKind=InteractionPromptTargetKind::Chest;
     chest.cost=ResourceCost{0,0,30};chest.availableCurrency=30;
     Image exactPrice=render(chest,"chest-open-affordable.png");
@@ -146,7 +148,7 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         UnloadImageColors(const_cast<Color*>(pixels));return changed;
     };
     for(float degrees : {70.0F,89.9F,90.0F,90.1F,110.0F,180.0F}) {
-      for(const auto& cached : {upgrade,barrel,chest}) {
+      for(const auto& cached : {upgrade,barrel,chest,challenge}) {
         InteractionPromptRenderer painter;
         for(int frame=0;frame<12;++frame) drawWorldPrompt(painter,cached,worldCamera);
         auto turned=worldCamera;
@@ -210,6 +212,14 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         std::abs(movedBounds.height-openBounds.height)<=2,
         "crate/barrel key and Open pill follow their world anchor without pinning to the crosshair");
     UnloadImage(open);UnloadImage(movedOpen);
+    Image trial=render(challenge,"challenge-pill.png");
+    auto movedChallenge=challenge;movedChallenge.worldAnchor={.5F,.3F,0};
+    Image movedTrial=render(movedChallenge,"challenge-pill-moved.png");
+    const auto trialBounds=inkBounds(trial),movedTrialBounds=inkBounds(movedTrial);
+    require(std::abs(movedTrialBounds.x-trialBounds.x-90)<=2 &&
+        std::abs(movedTrialBounds.y-trialBounds.y+54)<=2,
+        "Challenge key and pill follow the column's world anchor");
+    UnloadImage(trial);UnloadImage(movedTrial);
     Rectangle early{};
     for(int frame=0;frame<32;++frame) {
         BeginDrawing();BeginTextureMode(target);ClearBackground({24,32,40,255});
@@ -237,7 +247,7 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
             std::string name;
             switch(kind) {
             case 0: sample.targetKind=InteractionPromptTargetKind::Resource;sample.actionText="Open";name="prompt-barrel";break;
-            case 1: sample.targetKind=InteractionPromptTargetKind::Challenge;sample.actionText="BEGIN TRIAL";name="prompt-trial";break;
+            case 1: sample.targetKind=InteractionPromptTargetKind::Challenge;sample.actionText="Challenge";name="prompt-trial";break;
             case 2: sample.targetKind=InteractionPromptTargetKind::Landmark;sample.actionText="Restore";
                 sample.cost=ResourceCost{0,0,120};sample.availableCurrency=0;name="prompt-mine";break;
             case 3: sample.targetKind=InteractionPromptTargetKind::Chest;sample.actionText="Open";

@@ -79,3 +79,10 @@ Captures for affordable/unaffordable chests and moving prop anchors were
 inspected. An earlier parallel graphics run hit its 90-second timeout; the
 isolated graphics rerun passed, followed by the complete successful suite.
 No public interface or save format changes.
+
+Challenge columns use the same world-scaled keycap and 40% black pill, with only
+`Challenge` in the pill. They retain their column anchor and interact binding;
+there is no Begin Trial heading. World movement and fast-turn render checks
+also cover challenges.
+Challenge validation: Debug CTest 42/42; Release interaction UI smoke passed;
+English and Russian captures inspected. Debug/Release builds passed.

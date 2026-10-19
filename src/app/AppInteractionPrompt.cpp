@@ -85,7 +85,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(column->position.y + 1.72),
                     static_cast<float>(column->position.z),
                 },
-                .actionText = "BEGIN TRIAL",
+                .actionText = "CHALLENGE",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
                 .accentColor = Color{230, 188, 147, 255},
