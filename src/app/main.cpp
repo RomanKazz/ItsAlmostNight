@@ -1,5 +1,9 @@
 #include "app/App.hpp"
 
+#include <raylib.h>
+
+#include <cstdio>
+
 #ifdef IAN_PRESENTATION_SMOKE_TEST
 #include <string_view>
 #include <charconv>
@@ -18,6 +22,12 @@ int main(int argc, char** argv) {
 #else
     static_cast<void>(argc);static_cast<void>(argv);
 #endif
+    // Runtime assets are packaged beside the executable. Finder and shortcuts
+    // may start us from any working directory, so resolve relative paths here.
+    if (!ChangeDirectory(GetApplicationDirectory())) {
+        std::fputs("Failed to locate the game directory.\n", stderr);
+        return 1;
+    }
     ian::App app;
     return app.run();
 }
