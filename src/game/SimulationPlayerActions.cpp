@@ -18,8 +18,7 @@ constexpr double LootProximityPickupRadius = 2.0;
     PlayerWeapon weapon) {
     return weapon == PlayerWeapon::Axe ||
            weapon == PlayerWeapon::Pickaxe ||
-           weapon == PlayerWeapon::Club ||
-           weapon == PlayerWeapon::Hammer;
+           weapon == PlayerWeapon::Club;
 }
 
 } // namespace
@@ -28,7 +27,11 @@ int Simulation::resourceCapacity(ResourceCapacityType resource) const {
     const auto core = buildings_.core();
     int capacity = 0;
     if (core) {
-        capacity = coreResourceCapacity(resource, core->level);
+        const double base = coreResourceCapacity(resource,
+            static_cast<std::uint8_t>(coreStorageBaseLevel_));
+        capacity = static_cast<int>(std::min(
+            static_cast<double>(std::numeric_limits<int>::max()),
+            std::ceil(base * (1.0 + 0.20 * coreCardPowers_[3]))));
     } else if (resource == ResourceCapacityType::Wood) {
         capacity = 60;
     } else if (resource == ResourceCapacityType::Stone) {
@@ -37,7 +40,9 @@ int Simulation::resourceCapacity(ResourceCapacityType resource) const {
         capacity = 10;
     }
     if (playerClass_ == PlayerClass::Prospector) {
-        capacity += (capacity + 3) / 4;
+        capacity = static_cast<int>(std::min(
+            static_cast<double>(std::numeric_limits<int>::max()),
+            std::ceil(static_cast<double>(capacity) * classLevelBonuses().carryCapacity)));
     }
     return capacity;
 }
@@ -137,68 +142,65 @@ double Simulation::resourceToolEfficiency(
 }
 
 void Simulation::advanceBuildingProduction(double deltaSeconds) {
-    const auto production = crystalMines_.tick(deltaSeconds);
-    if (crystals_ < resourceCapacity(ResourceCapacityType::Crystal)) {
-        crystalStorageFullNotified_ = false;
-    }
-    for (const auto& produced : production) {
-        const auto building = std::find_if(
-            buildings_.buildings().begin(),
-            buildings_.buildings().end(),
-            [&produced](const BuildingInstance& candidate) {
-                return candidate.id == produced.mineId;
-            });
-        const Vec3 productionPosition =
-            building != buildings_.buildings().end()
-                ? buildingWorldPosition(*building)
-                : Vec3{};
-        if (produced.buildingType == BuildingType::CrystalMine) {
-            const int before = crystals_;
-            addCrystals(produced.amount);
-            const int granted = crystals_ - before;
-            events_.push_back({
-                .type = GameEventType::CrystalProduced,
-                .entityId = produced.mineId,
-                .buildingType = produced.buildingType,
-                .position = productionPosition,
-                .amount = granted,
-                .night = state_ == RunState::Sunset || state_ == RunState::Wave,
-            });
-            if (granted < produced.amount &&
-                !crystalStorageFullNotified_) {
-                crystalStorageFullNotified_ = true;
-                events_.push_back({
-                    .type = GameEventType::CrystalStorageFull,
-                    .entityId = produced.mineId,
-                    .buildingType = produced.buildingType,
-                    .position = productionPosition,
-                    .amount = produced.amount - granted,
-                });
-            }
-        } else {
-            const ResourceType resourceType =
-                produced.buildingType ==
-                        BuildingType::LumberMill
-                    ? ResourceType::Wood
-                    : ResourceType::Stone;
-            if (resourceType == ResourceType::Wood) {
-                addWood(produced.amount);
-            } else {
-                addStone(produced.amount);
-            }
-            events_.push_back({
-                .type = GameEventType::ResourceGranted,
-                .entityId = produced.mineId,
-                .resourceType = resourceType,
-                .buildingType = produced.buildingType,
-                .position = productionPosition,
-                .amount = produced.amount,
-            });
-        }
+    const auto resourceFor = [](BuildingType type) {
+        return type == BuildingType::LumberMill
+            ? ResourceType::Wood : type == BuildingType::Quarry
+                ? ResourceType::Stone : ResourceType::Crystal;
+    };
+    const auto availableSpace = [this, &resourceFor](BuildingType type) {
+        const ResourceType resource = resourceFor(type);
+        const ResourceCapacityType capacityType = resource == ResourceType::Wood
+            ? ResourceCapacityType::Wood : resource == ResourceType::Stone
+                ? ResourceCapacityType::Stone : ResourceCapacityType::Crystal;
+        const int current = resource == ResourceType::Wood ? wood_ :
+            resource == ResourceType::Stone ? stone_ : crystals_;
+        return unlimitedResources_ ? std::numeric_limits<int>::max() :
+            std::max(0, resourceCapacity(capacityType) - current);
+    };
+    const auto grant = [this, &resourceFor, &availableSpace](
+                           EntityId id, BuildingType type, int produced) {
+        const int amount = std::min(produced, availableSpace(type));
+        if (amount <= 0) return;
+        const auto building = std::ranges::find(buildings_.buildings(),
+            id, &BuildingInstance::id);
+        if (building == buildings_.buildings().end()) return;
+        const ResourceType resource = resourceFor(type);
+        if (resource == ResourceType::Wood) addWood(amount);
+        else if (resource == ResourceType::Stone) addStone(amount);
+        else addCrystals(amount);
+        events_.push_back({
+            .type = resource == ResourceType::Crystal
+                ? GameEventType::CrystalProduced : GameEventType::ResourceGranted,
+            .entityId = id,
+            .resourceType = resource,
+            .buildingType = type,
+            .position = buildingWorldPosition(*building),
+            .amount = amount,
+        });
+    };
+    for (const CrystalProduced& produced : crystalMines_.tick(deltaSeconds))
+        grant(produced.mineId, produced.buildingType, produced.amount);
+    // Old saves may contain stock from the retired local producer buffers.
+    for (const CrystalMineRuntime& producer : crystalMines_.mines()) {
+        if (producer.stored <= 0) continue;
+        const int amount = crystalMines_.collect(producer.buildingId,
+            availableSpace(producer.buildingType));
+        grant(producer.buildingId, producer.buildingType, amount);
     }
 }
 
 void Simulation::dropPropLoot(const ResourceHit& hit, Vec3 position, std::uint64_t rewardSeed) {
+    if (hit.type == ResourceType::ItemCrate) {
+        if (!coinPickups_.spawnMetaSilver(position, rewardSeed ^ 0x6a09e667f3bcc909ULL, terrain_))
+            events_.push_back({.type=GameEventType::MetaSilverCollected,.position=position,.amount=1});
+        // Meta rewards cannot be farmed by rewinding to the start of a night.
+        if (waveStartCheckpoint_) {
+            const auto current = std::ranges::find(resources_.nodes(),hit.nodeId,&ResourceNode::id);
+            if (current != resources_.nodes().end())
+                for (auto& node : waveStartCheckpoint_->resourceNodes)
+                    if (node.id == hit.nodeId) node = *current;
+        }
+    }
     const double rewardRoll = unitRandom(rewardSeed);
     const int baseCoins = hit.type == ResourceType::Barrel
         ? 3 + static_cast<int>(rewardSeed % 5ULL)
@@ -272,27 +274,6 @@ void Simulation::updatePlayerActions(
     if (command.overrideAimedResource) {
         aimedResource_ = command.aimedResourceOverride;
     }
-    // Smart Tools reacts to an attack, never to hover alone. This prevents a
-    // resource behind an enemy from replacing the combat weapon mid-fight.
-    if (command.usePickaxe && !command.selectWeapon &&
-        !selectedBuilding_ && aimedResource_) {
-        const auto node = std::ranges::find(
-            resources_.nodes(), *aimedResource_,
-            &ResourceNode::id);
-        if (node != resources_.nodes().end() &&
-            isHarvestableResource(node->type)) {
-            const PlayerWeapon desiredTool =
-                node->type == ResourceType::Wood
-                    ? PlayerWeapon::Axe
-                    : PlayerWeapon::Pickaxe;
-            if (heldTool != desiredTool) {
-                playerWeapons_.selectWeapon(desiredTool);
-                heldTool = desiredTool;
-                selectedBuilding_.reset();
-                buildingPreview_.reset();
-            }
-        }
-    }
     const double enemyAimRange =
         playerWeapons_.selectedWeapon() == PlayerWeapon::Rifle
             ? playerWeapons_.rifleRange()
@@ -306,7 +287,45 @@ void Simulation::updatePlayerActions(
     aimedEnemy_ = aimedEnemyHit
         ? std::optional<EntityId>{aimedEnemyHit->id}
         : std::nullopt;
-    if (!aimedEnemy_ && isMeleeAttackWeapon(heldTool)) {
+    bool resourceInFront = false;
+    if (aimedResource_) {
+        const auto node = std::ranges::find(
+            resources_.nodes(), *aimedResource_, &ResourceNode::id);
+        if (node != resources_.nodes().end() && node->active) {
+            const auto resourceDistance =
+                command.aimedResourceHitPositionOverride
+                    ? std::optional<double>{geometry::length(geometry::subtract(
+                          *command.aimedResourceHitPositionOverride,
+                          playerPosition_))}
+                    : geometry::raySphereDistance(
+                          playerPosition_, direction, node->position,
+                          node->radius * (isDestructibleProp(node->type)
+                              ? DestructiblePropColliderScale : 1.0));
+            resourceInFront = resourceDistance &&
+                (!aimedEnemyHit || *resourceDistance < aimedEnemyHit->distance);
+        }
+        if (resourceInFront) aimedEnemy_.reset();
+        else if (aimedEnemy_) aimedResource_.reset();
+    }
+    // Smart Tools acts only on the foreground target, never on a resource
+    // obscured by an enemy.
+    if (command.usePickaxe && !command.selectWeapon &&
+        !selectedBuilding_ && aimedResource_) {
+        const auto node = std::ranges::find(
+            resources_.nodes(), *aimedResource_, &ResourceNode::id);
+        if (node != resources_.nodes().end() &&
+            isHarvestableResource(node->type)) {
+            const PlayerWeapon desiredTool = node->type == ResourceType::Wood
+                ? PlayerWeapon::Axe : PlayerWeapon::Pickaxe;
+            if (heldTool != desiredTool) {
+                playerWeapons_.selectWeapon(desiredTool);
+                heldTool = desiredTool;
+                selectedBuilding_.reset();
+                buildingPreview_.reset();
+            }
+        }
+    }
+    if (!aimedEnemy_ && !resourceInFront && isMeleeAttackWeapon(heldTool)) {
         // A first-person ray is too brittle for close combat: animation,
         // uneven arena ground and short enemies can move the capsule just
         // outside the crosshair between input and the damage frame. Keep
@@ -319,8 +338,7 @@ void Simulation::updatePlayerActions(
             false);
     }
     if (command.useConsumable && heldTool == PlayerWeapon::Bomb &&
-        bombs_.throwBomb(
-            playerPosition_, direction, !unlimitedResources_)) {
+        bombs_.throwBomb(playerPosition_, direction)) {
         events_.push_back({
             .type = GameEventType::ConsumableUsed,
             .position = playerPosition_,
@@ -329,7 +347,7 @@ void Simulation::updatePlayerActions(
     if (command.fireRifle && !selectedBuilding_) {
         const auto fire = playerWeapons_.fireRifle(
             playerPosition_, direction, enemies_,
-            playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::Damage) *
                 playerClassDamageMultiplier());
         if (fire) {
             events_.push_back({
@@ -343,9 +361,6 @@ void Simulation::updatePlayerActions(
                     .position = fire->hitPosition,
                     .damage = fire->damage,
                 });
-                registerNailHit(
-                    *fire->targetId, fire->hitPosition,
-                    fire->damage);
                 if (fire->killed) {
                     events_.push_back(enemyKilledEvent(
                         fire->targetId, fire->targetType, fire->targetEliteAffixes,
@@ -385,12 +400,12 @@ void Simulation::updatePlayerActions(
         const bool quickTool = heldTool == PlayerWeapon::Axe ||
             heldTool == PlayerWeapon::Pickaxe;
         const double toolSpeed = quickTool
-            ? (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::GatheringSpeed))
+            ? (1.0 + 0.15 * playerPassivePower(RunUpgradeEffect::GatheringSpeed))
             : 1.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown /
             std::max(
                 0.05, (quickTool ? toolAttackSpeedMultiplier_ : playerAttackSpeedMultiplier_) *
-                    temporaryAttackSpeedMultiplier() * toolSpeed *
+                    temporaryAttackSpeedMultiplier() * toolSpeed * classLevelBonuses().meleeSpeed *
                     (heldTool == PlayerWeapon::Club ? playerWeaponLevelSpeed(playerWeaponLevel(heldTool)) : 1.0) *
                     (playerClass_ == PlayerClass::Berserker
                          ? playerClassDamageMultiplier() : 1.0));
@@ -408,16 +423,15 @@ void Simulation::updatePlayerActions(
         double toolMultiplier = playerWeaponLevelDamage(heldTool,playerWeaponLevel(heldTool));
         if (heldTool == PlayerWeapon::LegacyBareHands) toolMultiplier = 0.0;
         else if (clubAttack) toolMultiplier *= club_.damageMultiplier;
-        else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
         const double damage = playerDamageMultiplier_ *
-            runPlayerDamageMultiplier_ *
+            runPlayerDamageMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::Damage) *
             playerClassDamageMultiplier() *
             toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
         const double enemyDamage = damage *
             meleeEnemyDamageMultiplier(heldTool);
-        if (clubAttack) {
+        if (clubAttack || classAbilityState_.rageRemaining > 0) {
             Vec3 impactPosition{
                 playerPosition_.x + direction.x * gameplay_.pickaxeRange,
                 playerPosition_.y + direction.y * gameplay_.pickaxeRange,
@@ -429,8 +443,8 @@ void Simulation::updatePlayerActions(
                 }
             }
             const auto results = enemies_.damageInRadius(
-                impactPosition, club_.areaRadius,
-                damage, club_.knockbackStrength,
+                impactPosition, club_.areaRadius * (classAbilityState_.rageRemaining > 0 ? 1.5 : 1.0),
+                clubAttack ? damage : enemyDamage, club_.knockbackStrength,
                 playerPosition_,
                 club_.maxDamagePerAttack);
             bool nailHitRegistered = false;
@@ -447,9 +461,6 @@ void Simulation::updatePlayerActions(
                     .critical = critical,
                 });
                 if (!nailHitRegistered) {
-                    registerNailHit(
-                        result.id, result.position,
-                        result.damage);
                     nailHitRegistered = true;
                 }
                 if (result.killed) {
@@ -477,9 +488,6 @@ void Simulation::updatePlayerActions(
                     .damage = result->damage,
                     .critical = critical,
                 });
-                registerNailHit(
-                    result->id, result->position,
-                    result->damage);
             }
             if (result && result->killed) {
                 events_.push_back(enemyKilledEvent(
@@ -559,6 +567,8 @@ void Simulation::updatePlayerActions(
                     });
                 }
                 if (hit->collected) {
+                    if (isHarvestableResource(hit->type)) chainHarvestResources(
+                        hit->nodeId,hit->type,hit->position,resourceDamage);
                     if (hit->type == ResourceType::Wood) {
                         launchSawSplinters(
                             hit->nodeId, hit->position);
@@ -569,12 +579,6 @@ void Simulation::updatePlayerActions(
                             (static_cast<std::uint64_t>(targetId.index)
                              << 17U));
                         dropPropLoot(*hit, impactPosition, rewardSeed);
-                        if (hit->type == ResourceType::Barrel) {
-                            grantConfiguredInsight(
-                                1.0 + unitRandom(rewardSeed ^ 0x94d049bbULL),
-                                InsightSource::Other,
-                                InsightCategory::Exploration, {});
-                        }
                     }
                     if (targetId == primaryTarget) {
                         aimedResource_.reset();
@@ -601,6 +605,19 @@ void Simulation::updatePlayerActions(
             .intensity = explosion.radius,
         });
     }
+    for (const auto& hit : bombs_.hits()) {
+        events_.push_back({
+            .type = GameEventType::ProjectileHit,
+            .entityId = hit.id,
+            .position = hit.position,
+            .damage = hit.damage,
+        });
+        if (hit.killed) {
+            events_.push_back(enemyKilledEvent(
+                hit.id, hit.type, hit.eliteAffixes,
+                hit.position));
+        }
+    }
 
     iceWand_.tick(
         deltaSeconds, enemies_, &terrain_,
@@ -622,7 +639,6 @@ void Simulation::updatePlayerActions(
             .damage = hit.damage,
             .critical = hit.alreadyFrozen,
         });
-        registerNailHit(hit.enemyId, hit.position, hit.damage);
         if (hit.killed) {
             events_.push_back(enemyKilledEvent(
                 hit.enemyId, hit.enemyType, hit.enemyEliteAffixes,
@@ -665,7 +681,6 @@ void Simulation::updatePlayerActions(
                 : fireWand_.burnDuration(),
         });
         if (!hit.periodicBurn) {
-            registerNailHit(hit.enemyId, hit.position, hit.damage);
         }
         if (hit.killed) {
             events_.push_back(enemyKilledEvent(
@@ -727,6 +742,8 @@ void Simulation::updatePlayerActions(
                     ? GameEventType::ChestOpened
                     : GameEventType::ChestOpenRejected,
                 .entityId = aimedChest_,
+                .position = chest != lootChests_.chests().end()
+                    ? chest->position : Vec3{},
                 .critical = result == ChestOpenResult::Opened && useFreeKey,
             });
             if (result == ChestOpenResult::Opened)

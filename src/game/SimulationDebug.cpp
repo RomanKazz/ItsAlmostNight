@@ -141,55 +141,6 @@ void Simulation::castChainLightning(
     }
 }
 
-void Simulation::registerNailHit(
-    EntityId primaryTarget, Vec3 impactPosition,
-    double directHitDamage) {
-    const int stacks = lootStacks_[
-        lootUpgradeIndex(LootUpgradeEffect::Nail)];
-    if (stacks <= 0 || directHitDamage <= 0.0) {
-        return;
-    }
-
-    const int hitsPerTrigger = std::max(2, 6 - stacks);
-    ++nailHitCounter_;
-    if (nailHitCounter_ % static_cast<std::uint64_t>(hitsPerTrigger) != 0U) {
-        return;
-    }
-
-    const double jumpRadius = std::min(
-        9.0, 6.5 + static_cast<double>(stacks - 1) * 0.5);
-    const double jumpRadiusSquared = jumpRadius * jumpRadius;
-    std::optional<EntityId> firstTarget;
-    double closestDistanceSquared = jumpRadiusSquared;
-    for (const EnemyInstance& candidate : enemies_.enemies()) {
-        if (!candidate.active || candidate.id == primaryTarget) {
-            continue;
-        }
-        const double distanceSquared = horizontalDistanceSquared(
-            impactPosition, candidate.position);
-        if (distanceSquared < closestDistanceSquared ||
-            (distanceSquared == closestDistanceSquared &&
-             (!firstTarget || candidate.id.index < firstTarget->index))) {
-            firstTarget = candidate.id;
-            closestDistanceSquared = distanceSquared;
-        }
-    }
-    if (!firstTarget) {
-        return;
-    }
-
-    castChainLightning({
-        .firstTarget = firstTarget,
-        .excludedTarget = primaryTarget,
-        .sourcePosition = impactPosition,
-        .damage = directHitDamage * std::min(
-            0.75, 0.45 + static_cast<double>(stacks - 1) * 0.08),
-        .jumpRadius = jumpRadius,
-        .damageFalloff = 0.78,
-        .maximumTargets = std::min(6, stacks + 1),
-    });
-}
-
 void Simulation::processDebugCommands(
     const PlayerCommand& command) {
     if (command.enableUnlimitedResources) {
@@ -219,7 +170,7 @@ void Simulation::processDebugCommands(
         !unlimitedResources_) {
         playerInvulnerable_ = !playerInvulnerable_;
     }
-    if (command.grantInsight && unlimitedResources_) {
+    if (command.grantInsight) {
         grantConfiguredInsight(
             command.grantInsight->amount,
             InsightSource::Other,
@@ -270,7 +221,8 @@ void Simulation::processDebugCommands(
             constexpr double TwoPi =
                 6.28318530717958647692;
             const int requestedCount = std::clamp(
-                command.spawnEnemy->count, 1, 1000);
+                command.spawnEnemy->count, 1,
+                static_cast<int>(MaximumActiveEnemies));
             std::vector<EnemySpawn> spawns;
             spawns.reserve(
                 static_cast<std::size_t>(requestedCount));
@@ -357,26 +309,7 @@ void Simulation::processDebugCommands(
     }
     if (command.upgradeWeapon) {
         if (playerWeapons_.selectedWeapon() == PlayerWeapon::Bomb) {
-            const int bombCost = saturatingAdd(
-                economy_.bombPurchaseCoinCost,
-                saturatingMultiplyNonNegative(
-                    economy_.bombPurchaseCoinCostPerWave, wave_));
-            if (unlimitedResources_ ||
-                coins_ >= bombCost) {
-                if (!unlimitedResources_)
-                    coins_ -= bombCost;
-                bombs_.addBombs(economy_.bombPurchaseAmount);
-                events_.push_back({
-                    .type = GameEventType::BombPurchased,
-                    .amount = bombCost,
-                    .coinAmount = economy_.bombPurchaseAmount,
-                });
-            } else {
-                events_.push_back({
-                    .type = GameEventType::EconomyPurchaseRejected,
-                    .amount = bombCost,
-                });
-            }
+            // Bombs use a throw cooldown, so there is no ammo upgrade.
             return;
         }
 

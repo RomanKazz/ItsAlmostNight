@@ -46,24 +46,21 @@ void advanceRotation(BombProjectile& projectile, double step) {
 } // namespace
 
 BombSystem::BombSystem(BombBalanceDefinition definition)
-    : definition_(definition), remainingBombs_(definition.startingBombs) {
+    : definition_(definition) {
     projectiles_.reserve(MaxProjectiles);
     explosionBuffer_.reserve(MaxProjectiles);
+    hitBuffer_.reserve(MaxProjectiles);
 }
 
 void BombSystem::reset() {
     projectiles_.clear();
     explosionBuffer_.clear();
-    remainingBombs_ = definition_.startingBombs;
+    hitBuffer_.clear();
+    cooldownRemaining_ = 0.0;
 }
 
-void BombSystem::addBombs(int amount) {
-    remainingBombs_ = std::max(0, remainingBombs_ + std::max(0, amount));
-}
-
-bool BombSystem::throwBomb(
-    Vec3 origin, Vec3 direction, bool consumeBomb) {
-    if (consumeBomb && remainingBombs_ <= 0) {
+bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
+    if (cooldownRemaining_ > 0.0) {
         return false;
     }
 
@@ -100,9 +97,7 @@ bool BombSystem::throwBomb(
     projectile->fuseDuration = definition_.fuseDuration;
     projectile->grounded = false;
     projectile->active = true;
-    if (consumeBomb) {
-        --remainingBombs_;
-    }
+    cooldownRemaining_ = definition_.throwCooldown;
     return true;
 }
 
@@ -110,6 +105,8 @@ std::span<const BombExplosion> BombSystem::tick(
     double deltaSeconds, EnemySystem& enemies,
     const TerrainHeightfield* terrain) {
     explosionBuffer_.clear();
+    hitBuffer_.clear();
+    cooldownRemaining_ = std::max(0.0, cooldownRemaining_ - std::max(0.0, deltaSeconds));
     for (auto& projectile : projectiles_) {
         if (!projectile.active) {
             continue;
@@ -212,12 +209,24 @@ void BombSystem::clearProjectiles() {
     }
 }
 
-int BombSystem::remainingBombs() const {
-    return remainingBombs_;
+double BombSystem::cooldownRemaining() const {
+    return cooldownRemaining_;
+}
+
+double BombSystem::cooldownDuration() const {
+    return definition_.throwCooldown;
+}
+
+void BombSystem::restoreCooldown(double remaining) {
+    cooldownRemaining_ = std::clamp(remaining, 0.0, definition_.throwCooldown);
 }
 
 const std::vector<BombProjectile>& BombSystem::projectiles() const {
     return projectiles_;
+}
+
+std::span<const EnemyDamageResult> BombSystem::hits() const {
+    return hitBuffer_;
 }
 
 void BombSystem::explode(BombProjectile& projectile, EnemySystem& enemies) {
@@ -226,6 +235,7 @@ void BombSystem::explode(BombProjectile& projectile, EnemySystem& enemies) {
                                definition_.explosionDamage, definition_.knockbackStrength);
     int killedCount = 0;
     for (const auto& result : damage) {
+        hitBuffer_.push_back(result);
         if (result.killed) {
             ++killedCount;
         }

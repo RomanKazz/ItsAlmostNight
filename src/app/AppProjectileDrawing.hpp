@@ -1,7 +1,7 @@
-#include "combat/AttackProjectile.hpp"
 #pragma once
 
 #include "combat/CannonSystem.hpp"
+#include "presentation/BulletAppearance.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -193,7 +193,7 @@ inline void emitDefenseShotGeometry(
     }
 
     const float CapsuleLength = crossbowBolt ? 1.18F : 0.82F;
-    const float CapsuleRadius = crossbowBolt ? 0.09F : 0.13F;
+    const float CapsuleRadius = static_cast<float>(defenseProjectileHitRadius(crossbowBolt));
     const float TrailLength = crossbowBolt ? 1.65F : 1.30F;
     const float length = CapsuleLength * scale;
     const float radius = CapsuleRadius * scale;

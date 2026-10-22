@@ -39,6 +39,7 @@ class FlowField {
         const TerrainHeightfield* terrain = nullptr);
 
     void reset();
+    void setStaticObstacles(std::vector<CollisionBox> obstacles);
     void rebuild(GridPosition target, const std::vector<BuildingInstance>& buildings);
 
     [[nodiscard]] std::optional<Vec3> directionAt(Vec3 worldPosition) const;

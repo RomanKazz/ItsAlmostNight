@@ -29,6 +29,9 @@ struct NightForecast {
 }
 
 [[nodiscard]] inline NightPattern nightPattern(const WaveDefinition& base, int wave, std::uint32_t seed) {
+    // The first five nights teach one role at a time. Encounter reshuffling
+    // starts only when the first flying enemy joins the roster.
+    if (wave <= 5) return NightPattern::Horde;
     if (base.boss) return NightPattern::RoyalCourt;
     std::array<NightPattern, 5> choices{NightPattern::Horde};
     std::size_t count = 1;

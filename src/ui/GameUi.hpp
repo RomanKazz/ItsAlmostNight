@@ -3,19 +3,20 @@
 #include <raylib.h>
 #include "ui/MinimapLandscape.hpp"
 #include "ui/MinimapMarkers.hpp"
-#include <span>
+#include "game/LootChestSystem.hpp"
 #include "progression/RunUpgrade.hpp"
 
 #include <string_view>
 #include <cstdint>
 #include <array>
+#include <span>
 
 namespace ian {
-struct SimulationSnapshot;
 enum class BuildingType;
 enum class EnemyType : std::uint8_t;
 enum class ModularBuildPiece;
 enum class PlayerWeapon;
+struct SimulationSnapshot;
 enum class RunUpgradeEffect;
 
 enum class UiBarColor {
@@ -33,6 +34,8 @@ enum class UiResourceIcon {
     Coin,
     Silver,
 };
+
+enum class ShopActionIcon { Purchase, Reroll };
 
 enum class CoreMenuTexture {
     Header,
@@ -52,6 +55,14 @@ enum class CoreMenuTexture {
     UpgradeGreen,
 };
 
+enum class MainMenuTexture {
+    FocusTopLeft, FocusBottomRight, FocusBottomLeft, FocusTopRight,
+    Silver, Spikes, Wrench, Gear,
+    SettingsIcon, ExitIcon,
+    PlayIcon, TowerIcon, ScrollIcon, ShopIcon, CrownIcon,
+    Count,
+};
+
 class GameUi {
   public:
     GameUi() = default;
@@ -66,8 +77,6 @@ class GameUi {
     void drawPanel(Rectangle bounds, unsigned char alpha = 245) const;
     void drawInsetPanel(Rectangle bounds,
                         unsigned char alpha = 235) const;
-    void drawCardPanel(Rectangle bounds, Color accent,
-                       unsigned char alpha = 250) const;
     void drawLabel(Rectangle bounds, std::string_view text,
                    int alignment = 0) const;
     void drawProgressBar(Rectangle bounds, float fraction,
@@ -85,20 +94,19 @@ class GameUi {
     [[nodiscard]] Texture2D weaponTexture(PlayerWeapon weapon) const;
     [[nodiscard]] Texture2D runUpgradeTexture(
         RunUpgradeEffect effect) const;
-    [[nodiscard]] Texture2D levelUpBannerTexture() const;
-    [[nodiscard]] Texture2D levelUpRaysTexture() const;
+    [[nodiscard]] Texture2D lootTexture(LootUpgradeEffect effect) const;
     [[nodiscard]] Texture2D mainMenuLogoTexture() const;
-    [[nodiscard]] Texture2D mainMenuButtonTexture() const;
+    [[nodiscard]] Texture2D mainMenuTexture(MainMenuTexture texture) const;
     [[nodiscard]] Texture2D coreMenuTexture(
         CoreMenuTexture texture) const;
+    [[nodiscard]] Texture2D metaShopTexture(MetaShopUpgrade upgrade) const;
+    [[nodiscard]] Texture2D shopActionTexture(ShopActionIcon action) const;
     bool drawButton(Rectangle bounds, std::string_view text) const;
     bool drawToggleButton(Rectangle bounds, std::string_view text,
                           bool active) const;
     bool drawKeyCap(Rectangle bounds, std::string_view text,
                     bool pressed = false,
                     unsigned char alpha = 255) const;
-    [[nodiscard]] Texture2D keyCapTexture(
-        bool pressed = false) const;
     [[nodiscard]] bool beginMinimapTarget() const;
     void endMinimapTarget() const;
     void drawMinimapTarget(
@@ -182,12 +190,14 @@ class GameUi {
     Texture2D ricochetUpgradeIcon_{};
     [[nodiscard]] Texture2D runUpgradeSymbolTexture(RunUpgradeEffect effect) const;
     std::array<Texture2D, RunUpgradeEffectCount> tomeIcons_{};
+    std::array<Texture2D, MetaShopUpgradeCount> metaShopIcons_{};
+    Texture2D shopPurchaseIcon_{};
+    std::array<Texture2D, 6> upgradeSymbols_{};
     Texture2D poisonUpgradeIcon_{};
-    Texture2D xpGainUpgradeIcon_{};
-    Texture2D levelUpBanner_{};
-    Texture2D levelUpRays_{};
+    std::array<Texture2D, LootUpgradeEffectCount> lootIcons_{};
     Texture2D mainMenuLogo_{};
-    Texture2D mainMenuButton_{};
+    std::array<Texture2D, static_cast<std::size_t>(MainMenuTexture::Count)>
+        mainMenuTextures_{};
     std::array<Texture2D, 15> coreMenuTextures_{};
     SliceInsets panelInsets_{16, 16, 16, 18};
     SliceInsets insetInsets_{9, 9, 9, 9};

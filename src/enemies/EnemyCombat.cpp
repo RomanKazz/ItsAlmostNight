@@ -85,6 +85,16 @@ std::optional<EnemyRaycastHit> EnemySystem::raycastHit(
     return result;
 }
 
+void EnemySystem::applyKnockback(EntityId id, Vec3 direction, double strength) {
+    auto* target = findEnemy(id);
+    if (!target || !target->active || strength <= 0.0) return;
+    direction.y = 0.0;
+    direction = geometry::normalizedOr(direction, {1.0, 0.0, 0.0});
+    const double impulse = strength * knockbackMultiplier(target->type);
+    target->knockbackVelocity.x += direction.x * impulse;
+    target->knockbackVelocity.z += direction.z * impulse;
+}
+
 std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount) {
     EnemyInstance* enemy = findEnemy(id);
     if (enemy == nullptr || !enemy->active || amount <= 0.0) {
@@ -94,7 +104,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     amount *= incomingDamageMultiplier(*enemy);
     const double previousHealth = enemy->health;
     enemy->health = std::max(0.0, enemy->health - amount);
-    enemy->hitAnimationRemaining = 0.22;
+    if (sampleDamage_) damageSamples_.push_back({id, amount, previousHealth - enemy->health});
     const bool killed = enemy->health <= 0.0;
     if (!killed) recordBossWindupDamage(*enemy, previousHealth - enemy->health);
     const EnemyType killedType = enemy->type;
@@ -227,40 +237,6 @@ std::optional<EntityId> EnemySystem::nearestEnemyInArc(
     return nearest;
 }
 
-std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
-                                                  double clusterRadius) const {
-    std::optional<EntityId> best;
-    std::size_t bestCount = 0;
-    double bestDistanceSquared = radius * radius;
-    spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& candidate) {
-        const EnemyInstance* candidateEnemy = findEnemy(candidate.id);
-        if (candidateEnemy == nullptr || !candidateEnemy->active) {
-            return;
-        }
-        std::size_t count = 0;
-        spatialHash_.forEachNearby(candidate.position, clusterRadius,
-                                   [this, &count](const SpatialEntry& entry) {
-            const EnemyInstance* enemy = findEnemy(entry.id);
-            if (enemy != nullptr && enemy->active) {
-                ++count;
-            }
-        });
-        const double deltaX = candidate.position.x - position.x;
-        const double deltaZ = candidate.position.z - position.z;
-        const double distanceSquared = (deltaX * deltaX) + (deltaZ * deltaZ);
-        if (count > bestCount ||
-            (count == bestCount &&
-             (distanceSquared < bestDistanceSquared ||
-              (distanceSquared == bestDistanceSquared &&
-               (!best || candidate.id.index < best->index))))) {
-            best = candidate.id;
-            bestCount = count;
-            bestDistanceSquared = distanceSquared;
-        }
-    });
-    return best;
-}
-
 std::optional<EntityId> EnemySystem::densestEnemyInArc(
     Vec3 position, double radius, double clusterRadius,
     double yaw, double halfAngle, double minimumRadius, bool includeFlying) const {
@@ -374,7 +350,6 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         const double previousHealth = enemy->health;
         enemy->health = std::max(
             0.0, enemy->health - effectiveDamage);
-        enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
         if (!killed) recordBossWindupDamage(*enemy, previousHealth - enemy->health);
         const EnemyType killedType = enemy->type;
@@ -451,11 +426,13 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
 }
 
 std::span<const EntityId> EnemySystem::applySlowInRadius(Vec3 position, double radius,
-                                                        double multiplier, double duration) {
+                                                        double multiplier, double duration,
+                                                        bool includeFlying) {
     statusTargetBuffer_.clear();
     spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
         EnemyInstance* enemy = findEnemy(entry.id);
-        if (enemy == nullptr || !enemy->active) {
+        if (enemy == nullptr || !enemy->active ||
+            (!includeFlying && enemyIsFlying(enemy->type))) {
             return;
         }
         enemy->movementMultiplier =
@@ -560,20 +537,38 @@ bool EnemySystem::applyStatus(
     return true;
 }
 
+bool EnemySystem::markTarget(EntityId id, double duration, double defenseMultiplier) {
+    auto* enemy = findEnemy(id);
+    if (!enemy || !enemy->active || !std::isfinite(duration) || duration <= 0 ||
+        !std::isfinite(defenseMultiplier) || defenseMultiplier < 1) return false;
+    if (enemy->markRemaining <= 0) enemy->markedDefenseMultiplier = 1.0;
+    enemy->markRemaining = std::max(enemy->markRemaining, duration);
+    enemy->markedDefenseMultiplier = std::max(enemy->markedDefenseMultiplier, defenseMultiplier);
+    return true;
+}
+
+double EnemySystem::markedDefenseDamage(EntityId id) const {
+    const auto* enemy = findEnemy(id);
+    return enemy && enemy->active && enemy->markRemaining > 0
+        ? enemy->markedDefenseMultiplier : 1.0;
+}
+
 bool EnemySystem::applyPoison(EntityId id, std::optional<EntityId> source,
-    double duration, double damagePerSecond, std::optional<BuildingType> buildingType) {
+    double duration, double damagePerSecond, std::optional<BuildingType> buildingType,
+    int maximumDoses) {
     EnemyInstance* enemy = findEnemy(id);
     if (!enemy || !enemy->active || !std::isfinite(duration) ||
         !std::isfinite(damagePerSecond) || duration <= 0 || damagePerSecond <= 0) return false;
     auto& status = enemy->statusEffects[statusEffectIndex(StatusEffectType::Poison)];
-    if (status.remaining <= 0) {
-        status = EnemyStatusEffect{.type = StatusEffectType::Poison};
-    }
-    if (damagePerSecond >= status.intensity) {
-        status.intensity = damagePerSecond;
+    if (status.remaining <= 0) status = EnemyStatusEffect{.type = StatusEffectType::Poison};
+    if (damagePerSecond >= status.basePoisonIntensity) {
+        status.basePoisonIntensity = damagePerSecond;
         status.source = source;
         status.sourceBuildingType = buildingType;
     }
+    if (maximumDoses > 1) status.poisonDoses = std::min(std::clamp(maximumDoses, 1, 16), status.poisonDoses + 1);
+    else status.poisonDoses = std::max(1, status.poisonDoses);
+    status.intensity = status.basePoisonIntensity * (1.0 + 0.35 * (status.poisonDoses - 1));
     status.remaining = std::max(status.remaining, duration);
     status.visualParameter = 1.0;
     return true;
@@ -617,30 +612,6 @@ bool EnemySystem::clearStatus(
     status.pendingDamage = 0.0;
     status.tickRemaining = 0.5;
     return active;
-}
-
-std::span<const EntityId> EnemySystem::applyStatusInRadius(
-    Vec3 position, double radius, StatusEffectType type,
-    std::optional<EntityId> source, double duration,
-    double intensity, StatusEffectRules rules) {
-    statusTargetBuffer_.clear();
-    rebuildSpatialIndex();
-    spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
-        EnemyInstance* enemy = findEnemy(entry.id);
-        if (enemy == nullptr || !enemy->active) {
-            return;
-        }
-        const double hitRadius = radius + enemyCapsule(enemy->type).radius;
-        const double offsetX = enemy->position.x - position.x;
-        const double offsetZ = enemy->position.z - position.z;
-        if (offsetX * offsetX + offsetZ * offsetZ > hitRadius * hitRadius) {
-            return;
-        }
-        if (applyStatus(enemy->id, type, source, duration, intensity, rules)) {
-            statusTargetBuffer_.push_back(enemy->id);
-        }
-    });
-    return statusTargetBuffer_;
 }
 
 std::size_t EnemySystem::defeatAll() {

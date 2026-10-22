@@ -23,6 +23,44 @@ namespace ian {
 
 using namespace renderer_model_detail;
 
+void Renderer::drawWorldScenery(std::span<const WorldSceneryInstance> instances,
+                                Vector3 cameraPosition, float maximumDistance) {
+    const bool shadow = shadowPassOpen_ && resources_.shadowShader().valid();
+    const bool world = worldShaderActive_ && resources_.worldShader().valid();
+    if (instances.empty() || (!shadow && !world)) return;
+    for (auto& transforms : sceneryTransforms_) transforms.clear();
+    for (const auto& instance : instances) {
+        const std::size_t variant = static_cast<std::size_t>(instance.model);
+        const auto& definition = WorldSceneryDefinitions[variant];
+        const double dx=instance.position.x-cameraPosition.x, dz=instance.position.z-cameraPosition.z;
+        const double range=maximumDistance+std::hypot(definition.width,definition.depth)*.5;
+        if (dx*dx+dz*dz>range*range) continue;
+        const float scale=worldRevealScaleAt({static_cast<float>(instance.position.x),
+                                             static_cast<float>(instance.position.z)});
+        if (scale<=.001F) continue;
+        auto& resource=resources_.worldSceneryModel(variant);
+        if (!resource.valid()) continue;
+        sceneryTransforms_[variant].push_back(MatrixMultiply(resource.get().transform,
+            MatrixMultiply(MatrixScale(scale,scale,scale), MatrixMultiply(
+                MatrixRotateY(static_cast<float>(instance.yaw)),
+                MatrixTranslate(static_cast<float>(instance.position.x),
+                    static_cast<float>(instance.position.y),static_cast<float>(instance.position.z))))));
+    }
+    Shader& shader=shadow ? resources_.shadowShader().get() : resources_.worldShader().get();
+    const int location=shadow ? shadowInstancingEnabledLocation_ : worldInstancingEnabledLocation_;
+    const int enabled=1,disabled=0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader,location,&enabled,SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader,false);
+    for (std::size_t i=0;i<WorldSceneryModelCount;++i) {
+        if (sceneryTransforms_[i].empty()) continue;
+        static_cast<void>(instanceBuffers_.drawModel(
+            resources_.worldSceneryModel(i).get(),shader,sceneryTransforms_[i]));
+    }
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader,location,&disabled,SHADER_UNIFORM_INT);
+}
+
 bool Renderer::drawRock(Vector3 position, Color tint,
                         float scale, std::size_t visualVariant,
                         float yawRadians) {

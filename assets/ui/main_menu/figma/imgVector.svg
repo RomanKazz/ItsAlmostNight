@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="339" height="299" viewBox="0 0 339 299" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Vector">
+<path d="M0 11C0 4.92486 4.92487 0 11 0H328C334.075 0 339 4.92487 339 11V29.9H0V11Z" fill="black" fill-opacity="0.33"/>
+<path d="M0 29.9H339V59.8H0V29.9Z" fill="black" fill-opacity="0.19"/>
+<path d="M0 59.8H339V89.7H0V59.8Z" fill="black" fill-opacity="0.33"/>
+<path d="M0 89.7H339V119.6H0V89.7Z" fill="black" fill-opacity="0.19"/>
+<path d="M0 119.6H339V149.5H0V119.6Z" fill="black" fill-opacity="0.33"/>
+<path d="M0 149.5H339V179.4H0V149.5Z" fill="black" fill-opacity="0.19"/>
+<path d="M0 179.4H339V209.3H0V179.4Z" fill="black" fill-opacity="0.33"/>
+<path d="M0 209.3H339V239.2H0V209.3Z" fill="#CC972B" fill-opacity="0.72"/>
+<path d="M0 239.2H339V269.1H0V239.2Z" fill="black" fill-opacity="0.33"/>
+<path d="M0 269.1H339V288C339 294.075 334.075 299 328 299H11C4.92486 299 0 294.075 0 288V269.1Z" fill="black" fill-opacity="0.19"/>
+</g>
+</svg>

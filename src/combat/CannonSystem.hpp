@@ -110,6 +110,9 @@ class CannonSystem {
     [[nodiscard]] FinalAttackStats finalStats(const BuildingInstance& building) const;
     void setPreferMarkedTargets(bool enabled) { preferMarkedTargets_ = enabled; }
     void setAttackModifiers(const AttackModifiers& modifiers) { modifiers_ = modifiers; }
+    void setBuildingUpgradeModifiers(const std::array<AttackModifiers, GameBalance::BuildingTypeCount>& modifiers) {
+        buildingUpgradeModifiers_ = modifiers;
+    }
     [[nodiscard]] std::size_t droppedProjectiles() const { return pool_.dropped(); }
     void reset();
     void setAttackStyle(CannonAttackStyle style);
@@ -145,6 +148,7 @@ class CannonSystem {
     CannonAttackStyle attackStyle_{CannonAttackStyle::Standard};
     BuildingType bonusType_{BuildingType::Core};
     AttackModifiers modifiers_;
+    std::array<AttackModifiers, GameBalance::BuildingTypeCount> buildingUpgradeModifiers_{};
     bool preferMarkedTargets_{};
     AttackModifiers typeModifiers_;
     double highGroundDamageMultiplier_{1.0};

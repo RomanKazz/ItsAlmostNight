@@ -1,10 +1,10 @@
 {
   "waves": [
-    { "budget": 15, "basic": 15, "fast": 0, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 3, "groupInterval": 1.6 },
-    { "budget": 25, "basic": 12, "fast": 5, "heavy": 0, "ranged": 1, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 4, "groupInterval": 1.6 },
-    { "budget": 40, "basic": 10, "fast": 5, "heavy": 2, "ranged": 2, "sapper": 0, "flying": 0, "splitter": 1, "groupSize": 4, "groupInterval": 1.4 },
-    { "budget": 55, "basic": 19, "fast": 8, "heavy": 2, "ranged": 2, "sapper": 0, "flying": 0, "splitter": 1, "groupSize": 5, "groupInterval": 1.4 },
-    { "budget": 75, "basic": 16, "fast": 8, "heavy": 3, "airTank": 1, "ranged": 2, "sapper": 0, "flying": 2, "splitter": 2, "groupSize": 5, "groupInterval": 1.2 },
-    { "budget": 100, "basic": 21, "fast": 10, "heavy": 5, "airTank": 1, "ranged": 4, "sapper": 0, "flying": 1, "bee": 1, "splitter": 2, "boss": false, "groupSize": 6, "groupInterval": 1.1 }
+    { "budget": 10, "basic": 10, "fast": 0, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 3, "groupInterval": 1.6 },
+    { "budget": 17, "basic": 13, "fast": 2, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 3, "groupInterval": 1.6 },
+    { "budget": 23, "basic": 12, "fast": 3, "heavy": 1, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 4, "groupInterval": 1.5 },
+    { "budget": 30, "basic": 14, "fast": 4, "heavy": 1, "ranged": 1, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 4, "groupInterval": 1.4 },
+    { "budget": 44, "basic": 16, "fast": 4, "heavy": 2, "ranged": 2, "sapper": 0, "flying": 0, "splitter": 1, "groupSize": 5, "groupInterval": 1.3 },
+    { "budget": 100, "basic": 32, "fast": 10, "heavy": 5, "ranged": 4, "sapper": 0, "flying": 1, "splitter": 2, "boss": false, "groupSize": 6, "groupInterval": 1.1 }
   ]
 }

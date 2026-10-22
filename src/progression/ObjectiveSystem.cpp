@@ -71,8 +71,6 @@ std::vector<ObjectiveDefinition> ObjectiveSystem::defaultDefinitions() {
              {1, 3, 8}, {5, 9, 16});
     addChain("loot", "Collect items", ObjectiveMetric::LootCollected,
              {1, 5, 12}, {5, 10, 18});
-    addChain("dashes", "Use Dash", ObjectiveMetric::PlayerDashes,
-             {5, 20, 50}, {3, 6, 10});
     addChain("rifle_shots", "Fire rifle shots", ObjectiveMetric::RifleShots,
              {10, 30, 75}, {4, 8, 13});
     addChain("elemental_hits", "Hit with wands", ObjectiveMetric::ElementalHits,
@@ -217,7 +215,6 @@ void ObjectiveSystem::refreshProgress(double elapsedSeconds) {
         case ObjectiveMetric::CoinsCollected:
         case ObjectiveMetric::ChestsOpened:
         case ObjectiveMetric::LootCollected:
-        case ObjectiveMetric::PlayerDashes:
         case ObjectiveMetric::RifleShots:
         case ObjectiveMetric::ElementalHits:
         case ObjectiveMetric::TrapHits:
@@ -506,7 +503,6 @@ std::vector<ObjectiveDefinition> loadObjectiveDefinitions(
                 {"coins_collected", ObjectiveMetric::CoinsCollected},
                 {"chests_opened", ObjectiveMetric::ChestsOpened},
                 {"loot_collected", ObjectiveMetric::LootCollected},
-                {"player_dashes", ObjectiveMetric::PlayerDashes},
                 {"rifle_shots", ObjectiveMetric::RifleShots},
                 {"elemental_hits", ObjectiveMetric::ElementalHits},
                 {"trap_hits", ObjectiveMetric::TrapHits},

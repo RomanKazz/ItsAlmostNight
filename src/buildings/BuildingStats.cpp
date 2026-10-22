@@ -10,24 +10,28 @@
 #include "combat/TrapSystem.hpp"
 #include "economy/CrystalMineSystem.hpp"
 
+#include <cstddef>
+
 namespace ian {
 
 BuildingStats buildingStatsAtLevel(
     const BuildingInstance& building, std::uint8_t level,
-    const CrystalMineSystem& producers) {
-    const double currentHealthMultiplier =
-        1.0 + 0.15 * static_cast<double>(building.level - 1);
-    const double baseMaxHealth =
-        building.maxHealth / currentHealthMultiplier;
+    const CrystalMineSystem& producers,
+    double baseMaxHealth) {
+    if (baseMaxHealth <= 0.0) {
+        static const auto Defaults = GameBalance::defaults().buildings;
+        baseMaxHealth = Defaults[static_cast<std::size_t>(
+            building.type)].maxHealth;
+    }
+    const double currentBaseHealth = buildingMaxHealthAtLevel(
+        baseMaxHealth, building.level);
+    const double healthBonus = currentBaseHealth > 0.0
+        ? building.maxHealth / currentBaseHealth : 1.0;
     BuildingStats stats{
-        .maxHealth =
-            baseMaxHealth *
-            (1.0 + 0.15 * static_cast<double>(level - 1)),
+        .maxHealth = buildingMaxHealthAtLevel(
+            baseMaxHealth, level) * healthBonus,
     };
     if (building.type == BuildingType::Core) {
-        stats.buildingLimit = static_cast<double>(
-            buildingLimitForCoreLevel(
-                BuildingType::Turret, level));
         stats.woodCapacity = static_cast<double>(
             coreResourceCapacity(ResourceCapacityType::Wood, level));
         stats.stoneCapacity = static_cast<double>(
@@ -41,7 +45,8 @@ BuildingStats buildingStatsAtLevel(
         stats.cooldown = attack.attackInterval;
         stats.pushStrength = attack.knockback;
     } else if (building.type == BuildingType::Turret ||
-               building.type == BuildingType::GunTurret || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
+               building.type == BuildingType::GunTurret ||
+               building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower) {
         const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = TowerSystem::attackDamage(
             building.type, level) *
@@ -52,6 +57,9 @@ BuildingStats buildingStatsAtLevel(
         stats.attacksPerSecond =
             1.0 / TowerSystem::fireInterval(building.type, level);
         if (building.type == BuildingType::MissileLauncher) stats.effectRadius = 1.6;
+        if (building.type == BuildingType::Flamethrower) {
+            stats.effectDuration = TowerSystem::baseStats(building.type, level).duration;
+        }
         if (building.type == BuildingType::Turret) {
             stats.piercingCount = static_cast<double>(
                 TowerSystem::piercingCount(building.type, level));
@@ -103,22 +111,23 @@ BuildingStats buildingStatsAtLevel(
 BuildingStatComparison compareBuildingStats(
     const BuildingInstance& building,
     const CrystalMineSystem& producers,
-    std::uint8_t maximumLevel) {
+    std::uint8_t maximumLevel,
+    double baseMaxHealth) {
     BuildingStatComparison comparison{
         .current = buildingStatsAtLevel(
-            building, building.level, producers),
+            building, building.level, producers, baseMaxHealth),
     };
     if (building.level > 1) {
         comparison.previous = buildingStatsAtLevel(
             building,
             static_cast<std::uint8_t>(building.level - 1),
-            producers);
+            producers, baseMaxHealth);
     }
     if (building.level < maximumLevel) {
         comparison.next = buildingStatsAtLevel(
             building,
             static_cast<std::uint8_t>(building.level + 1),
-            producers);
+            producers, baseMaxHealth);
     }
     return comparison;
 }

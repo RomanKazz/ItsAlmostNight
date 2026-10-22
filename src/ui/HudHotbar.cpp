@@ -7,10 +7,13 @@
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
 #include "ui/UiLabels.hpp"
+#include "ui/UiItemDescriptions.hpp"
+#include "ui/UiItemTooltip.hpp"
 #include "ui/UiText.hpp"
 #include "localization/Localization.hpp"
 
 #include <raylib.h>
+#include <raymath.h>
 #include <rlgl.h>
 
 #include <algorithm>
@@ -30,7 +33,9 @@ struct HotbarSlot {
     bool available{};
     bool upgradeAvailable{};
     Texture2D icon{};
+    std::string_view description;
     bool gapBefore{};
+    double cooldownRemaining{};
 };
 
 float drawHotbarSlots(
@@ -199,12 +204,14 @@ float drawHotbarSlots(
                  alpha(255.0F * selectionAlpha)});
         }
     }
+    const HotbarSlot* hoveredSlot = nullptr;
     for (std::size_t index = 0; index < slots.size();
          ++index) {
         const HotbarSlot& slot = slots[index];
         const float x =
             slotPositions[index] +
             (slot.selected ? invalidShake : 0.0F);
+        if (!IsCursorHidden() && CheckCollisionPointRec(uiMousePosition(),{x,slotY,SlotSize,SlotSize})) hoveredSlot = &slot;
         const float proximity = std::max(
             0.0F,
             1.0F - std::abs(
@@ -283,6 +290,18 @@ float drawHotbarSlots(
                      (IconSize - height) * 0.5F,
                  width, height}, {}, 0.0F,
                 slot.available ? WHITE : Color{160, 160, 160, 210});
+        }
+        if (slot.cooldownRemaining > 0.0) {
+            const int tenths = static_cast<int>(std::ceil(slot.cooldownRemaining * 10.0));
+            const std::string seconds = std::to_string(tenths / 10) + "." +
+                std::to_string(tenths % 10) + "s";
+            const Rectangle cooldownBadge{
+                x + 24.0F * slotScale, raisedY + 64.0F * slotScale,
+                56.0F * slotScale, 23.0F * slotScale};
+            DrawRectangleRounded(cooldownBadge, 0.45F, 6, {25, 24, 22, 210});
+            centeredText(seconds, cooldownBadge.x + cooldownBadge.width * 0.5F,
+                cooldownBadge.y + 3.0F * slotScale, 15.0F * slotScale,
+                cooldownBadge.width - 5.0F * slotScale, {255, 241, 213, 255});
         }
         if (!slot.key.empty()) {
             const Vector2 keyBadgeCenter{x + 5.0F * slotScale, raisedY + 5.0F * slotScale};
@@ -364,6 +383,8 @@ float drawHotbarSlots(
         }
     }
 
+    if (hoveredSlot) drawItemTooltip(hoveredSlot->label,hoveredSlot->description,uiMousePosition(),
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())});
     return slotY;
 }
 
@@ -410,6 +431,7 @@ void drawConstructionHotbar(
                         cost, snapshot.wood,
                         snapshot.stone, snapshot.crystals),
                 .icon = ui.modularBuildingTexture(piece),
+                .description = modularDescription(piece),
                 .gapBefore = item.gapBefore,
             });
             continue;
@@ -425,16 +447,15 @@ void drawConstructionHotbar(
                 .selected = !view.foundationBuildMode &&
                     snapshot.selectedBuilding == type,
                 .available = snapshot.unlimitedResources ||
-                    ((snapshot.sandboxMode ||
-                      buildingLimitCategory(type) == BuildingLimitCategory::None ||
-                      snapshot.placedBuildingCount < snapshot.totalBuildingLimit) &&
-                     canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals)),
+                    canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals),
                 .icon = ui.buildingTexture(type),
+                .description = buildingDescription(type),
+                .gapBefore = item.gapBefore,
             });
         }
     }
     const ResourceCost stock{snapshot.wood, snapshot.stone, snapshot.crystals};
-    const float slotY = drawHotbarSlots(
+    drawHotbarSlots(
         ui, slots,
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha,
@@ -442,15 +463,6 @@ void drawConstructionHotbar(
         {},
         transitionOffset, view.invalidActionRemaining, false,
         snapshot.unlimitedResources ? nullptr : &stock, true);
-    if (!view.foundationBuildMode && snapshot.selectedBuilding && buildingLimitCategory(*snapshot.selectedBuilding) == BuildingLimitCategory::Structure &&
-        !snapshot.unlimitedResources && !snapshot.sandboxMode) {
-        const std::string count = localizeText("BUILDINGS") + " " + std::to_string(snapshot.placedBuildingCount) +
-            " / " + std::to_string(snapshot.totalBuildingLimit);
-        const Vector2 size = measureUiText(count, 12);
-        drawUiText(count, {(static_cast<float>(uiScreenWidth())-size.x)*.5F,
-            slotY - 95.0F}, 12,
-            snapshot.placedBuildingCount >= snapshot.totalBuildingLimit ? Color{255, 101, 90, 255} : Color{255, 239, 204, 255});
-    }
 }
 
 void drawBuildHotbar(
@@ -502,7 +514,7 @@ void drawLootInventory(
     const int rows = (shownCount + Columns - 1) / Columns;
     const float PanelY = expanded
         ? 548.0F
-        : static_cast<float>(GetScreenHeight()) -
+        : static_cast<float>(uiScreenHeight()) -
               (coreVisible ? 204.0F : 148.0F);
     const float panelWidth = 20.0F +
         static_cast<float>(visibleColumns) * (SlotSize + Gap);
@@ -514,7 +526,7 @@ void drawLootInventory(
                    10.0F, {218, 203, 173, 235});
     }
 
-    const Vector2 mouse = GetMousePosition();
+    const Vector2 mouse = uiMousePosition();
     std::optional<LootUpgradeEffect> hovered;
     int hoveredStacks = 0;
     int slotIndex = 0;
@@ -533,116 +545,11 @@ void drawLootInventory(
         ++slotIndex;
         DrawRectangleRounded(slot, 0.22F, 5, {24, 32, 35, 235});
         DrawRectangleLinesEx(slot, 2.0F, {75, 184, 225, 245});
-        const Vector2 center{slot.x + slot.width * 0.5F,
-                             slot.y + slot.height * 0.5F};
-        if (effect == LootUpgradeEffect::Apple) {
-            DrawCircleV({center.x, center.y + 3.0F}, 12.0F,
-                        {219, 65, 58, 255});
-            DrawRectangleRec({center.x - 1.5F, center.y - 14.0F,
-                              3.0F, 7.0F}, {85, 58, 35, 255});
-            DrawEllipse(static_cast<int>(center.x + 5.0F),
-                        static_cast<int>(center.y - 11.0F),
-                        6.0F, 3.5F, {91, 188, 82, 255});
-        } else if (effect == LootUpgradeEffect::Bread) {
-            const Rectangle loaf{center.x - 15.0F, center.y - 9.0F,
-                                 30.0F, 21.0F};
-            DrawRectangleRounded(loaf, 0.42F, 6,
-                                 {226, 165, 73, 255});
-            for (int cut = 0; cut < 3; ++cut) {
-                const float x = loaf.x + 8.0F +
-                    static_cast<float>(cut) * 7.0F;
-                DrawLineEx({x, loaf.y + 3.0F},
-                           {x - 3.0F, loaf.y + 9.0F},
-                           2.0F, {151, 94, 44, 220});
-            }
-        } else if (effect == LootUpgradeEffect::IronBar) {
-            DrawRectangleRounded(
-                {center.x - 14.0F, center.y - 7.0F,
-                 28.0F, 14.0F}, 0.2F, 5,
-                {172, 187, 196, 255});
-            DrawLineEx(
-                {center.x - 8.0F, center.y - 2.0F},
-                {center.x + 8.0F, center.y + 2.0F},
-                2.0F, {93, 108, 117, 255});
-        } else if (effect == LootUpgradeEffect::FuelJerrycan) {
-            DrawRectangleRounded(
-                {center.x - 10.0F, center.y - 13.0F,
-                 20.0F, 25.0F}, 0.2F, 5,
-                {209, 151, 66, 255});
-            DrawRectangleLinesEx(
-                {center.x - 5.0F, center.y - 16.0F,
-                 10.0F, 6.0F}, 2.0F, {104, 75, 40, 255});
-        } else if (effect == LootUpgradeEffect::Compass) {
-            DrawCircleV(center, 13.0F, {171, 129, 75, 255});
-            DrawCircleLinesV(center, 13.0F, {240, 218, 155, 255});
-            DrawTriangle(
-                {center.x, center.y - 10.0F},
-                {center.x - 4.0F, center.y + 7.0F},
-                {center.x + 4.0F, center.y + 7.0F},
-                {219, 80, 62, 255});
-        } else if (effect == LootUpgradeEffect::Nail) {
-            DrawLineEx(
-                {center.x - 10.0F, center.y + 9.0F},
-                {center.x + 8.0F, center.y - 9.0F},
-                4.0F, {205, 211, 212, 255});
-            DrawCircleV(
-                {center.x - 10.0F, center.y + 9.0F},
-                4.0F, {117, 127, 132, 255});
-        } else if (effect == LootUpgradeEffect::Key) {
-            DrawCircleLinesV(
-                {center.x - 7.0F, center.y - 4.0F},
-                6.0F, {235, 198, 83, 255});
-            DrawLineEx(
-                {center.x - 1.0F, center.y + 1.0F},
-                {center.x + 12.0F, center.y + 12.0F},
-                4.0F, {235, 198, 83, 255});
-        } else if (effect == LootUpgradeEffect::Map) {
-            DrawRectangleRec(
-                {center.x - 14.0F, center.y - 10.0F,
-                 28.0F, 20.0F}, {190, 157, 101, 255});
-            DrawLineEx(
-                {center.x - 3.0F, center.y - 10.0F},
-                {center.x - 3.0F, center.y + 10.0F},
-                2.0F, {111, 83, 54, 255});
-            DrawLineEx(
-                {center.x + 5.0F, center.y - 10.0F},
-                {center.x + 5.0F, center.y + 10.0F},
-                2.0F, {111, 83, 54, 255});
-        } else if (effect == LootUpgradeEffect::Anvil) {
-            DrawRectangleRec(
-                {center.x - 14.0F, center.y - 8.0F,
-                 28.0F, 10.0F}, {159, 169, 177, 255});
-            DrawRectangleRec(
-                {center.x - 6.0F, center.y + 2.0F,
-                 12.0F, 10.0F}, {116, 126, 134, 255});
-        } else if (effect == LootUpgradeEffect::Saw) {
-            DrawLineEx(
-                {center.x - 14.0F, center.y + 7.0F},
-                {center.x + 12.0F, center.y - 7.0F},
-                4.0F, {209, 214, 215, 255});
-            for (int tooth = 0; tooth < 4; ++tooth) {
-                const float x = center.x - 8.0F +
-                    static_cast<float>(tooth) * 6.0F;
-                DrawLineEx(
-                    {x, center.y + 4.0F},
-                    {x + 3.0F, center.y + 9.0F},
-                    1.5F, {122, 130, 133, 255});
-            }
-        } else if (effect == LootUpgradeEffect::Potion) {
-            DrawRectangleRounded(
-                {center.x - 9.0F, center.y - 8.0F,
-                 18.0F, 19.0F}, 0.3F, 5,
-                {190, 70, 102, 255});
-            DrawRectangleRec(
-                {center.x - 5.0F, center.y - 14.0F,
-                 10.0F, 7.0F}, {207, 202, 185, 255});
-        } else {
-            const std::string initial(1, lootUpgradeName(effect)[0]);
-            const Vector2 size = measureUiText(initial, 20.0F);
-            drawSdfUiText(initial,
-                       {center.x - size.x * 0.5F,
-                        center.y - size.y * 0.5F},
-                       20.0F, {236, 226, 196, 255});
+        const Texture2D texture = ui.lootTexture(effect);
+        if (IsTextureValid(texture)) {
+            DrawTexturePro(texture,
+                {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {slot.x + 2, slot.y + 2, slot.width - 4, slot.height - 4}, {}, 0, WHITE);
         }
         const std::string badge = "x" + std::to_string(stacks);
         const Vector2 badgeSize = measureUiText(badge, 9.0F);
@@ -668,54 +575,21 @@ void drawLootInventory(
             12.0F, {218, 203, 173, 235});
     }
 
-    if (hovered) {
-        const std::string tooltipTitle =
-            lootUpgradeName(*hovered) +
-            std::string("  x") +
-            std::to_string(hoveredStacks);
-        const std::string tooltipDescription =
-            lootUpgradeDescription(*hovered);
-        const float tooltipX = PanelX + panelWidth + 8.0F;
-        const float availableTooltipWidth = std::max(
-            180.0F,
-            static_cast<float>(GetScreenWidth()) -
-                tooltipX - 12.0F);
-        const float maximumTooltipWidth =
-            std::min(520.0F, availableTooltipWidth);
-        const float tooltipWidth = std::clamp(
-            std::max(
-                measureUiText(tooltipTitle, 13.0F).x,
-                measureUiText(tooltipDescription, 10.0F).x) +
-                24.0F,
-            std::min(260.0F, maximumTooltipWidth),
-            maximumTooltipWidth);
-        const Rectangle tooltip{
-            tooltipX, PanelY, tooltipWidth, 66.0F};
-        ui.drawPanel(tooltip, 238);
-        drawSdfUiText(tooltipTitle,
-                   {tooltip.x + 12.0F, tooltip.y + 9.0F},
-                   fitUiTextSize(
-                       tooltipTitle, 13.0F, 9.0F,
-                       tooltip.width - 24.0F),
-                   {122, 218, 255, 255});
-        drawSdfUiText(tooltipDescription,
-                   {tooltip.x + 12.0F, tooltip.y + 36.0F},
-                   fitUiTextSize(
-                       tooltipDescription, 10.0F, 7.0F,
-                       tooltip.width - 24.0F),
-                   {230, 224, 207, 245});
-    }
+    if (hovered && !IsCursorHidden()) drawItemTooltip(
+        localizeText(lootUpgradeName(*hovered))+" x"+std::to_string(hoveredStacks),
+        lootUpgradeDescription(*hovered),mouse,
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())});
 }
 
 const char* weaponLabel(PlayerWeapon weapon) {
     switch (weapon) {
-    case PlayerWeapon::LegacyBareHands: return "REMOVED";
+    case PlayerWeapon::LegacyBareHands:
+    case PlayerWeapon::LegacyHammer: return "REMOVED";
     case PlayerWeapon::Axe: return "AXE";
     case PlayerWeapon::Pickaxe: return "PICKAXE";
     case PlayerWeapon::Club: return "CLUB";
     case PlayerWeapon::IceWand: return "ICE WAND";
     case PlayerWeapon::FireWand: return "FIRE WAND";
-    case PlayerWeapon::Hammer: return "HAMMER";
     case PlayerWeapon::Rifle: return "RIFLE";
     case PlayerWeapon::Bomb: return "BOMBS";
     }
@@ -723,13 +597,19 @@ const char* weaponLabel(PlayerWeapon weapon) {
 }
 
 void drawCompactInsight(
-    const SimulationSnapshot& snapshot,
+    GameUi& ui, const SimulationSnapshot& snapshot,
     const HudViewState& view) {
 
     constexpr float y = 20.0F;
     constexpr float OuterHeight = 24.0F;
-    constexpr float LevelSlotWidth = 92.0F;
+    constexpr float MinimumLevelSlotWidth = 92.0F;
     constexpr float ExperienceWidth = 220.0F;
+    constexpr float statusFontSize = 28.0F / 1.68F;
+    const std::string status =
+        "LVL " + std::to_string(snapshot.playerLevel);
+    const Vector2 statusSize = measureUiText(status, statusFontSize);
+    const float levelSlotWidth = std::max(
+        MinimumLevelSlotWidth, statusSize.x + 22.0F);
     constexpr float OuterRadius = 8.0F;
     constexpr float InnerHeight = 16.0F;
     constexpr float InnerRadius = 5.0F;
@@ -739,9 +619,9 @@ void drawCompactInsight(
     constexpr Color OuterColor{0, 122, 255, 255};
     constexpr Color InnerColor{0, 189, 255, 255};
     constexpr Color FillColor{128, 221, 255, 255};
-    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenWidth = static_cast<float>(uiScreenWidth());
     const float screenMinimum = static_cast<float>(
-        std::min(GetScreenWidth(), GetScreenHeight()));
+        std::min(uiScreenWidth(), uiScreenHeight()));
     const float minimapSize = std::clamp(
         screenMinimum * 0.16F, 120.0F, 156.0F);
     constexpr float MinimapRightMargin = 12.0F;
@@ -749,16 +629,18 @@ void drawCompactInsight(
     constexpr float PanelMapGap = 18.0F;
     const float minimapOuterLeft = screenWidth - MinimapRightMargin -
         CompassMargin * 2.0F - minimapSize;
-    const float totalWidth = LevelSlotWidth + ExperienceWidth;
+    const float totalWidth = levelSlotWidth + ExperienceWidth;
     const float x = std::max(
         18.0F, minimapOuterLeft - PanelMapGap - totalWidth);
     const float requirement = std::max(
         1.0F, static_cast<float>(snapshot.requiredInsight));
     const float fraction = std::clamp(
-        static_cast<float>(view.displayedInsight) / requirement,
+        view.displayedInsightFraction >= 0.0
+            ? static_cast<float>(view.displayedInsightFraction)
+            : static_cast<float>(snapshot.currentInsight) / requirement,
         0.0F, 1.0F);
     const Rectangle outerBounds{
-        x + LevelSlotWidth, y, ExperienceWidth, OuterHeight};
+        x + levelSlotWidth, y, ExperienceWidth, OuterHeight};
     const Rectangle innerBounds{
         outerBounds.x + InnerHorizontalInset,
         y + (OuterHeight - InnerHeight) * 0.5F,
@@ -781,60 +663,77 @@ void drawCompactInsight(
         const Rectangle fillBounds{
             fillTrack.x, fillTrack.y,
             fillTrack.width * fraction, fillTrack.height};
+        const Color fillColor = ColorLerp(
+            FillColor, {215, 248, 255, 255},
+            static_cast<float>(std::clamp(
+                view.insightPulse, 0.0, 1.0)) * 0.45F);
         DrawRectangleRounded(
             fillBounds, FillRadius * 2.0F / FillHeight,
-            8, FillColor);
+            8, fillColor);
     }
 
-    const std::string status =
-        "LVL " + std::to_string(snapshot.playerLevel);
-    constexpr float statusFontSize = 28.0F / 1.68F;
-    const Vector2 statusSize = measureUiText(status, statusFontSize);
     SdfUiTextStyle statusStyle{};
     statusStyle.fillColor = UiWhite;
     statusStyle.outlineColor = {49, 49, 49, 255};
     statusStyle.shadowColor = {82, 82, 82, 255};
-    statusStyle.shadowOffsetPixels = {0.0F, 4.0F};
+    statusStyle.shadowOffsetPixels = {0.0F, 2.0F};
     statusStyle.outlinePixels = 3.0F;
     drawStyledSdfUiText(
         status,
-        {x + (LevelSlotWidth - statusSize.x) * 0.5F,
+        {x + (levelSlotWidth - statusSize.x) * 0.5F,
          y + (OuterHeight - statusSize.y) * 0.5F},
         statusFontSize, statusStyle);
 
-    if (view.insightGainAmount >= 0.5) {
-        const float progress = std::clamp(
-            static_cast<float>(view.insightGainProgress),
-            0.0F, 1.0F);
-        const float visibility = std::min(
-            std::clamp(progress / 0.12F, 0.0F, 1.0F),
-            std::clamp((1.0F - progress) / 0.28F,
-                       0.0F, 1.0F));
-        const std::string gain = "+" +
-            std::to_string(static_cast<int>(
-                std::lround(view.insightGainAmount))) + " XP";
-        constexpr float GainFontSize = 14.0F;
-        const Vector2 gainSize =
-            measureUiText(gain, GainFontSize);
-        SdfUiTextStyle gainStyle{};
-        gainStyle.fillColor = {
-            134, 226, 255,
-            static_cast<unsigned char>(255.0F * visibility)};
-        gainStyle.outlineColor = {
-            31, 49, 61,
-            static_cast<unsigned char>(255.0F * visibility)};
-        gainStyle.shadowColor = {
-            18, 27, 32,
-            static_cast<unsigned char>(210.0F * visibility)};
-        gainStyle.shadowOffsetPixels = {0.0F, 2.0F};
-        gainStyle.outlinePixels = 2.0F;
+    const float silverOpacity = std::clamp(view.silverOpacity, 0.0F, 1.0F);
+    if (silverOpacity > 0.001F) {
+        const std::string silverText = std::to_string(
+            std::max(0, view.silver));
+        const Vector2 silverTextSize = measureUiText(
+            silverText, statusFontSize);
+        constexpr float SilverIconSize = 33.0F;
+        constexpr float SilverIconGap = 5.0F;
+        constexpr float SilverLevelGap = 18.0F;
+        const float silverX = x - SilverLevelGap - SilverIconSize -
+            SilverIconGap - silverTextSize.x;
+        ui.drawResourceIcon(
+            {silverX, y + (OuterHeight - SilverIconSize) * 0.5F,
+             SilverIconSize, SilverIconSize},
+            UiResourceIcon::Silver, ColorAlpha(WHITE, silverOpacity));
+        auto silverStyle = statusStyle;
+        silverStyle.fillColor = ColorAlpha(silverStyle.fillColor, silverOpacity);
+        silverStyle.outlineColor = ColorAlpha(silverStyle.outlineColor, silverOpacity);
+        silverStyle.shadowColor = ColorAlpha(silverStyle.shadowColor, silverOpacity);
         drawStyledSdfUiText(
-            gain,
-            {outerBounds.x + outerBounds.width - gainSize.x,
-             outerBounds.y + outerBounds.height + 4.0F -
-                 progress * 8.0F},
-            GainFontSize, gainStyle);
+            silverText,
+            {silverX + SilverIconSize + SilverIconGap,
+             y + (OuterHeight - silverTextSize.y) * 0.5F},
+            statusFontSize, silverStyle);
     }
+}
+
+void drawClassAbilityStatus(const SimulationSnapshot& snapshot) {
+    const auto* character = playerClassDefinition(snapshot.playerClass);
+    if (!character) return;
+    std::string_view status;
+    double remaining = 0;
+    Color color = menuStyle::Green;
+    const auto& ability = snapshot.classAbilityState;
+    if (ability.rageRemaining > 0) { status = "RAGE"; remaining = ability.rageRemaining; }
+    else if (snapshot.playerClass == PlayerClass::Alchemist && snapshot.battlePotionBerserkRemaining > 0) {
+        status = "UNSTABLE BREW"; remaining = snapshot.battlePotionBerserkRemaining;
+    } else if (ability.exhaustionRemaining > 0) {
+        status = "EXHAUSTED"; remaining = ability.exhaustionRemaining;
+        color = {242,112,91,255};
+    }
+    if (status.empty()) return;
+    std::string label = localizeText(status);
+    if (remaining > 0) label += " " + std::to_string(static_cast<int>(std::ceil(remaining))) + "s";
+    const Rectangle badge{320,static_cast<float>(uiScreenHeight())-75,270,44};
+    menuStyle::panel(badge,0.6F,menuStyle::Inset);
+    menuStyle::text(label,{badge.x+12,badge.y,badge.width-24,badge.height},18,color,UiFontRole::MenuBodyBold,1);
+    if (!IsCursorHidden() && CheckCollisionPointRec(uiMousePosition(),badge)) drawItemTooltip(
+        character->passiveName,localizeText(character->passiveDescription[0])+" "+localizeText(character->drawback),
+        uiMousePosition(),{static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())});
 }
 
 void drawWeaponHotbar(
@@ -851,17 +750,14 @@ void drawWeaponHotbar(
             continue;
         }
         keys[slotCount] = std::to_string(slotCount + 1U);
+        const int bombCooldownTenths = static_cast<int>(
+            std::ceil(snapshot.bombCooldownRemaining * 10.0));
         labels[slotCount] = weapon == PlayerWeapon::Bomb && unlocked
-                ? std::string("BOMBS x") +
-                    (snapshot.unlimitedResources
-                        ? "INF"
-                        : std::to_string(snapshot.bombsRemaining)) +
-                    (snapshot.selectedWeapon == PlayerWeapon::Bomb
-                         ? " · V +" +
-                               std::to_string(snapshot.bombPurchaseAmount) +
-                               "/" +
-                               std::to_string(snapshot.bombPurchaseCoinCost)
-                         : "")
+                ? std::string("BOMBS · ") +
+                    (bombCooldownTenths > 0
+                        ? std::to_string(bombCooldownTenths / 10) + "." +
+                              std::to_string(bombCooldownTenths % 10) + "s"
+                        : "READY")
                 : localizeText(weaponLabel(weapon)) + " · " + localizeText("LVL") + " " +
                     std::to_string(std::max(1,snapshot.weaponLevels[static_cast<std::size_t>(weapon)]));
         slots[slotCount] = {
@@ -872,6 +768,9 @@ void drawWeaponHotbar(
             .available = true,
             .upgradeAvailable = false,
             .icon = ui.weaponTexture(weapon),
+            .description = weaponDescription(weapon),
+            .cooldownRemaining = weapon == PlayerWeapon::Bomb
+                ? snapshot.bombCooldownRemaining : 0.0,
         };
         ++slotCount;
     }
@@ -880,7 +779,7 @@ void drawWeaponHotbar(
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
         true, false, {}, transitionOffset,
-        view.invalidActionRemaining, true);
+        view.invalidActionRemaining, false);
 }
 
 

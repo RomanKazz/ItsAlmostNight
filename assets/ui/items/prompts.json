@@ -1,0 +1,104 @@
+{
+  "generator": "built-in imagegen",
+  "style": "Fortbonk chunky cartoon, black outlines, transparent background",
+  "export": {
+    "format": "RGBA PNG",
+    "width": 256,
+    "height": 256,
+    "contentBox": 216,
+    "filter": "Lanczos",
+    "preserveAspectRatio": true
+  },
+  "icons": [
+    {
+      "name": "apple",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-ff6365b8-84b9-45e1-959b-56bc4c1f441e.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one plump red apple with a short brown stem and one broad green leaf, warm red and dark red shading, no heart shape.",
+      "output": "assets/ui/items/apple.png"
+    },
+    {
+      "name": "bread",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-af7432d7-9187-4fa3-8172-2263c4ba5706.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one short rounded golden-brown bread loaf in three-quarter view, three broad cream scoring marks on the crust, simple stout shape.",
+      "output": "assets/ui/items/bread.png"
+    },
+    {
+      "name": "iron_bar",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-61c65097-94f3-4e83-9204-5c6278bc1caf.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one chunky blue-gray iron ingot in three-quarter view, wide beveled rectangular bar, broad light steel top and dark slate side planes, no shield.",
+      "output": "assets/ui/items/iron_bar.png"
+    },
+    {
+      "name": "fuel_jerrycan",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-2248c137-5073-46d0-befb-a8a282295282.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one squat golden yellow fuel jerrycan in three-quarter view, integrated broad top handle, dark gray cap, single large pressed X panel, no text.",
+      "output": "assets/ui/items/fuel_jerrycan.png"
+    },
+    {
+      "name": "compass",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-caa70b19-c675-4516-a011-d30545a0da86.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one chunky circular golden brass compass in three-quarter view, pale cream dial, broad red and blue needle, simple thick dark rim, no letters or ticks.",
+      "output": "assets/ui/items/compass.png"
+    },
+    {
+      "name": "nail",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-3a948865-3de5-404c-8ff9-4333047f42e1.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one large stout steel nail tilted diagonally upward right, large flat round blue-gray head, thick slightly tapered shaft and a pointed tip, simple broad steel highlights.",
+      "output": "assets/ui/items/nail.png"
+    },
+    {
+      "name": "key",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-3a886d0a-6ba5-41aa-872b-12ed6b2403fe.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one stout golden treasure key tilted diagonally from upper left to lower right, a large round open bow, short thick shaft and two broad square teeth.",
+      "output": "assets/ui/items/key.png"
+    },
+    {
+      "name": "treasure_map",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-1069127c-604e-4ef2-9268-a1916fee9ae5.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one chunky cream parchment treasure map slightly folded at two sides, warm tan curled edges, a single thick brown winding route ending at a large red X, no words, no tiny dotted paths.",
+      "output": "assets/ui/items/treasure_map.png"
+    },
+    {
+      "name": "anvil",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-6b1629cb-e81e-4809-b6ea-d091ed08962f.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one heavy blue-gray steel blacksmith anvil in three-quarter view, pointed horn on the left, broad flat bright steel top, short thick waist, wide dark sturdy base.",
+      "output": "assets/ui/items/anvil.png"
+    },
+    {
+      "name": "saw",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-9a2593ac-375a-4f3f-a49a-fe8b2da712ac.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one chunky carpenters hand saw angled slightly upward right, broad blue-gray steel blade with only five large teeth along the lower edge, short warm brown wooden handle with one broad grip opening.",
+      "output": "assets/ui/items/saw.png"
+    },
+    {
+      "name": "battle_potion",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-f233d56c-1bb7-4214-a381-25d13ad8a2f3.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one squat rounded glass potion bottle with vivid magenta-red liquid, broad brown cork and short neck, thick black contours, one broad pale highlight, no labels or bubbles.",
+      "output": "assets/ui/items/battle_potion.png"
+    },
+    {
+      "name": "blueprint",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-acf7c7af-5b22-490d-a11a-8cbf87fae3b5.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one partly unrolled bright blue construction blueprint with broad curled cream paper edges, one very simple white schematic of a small block building made from a few thick lines, no text or fine grid.",
+      "output": "assets/ui/items/blueprint.png"
+    },
+    {
+      "name": "hourglass",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-874d0f3d-21c8-4574-aae1-e084c3a59426.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one stout golden-brass hourglass in three-quarter view, two broad gold caps and two thick side posts, pale blue glass with warm golden sand, simple wide silhouette.",
+      "output": "assets/ui/items/hourglass.png"
+    },
+    {
+      "name": "safety_rope",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-bbe712cc-d3ea-42b3-9ada-927f5c34370c.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one compact coil of thick warm tan safety rope, three broad loops and a short loose curved tail, simple rounded black outlines, no tiny woven texture.",
+      "output": "assets/ui/items/safety_rope.png"
+    },
+    {
+      "name": "field_medkit",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-041c2d0c-edd9-4688-ad03-985b55c27fec.png",
+      "prompt": "Use case: stylized-concept. Create ONE production game UI inventory icon for Fortbonk on a genuinely transparent background. Cohesive chunky cartoon fantasy illustration: thick PURE BLACK uniformly weighted outline, about 6 pixels at final 256x256; smooth rounded stout 3D-like shapes with only 2-3 broad cel-shaded color planes and a restrained small cream highlight, vivid readable colors. Isolated clear silhouette, centered occupying 82% of a square canvas, generous transparent padding on every side. Consistent outer and internal line weight. Will be exported to 256x256. No text, letters, numbers, UI frame, badge, glow, external cast shadow, scenery, fine decorative details, tiny particles, photorealism. Subject: one compact cream canvas medical pouch in three-quarter view, broad red cross on the front, warm brown strap clasp, small sturdy top handle, no text.",
+      "output": "assets/ui/items/field_medkit.png"
+    }
+  ]
+}

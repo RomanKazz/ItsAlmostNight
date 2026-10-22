@@ -13,7 +13,8 @@ namespace ian {
 enum class AttackStat : std::size_t {
     Damage, AttackSpeed, Quantity, ProjectileSpeed, Duration, Size,
     Bounces, Pierce, CritChance, CritDamage, Knockback, Range,
-    BurstInterval, Spread, BounceRange, Prediction, Homing, FanSpread, Count
+    BurstInterval, Spread, BounceRange, Prediction, Homing, FanSpread,
+    SlowStrength, Count
 };
 
 struct StatModifier {
@@ -50,6 +51,7 @@ struct AttackStats {
     double prediction{};
     double homing{};
     double fanStepDegrees{5.0};
+    double slowStrength{1.0}; // Relative strength of a Slow Trap's authored slow.
 };
 
 struct FinalAttackStats : AttackStats {
@@ -108,6 +110,7 @@ inline constexpr double MinimumAttackCooldown = 0.025;
     result.prediction = std::clamp(value(AttackStat::Prediction, base.prediction), 0.0, 1.0);
     result.homing = std::max(0.0, value(AttackStat::Homing, base.homing));
     result.fanStepDegrees = std::max(0.0, value(AttackStat::FanSpread, base.fanStepDegrees));
+    result.slowStrength = std::max(0.0, value(AttackStat::SlowStrength, base.slowStrength));
     return result;
 }
 

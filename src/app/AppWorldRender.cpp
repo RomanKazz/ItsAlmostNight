@@ -1,6 +1,8 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppProjectileDrawing.hpp"
+#include "core/Geometry.hpp"
+#include "presentation/PresentationTimeline.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -24,43 +26,6 @@ namespace ian {
 using namespace app_detail;
 using namespace app_projectile_drawing;
 
-namespace {
-
-constexpr int ChallengeFencePegCount = 36;
-constexpr float ChallengeFencePegHeight = 2.25F;
-constexpr float ChallengeFenceRopeHeight = 1.56F;
-constexpr int ChallengeFenceRopeSegments = 5;
-
-float challengeFencePegProgress(float fenceProgress, int index) {
-    const float phase =
-        static_cast<float>(index) /
-        static_cast<float>(ChallengeFencePegCount) * 0.34F;
-    const float amount = std::clamp(
-        (fenceProgress - phase) / 0.66F, 0.0F, 1.0F);
-    return amount * amount * (3.0F - 2.0F * amount);
-}
-
-float challengeFenceAngle(int index) {
-    return 2.0F * PI * static_cast<float>(index) /
-        static_cast<float>(ChallengeFencePegCount);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-} // namespace
 
 std::span<const GrassClearArea>
 App::activeDecorationClearAreas(
@@ -141,6 +106,8 @@ App::activeDecorationClearAreas(
     mixCollection(snapshot.platformFrames);
     mixCollection(snapshot.modularWalls);
     mixCollection(snapshot.ramps);
+    mixCollection(snapshot.worldScenery);
+    mix(simulation_.terrain().seed());
 
     std::vector<GrassClearArea>& persistent =
         persistentDecorationClearAreaBuffer_;
@@ -151,7 +118,8 @@ App::activeDecorationClearAreas(
             snapshot.buildings.size() +
             snapshot.platformFrames.size() +
             snapshot.modularWalls.size() +
-            snapshot.ramps.size());
+            snapshot.ramps.size() +
+            snapshot.worldScenery.size());
         for (const BuildingInstance& building : snapshot.buildings) {
             const Vec3 center = buildingWorldPosition(building);
             add(
@@ -164,6 +132,11 @@ App::activeDecorationClearAreas(
         }
         for (const WallInstance& wall : snapshot.modularWalls) {
             addWall(persistent, wall);
+        }
+        for (const auto& scenery : snapshot.worldScenery) {
+            const auto box = worldSceneryCollisionBox(scenery);
+            add(persistent, scenery.position.x, scenery.position.z,
+                .5*std::hypot(box.maxX-box.minX,box.maxZ-box.minZ));
         }
         for (const RampInstance& ramp : snapshot.ramps) {
             addRamp(persistent, ramp);
@@ -245,102 +218,13 @@ App::activeDecorationClearAreas(
     return std::span<const GrassClearArea>{result};
 }
 
-void App::drawChallengeFence(
-    const ChallengeColumnInstance& column, bool drawRopes) {
-    const float fenceProgress = std::clamp(
-        static_cast<float>(column.fenceProgress), 0.0F, 1.0F);
-    if (fenceProgress <= 0.001F) return;
-
-    std::array<Vector3, ChallengeFencePegCount> ropeAnchors{};
-    std::array<float, ChallengeFencePegCount> pegProgress{};
-    for (int index = 0; index < ChallengeFencePegCount; ++index) {
-        const float angle = challengeFenceAngle(index);
-        const float x = static_cast<float>(column.position.x) +
-            std::cos(angle) *
-                static_cast<float>(challenge_arena::FenceRadius);
-        const float z = static_cast<float>(column.position.z) +
-            std::sin(angle) *
-                static_cast<float>(challenge_arena::FenceRadius);
-        const float groundY = static_cast<float>(
-            simulation_.terrain().getHeight(x, z));
-        const float amount = challengeFencePegProgress(
-            fenceProgress, index);
-        pegProgress[static_cast<std::size_t>(index)] = amount;
-        const float bounce = std::sin(amount * PI) *
-            (1.0F - amount) * 0.16F;
-        const float buried = (1.0F - amount) *
-            ChallengeFencePegHeight * 0.42F;
-        const float baseY = groundY - buried + bounce;
-        ropeAnchors[static_cast<std::size_t>(index)] = {
-            x,
-            baseY + ChallengeFenceRopeHeight * amount,
-            z,
-        };
-        if (amount <= 0.002F) continue;
-        // Broad face is tangent to the circle; its normal points radially.
-        const float yaw = PI * 0.5F - angle;
-        static_cast<void>(renderer_->drawChallengeArenaPeg(
-            {x, baseY, z}, yaw, WHITE, amount));
-    }
-
-    if (!drawRopes) return;
-    const Color ropeShadow{145, 94, 58, 255};
-    const Color ropeHighlight{228, 170, 108, 255};
-    for (int index = 0; index < ChallengeFencePegCount; ++index) {
-        const int nextIndex = (index + 1) % ChallengeFencePegCount;
-        const float visibility = std::min(
-            pegProgress[static_cast<std::size_t>(index)],
-            pegProgress[static_cast<std::size_t>(nextIndex)]);
-        if (visibility <= 0.04F) continue;
-        const Vector3 start =
-            ropeAnchors[static_cast<std::size_t>(index)];
-        const Vector3 end =
-            ropeAnchors[static_cast<std::size_t>(nextIndex)];
-        Vector3 previous = start;
-        for (int segment = 1;
-             segment <= ChallengeFenceRopeSegments; ++segment) {
-            const float t = static_cast<float>(segment) /
-                static_cast<float>(ChallengeFenceRopeSegments);
-            Vector3 point{
-                start.x + (end.x - start.x) * t,
-                start.y + (end.y - start.y) * t,
-                start.z + (end.z - start.z) * t,
-            };
-            point.y -= 0.52F * 4.0F * t * (1.0F - t) * visibility;
-            const float outerRadius = 0.192F * visibility;
-            const float innerRadius = 0.114F * visibility;
-            const Vector3 segmentDelta = Vector3Subtract(point, previous);
-            const float segmentLength = Vector3Length(segmentDelta);
-            const Vector3 segmentDirection = segmentLength > 0.0001F
-                ? Vector3Scale(segmentDelta, 1.0F / segmentLength)
-                : Vector3{};
-            const float overlap = std::min(
-                outerRadius * 0.82F, segmentLength * 0.18F);
-            const Vector3 joinedStart = Vector3Subtract(
-                previous, Vector3Scale(segmentDirection, overlap));
-            const Vector3 joinedEnd = Vector3Add(
-                point, Vector3Scale(segmentDirection, overlap));
-            DrawCylinderEx(
-                joinedStart, joinedEnd,
-                outerRadius, outerRadius,
-                6, ropeShadow);
-            Vector3 highlightStart = joinedStart;
-            Vector3 highlightEnd = joinedEnd;
-            highlightStart.y += 0.096F * visibility;
-            highlightEnd.y += 0.096F * visibility;
-            DrawCylinderEx(
-                highlightStart, highlightEnd,
-                innerRadius, innerRadius,
-                6, ropeHighlight);
-            previous = point;
-        }
-    }
-}
-
 void App::drawWorldEntities(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
     float nightAmount, const WorldLighting& lighting,
     float interpolationAlpha) {
+    WorldObjectProfiler objectProfiler(
+        performanceStats_.worldObjectTimings,
+        renderer_->settings().performanceLogging);
     const auto decorationsStart = PerformanceClock::now();
     const auto clearAreas =
         activeDecorationClearAreas(snapshot);
@@ -413,6 +297,7 @@ void App::drawWorldEntities(
         clearAreas);
     performanceStats_.decorationsRender.sample(
         performanceMilliseconds(decorationsStart));
+    objectProfiler.next(WorldObjectStage::Resources);
     const float resourceDrawDistance = static_cast<float>(
         simulation_.terrain().config().terrainRenderDistance +
         12.0);
@@ -544,6 +429,7 @@ void App::drawWorldEntities(
                 hitScale * static_cast<float>(node.visualScale)));
         }
     }
+    objectProfiler.next(WorldObjectStage::Rocks);
     if (!resourceRockDrawInstances_.empty()) {
         WorldMaterialState rockMaterial{};
         rockMaterial.bakedAo = 0.78F;
@@ -558,6 +444,7 @@ void App::drawWorldEntities(
             }
         }
     }
+    objectProfiler.next(WorldObjectStage::Trees);
     if (!resourceTreeDrawInstances_.empty()) {
         WorldMaterialState treeMaterial{};
         treeMaterial.bakedAo = 0.78F;
@@ -577,6 +464,7 @@ void App::drawWorldEntities(
     }
     if constexpr (MinimalWorldVisuals) {
         renderer_->endWorldShader();
+        objectProfiler.next(WorldObjectStage::Grass);
         const auto grassStart = PerformanceClock::now();
         renderer_->drawGrassInstances(
             camera.position, static_cast<float>(snapshot.worldLimit),
@@ -585,12 +473,104 @@ void App::drawWorldEntities(
             performanceMilliseconds(grassStart));
         return;
     }
+    objectProfiler.next(WorldObjectStage::LootProps);
     // Draw the additive loot light in world space before the opaque chest.
     // It keeps terrain depth occlusion and the chest naturally covers the
     // part of the glow that is physically behind its body and lid.
     renderer_->endWorldShader();
     drawChestLootGlow(snapshot, camera);
     renderer_->beginWorldShader(lighting);
+    WorldMaterialState challengeMaterial{};
+    challengeMaterial.bakedAo = 0.76F;
+    renderer_->setWorldMaterial(challengeMaterial);
+    for (const ChallengeColumnInstance& column : snapshot.challengeColumns) {
+        if (!worldObjectVisible(
+                column.position,
+                static_cast<float>(challenge_arena::FenceRadius + 3.0),
+                worldDrawDistance)) {
+            continue;
+        }
+        drawChallengeFence(column, true);
+        const float progress = smoothstep(
+            0.0F, 1.0F, static_cast<float>(column.completionProgress));
+        const float bounce = std::sin(progress * PI) * (1.0F - progress) * 0.12F;
+        const float scale = std::max(0.0F, 1.0F + bounce - progress);
+        if (scale <= 0.001F) continue;
+        const Color tint = column.state == ChallengeColumnState::Active
+            ? Color{205, 235, 255, 255}
+            : WHITE;
+        static_cast<void>(renderer_->drawChallengeColumn(
+            {static_cast<float>(column.position.x),
+             static_cast<float>(column.position.y),
+             static_cast<float>(column.position.z)},
+            static_cast<float>(column.yaw), tint, scale));
+    }
+    WorldMaterialState landmarkMaterial{};
+    landmarkMaterial.bakedAo = 0.82F;
+    renderer_->setWorldMaterial(landmarkMaterial);
+    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        if (!worldObjectVisible(
+                landmark.position,
+                static_cast<float>(landmark.collisionRadius + 3.0),
+                worldDrawDistance)) {
+            continue;
+        }
+        const Color tint = landmarkShrineKind(landmark.type)!=ShrineKind::None
+            ? (landmark.activated ? Color{115,115,125,255} : WHITE)
+            : landmark.activated ? WHITE : Color{218,218,210,255};
+        static_cast<void>(renderer_->drawWorldLandmark(
+            static_cast<std::size_t>(landmark.type),
+            {static_cast<float>(landmark.position.x),
+             static_cast<float>(landmark.position.y),
+             static_cast<float>(landmark.position.z)},
+            static_cast<float>(landmark.yaw), tint));
+    }
+    renderer_->drawWorldScenery(snapshot.worldScenery, camera.position, worldDrawDistance);
+    WorldMaterialState chestMaterial{};
+    chestMaterial.bakedAo = 0.78F;
+    renderer_->setWorldMaterial(chestMaterial);
+    for (const LootChestInstance& chest : snapshot.lootChests) {
+        if (chest.looseLoot ||
+            !worldObjectVisible(
+                chest.position, 2.0F, worldDrawDistance)) {
+            continue;
+        }
+        const float disappear = smoothstep(
+            0.0F, 1.0F,
+            static_cast<float>(
+                chest.disappearanceProgress));
+        const float bounce =
+            std::sin(disappear*PI)*
+            (1.0F - disappear)*0.16F;
+        const float visualScale =
+            1.0F + bounce - disappear*0.92F;
+        const Vector3 position{
+            static_cast<float>(
+                chest.position.x +
+                chest.surfaceNormal.x*disappear*0.24),
+            static_cast<float>(
+                chest.position.y +
+                chest.surfaceNormal.y*disappear*0.24),
+            static_cast<float>(
+                chest.position.z +
+                chest.surfaceNormal.z*disappear*0.24),
+        };
+        const Color tint{
+            255,
+            static_cast<unsigned char>(
+                std::lround(255.0F - disappear*40.0F)),
+            static_cast<unsigned char>(
+                std::lround(255.0F - disappear*92.0F)),
+            static_cast<unsigned char>(
+                std::lround(255.0F*(1.0F - disappear))),
+        };
+        static_cast<void>(renderer_->drawLootChest(
+            chest.type, position, static_cast<float>(chest.yaw),
+            static_cast<float>(chest.openingProgress),
+            tint, visualScale));
+    }
+    renderer_->beginWorldShader(lighting);
+    objectProfiler.next(WorldObjectStage::Pickups);
     WorldMaterialState heartMaterial{};
     heartMaterial.unlitAmount = 0.86F;
     heartMaterial.screenAoAmount = 0.0F;
@@ -659,7 +639,9 @@ void App::drawWorldEntities(
                 pop * magnetStretch * collectionScale * (1.0F + beat * .06F));
         } else {
             renderer_->drawCoin(
-                coin.type, pickupPosition, rotation,
+                coin.kind == PickupKind::MetaSilver ? CoinType::Silver :
+                    coin.type == CoinType::Silver ? CoinType::HighValue : coin.type,
+                pickupPosition, rotation,
                 pop * magnetStretch * anticipationPop * collectionScale);
         }
     }
@@ -759,95 +741,7 @@ void App::drawWorldEntities(
             visualScale, pickup.value);
     }
     renderer_->setWorldMaterial({});
-    WorldMaterialState challengeMaterial{};
-    challengeMaterial.bakedAo = 0.76F;
-    renderer_->setWorldMaterial(challengeMaterial);
-    for (const ChallengeColumnInstance& column : snapshot.challengeColumns) {
-        if (!worldObjectVisible(
-                column.position,
-                static_cast<float>(challenge_arena::FenceRadius + 3.0),
-                worldDrawDistance)) {
-            continue;
-        }
-        drawChallengeFence(column, true);
-        const float progress = smoothstep(
-            0.0F, 1.0F, static_cast<float>(column.completionProgress));
-        const float bounce = std::sin(progress * PI) * (1.0F - progress) * 0.12F;
-        const float scale = std::max(0.0F, 1.0F + bounce - progress);
-        if (scale <= 0.001F) continue;
-        const Color tint = column.state == ChallengeColumnState::Active
-            ? Color{205, 235, 255, 255}
-            : WHITE;
-        static_cast<void>(renderer_->drawChallengeColumn(
-            {static_cast<float>(column.position.x),
-             static_cast<float>(column.position.y),
-             static_cast<float>(column.position.z)},
-            static_cast<float>(column.yaw), tint, scale));
-    }
-    WorldMaterialState landmarkMaterial{};
-    landmarkMaterial.bakedAo = 0.82F;
-    renderer_->setWorldMaterial(landmarkMaterial);
-    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
-        if (!worldObjectVisible(
-                landmark.position,
-                static_cast<float>(landmark.collisionRadius + 3.0),
-                worldDrawDistance)) {
-            continue;
-        }
-        const Color tint = landmark.activated
-            ? WHITE
-            : Color{218, 218, 210, 255};
-        static_cast<void>(renderer_->drawWorldLandmark(
-            static_cast<std::size_t>(landmark.type),
-            {static_cast<float>(landmark.position.x),
-             static_cast<float>(landmark.position.y),
-             static_cast<float>(landmark.position.z)},
-            static_cast<float>(landmark.yaw), tint));
-    }
-    WorldMaterialState chestMaterial{};
-    chestMaterial.bakedAo = 0.78F;
-    renderer_->setWorldMaterial(chestMaterial);
-    for (const LootChestInstance& chest : snapshot.lootChests) {
-        if (chest.looseLoot ||
-            !worldObjectVisible(
-                chest.position, 2.0F, worldDrawDistance)) {
-            continue;
-        }
-        const float disappear = smoothstep(
-            0.0F, 1.0F,
-            static_cast<float>(
-                chest.disappearanceProgress));
-        const float bounce =
-            std::sin(disappear*PI)*
-            (1.0F - disappear)*0.16F;
-        const float visualScale =
-            1.0F + bounce - disappear*0.92F;
-        const Vector3 position{
-            static_cast<float>(
-                chest.position.x +
-                chest.surfaceNormal.x*disappear*0.24),
-            static_cast<float>(
-                chest.position.y +
-                chest.surfaceNormal.y*disappear*0.24),
-            static_cast<float>(
-                chest.position.z +
-                chest.surfaceNormal.z*disappear*0.24),
-        };
-        const Color tint{
-            255,
-            static_cast<unsigned char>(
-                std::lround(255.0F - disappear*40.0F)),
-            static_cast<unsigned char>(
-                std::lround(255.0F - disappear*92.0F)),
-            static_cast<unsigned char>(
-                std::lround(255.0F*(1.0F - disappear))),
-        };
-        static_cast<void>(renderer_->drawLootChest(
-            chest.type, position, static_cast<float>(chest.yaw),
-            static_cast<float>(chest.openingProgress),
-            tint, visualScale));
-    }
-    renderer_->beginWorldShader(lighting);
+    objectProfiler.next(WorldObjectStage::DestroyedResources);
     for (const DestroyedResourceVisual& visual :
          destroyedResourceVisuals_) {
         if (!worldObjectVisible(
@@ -913,6 +807,7 @@ void App::drawWorldEntities(
                 scale * visual.visualScale));
         }
     }
+    objectProfiler.next(WorldObjectStage::Buildings);
     WorldMaterialState platformMaterial{};
     platformMaterial.bakedAo = 0.76F;
     {
@@ -978,6 +873,11 @@ void App::drawWorldEntities(
             static_cast<float>(center.y);
         const float spawnScale =
             buildingAnimationScaleAt(center, building.id);
+        const auto feedback = buildingFeedbackHighlightAt(
+            center, building.id,
+            building.platformStorey < 0
+                ? std::min(center.y, building.foundationBottomHeight) : center.y,
+            center.y + renderer_->buildingVisualHeight(building.type, building.level) * spawnScale);
         const auto scaledPosition =
             [x, groundY, z, spawnScale](
                 float offsetX, float y, float offsetZ) {
@@ -998,7 +898,7 @@ void App::drawWorldEntities(
                     depth * spawnScale, color);
             };
         if (const auto foundation =
-                automaticBuildingFoundation(
+                building.platformStorey < 0 ? automaticBuildingFoundation(
                     building.type,
                     building.gridPosition,
                     building.baseHeight,
@@ -1006,13 +906,15 @@ void App::drawWorldEntities(
                         .foundationBottomHeight,
                     simulation_.terrain()
                         .config().cellSize,
-                    building.id)) {
+                    building.id) : std::nullopt) {
             renderer_->setWorldMaterial(
                 platformMaterial);
             const std::array<ModularAnimationScale, 1>
                 foundationAnimation{{{
                     .id = building.id,
                     .scale = spawnScale,
+                    .feedback = feedback,
+                    .scaleOrigin = center,
                 }}};
             modularBuildingRenderer_.drawWorld(
                 {
@@ -1029,6 +931,7 @@ void App::drawWorldEntities(
         }
         WorldMaterialState material{};
         material.bakedAo = 0.72F;
+        material.buildingFeedback = feedback;
         renderer_->setWorldMaterial(material);
         if (building.type == BuildingType::Core) {
             constexpr float QuarterTurn = PI * 0.5F;
@@ -1135,7 +1038,9 @@ void App::drawWorldEntities(
                     towerYaw(snapshot, building, interpolationAlpha), building.level));
         } else if (building.type == BuildingType::Flamethrower) {
             static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
-                flamethrowerVisualYaw(building), WHITE, spawnScale));
+                towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
         } else if (building.type == BuildingType::GunTurret) {
             if (!renderer_->drawGunTurret(
                     {x, groundY, z},
@@ -1278,6 +1183,7 @@ void App::drawWorldEntities(
     }
     drawSoldBuildingVisuals();
     renderer_->setWorldMaterial({});
+    objectProfiler.next(WorldObjectStage::ProjectilesPortals);
     if (std::ranges::any_of(
             snapshot.attackPortalPositions,
             [](const auto& position) { return position.has_value(); })) {
@@ -1329,6 +1235,7 @@ void App::drawWorldEntities(
         renderer_->setWorldMaterial({});
     }
     renderer_->endWorldShader();
+    objectProfiler.next(WorldObjectStage::Grass);
     const auto grassStart = PerformanceClock::now();
     renderer_->drawGrassInstances(
         camera.position, static_cast<float>(snapshot.worldLimit),
@@ -1497,43 +1404,12 @@ void App::drawWorldProjectiles(
     turretShotMaterial.screenAoAmount = 0.0F;
     turretShotMaterial.inkOutlineEligible = false;
     renderer_->setWorldMaterial(turretShotMaterial);
-    const auto drawDefenseShots = [this, &camera](bool drawTail) {
+    const auto drawDefenseShots = [&camera, &snapshot, interpolationAlpha](bool drawTail) {
         beginProjectileBatch(drawTail);
-        for (const auto& arrow : arrowVisuals_) {
-            if (arrow.startDelayRemaining > 0.0) continue;
-            const float progress = std::clamp(static_cast<float>(
-                1.0 - arrow.remaining / arrow.duration), 0.0F, 1.0F);
-            const Vector3 origin{
-                static_cast<float>(arrow.origin.x),
-                static_cast<float>(arrow.origin.y),
-                static_cast<float>(arrow.origin.z),
-            };
-            const Vector3 target{
-                static_cast<float>(arrow.target.x),
-                static_cast<float>(arrow.target.y),
-                static_cast<float>(arrow.target.z),
-            };
-            const Vector3 path = Vector3Subtract(target, origin);
-            const float distance = Vector3Length(path);
-            if (distance <= 0.0001F) continue;
-            const Vector3 direction = Vector3Scale(path, 1.0F / distance);
-            const float visualScale = arrow.bulletAppearance.scale *
-                (arrow.shrapnel ? 0.56F : 1.0F);
-            // Keep the visible front behind contact until the flight ends.
-            const float launchLead = std::min(
-                distance * 0.25F, 0.41F * visualScale);
-            const float frontDistance = launchLead +
-                (distance - launchLead) * progress;
-            const Vector3 head = Vector3Add(origin,
-                Vector3Scale(direction, frontDistance));
-            Color shotColor{arrow.bulletAppearance.color.r,
-                arrow.bulletAppearance.color.g, arrow.bulletAppearance.color.b, 255};
-            if (!arrow.turretBullet) {
-                shotColor = ColorLerp(shotColor, {132, 210, 255, 255}, 0.65F);
-            }
-            emitDefenseShotGeometry(
-                head, direction, camera.position, frontDistance,
-                visualScale, 1.0F, shotColor, drawTail, !arrow.turretBullet);
+        for (const auto& projectile : snapshot.defenseProjectiles) {
+            if (!projectile.active) continue;
+            emitDefenseProjectileGeometry(
+                projectile, camera.position, interpolationAlpha, drawTail);
         }
         endProjectileBatch();
     };
@@ -1544,34 +1420,26 @@ void App::drawWorldProjectiles(
     renderer_->setWorldMaterial(turretShotMaterial);
     drawDefenseShots(false);
 
+    turretShotMaterial.inkOccluder = false;
+    renderer_->setWorldMaterial(turretShotMaterial);
     renderer_->beginColorOnlyWorldEffects();
     beginProjectileBatch(true, BLEND_ADDITIVE);
-    for (const auto& arrow : arrowVisuals_) {
-        if (!arrow.turretBullet || arrow.shrapnel ||
-            arrow.startDelayRemaining > 0.0) continue;
-        const float elapsed = static_cast<float>(
-            arrow.duration - arrow.remaining);
-        constexpr float FlashDuration = 0.10F;
-        if (elapsed >= FlashDuration) continue;
-        const Vector3 origin{
-            static_cast<float>(arrow.origin.x),
-            static_cast<float>(arrow.origin.y),
-            static_cast<float>(arrow.origin.z),
-        };
-        Vector3 direction{
-            static_cast<float>(arrow.target.x - arrow.origin.x),
-            static_cast<float>(arrow.target.y - arrow.origin.y),
-            static_cast<float>(arrow.target.z - arrow.origin.z),
-        };
-        if (Vector3LengthSqr(direction) <= 0.000001F) continue;
-        direction = Vector3Normalize(direction);
-        const float progress = std::clamp(
-            elapsed / FlashDuration, 0.0F, 1.0F);
-        const float fade = 1.0F - progress * progress;
-        emitTurretMuzzleFlash(origin, direction, camera, fade);
+    for (const auto& effect : effects_) {
+        if (effect.type != PresentationEffectType::TurretMuzzleFlash ||
+            effect.startDelayRemaining > 0 || !effect.targetPosition) continue;
+        const Vector3 origin{static_cast<float>(effect.position.x),
+            static_cast<float>(effect.position.y), static_cast<float>(effect.position.z)};
+        const Vector3 direction = Vector3Normalize({
+            static_cast<float>(effect.targetPosition->x - effect.position.x),
+            static_cast<float>(effect.targetPosition->y - effect.position.y),
+            static_cast<float>(effect.targetPosition->z - effect.position.z)});
+        const float progress = static_cast<float>(presentation::timelineProgress(
+            effect.remaining, effect.duration));
+        emitTurretMuzzleFlash(origin, direction, camera, 1.0F - progress * progress);
     }
     endProjectileBatch();
     renderer_->endColorOnlyWorldEffects();
+
     renderer_->setWorldMaterial({});
 
     WorldMaterialState bombMaterial{};

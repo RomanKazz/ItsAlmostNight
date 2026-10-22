@@ -4,6 +4,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 
@@ -135,9 +136,7 @@ void App::startEnemyHitFlash(EntityId id) {
 void App::chooseHarvestSwingAnimation(FirstPersonToolVisual visual) {
     toolSwingAlternateAnimation_ =
         renderer_ &&
-        (visual == FirstPersonToolVisual::Axe ||
-         visual == FirstPersonToolVisual::Pickaxe ||
-         visual == FirstPersonToolVisual::Club) &&
+        usesAuthoredToolSwing(visual) &&
         renderer_->hasAlternateHarvestSwingAnimation() &&
         GetRandomValue(0, 1) != 0;
 }
@@ -152,6 +151,8 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
             effects_.begin(), effects_.end(),
             [](const PresentationEffect& effect) {
                 return effect.type == PresentationEffectType::Hit ||
+                    effect.type ==
+                        PresentationEffectType::GunBulletImpact ||
                     effect.type ==
                         PresentationEffectType::EnemyHitImpact;
             });
@@ -169,6 +170,9 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
         .startDelayRemaining =
             std::max(0.0, startDelay),
         .scale = scale,
+        .variant = type == PresentationEffectType::BuildingRepaired ||
+                   type == PresentationEffectType::BuildingUpgrade
+            ? static_cast<int>(std::fmod(GetTime() * 1000.0, 2147483647.0)) : 0,
     });
 }
 
@@ -249,11 +253,40 @@ void App::addDamageIndicator(Vec3 sourcePosition,
 
 void App::addFloatingDamageNumber(
     Vec3 position, double damage, bool critical,
-    double startDelay) {
+    double startDelay, std::optional<EntityId> targetId) {
+    constexpr double MaximumCreationDistance = 28.0;
+    const double deltaX =
+        position.x - damageNumberObserverPosition_.x;
+    const double deltaZ =
+        position.z - damageNumberObserverPosition_.z;
+    if (deltaX * deltaX + deltaZ * deltaZ >
+        MaximumCreationDistance * MaximumCreationDistance) {
+        return;
+    }
     constexpr std::size_t MaximumNumbers = 32;
     if (floatingDamageNumbers_.size() >= MaximumNumbers) {
         floatingDamageNumbers_.erase(
             floatingDamageNumbers_.begin());
+    }
+    std::array<bool, MaximumNumbers> occupiedLanes{};
+    for (const FloatingDamageNumber& number : floatingDamageNumbers_) {
+        const double separationX =
+            number.position.x - position.x;
+        const double separationZ =
+            number.position.z - position.z;
+        const bool nearbyEnemy =
+            separationX * separationX +
+                separationZ * separationZ < 1.1 * 1.1 &&
+            std::abs(number.position.y - position.y) < 1.0;
+        if ((targetId && number.targetId == targetId) ||
+            nearbyEnemy) {
+            occupiedLanes[number.lane] = true;
+        }
+    }
+    std::uint8_t lane = 0;
+    while (lane + 1U < occupiedLanes.size() &&
+           occupiedLanes[lane]) {
+        ++lane;
     }
     std::uint32_t randomState =
         (++floatingDamageSequence_) * 0x9e3779b9U;
@@ -268,8 +301,9 @@ void App::addFloatingDamageNumber(
         return static_cast<float>(randomState & 0xffffU) /
             65535.0F;
     };
-    const float direction =
-        (floatingDamageSequence_ % 2U) == 0U ? -1.0F : 1.0F;
+    const float direction = lane == 0
+        ? ((floatingDamageSequence_ % 2U) == 0U ? -1.0F : 1.0F)
+        : (lane % 2U == 1U ? -1.0F : 1.0F);
     const double duration = critical
         ? 0.62 + static_cast<double>(random01()) * 0.10
         : 0.50 + static_cast<double>(random01()) * 0.10;
@@ -279,29 +313,32 @@ void App::addFloatingDamageNumber(
         -direction * (7.0F + random01() * 8.0F);
     floatingDamageNumbers_.push_back({
         .position = position,
+        .targetId = targetId,
         .damage = damage,
         .remaining = duration,
         .duration = duration,
         .startDelayRemaining = std::max(0.0, startDelay),
         .horizontalDrift = direction *
-            ((critical ? 23.0F : 15.0F) + random01() * 14.0F),
+            ((critical ? 0.17F : 0.11F) + random01() * 0.06F),
         .verticalRise =
-            (critical ? 0.82F : 0.64F) + random01() * 0.20F,
+            (critical ? 0.72F : 0.55F) + random01() * 0.12F,
         .initialRotationDegrees = initialRotation,
         .rotationTravelDegrees = rotationTravel,
-        .scaleVariation = 0.90F + random01() * 0.20F,
-        .popOvershoot = 1.15F + random01() * 0.45F,
+        .scaleVariation = 0.94F + random01() * 0.12F,
+        .popOvershoot = 1.0F + random01() * 0.20F,
+        .lane = lane,
         .critical = critical,
     });
 }
 
 void App::addResourceGainVisual(
-    ResourceType type, Vec3 position, int amount, bool showAmount) {
+    ResourceType type, Vec3 position, int amount, bool showAmount,
+    bool lingerAboveSource) {
     constexpr std::size_t MaximumVisuals = 16;
     if (resourceGainVisuals_.size() >= MaximumVisuals) {
         resourceGainVisuals_.erase(resourceGainVisuals_.begin());
     }
-    constexpr double Duration = ResourcePickupFlightSeconds;
+    const double duration = lingerAboveSource ? 1.25 : ResourcePickupFlightSeconds;
     std::uint32_t seed = static_cast<std::uint32_t>(
         resourceGainVisuals_.size() + 1U) * 0x9e3779b9U;
     seed ^= static_cast<std::uint32_t>(
@@ -321,8 +358,9 @@ void App::addResourceGainVisual(
         .position = position,
         .amount = amount,
         .showAmount = showAmount,
-        .remaining = Duration,
-        .duration = Duration,
+        .lingerAboveSource = lingerAboveSource,
+        .remaining = duration,
+        .duration = duration,
         .horizontalDrift =
             (variation(seed) * 2.0F - 1.0F) * 34.0F,
         .visualScale =

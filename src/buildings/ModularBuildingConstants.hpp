@@ -53,8 +53,14 @@ inline constexpr double GroundPlatformHeightStep = 0.25;
 inline constexpr std::array<bool, 4> AllPlatformSupportsVisible{
     true, true, true, true};
 // World-space order: minimum X, maximum X, minimum Z, maximum Z.
-inline constexpr std::array<bool, 4> AllPlatformEdgesVisible{
-    true, true, true, true};
+// Each edge has one segment per grid cell, from its minimum coordinate.
+using PlatformEdgeVisibilityMask =
+    std::array<std::array<bool, PlatformFrameWidthCells>, 4>;
+inline constexpr PlatformEdgeVisibilityMask AllPlatformEdgesVisible = [] {
+    PlatformEdgeVisibilityMask mask{};
+    for (auto& edge : mask) edge.fill(true);
+    return mask;
+}();
 inline constexpr double PlatformFrameMaxHealth = 300.0;
 inline constexpr double ModularWallMaxHealth = 220.0;
 inline constexpr double ModularRampMaxHealth = 260.0;
@@ -76,6 +82,13 @@ inline constexpr double ModularRampMaxHealth = 260.0;
     const double step = cellSize * PlacementGridStepCells;
     return static_cast<int>(std::ceil(coordinate / step - 0.5)) *
            PlacementGridStepCells;
+}
+
+// Convert aim at a frame's visible center into its lower-corner anchor.
+[[nodiscard]] inline int platformAnchorAxisFromCenter(
+    double coordinate, double cellSize) {
+    const double halfWidth = PlatformFrameWidthCells * cellSize * 0.5;
+    return snapPlatformFrameWorldAxis(coordinate - halfWidth, cellSize);
 }
 
 [[nodiscard]] inline double modularStoreyHeight(

@@ -11,6 +11,8 @@
 
 namespace ian::app_detail {
 
+inline constexpr double RunUpgradeOverlayEntranceDuration = 0.18;
+inline constexpr double RunUpgradeOverlayExitDuration = 0.10;
 inline constexpr double RunUpgradeChoiceInputQuietDuration = 0.35;
 
 // Attack clicks must stop before a fresh press can select an upgrade. A long
@@ -21,11 +23,17 @@ inline constexpr double RunUpgradeChoiceInputQuietDuration = 0.35;
     return std::max(0.0, remaining - std::clamp(frameSeconds, 0.0, 0.05));
 }
 
-inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
+struct RunUpgradeOverlayTransition { float opacity; float scale; };
+[[nodiscard]] RunUpgradeOverlayTransition runUpgradeOverlayTransition(
+    double entranceSeconds, double exitSeconds, bool closing);
 
+// Bounds use logical coordinates inside a UI canvas, physical screen pixels
+// for gameplay input/update callers outside it.
 [[nodiscard]] Rectangle runUpgradeCardBounds(
     std::size_t index, std::size_t count);
 [[nodiscard]] Rectangle runUpgradeStatsPanelBounds(std::size_t count);
+[[nodiscard]] Rectangle runUpgradeInventoryPanelBounds(std::size_t count);
+[[nodiscard]] Rectangle runUpgradeRerollBounds(std::size_t count);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
     const SimulationSnapshot& snapshot, Vector2 mousePosition);
 // Projects only HUD values; the simulation and its world views are unchanged.
@@ -38,7 +46,8 @@ void drawRunUpgradeOverlay(
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts,
-    std::optional<Vector2> pointerPosition = std::nullopt, bool reduceFlashes = false);
+    std::optional<Vector2> pointerPosition = std::nullopt,
+    std::optional<std::size_t> keyboardChoice = std::nullopt, bool reduceFlashes = false);
 struct RunShopLayout {
     std::array<Rectangle, RunShopSlotCount> cards{}, buy{}, locks{};
     Rectangle inventory{}, stats{}, header{}, reroll{}, proceed{};

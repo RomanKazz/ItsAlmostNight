@@ -7,10 +7,6 @@ namespace ian {
 namespace {
 
 constexpr double PitchLimit = 1.5533430342749532;
-constexpr double DashDuration = 0.18;
-constexpr double DashCooldown = 0.90;
-constexpr double DashStartSpeed = 19.5;
-constexpr double DashEndSpeed = 10.5;
 constexpr double FlightDoubleTapSeconds = 0.30;
 constexpr double FlightVerticalSpeed = 8.0;
 
@@ -38,6 +34,7 @@ Vec3 moveHorizontalToward(
 
 void Simulation::updatePlayer(double deltaSeconds,
                               const PlayerCommand& command) {
+    updatePlayerClassAbilities(deltaSeconds);
     constexpr double CoyoteTime = 0.10;
     constexpr double JumpBufferTime = 0.12;
     double landingSpeedThisFrame = 0.0;
@@ -47,8 +44,6 @@ void Simulation::updatePlayer(double deltaSeconds,
     edgeSupportGraceRemaining_ = std::max(
         0.0,
         edgeSupportGraceRemaining_ - deltaSeconds);
-    dashCooldownRemaining_ = std::max(
-        0.0, dashCooldownRemaining_ - deltaSeconds);
     flightTapRemaining_ = std::max(
         0.0, flightTapRemaining_ - deltaSeconds);
     bool toggledFlight = false;
@@ -97,59 +92,13 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
         gameplay_.walkSpeed *
-        playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ *
+        playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::MoveSpeed) * classLevelBonuses().moveSpeed *
         (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) *
         (playerFlying_ ? 1.0 : terrain_.waterMovementMultiplier(
             playerPosition_.x, playerPosition_.z));
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
 
-    constexpr double dashSpeedMultiplier = 1.0;
-    constexpr double dashRecoveryMultiplier = 1.0;
-    if (command.dash && !playerFlying_ &&
-        dashCooldownRemaining_ <= 0.0 &&
-        dashRemaining_ <= 0.0) {
-        dashDirection_ = hasMovementInput
-            ? Vec3{directionX, 0.0, directionZ}
-            : Vec3{sinYaw, 0.0, -cosYaw};
-        const double length = std::hypot(
-            dashDirection_.x, dashDirection_.z);
-        dashDirection_.x /= length;
-        dashDirection_.z /= length;
-        dashRemaining_ = DashDuration;
-        dashCooldownRemaining_ = DashCooldown /
-            dashRecoveryMultiplier;
-        playerHorizontalVelocity_ = {
-            dashDirection_.x * DashStartSpeed * dashSpeedMultiplier,
-            0.0,
-            dashDirection_.z * DashStartSpeed * dashSpeedMultiplier,
-        };
-        events_.push_back({
-            .type = GameEventType::PlayerDashed,
-            .position = playerPosition_,
-            .intensity = 1.0,
-        });
-        if (playerClass_ == PlayerClass::Chronomancer) {
-            enemies_.applySlowInRadius(
-                playerPosition_, 6.0, 0.25, 2.5);
-        }
-    }
-
-    const bool dashing = dashRemaining_ > 0.0;
-    if (dashing && hasMovementInput) {
-        // Small amount of steering keeps the burst expressive without
-        // turning it into fully controllable high-speed movement.
-        constexpr double DashSteeringRate = 7.5;
-        dashDirection_ = moveHorizontalToward(
-            dashDirection_, {directionX, 0.0, directionZ},
-            DashSteeringRate * deltaSeconds);
-        const double length = std::hypot(
-            dashDirection_.x, dashDirection_.z);
-        if (length > 1e-9) {
-            dashDirection_.x /= length;
-            dashDirection_.z /= length;
-        }
-    }
     const Vec3 targetVelocity{
         directionX * speed,
         0.0,
@@ -174,28 +123,9 @@ void Simulation::updatePlayer(double deltaSeconds,
         autoJumpAssistRemaining_ > 0.0) {
         velocityChangeRate = 0.0;
     }
-    if (dashing) {
-        const double progress = std::clamp(
-            1.0 - dashRemaining_ / DashDuration, 0.0, 1.0);
-        const double ease = progress * progress;
-        const double dashSpeed =
-            (DashStartSpeed + (DashEndSpeed - DashStartSpeed) * ease) *
-            dashSpeedMultiplier;
-        const double waterScale = std::sqrt(
-            terrain_.waterMovementMultiplier(
-                playerPosition_.x, playerPosition_.z));
-        playerHorizontalVelocity_ = {
-            dashDirection_.x * dashSpeed * waterScale,
-            0.0,
-            dashDirection_.z * dashSpeed * waterScale,
-        };
-        dashRemaining_ = std::max(
-            0.0, dashRemaining_ - deltaSeconds);
-    } else {
-        playerHorizontalVelocity_ = moveHorizontalToward(
-            playerHorizontalVelocity_, targetVelocity,
-            velocityChangeRate * deltaSeconds);
-    }
+    playerHorizontalVelocity_ = moveHorizontalToward(
+        playerHorizontalVelocity_, targetVelocity,
+        velocityChangeRate * deltaSeconds);
     if (autoJumpAssistRemaining_ > 0.0 && !playerFlying_) {
         const double inputAlongAssist =
             directionX * autoJumpAssistDirection_.x +
@@ -467,7 +397,9 @@ void Simulation::updatePlayer(double deltaSeconds,
         ? 1.35 : 1.0;
     pickaxeCooldownRemaining_ = std::max(
         0.0, pickaxeCooldownRemaining_ - deltaSeconds * attackSpeed);
-    playerWeapons_.tick(deltaSeconds * attackSpeed);
+    const double reloadSpeed = playerClass_ == PlayerClass::Ranger &&
+        std::hypot(playerHorizontalVelocity_.x,playerHorizontalVelocity_.z) < 3.0 ? 0.0 : 1.0;
+    playerWeapons_.tick(deltaSeconds * attackSpeed,reloadSpeed);
 }
 
 } // namespace ian

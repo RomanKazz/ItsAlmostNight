@@ -19,6 +19,8 @@ struct ControlSettings;
 struct SimulationSnapshot;
 
 struct HudViewState {
+    int silver{};
+    float silverOpacity{};
     std::span<const DamageIndicator> damageIndicators;
     std::string_view statusMessage;
     double statusMessageRemaining{};
@@ -54,7 +56,7 @@ struct HudViewState {
     double displayedStone{};
     double displayedCrystals{};
     double displayedCoins{};
-    double displayedInsight{};
+    double displayedInsightFraction{-1.0};
     double insightPulse{};
     double treePointPulse{};
     std::string_view objectivePulseId;
@@ -63,8 +65,6 @@ struct HudViewState {
     std::string_view objectiveCompletionTitle;
     int objectiveCompletionReward{};
     double objectiveCompletionProgress{};
-    double insightGainAmount{};
-    double insightGainProgress{};
     double crosshairHitRemaining{};
     double crosshairHitDuration{};
     bool crosshairHitCritical{};

@@ -31,6 +31,12 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             syncBuildingRuntimeSystems();
         }
     }
+    if (selectedBuilding_ && command.setBuildingRotation &&
+        supportsManualBuildingRotation(*selectedBuilding_)) {
+        buildingRotation_ = static_cast<std::uint8_t>(
+            *command.setBuildingRotation %
+            buildingRotationStepCount(*selectedBuilding_));
+    }
     if (selectedBuilding_ &&
         supportsManualBuildingRotation(*selectedBuilding_) &&
         command.rotateBuilding != 0) {
@@ -357,6 +363,15 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                     surface.height, surface.storey,
                     surface.foundationBottomHeight);
                 if (placed) {
+                    if (std::ranges::find(RunEconomyBuildingTypes, placed->building.type) !=
+                        RunEconomyBuildingTypes.end()) {
+                        const auto card = buildingRunUpgrade(placed->building.type);
+                        const auto index = runUpgradeIndex(*card);
+                        if (runUpgradeStacks_[index] == 0) {
+                            runUpgradeStacks_[index] = 1;
+                            runUpgradePower_[index] = 1.0;
+                        }
+                    }
                     if (!unlimitedResources_) {
                         ResourceCost transactionCost =
                             placed->cost;
@@ -378,6 +393,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                         .entityId = placed->building.id,
                         .buildingType =
                             placed->building.type,
+                        .platformFrame = createdFoundation,
                         .position = buildingWorldPosition(
                             placed->building),
                     });

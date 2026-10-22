@@ -58,8 +58,15 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
                         projectile.type, config.sourceSurfaceHeight, state.alreadyHitTargets)) state.currentTarget = next->id;
             }
         }
-        double remainingTime = std::min(std::max(0.0, deltaSeconds),
-            std::max(0.0, stats.duration - state.elapsedLifetime));
+        // Duration is shared with other attack effects and is much longer than
+        // the useful flight of a straight shot. Keep a little room for targets
+        // near the range boundary and for rockets to turn onto moving targets.
+        const double maximumTravel = projectile.type == BuildingType::MissileLauncher
+            ? stats.range * 1.75 + 2.0 : stats.range + 2.0;
+        const double remainingTravel = std::max(0.0, maximumTravel - state.travelledDistance);
+        double remainingTime = std::min({std::max(0.0, deltaSeconds),
+            std::max(0.0, stats.duration - state.elapsedLifetime),
+            remainingTravel / std::max(1e-9, stats.projectileSpeed)});
         state.previousTravelledDistance = state.travelledDistance;
         // Flight speed stays constant through pierce/bounce. Keep accumulated
         // distance: displacement from the muzzle shrinks when a shot bounces back.
@@ -90,8 +97,11 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
                         geometry::subtract(aim, projectile.position)), stats.projectileSpeed);
                     Vec3 heading;
                     if (rocket) {
+                        const double targetDistance = geometry::length(geometry::subtract(aim, projectile.launchOrigin));
+                        const double launchWindow = (0.42 + 0.025 * projectile.muzzleIndex) *
+                            std::clamp(targetDistance / 8.0, 0.35, 1.0);
                         const double launchProgress = std::clamp((state.elapsedLifetime - 0.04) /
-                            (0.42 + 0.025 * projectile.muzzleIndex), 0.0, 1.0);
+                            launchWindow, 0.0, 1.0);
                         const double guidance = launchProgress * launchProgress * (3.0 - 2.0 * launchProgress);
                         const double distance = geometry::length(geometry::subtract(aim, projectile.position));
                         // Tighten continuously on approach so nearby/moving targets
@@ -164,7 +174,8 @@ std::span<const ProjectileImpact> AttackProjectileSystem::tick(double deltaSecon
                 state.trailCount = std::min(state.trailCount + 1, state.trailPositions.size());
             }
         }
-        if (finished || state.elapsedLifetime >= stats.duration) pool_.release(index);
+        if (finished || state.elapsedLifetime >= stats.duration ||
+            state.travelledDistance >= maximumTravel - 1e-9) pool_.release(index);
     }
     return impacts_;
 }

@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "combat/AttackStatsDebug.hpp"
 #include "app/ActionModeEquipment.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
@@ -26,9 +27,6 @@ namespace {
 bool keyPressed(const ControlSettings& settings,
                 ControlAction action) {
     const int key = controlKey(settings, action);
-    if (action == ControlAction::Dash && key == KEY_NULL) {
-        return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
-    }
     return key != KEY_NULL &&
            IsKeyPressed(static_cast<KeyboardKey>(key));
 }
@@ -47,7 +45,15 @@ void App::resetMainMenuInput() {
 
 void App::processInput() {
     input_.jumpHeld = false;
-    renderer_->processInput();
+    settingsRebindConsumedInput_ = false;
+    if (!pendingControlRebind_) {
+        if (!renderer_->graphicsPanelVisible() || debugSettings_) renderer_->processInput();
+        if (IsKeyPressed(KEY_F2)) {
+            const bool debug = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+            if (renderer_->graphicsPanelVisible() && debugSettings_ == debug) closeSettings();
+            else openSettings(debug);
+        }
+    }
     // Keep only the input flags stable across commands that invalidate the
     // simulation snapshot, without copying the building card vectors.
     const auto& initialSnapshot = simulation_.snapshot();
@@ -56,6 +62,18 @@ void App::processInput() {
     const bool upgradeChoicePending = initialSnapshot.runUpgradeChoicePending;
     const std::size_t upgradeChoiceCount = initialSnapshot.runUpgradeChoiceCount;
     const int rerollTokens = initialSnapshot.runUpgradeRerollTokens;
+    const bool runFinished = runState == RunState::Defeat || runState == RunState::Victory;
+    if (runFinished && !runSummaryWasVisible_) {
+        runSummaryState_ = {};
+        coreDefenseMenuVisible_ = false;
+        coreDefenseMenuClosing_ = false;
+        coreMenuPointerActive_ = false;
+        enemySpawnMenuVisible_ = false;
+        itemGrantMenuVisible_ = false;
+        sandboxCardMenuVisible_ = false;
+        EnableCursor();
+    }
+    runSummaryWasVisible_ = runFinished;
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
     const int restartKey = controlKey(userSettings_.controls, ControlAction::Restart);
@@ -94,14 +112,31 @@ void App::processInput() {
     }
     if (pendingControlRebind_) {
         const int pressedKey = GetKeyPressed();
+        settingsRebindConsumedInput_ = true;
         if (pressedKey == KEY_ESCAPE) {
             pendingControlRebind_.reset();
+            settingsMenuState_.bindingError.clear();
         } else if (pressedKey != KEY_NULL) {
-            setControlKey(
-                userSettings_.controls, *pendingControlRebind_,
-                pressedKey);
-            pendingControlRebind_.reset();
+            if (debugSettings_) {
+                setControlKey(userSettings_.controls, *pendingControlRebind_, pressedKey);
+                pendingControlRebind_.reset();
+            } else {
+                settingsMenuState_.bindingError = rebindPlayerControl(
+                    userSettings_.controls, *pendingControlRebind_, pressedKey, userSettings_.language);
+                if (settingsMenuState_.bindingError.empty()) {
+                    pendingControlRebind_.reset();
+                    audio_.playUiConfirm();
+                } else audio_.playUiError();
+            }
         }
+        suspendGameplayInput();
+        return;
+    }
+    // Settings must own input before stage-clear confirmations and other
+    // gameplay screens: Enter inside the menu must never start the next stage.
+    if (graphicsPanelVisible && !upgradeChoicePending) {
+        graphicsPanelWasVisible_ = true;
+        if (debugSettings_ && IsKeyPressed(KEY_ESCAPE)) closeSettings();
         suspendGameplayInput();
         return;
     }
@@ -171,20 +206,6 @@ void App::processInput() {
         runShopKeyboardFocus_.reset();
         if (runState != RunState::MainMenu && runState != RunState::Paused && runState != RunState::StageClear && !runFinished) DisableCursor();
     }
-    if (!upgradeChoicePending && (shopShortcut || keyPressed(userSettings_.controls,ControlAction::RunShop))) {
-        if (shopShortcut && runState == RunState::Paused) simulation_.togglePause();
-        if (simulation_.openRunShop(shopShortcut)) {
-            EnableCursor();
-            audio_.playUiConfirm();
-            suspendGameplayInput();
-            return;
-        }
-        // Ctrl+P belongs to the shop; never let it trigger ordinary P pause.
-        if (shopShortcut) {
-            suspendGameplayInput();
-            return;
-        }
-    }
     if (runState == RunState::StageClear &&
         !upgradeChoicePending && !restartHeld) {
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
@@ -219,6 +240,7 @@ void App::processInput() {
             landingResponseRemaining_ = 0.0;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
+            runUpgradeKeyboardChoice_.reset();
             runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runUpgradeChoiceInputArmed_ = false;
             runUpgradeOverlayEntranceSeconds_ = 0.0;
@@ -247,6 +269,7 @@ void App::processInput() {
                     } else {
                         runUpgradeOverlayEntranceSeconds_ = 0.0;
                         runUpgradeCardHoverAmounts_.fill(0.0F);
+                        runUpgradeKeyboardChoice_.reset();
                         runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
                         runUpgradeChoiceInputArmed_ = false;
                     }
@@ -260,7 +283,8 @@ void App::processInput() {
             !IsMouseButtonDown(MOUSE_BUTTON_RIGHT) &&
             !IsKeyDown(KEY_R) && !IsKeyDown(KEY_ONE) &&
             !IsKeyDown(KEY_TWO) && !IsKeyDown(KEY_THREE) &&
-            !IsKeyDown(KEY_FOUR) && !IsKeyDown(KEY_FIVE);
+            !IsKeyDown(KEY_FOUR) && !IsKeyDown(KEY_FIVE) &&
+            !IsKeyDown(KEY_ENTER) && !IsKeyDown(KEY_SPACE);
         if (!runUpgradePendingChoice_ && !runUpgradeChoiceInputArmed_) {
             runUpgradeChoiceInputDelayRemaining_ = advanceRunUpgradeInputDelay(
                 runUpgradeChoiceInputDelayRemaining_, choiceInputsReleased,
@@ -269,23 +293,36 @@ void App::processInput() {
                 runUpgradeChoiceInputArmed_ = true;
         }
         std::optional<std::size_t> choice;
-        if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
+        const Vector2 pointerDelta = GetMouseDelta();
+        if (pointerDelta.x != 0.0F || pointerDelta.y != 0.0F)
+            runUpgradeKeyboardChoice_.reset();
+        const bool reverse = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        const int navigation = IsKeyPressed(KEY_UP) || (IsKeyPressed(KEY_TAB) && reverse) ? -1
+            : IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_TAB) ? 1 : 0;
+        if (runUpgradeChoiceInputArmed_ && navigation && upgradeChoiceCount > 0) {
+            const int count = static_cast<int>(upgradeChoiceCount);
+            const int current = runUpgradeKeyboardChoice_ ? static_cast<int>(*runUpgradeKeyboardChoice_)
+                : navigation > 0 ? -1 : 0;
+            const auto previousChoice = runUpgradeKeyboardChoice_;
+            runUpgradeKeyboardChoice_ = static_cast<std::size_t>((current + navigation + count) % count);
+            if (previousChoice != runUpgradeKeyboardChoice_) audio_.playUiSelect();
+        }
+        if (runUpgradeChoiceInputArmed_ && runUpgradeKeyboardChoice_ &&
+            (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))) choice = runUpgradeKeyboardChoice_;
+        const bool clickedReroll = rerollTokens > 0 &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+            CheckCollisionPointRec(GetMousePosition(), runUpgradeRerollBounds(upgradeChoiceCount));
+        if (runUpgradeChoiceInputArmed_ && (IsKeyPressed(KEY_R) || clickedReroll) &&
             simulation_.rerollRunUpgrades()) {
             runUpgradeOverlayEntranceSeconds_ = 0.0;
             runUpgradeOverlayExitSeconds_ = 0.0;
             runUpgradePendingChoice_.reset();
             runUpgradeCardHoverAmounts_.fill(0.0F);
+            runUpgradeKeyboardChoice_.reset();
+            choice.reset();
             runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
-        }
-        if (runUpgradeChoiceInputArmed_ &&
-            IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-            const auto hovered = hoveredRunUpgradeChoice(
-                simulation_.snapshot(), GetMousePosition());
-            if (hovered && simulation_.lockRunUpgrade(*hovered)) {
-                audio_.playUiConfirm();
-            }
         }
         for (std::size_t index = 0;
              index < upgradeChoiceCount; ++index) {
@@ -316,9 +353,10 @@ void App::processInput() {
         runUpgradeOverlayEntranceSeconds_ = 0.0;
         runUpgradeOverlayExitSeconds_ = 0.0;
         runUpgradePendingChoice_.reset();
+        runUpgradeKeyboardChoice_.reset();
         runUpgradeCardHoverAmounts_.fill(0.0F);
         if (runState != RunState::Paused &&
-            runState != RunState::MainMenu) {
+            runState != RunState::MainMenu && !runFinished) {
             DisableCursor();
         }
     }
@@ -326,17 +364,14 @@ void App::processInput() {
         if (graphicsPanelVisible) {
             EnableCursor();
         } else if (runState != RunState::MainMenu &&
-                   runState != RunState::Paused) {
+                   runState != RunState::Paused && !runFinished) {
             DisableCursor();
         }
         graphicsPanelWasVisible_ = graphicsPanelVisible;
     }
-    if (graphicsPanelVisible) {
-        if (IsKeyPressed(KEY_ESCAPE)) {
-            renderer_->setGraphicsPanelVisible(false);
-            audio_.playUiConfirm();
-        }
-        suspendGameplayInput();
+    if (runState == RunState::MainMenu &&
+        menuBackgroundEditing_) {
+        processMenuBackgroundInput(simulation_.snapshot());
         return;
     }
     if (pendingResumeFromUi_) {
@@ -355,7 +390,7 @@ void App::processInput() {
     }
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
-        if (!sandboxMode && !saveSuspendedRun()) {
+        if (!runFinished && !sandboxMode && !saveSuspendedRun()) {
             audio_.playUiError();
             return;
         }
@@ -373,12 +408,13 @@ void App::processInput() {
         sandboxCardMenuVisible_ = !sandboxCardMenuVisible_;
         itemGrantMenuVisible_ = false;
         if (sandboxCardMenuVisible_) {
+            sandboxCardMenuState_.field = DebugUpgradeField::None;
             enemySpawnMenuVisible_ = false;
             coreDefenseMenuVisible_ = false;
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (runState != RunState::Paused) {
+        } else if (runState != RunState::Paused && !runFinished) {
             DisableCursor();
         }
         audio_.playUiConfirm();
@@ -400,7 +436,7 @@ void App::processInput() {
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (runState != RunState::Paused) {
+        } else if (runState != RunState::Paused && !runFinished) {
             DisableCursor();
         }
         audio_.playUiConfirm();
@@ -443,7 +479,7 @@ void App::processInput() {
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (runState != RunState::Paused) {
+        } else if (runState != RunState::Paused && !runFinished) {
             DisableCursor();
         }
     }
@@ -513,40 +549,9 @@ void App::processInput() {
             audio_.playUiConfirm();
             return;
         }
-        const int direction =
-            IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)
-                ? -1
-                : IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)
-                    ? 1
-                    : 0;
-        if (direction != 0) {
-            const auto current = std::ranges::find(
-                PlayerClassDefinitions,
-                selectedPlayerClass_,
-                &PlayerClassDefinition::type);
-            const std::size_t currentIndex =
-                current == PlayerClassDefinitions.end()
-                    ? 0U
-                    : static_cast<std::size_t>(
-                          std::distance(
-                              PlayerClassDefinitions.begin(),
-                              current));
-            std::size_t nextIndex = currentIndex;
-            do {
-                nextIndex = static_cast<std::size_t>(
-                    (static_cast<int>(nextIndex) + direction +
-                     static_cast<int>(PlayerClassDefinitions.size())) %
-                    static_cast<int>(PlayerClassDefinitions.size()));
-            } while (!sandboxClassSelection_ &&
-                !isPlayerClassUnlocked(
-                    PlayerClassDefinitions[nextIndex].type,
-                    metaProgression_));
-            selectedPlayerClass_ = PlayerClassDefinitions[nextIndex].type;
-            audio_.playUiConfirm();
-        }
     }
     if (runState == RunState::MainMenu &&
-        (IsKeyPressed(KEY_ENTER) || pendingStartFromUi_)) {
+        pendingStartFromUi_) {
         if (!classSelectionVisible_) {
             pendingStartFromUi_ = false;
             classSelectionVisible_ = true;
@@ -594,6 +599,7 @@ void App::processInput() {
         simulation_.togglePause();
         fixedStep_.reset();
         if (simulation_.snapshot().state == RunState::Paused) {
+            pauseMenuState_ = {};
             EnableCursor();
         } else if (simulation_.snapshot().state != RunState::MainMenu) {
             DisableCursor();
@@ -636,6 +642,17 @@ void App::processInput() {
             IsKeyPressed(KEY_F10)) {
             performanceOverlayVisible_ =
                 !performanceOverlayVisible_;
+        }
+        if (shiftDown && !controlDown && IsKeyPressed(KEY_F8)) {
+            const auto& debugSnapshot = simulation_.snapshot();
+            if (debugSnapshot.aimedFinalAttackStats) {
+                const auto building = std::ranges::find(debugSnapshot.buildings,
+                    debugSnapshot.aimedBuilding.value_or(EntityId{}), &BuildingInstance::id);
+                const auto description = describeAttackStats(*debugSnapshot.aimedFinalAttackStats,
+                    building != debugSnapshot.buildings.end() ? building->type : BuildingType::Core);
+                TraceLog(LOG_INFO, "Selected defense FinalAttackStats:\n%s\nDropped pool instances: %zu",
+                    description.c_str(), debugSnapshot.droppedDefenseProjectiles);
+            }
         }
         if (shiftDown && IsKeyPressed(KEY_F9)) {
             objectiveDebugMenuVisible_ =

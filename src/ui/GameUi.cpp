@@ -3,6 +3,7 @@
 #include "ui/GameUi.hpp"
 #include "ui/UiTomeIcon.hpp"
 #include "enemies/EnemySystem.hpp"
+#include "ui/UiHintStyle.hpp"
 
 #include "combat/PlayerWeaponSystem.hpp"
 #include "buildings/BuildingSystem.hpp"
@@ -13,7 +14,11 @@
 #include "localization/Localization.hpp"
 
 #define RAYGUI_IMPLEMENTATION
+// Raygui hitboxes must use the same logical coordinates as our scaled UI.
+#define GUI_POINTER_POSITION ian::uiMousePosition()
 #include <raygui.h>
+#undef GUI_POINTER_POSITION
+#include <lunasvg.h>
 
 #include <algorithm>
 #include <cmath>
@@ -162,9 +167,22 @@ void GameUi::initialize() {
     smoothHudIcon(healthPlayer_);
     smoothHudIcon(healthCore_);
     mainMenuLogo_ = loadTexture("assets/ui/main_menu/logo.png");
-    mainMenuButton_ = loadTexture("assets/ui/main_menu/button.png");
     smoothHudIcon(mainMenuLogo_);
-    smoothHudIcon(mainMenuButton_);
+    constexpr std::array MainMenuTexturePaths{
+        "imgUnion.svg", "imgUnion1.svg",
+        "imgUnion2.svg", "imgUnion3.svg", "imgSilver2561.png",
+        "imgSpikes3.png", "imgWrench2562.png", "imgGear2562.png",
+        "../icons/settings.svg", "../icons/exit.svg",
+        "../icons/play.svg", "../icons/tower.svg", "../icons/scroll.svg",
+        "../icons/shop.svg", "../icons/crown.svg",
+    };
+    static_assert(MainMenuTexturePaths.size() == static_cast<std::size_t>(MainMenuTexture::Count));
+    for (std::size_t index = 0; index < mainMenuTextures_.size(); ++index) {
+        const std::string path = std::string{"assets/ui/main_menu/figma/"} +
+            MainMenuTexturePaths[index];
+        mainMenuTextures_[index] = loadTexture(path.c_str());
+        smoothHudIcon(mainMenuTextures_[index]);
+    }
     coreBuildingIcon_ = loadTexture("assets/ui/building_core.png");
     smoothHudIcon(coreBuildingIcon_);
     wallBuildingIcon_ = loadTexture("assets/ui/building_wall.png");
@@ -237,9 +255,6 @@ void GameUi::initialize() {
     pierceUpgradeIcon_ = loadTexture("assets/ui/upgrade_pierce.png");
     ricochetUpgradeIcon_ = loadTexture(
         "assets/ui/upgrade_ricochet.png");
-    xpGainUpgradeIcon_ = loadTexture("assets/ui/upgrade_xp_gain.png");
-    poisonUpgradeIcon_ = createPoisonUpgradeIcon();
-    smoothHudIcon(poisonUpgradeIcon_);
     smoothHudIcon(armorUpgradeIcon_);
     smoothHudIcon(extraUpgradeIcon_);
     smoothHudIcon(heartUpgradeIcon_);
@@ -248,11 +263,32 @@ void GameUi::initialize() {
     smoothHudIcon(moveUpgradeIcon_);
     smoothHudIcon(pierceUpgradeIcon_);
     smoothHudIcon(ricochetUpgradeIcon_);
-    smoothHudIcon(xpGainUpgradeIcon_);
-    levelUpBanner_ = loadTexture("assets/ui/levelup.png");
-    smoothHudIcon(levelUpBanner_);
-    levelUpRays_ = loadTexture("assets/ui/levelup_rays.png");
-    smoothHudIcon(levelUpRays_);
+    constexpr std::array UpgradeSymbolPaths{
+        "assets/ui/upgrades/hammer.png", "assets/ui/upgrades/shrapnel.png",
+        "assets/ui/upgrades/luck.png", "assets/ui/upgrades/daylight.png",
+        "assets/ui/upgrades/choices.png", "assets/ui/upgrades/production.png"};
+    poisonUpgradeIcon_ = createPoisonUpgradeIcon();
+    smoothHudIcon(poisonUpgradeIcon_);
+    for (std::size_t index = 0; index < upgradeSymbols_.size(); ++index) {
+        upgradeSymbols_[index] = loadTexture(UpgradeSymbolPaths[index]);
+        smoothHudIcon(upgradeSymbols_[index]);
+    }
+    constexpr std::array<const char*, LootUpgradeEffectCount> LootIconPaths{
+        nullptr, nullptr, nullptr,
+        "apple", "bread", "iron_bar", "fuel_jerrycan", "compass", "nail",
+        "key", "treasure_map", "anvil", "saw", "battle_potion", "blueprint",
+        "hourglass", "safety_rope", nullptr, "field_medkit",
+        "coal_bell", "powder_pouch", "plague_mushroom", "infected_pouch",
+        "gas_mask", "ice_prism", "targeting_lens",
+    };
+    for (std::size_t index = 0; index < lootIcons_.size(); ++index) {
+        if (!LootIconPaths[index]) continue;
+        const bool newItem = index >= lootUpgradeIndex(LootUpgradeEffect::CoalBell);
+        const std::string path = std::string{newItem ? "assets/ui/chest_items/" : "assets/ui/items/"} +
+            LootIconPaths[index] + (newItem ? ".svg" : ".png");
+        lootIcons_[index] = loadTexture(path.c_str());
+        smoothHudIcon(lootIcons_[index]);
+    }
     constexpr std::array CoreMenuTexturePaths{
         "assets/ui/core_menu/core_menu_header.png",
         "assets/ui/core_menu/core_menu_gear.png",
@@ -289,6 +325,16 @@ void GameUi::initialize() {
         mapIcons_[i] = loadTexture(MapIconPaths[i]);
         smoothHudIcon(mapIcons_[i]);
     }
+    for (const auto& definition : MetaShopDefinitions) {
+        auto& icon=metaShopIcons_[static_cast<std::size_t>(definition.upgrade)];
+        const std::string path = definition.upgrade == MetaShopUpgrade::BuildingSlots
+            ? "assets/ui/shop/building_health.png"
+            : "assets/ui/shop/" + std::string(definition.id) + ".png";
+        icon=loadTexture(path.c_str());
+        smoothHudIcon(icon);
+    }
+    shopPurchaseIcon_=loadTexture("assets/ui/shop/purchase.png");
+    smoothHudIcon(shopPurchaseIcon_);
     for (const auto& tome : RunTomeDefinitions) {
         auto& icon = tomeIcons_[runUpgradeIndex(tome.effect)];
         if (const char* path = runTomeIconPath(tome.effect)) icon = loadTexture(path);
@@ -371,17 +417,18 @@ void GameUi::shutdown() {
     unloadTexture(resourceSilver_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
-    unloadTexture(levelUpRays_);
-    unloadTexture(levelUpBanner_);
     unloadTexture(mainMenuLogo_);
-    unloadTexture(mainMenuButton_);
+    for (auto& texture : mainMenuTextures_) unloadTexture(texture);
     for (auto& texture : coreMenuTextures_) {
         unloadTexture(texture);
     }
-    unloadTexture(xpGainUpgradeIcon_);
-    unloadTexture(ricochetUpgradeIcon_);
     for (auto& icon : tomeIcons_) unloadTexture(icon);
+    for (auto& icon : metaShopIcons_) unloadTexture(icon);
+    unloadTexture(shopPurchaseIcon_);
+    for (auto& icon : upgradeSymbols_) unloadTexture(icon);
     unloadTexture(poisonUpgradeIcon_);
+    for (auto& icon : lootIcons_) unloadTexture(icon);
+    unloadTexture(ricochetUpgradeIcon_);
     unloadTexture(pierceUpgradeIcon_);
     unloadTexture(moveUpgradeIcon_);
     unloadTexture(magnetUpgradeIcon_);
@@ -601,25 +648,6 @@ void GameUi::drawInsetPanel(Rectangle bounds,
     }
 }
 
-void GameUi::drawCardPanel(Rectangle bounds, Color accent,
-                           unsigned char alpha) const {
-    if (IsTextureValid(panel_)) {
-        DrawTextureNPatch(panel_,
-                          texturePatch(panel_, panelInsets_.left,
-                                       panelInsets_.top,
-                                       panelInsets_.right,
-                                       panelInsets_.bottom), bounds,
-                          {0.0F, 0.0F}, 0.0F,
-                          alphaTint(alpha));
-    } else {
-        DrawRectangleRounded(bounds, 0.08F, 8,
-                             {24, 31, 48, alpha});
-    }
-    accent.a = static_cast<unsigned char>(
-        static_cast<unsigned int>(accent.a) * alpha / 255U);
-    DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.5F, accent);
-}
-
 void GameUi::drawLabel(Rectangle bounds, std::string_view text,
                        int alignment) const {
     const ScopedRayguiFont fontScope;
@@ -730,6 +758,19 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     }
 }
 
+Texture2D GameUi::lootTexture(LootUpgradeEffect effect) const {
+    switch (effect) {
+    case LootUpgradeEffect::Damage: return runUpgradeSymbolTexture(RunUpgradeEffect::Overkill);
+    case LootUpgradeEffect::MoveSpeed: return runUpgradeSymbolTexture(RunUpgradeEffect::MoveSpeed);
+    case LootUpgradeEffect::MaximumHealth: return runUpgradeSymbolTexture(RunUpgradeEffect::MaximumHealth);
+    case LootUpgradeEffect::Magnet: return runUpgradeSymbolTexture(RunUpgradeEffect::Salvager);
+    default: {
+        const auto index = lootUpgradeIndex(effect);
+        return index < lootIcons_.size() ? lootIcons_[index] : Texture2D{};
+    }
+    }
+}
+
 Texture2D GameUi::modularBuildingTexture(
     ModularBuildPiece piece) const {
     switch (piece) {
@@ -766,15 +807,16 @@ Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
 
 Texture2D GameUi::runUpgradeSymbolTexture(RunUpgradeEffect effect) const {
     if (const auto weapon = runUpgradeWeapon(effect)) return weaponTexture(*weapon);
+    if (const auto building = runUpgradeBuilding(effect)) return buildingTexture(*building);
+    if (const auto building = runUpgradeProductionBuilding(effect)) return buildingTexture(*building);
     switch (effect) {
-    case RunUpgradeEffect::BuildingCapacity:
-    case RunUpgradeEffect::ExtraBuilding: return buildingTexture(BuildingType::Core);
-    case RunUpgradeEffect::ResourceCapacity: return resourceCrystal_;
     case RunUpgradeEffect::PoisonChance: return poisonUpgradeIcon_;
     case RunUpgradeEffect::CannonHeavyShell:
+        return weaponTexture(PlayerWeapon::Bomb);
     case RunUpgradeEffect::CannonScattershot:
+        return extraUpgradeIcon_;
     case RunUpgradeEffect::CannonClusterShell:
-        return buildingTexture(BuildingType::Cannon);
+        return upgradeSymbols_[1];
     case RunUpgradeEffect::MoveSpeed:
         return moveUpgradeIcon_;
     case RunUpgradeEffect::MaximumHealth:
@@ -782,37 +824,58 @@ Texture2D GameUi::runUpgradeSymbolTexture(RunUpgradeEffect effect) const {
     case RunUpgradeEffect::RecoverableArmor:
         return armorUpgradeIcon_;
     case RunUpgradeEffect::ProductionSpeed:
-        return xpGainUpgradeIcon_;
+        return upgradeSymbols_[5];
+    case RunUpgradeEffect::Luck: return upgradeSymbols_[2];
+    case RunUpgradeEffect::LongerDay: return upgradeSymbols_[3];
+    case RunUpgradeEffect::GunShrapnel:
+    case RunUpgradeEffect::ClusterPayload: return upgradeSymbols_[1];
+    case RunUpgradeEffect::WiderChoice:
+    case RunUpgradeEffect::DoubleDown:
+    case RunUpgradeEffect::LockChoice:
+    case RunUpgradeEffect::RerollToken: return upgradeSymbols_[4];
+    case RunUpgradeEffect::NightlyBomb: return weaponTexture(PlayerWeapon::Bomb);
+    case RunUpgradeEffect::ReactiveTraps: return buildingTexture(BuildingType::SpikeTrap);
+    case RunUpgradeEffect::BuildingCapacity:
+    case RunUpgradeEffect::UpgradeCore:
+    case RunUpgradeEffect::ExtraBuilding:
+    case RunUpgradeEffect::BuildingHealth:
+    case RunUpgradeEffect::BuildRadius: return buildingTexture(BuildingType::Core);
+    case RunUpgradeEffect::Regeneration: return heartUpgradeIcon_;
+    case RunUpgradeEffect::ResourceCapacity: return resourceCrystal_;
+    case RunUpgradeEffect::GatheringSpeed: return weaponTexture(PlayerWeapon::Pickaxe);
+    case RunUpgradeEffect::Damage:
+    case RunUpgradeEffect::AttackSpeed:
+    case RunUpgradeEffect::DefenseDamage:
+    case RunUpgradeEffect::DefenseFireRate: return upgradeSymbols_[0];
     case RunUpgradeEffect::BloodHarvest:
         return lifestealUpgradeIcon_;
     case RunUpgradeEffect::Overkill:
-    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::Pierce:
         return pierceUpgradeIcon_;
-    case RunUpgradeEffect::Ricochet:
+    case RunUpgradeEffect::ProjectileSpeed:
+    case RunUpgradeEffect::AttackDuration:
+    case RunUpgradeEffect::AttackSize:
+    case RunUpgradeEffect::CriticalChance:
+    case RunUpgradeEffect::CriticalDamage:
+    case RunUpgradeEffect::AttackKnockback:
+    case RunUpgradeEffect::Bounces:
         return ricochetUpgradeIcon_;
     case RunUpgradeEffect::Salvager:
         return magnetUpgradeIcon_;
-    case RunUpgradeEffect::TwinBatteries:
+    case RunUpgradeEffect::ProjectileCount:
         return extraUpgradeIcon_;
     default:
         return {};
     }
 }
 
-Texture2D GameUi::levelUpBannerTexture() const {
-    return levelUpBanner_;
-}
-
-Texture2D GameUi::levelUpRaysTexture() const {
-    return levelUpRays_;
-}
-
 Texture2D GameUi::mainMenuLogoTexture() const {
     return mainMenuLogo_;
 }
 
-Texture2D GameUi::mainMenuButtonTexture() const {
-    return mainMenuButton_;
+Texture2D GameUi::mainMenuTexture(MainMenuTexture texture) const {
+    const auto index = static_cast<std::size_t>(texture);
+    return index < mainMenuTextures_.size() ? mainMenuTextures_[index] : Texture2D{};
 }
 
 Texture2D GameUi::coreMenuTexture(
@@ -852,13 +915,22 @@ Texture2D GameUi::resourceTexture(
     return resourceWood_;
 }
 
+Texture2D GameUi::metaShopTexture(MetaShopUpgrade upgrade) const {
+    const auto index=static_cast<std::size_t>(upgrade);
+    return index<metaShopIcons_.size() ? metaShopIcons_[index] : Texture2D{};
+}
+
+Texture2D GameUi::shopActionTexture(ShopActionIcon action) const {
+    return action==ShopActionIcon::Purchase ? shopPurchaseIcon_ : metaShopTexture(MetaShopUpgrade::Rerolls);
+}
+
 bool GameUi::drawButton(Rectangle bounds,
                         std::string_view text) const {
     const bool arrowLeft = text == "<" || text == "-";
     const bool arrowRight = text == ">" || text == "+";
     if (arrowLeft || arrowRight) {
         const bool hovered = CheckCollisionPointRec(
-            GetMousePosition(), bounds);
+            uiMousePosition(), bounds);
         const bool pressed = hovered &&
             IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         const Texture2D buttonTexture =
@@ -895,7 +967,7 @@ bool GameUi::drawToggleButton(Rectangle bounds,
                               bool active) const {
     const ScopedRayguiFont fontScope;
     const bool hovered = CheckCollisionPointRec(
-        GetMousePosition(), bounds);
+        uiMousePosition(), bounds);
     const bool pressed = hovered &&
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const Texture2D texture = active
@@ -954,55 +1026,11 @@ bool GameUi::drawToggleButton(Rectangle bounds,
 bool GameUi::drawKeyCap(Rectangle bounds, std::string_view text,
                         bool pressed, unsigned char alpha) const {
     const bool hovered = CheckCollisionPointRec(
-        GetMousePosition(), bounds);
+        uiMousePosition(), bounds);
     const bool held = pressed ||
         (hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT));
-    const Texture2D texture =
-        held && IsTextureValid(keyCapPressed_)
-            ? keyCapPressed_
-            : keyCap_;
-    const float offset = held ? 2.0F : 0.0F;
-    if (IsTextureValid(texture)) {
-        drawPatched(
-            texture,
-            {bounds.x, bounds.y + offset,
-             bounds.width, bounds.height},
-            buttonInsets_.left, buttonInsets_.top,
-            buttonInsets_.right,
-            buttonInsets_.bottom,
-            hovered ? Color{255, 255, 245, alpha}
-                    : Color{255, 255, 255, alpha});
-    } else {
-        DrawRectangleRounded(
-            {bounds.x, bounds.y + offset,
-             bounds.width, bounds.height},
-            0.16F, 4,
-            held ? Color{193, 164, 113, alpha}
-                 : Color{220, 195, 145, alpha});
-    }
-    float fontSize = std::clamp(
-        bounds.height * 0.46F, 10.0F, 22.0F);
-    Vector2 textSize = measureUiText(text, fontSize);
-    while (textSize.x > bounds.width * 0.82F && fontSize > 7.0F) {
-        fontSize -= 1.0F;
-        textSize = measureUiText(text, fontSize);
-    }
-    drawUiText(
-        text,
-        {bounds.x + (bounds.width - textSize.x) * 0.5F,
-         bounds.y + offset +
-             (bounds.height - textSize.y) * 0.5F - 1.0F},
-        fontSize,
-        held ? Color{64, 37, 8, alpha}
-             : Color{250, 247, 255, alpha});
+    hintStyle::key(bounds,text,held,static_cast<float>(alpha)/255);
     return hovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
-}
-
-Texture2D GameUi::keyCapTexture(bool pressed) const {
-    if (pressed && IsTextureValid(keyCapPressed_)) {
-        return keyCapPressed_;
-    }
-    return keyCap_;
 }
 
 float GameUi::drawSliderBar(
@@ -1016,7 +1044,7 @@ float GameUi::drawSliderBar(
     const Rectangle hitBounds{
         bounds.x, bounds.y - 8.0F,
         bounds.width, bounds.height + 16.0F};
-    const Vector2 mouse = GetMousePosition();
+    const Vector2 mouse = uiMousePosition();
     const bool hovered =
         CheckCollisionPointRec(mouse, hitBounds);
     if (hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
@@ -1057,7 +1085,7 @@ void GameUi::drawCursor() const {
     if (!IsTextureValid(cursorHand_)) {
         return;
     }
-    const Vector2 mouse = GetMousePosition();
+    const Vector2 mouse = uiMousePosition();
     constexpr float Scale = 1.12F;
     const float width =
         static_cast<float>(cursorHand_.width) * Scale;
@@ -1072,6 +1100,21 @@ void GameUi::drawCursor() const {
 }
 
 Texture2D GameUi::loadTexture(const char* path) {
+    if (std::string_view{path}.ends_with(".svg")) {
+        const auto svg = lunasvg::Document::loadFromFile(path);
+        if (!svg) return {};
+        // Rasterize the original SVG once at 2x for Retina displays.
+        auto bitmap = svg->renderToBitmap(
+            static_cast<int>(std::ceil(svg->width() * 2.0F)),
+            static_cast<int>(std::ceil(svg->height() * 2.0F)));
+        if (bitmap.isNull()) return {};
+        bitmap.convertToRGBA();
+        const Image image{
+            bitmap.data(), bitmap.width(), bitmap.height(), 1,
+            PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+        const Texture2D texture = LoadTextureFromImage(image);
+        return IsTextureValid(texture) ? texture : Texture2D{};
+    }
     Texture2D texture = LoadTexture(path);
     return IsTextureValid(texture) ? texture : Texture2D{};
 }

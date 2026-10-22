@@ -15,6 +15,7 @@ struct CrystalMineRuntime {
     std::uint8_t level{1};
     double productionProgress{};
     double healthEfficiency{1.0};
+    int stored{}; // Legacy save stock; new production goes directly to global resources.
 };
 
 struct CrystalProduced {
@@ -33,7 +34,10 @@ class CrystalMineSystem {
     void setTypeProductionSpeedMultipliers(double lumberMill, double quarry, double crystalMine);
     void setWoodYieldMultiplier(double multiplier);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
+    [[nodiscard]] bool restoreRuntimes(
+        const std::vector<CrystalMineRuntime>& saved);
     std::span<const CrystalProduced> tick(double deltaSeconds);
+    [[nodiscard]] int collect(EntityId buildingId, int maximumAmount);
 
     [[nodiscard]] int productionAmount(
         std::uint8_t level,

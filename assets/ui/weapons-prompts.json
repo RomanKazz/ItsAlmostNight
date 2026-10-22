@@ -1,0 +1,61 @@
+{
+  "generator": "built-in imagegen",
+  "export": {
+    "format": "RGBA PNG",
+    "width": 256,
+    "height": 256,
+    "maximumContentDimension": 248,
+    "preserveAspectRatio": true,
+    "filter": "Lanczos"
+  },
+  "icons": [
+    {
+      "name": "bomb",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-df85403a-7607-46ba-bdfb-c7b130eb5d72.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 256x256 game weapon inventory icon. Generate ONE replacement icon. Input images 1,2,3 (axe, pickaxe, club) are the EXACT style references: match their stout proportions, thick near-black uniform outlines, simple broad polygonal cel-shaded blue-gray steel, warm orange-brown wood and cream grip wraps. Image 4 is only the subject/color reference to redesign in the first three images' style. This must look drawn by the same artist and belong to the SAME SET as axe/pickaxe/club, not glossy smooth high-detail art. Clean simple recognizable silhouette; very few broad facets, no tiny details. Match outline weight and lighting top-left, minimal internal black contours. Centered in square, maximum object dimension about 85% of canvas, consistent padding. Genuine transparent alpha background. No frame, labels, text, circular badge, glow, shadow on background, excessive spark particles, realistic texture. Subject: a compact round orange-red explosive bomb with two broad blue-gray steel straps, stout neck and a short bent rope fuse with a single small yellow flame; simplify rivets to at most three broad studs.",
+      "output": "assets/ui/weapon_bomb.png",
+      "references": [
+        "assets/ui/weapon_axe.png",
+        "assets/ui/weapon_pickaxe.png",
+        "assets/ui/weapon_club.png",
+        "assets/ui/weapon_bomb.png (previous version, subject reference)"
+      ]
+    },
+    {
+      "name": "rifle",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-ec564470-3781-443f-9241-12dac1d4e4a3.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 256x256 game weapon inventory icon. Generate ONE replacement icon. Input images 1,2,3 (axe, pickaxe, club) are the EXACT style references: match their stout proportions, thick near-black uniform outlines, simple broad polygonal cel-shaded blue-gray steel, warm orange-brown wood and cream grip wraps. Image 4 is only the subject/color reference to redesign in the first three images' style. This must look drawn by the same artist and belong to the SAME SET as axe/pickaxe/club, not glossy smooth high-detail art. Clean simple recognizable silhouette; very few broad facets, no tiny details. Match outline weight and lighting top-left, minimal internal black contours. Centered in square, maximum object dimension about 85% of canvas, consistent padding. Genuine transparent alpha background. No frame, labels, text, circular badge, glow, shadow on background, excessive spark particles, realistic texture. Subject: one stout fantasy rifle tilted from lower left to upper right, warm orange-brown wooden stock and fore-end, blue-gray short barrel and simple steel receiver; no scope, no tiny mechanical details.",
+      "output": "assets/ui/weapon_rifle.png",
+      "references": [
+        "assets/ui/weapon_axe.png",
+        "assets/ui/weapon_pickaxe.png",
+        "assets/ui/weapon_club.png",
+        "assets/ui/weapon_rifle.png (previous version, subject reference)"
+      ]
+    },
+    {
+      "name": "ice_wand",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-82dff3e7-8ce4-4930-818a-437e9f6dced1.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 256x256 game weapon inventory icon. Generate ONE replacement icon. Input images 1,2,3 (axe, pickaxe, club) are the EXACT style references: match their stout proportions, thick near-black uniform outlines, simple broad polygonal cel-shaded blue-gray steel, warm orange-brown wood and cream grip wraps. Image 4 is only the subject/color reference to redesign in the first three images' style. This must look drawn by the same artist and belong to the SAME SET as axe/pickaxe/club, not glossy smooth high-detail art. Clean simple recognizable silhouette; very few broad facets, no tiny details. Match outline weight and lighting top-left, minimal internal black contours. Centered in square, maximum object dimension about 85% of canvas, consistent padding. Genuine transparent alpha background. No frame, labels, text, circular badge, glow, shadow on background, excessive spark particles, realistic texture. Subject: one short ice staff tilted from lower left to upper right, warm brown wooden handle with broad cream wraps, simple blue-gray steel prongs holding one large light cyan ice crystal with only three or four broad planes; no tiny crystals or glow.",
+      "output": "assets/ui/weapon_ice_wand.png",
+      "references": [
+        "assets/ui/weapon_axe.png",
+        "assets/ui/weapon_pickaxe.png",
+        "assets/ui/weapon_club.png",
+        "assets/ui/weapon_ice_wand.png (previous version, subject reference)"
+      ]
+    },
+    {
+      "name": "fire_wand",
+      "source": "/Users/roman/.codex/generated_images/01a0fed9-7555-7993-9b69-3f98f89b675f/exec-0c1bb932-5e8b-462a-a7de-b6e92bde3b40.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 256x256 game weapon inventory icon. Generate ONE replacement icon. Input images 1,2,3 (axe, pickaxe, club) are the EXACT style references: match their stout proportions, thick near-black uniform outlines, simple broad polygonal cel-shaded blue-gray steel, warm orange-brown wood and cream grip wraps. Image 4 is only the subject/color reference to redesign in the first three images' style. This must look drawn by the same artist and belong to the SAME SET as axe/pickaxe/club, not glossy smooth high-detail art. Clean simple recognizable silhouette; very few broad facets, no tiny details. Match outline weight and lighting top-left, minimal internal black contours. Centered in square, maximum object dimension about 85% of canvas, consistent padding. Genuine transparent alpha background. No frame, labels, text, circular badge, glow, shadow on background, excessive spark particles, realistic texture. Subject: one short fire staff tilted from lower left to upper right, warm brown wooden handle with broad cream wraps, simple blue-gray steel prongs holding one large orange-yellow ember crystal with only three or four broad planes; no particles or glow.",
+      "output": "assets/ui/weapon_fire_wand.png",
+      "references": [
+        "assets/ui/weapon_axe.png",
+        "assets/ui/weapon_pickaxe.png",
+        "assets/ui/weapon_club.png",
+        "assets/ui/weapon_fire_wand.png (previous version, subject reference)"
+      ]
+    }
+  ]
+}

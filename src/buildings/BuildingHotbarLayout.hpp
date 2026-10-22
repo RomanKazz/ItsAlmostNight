@@ -27,7 +27,7 @@ inline constexpr std::size_t MaximumBuildingHotbarSlots = 21U;
 inline constexpr std::array<BuildingType, 1> BaseBuildingOrder{
         BuildingType::Core,
     };
-inline constexpr std::array<BuildingType, 15> DefenseBuildingOrder{
+inline constexpr std::array<BuildingType, 14> DefenseBuildingOrder{
         BuildingType::GunTurret,
         BuildingType::Turret,
         BuildingType::Cannon,
@@ -40,17 +40,16 @@ inline constexpr std::array<BuildingType, 15> DefenseBuildingOrder{
         BuildingType::RepairStation,
         BuildingType::DecoyBeacon,
         BuildingType::WindBlower,
-        BuildingType::Wall,
         BuildingType::SpikeTrap,
         BuildingType::SlowTrap,
     };
-inline constexpr std::array<BuildingType, 0> EconomyBuildingOrder{};
-inline constexpr std::array<BuildingType, 5> ModularBuildingOrder{
-    BuildingType::Wall,
-    BuildingType::Gate,
+inline constexpr std::array<BuildingType, 3> EconomyBuildingOrder{
     BuildingType::CrystalMine,
     BuildingType::Quarry,
     BuildingType::LumberMill,
+};
+inline constexpr std::array<BuildingType, 1> ModularBuildingOrder{
+    BuildingType::Wall,
 };
 
 [[nodiscard]] constexpr BuildingHotbarCategory buildingHotbarCategory(
@@ -58,12 +57,13 @@ inline constexpr std::array<BuildingType, 5> ModularBuildingOrder{
     switch (type) {
     case BuildingType::Core:
         return BuildingHotbarCategory::Base;
-    case BuildingType::Wall:
     case BuildingType::Gate:
+    case BuildingType::Wall:
+        return BuildingHotbarCategory::Modular;
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
     case BuildingType::CrystalMine:
-        return BuildingHotbarCategory::Modular;
+        return BuildingHotbarCategory::Economy;
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
@@ -189,11 +189,17 @@ makeConstructionHotbarLayout(
         return result;
     }
     for (const auto category : {BuildingHotbarCategory::Defense,
+                               BuildingHotbarCategory::Economy,
                                BuildingHotbarCategory::Modular}) {
         const BuildingHotbarLayout buildings = makeBuildingHotbarLayout(
             unlocked, category, true, coreLevel, bypassCoreRestrictions);
         for (const BuildingType type : buildings.visible()) {
-            result.items[result.count++].buildingType = type;
+            auto& item = result.items[result.count];
+            item.buildingType = type;
+            item.gapBefore = result.count > 0U &&
+                result.items[result.count - 1U].buildingType &&
+                buildingHotbarCategory(*result.items[result.count - 1U].buildingType) != category;
+            ++result.count;
         }
     }
     for (const ModularBuildPiece piece : ModularBuildHotbarOrder) {
@@ -202,7 +208,8 @@ makeConstructionHotbarLayout(
             auto& item = result.items[result.count];
             item.modularPiece = piece;
             item.gapBefore = result.count > 0U &&
-                !result.items[result.count - 1U].modularPiece;
+                !result.items[result.count - 1U].modularPiece &&
+                result.items[result.count - 1U].buildingType != BuildingType::Wall;
             ++result.count;
         }
     }

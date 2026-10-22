@@ -78,6 +78,61 @@ void CrystalMineSystem::syncBuildings(const std::vector<BuildingInstance>& build
     }
 }
 
+bool CrystalMineSystem::restoreRuntimes(
+    const std::vector<CrystalMineRuntime>& saved) {
+    if (!saved.empty() && saved.size() != mines_.size()) {
+        return false;
+    }
+    for (std::size_t index = 0; index < saved.size(); ++index) {
+        const CrystalMineRuntime& source = saved[index];
+        if (std::any_of(saved.begin() +
+                            static_cast<std::ptrdiff_t>(index + 1),
+                        saved.end(),
+                        [&source](const CrystalMineRuntime& other) {
+                            return other.buildingId == source.buildingId;
+                        })) {
+            return false;
+        }
+        const auto target = std::find_if(
+            mines_.begin(), mines_.end(),
+            [&source](const CrystalMineRuntime& mine) {
+                return mine.buildingId == source.buildingId &&
+                    mine.buildingType == source.buildingType;
+            });
+        if (target == mines_.end() ||
+            !std::isfinite(source.productionProgress) ||
+            source.productionProgress < 0.0 ||
+            source.productionProgress > 1000.0 ||
+            source.stored < 0) {
+            return false;
+        }
+    }
+    for (const CrystalMineRuntime& source : saved) {
+        const auto target = std::find_if(
+            mines_.begin(), mines_.end(),
+            [&source](const CrystalMineRuntime& mine) {
+                return mine.buildingId == source.buildingId;
+            });
+        target->productionProgress = source.productionProgress;
+        target->stored = source.stored;
+    }
+    return true;
+}
+
+int CrystalMineSystem::collect(
+    EntityId buildingId, int maximumAmount) {
+    if (maximumAmount <= 0) return 0;
+    const auto runtime = std::find_if(
+        mines_.begin(), mines_.end(),
+        [buildingId](const CrystalMineRuntime& mine) {
+            return mine.buildingId == buildingId;
+        });
+    if (runtime == mines_.end()) return 0;
+    const int collected = std::min(runtime->stored, maximumAmount);
+    runtime->stored -= collected;
+    return collected;
+}
+
 std::span<const CrystalProduced> CrystalMineSystem::tick(double deltaSeconds) {
     productionBuffer_.clear();
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
@@ -109,6 +164,7 @@ std::span<const CrystalProduced> CrystalMineSystem::tick(double deltaSeconds) {
         }
         const int amountPerInterval = productionAmount(
             mine.level, mine.buildingType);
+        if (amountPerInterval <= 0) continue;
         const double maximumIntervals =
             static_cast<double>(
                 std::numeric_limits<int>::max() /
@@ -127,14 +183,15 @@ std::span<const CrystalProduced> CrystalMineSystem::tick(double deltaSeconds) {
 }
 
 int CrystalMineSystem::productionAmount(
-    std::uint8_t, BuildingType type) const {
+    std::uint8_t level, BuildingType type) const {
     int baseAmount = definition_.crystalMineAmount;
     if (type == BuildingType::LumberMill) {
         baseAmount = 3;
     } else if (type == BuildingType::Quarry) {
         baseAmount = 2;
     }
-    double amount = static_cast<double>(baseAmount);
+    double amount = static_cast<double>(
+        baseAmount + (std::max<int>(1, level) - 1) / 2);
     if (type == BuildingType::LumberMill) {
         amount *= woodYieldMultiplier_;
     }
@@ -145,21 +202,24 @@ double CrystalMineSystem::productionInterval(
     BuildingType type, std::uint8_t level,
     double healthEfficiency) const {
     const double levelSpeed = 1.0 +
-        0.20 * static_cast<double>(std::max<int>(1, level) - 1);
+        0.10 * static_cast<double>(std::max<int>(1, level) - 1);
     const double typeSpeed = type == BuildingType::LumberMill ? lumberMillSpeedMultiplier_
         : type == BuildingType::Quarry ? quarrySpeedMultiplier_ : crystalMineSpeedMultiplier_;
     // All producers run equally by day and night, at two-thirds of the old rate.
     constexpr double BaseProductionSpeed = 2.0 / 3.0;
     const double effectiveSpeed = BaseProductionSpeed * productionSpeedMultiplier_ * typeSpeed *
         levelSpeed * std::clamp(healthEfficiency, 0.01, 1.0);
+    const auto roundedInterval = [effectiveSpeed](double base) {
+        return std::max(
+            0.25, std::round(base / effectiveSpeed * 4.0) / 4.0);
+    };
     if (type == BuildingType::LumberMill) {
-        return 8.0 / effectiveSpeed;
+        return roundedInterval(6.0);
     }
     if (type == BuildingType::Quarry) {
-        return 10.0 / effectiveSpeed;
+        return roundedInterval(8.0);
     }
-    return definition_.crystalMineInterval /
-        effectiveSpeed;
+    return roundedInterval(definition_.crystalMineInterval);
 }
 
 const std::vector<CrystalMineRuntime>& CrystalMineSystem::mines() const {

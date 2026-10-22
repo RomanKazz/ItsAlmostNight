@@ -19,9 +19,6 @@ void Simulation::respawnPlayer() {
     playerPosition_ = respawn;
     playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
-    dashRemaining_ = 0.0;
-    dashCooldownRemaining_ = 0.0;
-    dashDirection_ = {};
     flightTapRemaining_ = 0.0;
     playerFlying_ = false;
     coyoteTimeRemaining_ = 0.0;
@@ -57,7 +54,9 @@ void Simulation::damagePlayer(
         ignoreArmor
             ? damage
             : damage /
-                  std::max(playerArmorMultiplier_, 1.0);
+                  std::max(playerArmorMultiplier_, 1.0) *
+                  (1.0 - ChestItemCombatSystem::gasMaskProtection(playerPosition_, enemies_,
+                      lootStacks_[lootUpgradeIndex(LootUpgradeEffect::GasMask)]));
     const double armorBeforeHit = playerRecoverableArmor_;
     const double absorbedByArmor = ignoreArmor
         ? 0.0
@@ -83,7 +82,7 @@ void Simulation::damagePlayer(
         const int stacks = std::max(1, lootStacks_[lootUpgradeIndex(
             LootUpgradeEffect::IronBar)]);
         const double radius = std::min(
-            8.0, 4.5 + 0.7 * static_cast<double>(stacks - 1));
+            8.0, classLevelBonuses().armorBreakRadius + 0.7 * static_cast<double>(stacks - 1));
         const double strength = std::min(
             14.0, 8.0 + 1.2 * static_cast<double>(stacks - 1));
         const auto knockedBack = enemies_.knockbackInRadius(
@@ -98,6 +97,11 @@ void Simulation::damagePlayer(
                 knockedBackCount, slowed.size())),
             .intensity = radius,
         });
+    }
+    if (healthDamage > 0 && playerHealth_ > 0 && playerClass_ == PlayerClass::Berserker &&
+        classAbilityState_.exhaustionRemaining <= 0) {
+        classAbilityState_.rageRemaining = classLevelBonuses().rageDuration;
+        refreshRunUpgradeRuntimeEffects();
     }
     tryConsumeApple();
     secondsSincePlayerDamage_ = 0.0;
@@ -230,11 +234,8 @@ Simulation::tutorialObjective() const {
         effectiveState == RunState::WaveComplete || wave_ > 1) {
         return std::nullopt;
     }
-    if (wave_ == 1) {
-        return effectiveState == RunState::Wave
-            ? std::optional<TutorialObjective>{
-                  TutorialObjective::SurviveFirstWave}
-            : std::nullopt;
+    if (wave_ >= 1 || effectiveState == RunState::Wave) {
+        return std::nullopt;
     }
     if (!buildings_.hasCore()) {
         if (!unlimitedResources_ &&
@@ -245,7 +246,14 @@ Simulation::tutorialObjective() const {
         }
         return TutorialObjective::PlaceCore;
     }
-    return TutorialObjective::PrepareForNight;
+    const bool hasDefense = std::ranges::any_of(
+        buildings_.buildings(), [](const BuildingInstance& building) {
+            return buildingLimitCategory(building.type) ==
+                BuildingLimitCategory::Structure;
+        });
+    return hasDefense
+        ? std::nullopt
+        : std::optional<TutorialObjective>{TutorialObjective::PrepareForNight};
 }
 
 } // namespace ian

@@ -289,6 +289,8 @@ CollisionWorld::CollisionWorld(double worldLimit, std::vector<CollisionBox> stat
 }
 
 void CollisionWorld::reset() {
+    worldSceneryColliders_.clear();
+    sceneryBroadphase_.reset(worldLimit_);
     buildingColliders_.clear();
     modularColliders_.clear();
     worldLandmarkColliders_.clear();
@@ -305,6 +307,53 @@ void CollisionWorld::syncWorldLandmarks(
     worldLandmarkColliders_.assign(
         landmarks.begin(), landmarks.end());
     rebuildColliders();
+}
+
+void CollisionWorld::syncWorldScenery(std::span<const CollisionBox> scenery) {
+    worldSceneryColliders_.assign(scenery.begin(), scenery.end());
+    sceneryBroadphase_.reset(worldLimit_);
+    for (std::size_t i=0;i<worldSceneryColliders_.size();++i) {
+        const auto& box=worldSceneryColliders_[i];
+        sceneryBroadphase_.insert(box.minX,box.maxX,box.minZ,box.maxZ,i);
+    }
+    rebuildColliders();
+}
+
+Vec3 CollisionWorld::scenerySteeringDirection(
+    Vec3 position, Vec3 direction, double radius) const {
+    if (worldSceneryColliders_.empty()) return direction;
+    const double length=std::hypot(direction.x,direction.z);
+    if (length<1e-8) return direction;
+    direction.x/=length; direction.z/=length;
+    // Local lookahead also works beyond the core's flow-field bounds and
+    // when enemies chase the player. Bucket queries only inspect nearby props.
+    const auto clear=[&](Vec3 heading) {
+        for (double step : {0.8,1.6,2.4}) {
+            const double x=position.x+heading.x*step, z=position.z+heading.z*step;
+            const double padding=radius+.25;
+            for (int bx=sceneryBroadphase_.cellCoordinate(x-padding);
+                 bx<=sceneryBroadphase_.cellCoordinate(x+padding);++bx)
+                for (int bz=sceneryBroadphase_.cellCoordinate(z-padding);
+                     bz<=sceneryBroadphase_.cellCoordinate(z+padding);++bz)
+                    for (const auto index : sceneryBroadphase_.bucket(bx,bz)) {
+                        const auto& box=worldSceneryColliders_[index];
+                        if (position.y<=box.minimumBlockingEyeY ||
+                            position.y>=box.maximumBlockingEyeY) continue;
+                        if (x>box.minX-padding && x<box.maxX+padding &&
+                            z>box.minZ-padding && z<box.maxZ+padding) return false;
+                    }
+        }
+        return true;
+    };
+    if (clear(direction)) return direction;
+    constexpr double Pi=3.14159265358979323846;
+    for (double angle : {Pi/4,-Pi/4,Pi/2,-Pi/2,Pi*.75,-Pi*.75}) {
+        const double c=std::cos(angle),s=std::sin(angle);
+        const Vec3 alternative{direction.x*c-direction.z*s,0,
+                              direction.x*s+direction.z*c};
+        if (clear(alternative)) return alternative;
+    }
+    return direction;
 }
 
 void CollisionWorld::syncResourceCylinders(
@@ -641,7 +690,7 @@ void CollisionWorld::rebuildColliders() {
         staticColliders_.size() +
         buildingColliders_.size() +
         modularColliders_.size() +
-        worldLandmarkColliders_.size());
+        worldLandmarkColliders_.size() + worldSceneryColliders_.size());
     colliders_.insert(
         colliders_.end(),
         staticColliders_.begin(), staticColliders_.end());
@@ -657,6 +706,8 @@ void CollisionWorld::rebuildColliders() {
         colliders_.end(),
         worldLandmarkColliders_.begin(),
         worldLandmarkColliders_.end());
+    sceneryColliderBegin_ = colliders_.size();
+    colliders_.insert(colliders_.end(),worldSceneryColliders_.begin(),worldSceneryColliders_.end());
     colliderBroadphase_.reset(worldLimit_);
     for (std::size_t index = 0; index < colliders_.size(); ++index) {
         const CollisionBox& box = colliders_[index];
@@ -922,13 +973,14 @@ Vec3 CollisionWorld::moveCircleInternal(
         };
     const auto colliderBlocksMovement =
         [this, &colliderPenetration,
-         &forEachNearby, radius](
+         &forEachNearby, radius, collideWithSolidGeometry](
             Vec3 from, Vec3 candidate) {
             bool boxBlocks = false;
             forEachNearby(
                 colliderBroadphase_, candidate.x, candidate.z, radius,
                 [&boxBlocks, &colliderPenetration,
-                 from, candidate, this](std::size_t index) {
+                 from, candidate, this, collideWithSolidGeometry](std::size_t index) {
+                    if (!collideWithSolidGeometry && index<sceneryColliderBegin_) return;
                     if (boxBlocks) {
                         return;
                     }
@@ -947,6 +999,7 @@ Vec3 CollisionWorld::moveCircleInternal(
             if (boxBlocks) {
                 return true;
             }
+            if (!collideWithSolidGeometry) return false;
             const auto cylinderPenetration =
                 [radius](Vec3 point,
                          const PhysicalCylinder& cylinder) {
@@ -997,8 +1050,7 @@ Vec3 CollisionWorld::moveCircleInternal(
         const bool blockedX =
             raisedSurfaceBlocksMovement(
                 position, candidate) ||
-            (collideWithSolidGeometry &&
-             colliderBlocksMovement(position, candidate));
+            colliderBlocksMovement(position, candidate);
         if (!blockedX) {
             position.x = candidate.x;
         }
@@ -1009,8 +1061,7 @@ Vec3 CollisionWorld::moveCircleInternal(
         const bool blockedZ =
             raisedSurfaceBlocksMovement(
                 position, candidate) ||
-            (collideWithSolidGeometry &&
-             colliderBlocksMovement(position, candidate));
+            colliderBlocksMovement(position, candidate);
         if (!blockedZ) {
             position.z = candidate.z;
         }

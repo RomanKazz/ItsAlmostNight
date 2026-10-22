@@ -21,6 +21,16 @@ struct WavePlan {
     NightPattern pattern{NightPattern::Horde};
 };
 
+struct WaveDifficulty {
+    double regularHealthScale{1.0};
+    double regularDamageScale{1.0};
+    std::size_t extraActiveEnemies{};
+    double spawnRateMultiplier{1.0};
+};
+
+[[nodiscard]] WaveDifficulty waveDifficulty(int wave);
+[[nodiscard]] double waveTargetActiveEnemies(int wave, NightPattern pattern, double progress);
+
 class WaveDirector {
   public:
     static constexpr int ConfiguredWaveCount = 6;

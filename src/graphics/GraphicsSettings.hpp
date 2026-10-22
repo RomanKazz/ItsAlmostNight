@@ -17,6 +17,7 @@ struct GraphicsSettings {
     bool postProcessing{true};
     bool particles{true};
     bool grass{true};
+    bool enemyLod{false};
     bool blobShadows{true};
     bool bloom{false};
     bool ssao{true};

@@ -9,9 +9,11 @@
 #include "graphics/BuildingPlacementEffect.hpp"
 #include "graphics/BuildingDestructionEffect.hpp"
 #include "app/App.hpp"
+#include "app/AppPoisonDrawing.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "graphics/BuildingFeedbackEffect.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -93,6 +95,44 @@ void emitImpactStreak(
     rlVertex3f(sideB.x, sideB.y, sideB.z);
 }
 
+void emitGunBulletImpactRing(
+    Vector3 center, Vector3 right, Vector3 up,
+    float radius, float width, Color color) {
+    constexpr std::array<Vector2, 13> Circle{{
+        {1.0F, 0.0F}, {0.8660254F, 0.5F},
+        {0.5F, 0.8660254F}, {0.0F, 1.0F},
+        {-0.5F, 0.8660254F}, {-0.8660254F, 0.5F},
+        {-1.0F, 0.0F}, {-0.8660254F, -0.5F},
+        {-0.5F, -0.8660254F}, {0.0F, -1.0F},
+        {0.5F, -0.8660254F}, {0.8660254F, -0.5F},
+        {1.0F, 0.0F},
+    }};
+    const auto ringPoint = [center, right, up](
+                               Vector2 unit, float distance) {
+        return Vector3Add(center, Vector3Add(
+            Vector3Scale(right, unit.x * distance),
+            Vector3Scale(up, unit.y * distance)));
+    };
+    Color transparent = color;
+    transparent.a = 0;
+    const float innerRadius = std::max(0.0F, radius - width);
+    for (std::size_t index = 1; index < Circle.size(); ++index) {
+        const Vector3 innerA = ringPoint(Circle[index - 1], innerRadius);
+        const Vector3 outerA = ringPoint(Circle[index - 1], radius);
+        const Vector3 innerB = ringPoint(Circle[index], innerRadius);
+        const Vector3 outerB = ringPoint(Circle[index], radius);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(innerA.x, innerA.y, innerA.z);
+        rlColor4ub(transparent.r, transparent.g,
+                   transparent.b, transparent.a);
+        rlVertex3f(outerA.x, outerA.y, outerA.z);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(innerB.x, innerB.y, innerB.z);
+        rlVertex3f(innerB.x, innerB.y, innerB.z);
+        rlColor4ub(transparent.r, transparent.g,
+                   transparent.b, transparent.a);
+        rlVertex3f(outerA.x, outerA.y, outerA.z);
+        rlVertex3f(outerB.x, outerB.y, outerB.z);
     }
 }
 
@@ -154,7 +194,7 @@ void emitExplosionPuff(const ExplosionPuff& puff) {
 }
 
 void emitCartoonExplosion(
-    Vector3 origin, float groundHeight, float progress, float scale,
+    Vector3 origin, float groundHeight, const SurfaceEffectPlane& surface, float progress, float scale,
     std::uint32_t seed, bool detailed, Vector3 cameraPosition,
     Vector3 cameraForward, Vector3 cameraRight, Vector3 cameraUp) {
     progress = std::clamp(progress, 0.0F, 1.0F);
@@ -175,15 +215,14 @@ void emitCartoonExplosion(
         const float travel = 1.0F - std::pow(1.0F - std::min(progress / 0.38F, 1.0F), 3.0F);
         const float radius = scale * (0.18F + travel * 2.3F);
         const float width = scale * (0.04F + 0.13F * ringFade);
-        const Vector3 center{origin.x, groundHeight + 0.045F, origin.z};
+        const Vector3 center{origin.x, groundHeight, origin.z};
         const Color color{255, 226, 146, atmosphereAlpha(ringFade * 0.72F)};
-        rlNormal3f(0, 1, 0);
+        rlNormal3f(surface.normal.x, surface.normal.y, surface.normal.z);
         for (int index = 0; index < Segments; ++index) {
             const float a = static_cast<float>(index) * 2.0F * PI / Segments;
             const float b = static_cast<float>(index + 1) * 2.0F * PI / Segments;
-            const auto point = [center](float angle, float distance) {
-                return Vector3{center.x + std::cos(angle) * distance, center.y,
-                               center.z + std::sin(angle) * distance};
+            const auto point = [center,&surface](float angle, float distance) {
+                return surface.point(center,std::cos(angle)*distance,std::sin(angle)*distance);
             };
             const Vector3 innerA = point(a, std::max(0.0F, radius - width));
             const Vector3 innerB = point(b, std::max(0.0F, radius - width));
@@ -289,7 +328,6 @@ void emitCartoonExplosion(
     }
 }
 
-
 } // namespace
 
 void App::drawPresentationEffects(
@@ -305,6 +343,50 @@ void App::drawPresentationEffects(
     const Vector3 billboardUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, cameraForward));
 
+    const auto& itemSnapshot = simulation_.snapshot();
+    if (!itemSnapshot.itemPoisonClouds.empty() || std::ranges::any_of(itemSnapshot.enemies,
+        [](const EnemyInstance& e) { return e.active && e.markRemaining > 0; })) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState material{};
+        material.unlitAmount = 1; material.screenAoAmount = 0;
+        material.inkOutlineEligible = false; material.inkOccluder = true;
+        renderer_->setWorldMaterial(material);
+        renderer_->beginColorOnlyWorldEffects();
+        app_freeze_drawing::beginBatch();
+        std::size_t drawn = 0;
+        for (const auto& cloud : itemSnapshot.itemPoisonClouds) {
+            Vector3 center{static_cast<float>(cloud.position.x), 0, static_cast<float>(cloud.position.z)};
+            center.y = static_cast<float>(simulation_.terrain().getHeight(center.x, center.z)) + 0.15F;
+            if (Vector3DistanceSqr(center, camera.position) > lighting.fogEnd * lighting.fogEnd || drawn++ >= 32) continue;
+            const float age = static_cast<float>(cloud.duration - cloud.remaining);
+            const float fade = std::min(1.0F, age * 5) * std::min(1.0F, static_cast<float>(cloud.remaining) * 3);
+            app_poison_drawing::emitPoison(center, cameraRight, billboardUp, Vector3Negate(cameraForward),
+                static_cast<float>(cloud.radius) * 0.7F, 1.0F,
+                static_cast<unsigned int>(drawn * 179), itemSnapshot.elapsedSeconds, fade, false);
+        }
+        std::size_t marks = 0;
+        for (const auto& enemy : itemSnapshot.enemies) {
+            if (!enemy.active || enemy.markRemaining <= 0 || marks++ >= 32) continue;
+            Vector3 base = enemyRenderPosition(enemy);
+            base.y += static_cast<float>(simulation_.terrain().getHeight(enemy.position.x, enemy.position.z));
+            if (Vector3DistanceSqr(base, camera.position) > lighting.fogEnd * lighting.fogEnd) continue;
+            const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy), base,
+                static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * (enemy.eliteAffixes ? 1.08F : 1.0F));
+            Vector3 center{(bounds.min.x+bounds.max.x)*.5F, (bounds.min.y+bounds.max.y)*.5F,
+                (bounds.min.z+bounds.max.z)*.5F};
+            const float radius = std::max(bounds.max.x-bounds.min.x, bounds.max.z-bounds.min.z)*.55F;
+            center = Vector3Add(center, Vector3Scale(Vector3Negate(cameraForward),radius+.04F));
+            const float size = .12F + .015F * std::sin(static_cast<float>(itemSnapshot.elapsedSeconds)*6);
+            const auto point = [&](float x,float y) { return Vector3Add(center,
+                Vector3Add(Vector3Scale(cameraRight,x),Vector3Scale(billboardUp,y))); };
+            const Color gold{255,210,65,230};
+            app_freeze_drawing::triangle(point(-size*1.5F,size),point(-size*1.5F,-size),point(-size*.7F,0),gold);
+            app_freeze_drawing::triangle(point(size*1.5F,-size),point(size*1.5F,size),point(size*.7F,0),gold);
+        }
+        app_freeze_drawing::endBatch();
+        renderer_->endColorOnlyWorldEffects();
+        renderer_->endWorldShader();
+    }
     if (std::ranges::any_of(effects_, [](const PresentationEffect& effect) {
             return effect.type == PresentationEffectType::EnemyMagicCast ||
                    effect.type == PresentationEffectType::EnemyMagicImpact ||
@@ -451,6 +533,13 @@ void App::drawPresentationEffects(
                 (1.0F - smoothstep(0.76F, 1.0F, progress)) *
                 (1.0F - smoothstep(
                     0.0F, 0.18F, groundPenetration));
+            // Keep fragments from filling the view when they pass close to
+            // the first-person camera after leaving the impact point.
+            const float cameraDistanceScale = std::clamp(
+        Vector3Distance(position, camera.position) / 1.0F,
+        0.8F, 1.0F);
+            const float visibleScale =
+                effect.scale * disappearScale * cameraDistanceScale;
             const float rotationDegrees =
                 progress *
                 (480.0F + effectUnit(
@@ -471,16 +560,16 @@ void App::drawPresentationEffects(
                 static_cast<void>(renderer_->drawWoodFragment(
                     position, fragmentAxis,
                     fragmentAngleRadians * RAD2DEG,
-                    effect.scale * disappearScale, WHITE));
+                    visibleScale, WHITE));
             } else if (effect.resourceType == ResourceType::Crystal) {
                 static_cast<void>(renderer_->drawCrystalFragment(
                     position, fragmentAxis,
                     fragmentAngleRadians * RAD2DEG,
-                    effect.scale * disappearScale, WHITE));
+                    visibleScale, WHITE));
             } else {
                 static_cast<void>(renderer_->drawDecorativeRockFragment(
                     position, rotationAxis, rotationDegrees,
-                    effect.scale * disappearScale,
+                    visibleScale,
                     seed % 4U, WHITE));
             }
         }
@@ -497,6 +586,8 @@ void App::drawPresentationEffects(
     for (const PresentationEffect& effect : effects_) {
         if (effect.startDelayRemaining > 0.0 ||
             (effect.type != PresentationEffectType::Hit &&
+             effect.type !=
+                 PresentationEffectType::GunBulletImpact &&
              effect.type != PresentationEffectType::EnemyHitImpact)) {
             continue;
         }
@@ -507,6 +598,69 @@ void App::drawPresentationEffects(
             static_cast<float>(effect.position.y),
             static_cast<float>(effect.position.z),
         };
+        if (effect.type == PresentationEffectType::GunBulletImpact) {
+            // The shot target is inside the enemy's bounds. Move the small
+            // billboard toward the camera along the view ray so the model
+            // does not hide the impact without shifting its screen position.
+            const Vector3 visibleOrigin = Vector3Subtract(
+                origin, Vector3Scale(cameraForward, 0.75F));
+            const float fade = 1.0F - smoothstep(0.16F, 1.0F, progress);
+            const float flash = 1.0F - smoothstep(0.0F, 0.46F, progress);
+            const Color tint{effect.bulletAppearance.color.r,
+                             effect.bulletAppearance.color.g,
+                             effect.bulletAppearance.color.b, 255};
+            const auto impactColor = [tint](float brightness, unsigned char alpha) {
+                Color color = ColorLerp(tint, WHITE, brightness);
+                color.a = alpha;
+                return color;
+            };
+            emitSoftBillboardDisc(
+                visibleOrigin, cameraRight, billboardUp,
+                effect.scale * (0.13F + progress * 0.11F),
+                impactColor(0.16F, atmosphereAlpha(flash * 0.68F)));
+            emitSoftBillboardDisc(
+                visibleOrigin, cameraRight, billboardUp,
+                effect.scale * (0.065F + progress * 0.025F),
+                impactColor(0.55F, atmosphereAlpha(flash * 0.92F)), 6);
+            emitGunBulletImpactRing(
+                visibleOrigin, cameraRight, billboardUp,
+                effect.scale * (0.10F + progress * 0.28F),
+                effect.scale * 0.045F,
+                impactColor(0.0F, atmosphereAlpha(fade * 0.72F)));
+
+            Vector3 travel{1.0F, 0.0F, 0.0F};
+            if (effect.targetPosition) {
+                travel = Vector3Subtract(origin, {
+                    static_cast<float>(effect.targetPosition->x),
+                    static_cast<float>(effect.targetPosition->y),
+                    static_cast<float>(effect.targetPosition->z),
+                });
+            }
+            const float across = Vector3DotProduct(travel, cameraRight);
+            const float upward = Vector3DotProduct(travel, billboardUp);
+            const float baseAngle = across * across + upward * upward >
+                    0.0001F
+                ? std::atan2(upward, across) : 0.0F;
+            const int sparkCount = effect.variant != 0 ? 2 : 4;
+            for (int index = 0; index < sparkCount; ++index) {
+                const float offset =
+                    (static_cast<float>(index) -
+                     static_cast<float>(sparkCount - 1) * 0.5F) * 0.34F;
+                const float angle = baseAngle + offset;
+                const Vector3 sparkDirection = Vector3Add(
+                    Vector3Scale(cameraRight, std::cos(angle)),
+                    Vector3Scale(billboardUp, std::sin(angle)));
+                const Vector3 sparkOrigin = Vector3Add(
+                    visibleOrigin, Vector3Scale(sparkDirection,
+                        effect.scale * (0.06F + progress * 0.23F)));
+                emitImpactStreak(
+                    sparkOrigin, cameraRight, billboardUp, angle,
+                    effect.scale * (0.16F - progress * 0.07F),
+                    effect.scale * 0.018F,
+                    impactColor(0.07F, atmosphereAlpha(fade * 0.83F)));
+            }
+            continue;
+        }
         const bool enemyImpact =
             effect.type == PresentationEffectType::EnemyHitImpact;
         const bool critical = enemyImpact && (effect.variant & 8) != 0;
@@ -692,7 +846,9 @@ void App::drawPresentationEffects(
             const auto seed = effect.entityId ? effect.entityId->index :
                 static_cast<std::uint32_t>(effect.variant);
             emitCartoonExplosion(origin, static_cast<float>(simulation_.terrain().getHeight(
-                origin.x, origin.z)), progress, effect.scale, seed, draw.detailed,
+                origin.x, origin.z)), SurfaceEffectPlane{
+                    enemy_magic_effect::point(simulation_.terrain().getNormal(origin.x,origin.z)),
+                    &simulation_.terrain()}, progress, effect.scale, seed, draw.detailed,
                 camera.position, cameraForward, cameraRight, billboardUp);
         }
         rlEnd();
@@ -829,17 +985,20 @@ void App::drawPresentationEffects(
         fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->endWorldShader();
     }
     for (const auto& effect : effects_) {
-        // Frozen impacts and burning use their own batches, not generic debris.
+        // Placement has its own batched dust; burning is drawn on the enemy
+        // in drawWorldEnemies. Neither should emit generic destruction cubes.
         if (effect.startDelayRemaining > 0.0 ||
             effect.type == PresentationEffectType::RoyalImpact ||
             effect.type == PresentationEffectType::PropBreak ||
             effect.type == PresentationEffectType::Debris ||
             effect.type == PresentationEffectType::EnemyMagicCast ||
             effect.type == PresentationEffectType::EnemyMagicImpact ||
+            effect.type == PresentationEffectType::BuildingPlaced ||
             effect.type == PresentationEffectType::EnemyBurn ||
             effect.type == PresentationEffectType::IceImpact ||
             effect.type == PresentationEffectType::IceCrack ||
             effect.type == PresentationEffectType::ChainLightning ||
+            effect.type == PresentationEffectType::Explosion ||
             effect.type == PresentationEffectType::FireImpact) {
             continue;
         }
@@ -852,6 +1011,8 @@ void App::drawPresentationEffects(
             static_cast<float>(effect.position.z),
         };
         if (effect.type == PresentationEffectType::Hit ||
+            effect.type == PresentationEffectType::TurretMuzzleFlash ||
+            effect.type == PresentationEffectType::GunBulletImpact ||
             effect.type == PresentationEffectType::EnemyHitImpact ||
             effect.type ==
                 PresentationEffectType::ResourceImpactDecal ||
@@ -954,6 +1115,32 @@ void App::drawPresentationEffects(
             }
             rlDrawRenderBatchActive();
             rlEnableDepthMask();
+            EndBlendMode();
+            continue;
+        }
+        if (effect.type == PresentationEffectType::ChestOpened) {
+            if (!renderer_->settings().particles) continue;
+            const float fade = 1.0F - smoothstep(0.35F, 1.0F, progress);
+            const Vector3 center{origin.x, origin.y + 0.60F, origin.z};
+            BeginBlendMode(BLEND_ADDITIVE);
+            constexpr int SparkCount = 16;
+            for (int index = 0; index < SparkCount; ++index) {
+                const float angle = 2.0F * PI *
+                    (static_cast<float>(index) / SparkCount +
+                     effectUnit(index, 730) * 0.035F);
+                const float distance = progress *
+                    (0.55F + effectUnit(index, 731) * 0.75F);
+                const float rise = progress *
+                    (0.15F + effectUnit(index, 732) * 0.9F);
+                DrawSphereEx({center.x + std::cos(angle) * distance,
+                              center.y + rise,
+                              center.z + std::sin(angle) * distance},
+                             0.025F + effectUnit(index, 733) * 0.035F,
+                             4, 4, Fade(index % 4 == 0 ? WHITE : GOLD,
+                                        fade * 0.8F));
+            }
+            DrawSphere(center, 0.10F + 0.24F * (1.0F - progress),
+                       Fade(GOLD, fade * 0.30F));
             EndBlendMode();
             continue;
         }
@@ -1068,115 +1255,15 @@ void App::drawPresentationEffects(
             }
             continue;
         }
-        if (effect.type ==
-            PresentationEffectType::BuildingUpgrade) {
-            renderer_->drawUpgradeEffect(
-                origin, progress, effect.scale);
-            continue;
-        }
-        if (effect.type ==
-            PresentationEffectType::BuildingPlaced) {
-            const float fade =
-                1.0F -
-                smoothstep(0.18F, 0.78F, progress);
-            const auto alpha = static_cast<unsigned char>(
-                std::lround(fade * 235.0F));
-            const float ringRadius =
-                effect.scale *
-                (0.24F + progress * 1.85F);
-            constexpr float RingHeight = 0.05F;
-            DrawCircle3D(
-                {origin.x, origin.y + RingHeight, origin.z},
-                ringRadius, {1.0F, 0.0F, 0.0F}, 90.0F,
-                {255, 188, 62, alpha});
-            DrawCircle3D(
-                {origin.x,
-                 origin.y + RingHeight + 0.012F,
-                 origin.z},
-                ringRadius * 0.72F,
-                {1.0F, 0.0F, 0.0F}, 90.0F,
-                {255, 236, 155, alpha});
-
-            constexpr int SparkCount = 10;
-            for (int index = 0; index < SparkCount; ++index) {
-                const float baseAngle =
-                    static_cast<float>(index) *
-                    (2.0F * PI /
-                     static_cast<float>(SparkCount));
-                const float distance =
-                    effect.scale *
-                    (0.18F + progress * 1.45F);
-                const Vector3 center{
-                    origin.x +
-                        std::cos(baseAngle) * distance,
-                    origin.y +
-                        0.22F +
-                        std::sin(progress * PI) *
-                            0.72F * effect.scale,
-                    origin.z +
-                        std::sin(baseAngle) * distance,
-                };
-                const float starSize =
-                    effect.scale *
-                    (0.055F + fade * 0.075F);
-                DrawSphere(
-                    center, starSize * 0.48F,
-                    {255, 224, 126, alpha});
-                DrawLine3D(
-                    {center.x - starSize, center.y, center.z},
-                    {center.x + starSize, center.y, center.z},
-                    {255, 244, 205, alpha});
-                DrawLine3D(
-                    {center.x, center.y - starSize, center.z},
-                    {center.x, center.y + starSize, center.z},
-                    {255, 244, 205, alpha});
-            }
-            continue;
-        }
-        if (effect.type ==
-            PresentationEffectType::BuildingRepaired) {
-            const float fade =
-                1.0F -
-                smoothstep(0.48F, 1.0F, progress);
-            const auto alpha = static_cast<unsigned char>(
-                std::lround(fade * 225.0F));
-            const float ringRadius =
-                effect.scale *
-                (0.28F + progress * 1.28F);
-            DrawCircle3D(
-                {origin.x, 0.08F + progress * 1.65F,
-                 origin.z},
-                ringRadius, {1.0F, 0.0F, 0.0F}, 90.0F,
-                {96, 255, 142, alpha});
-            BeginBlendMode(BLEND_ADDITIVE);
-            constexpr int ParticleCount = 14;
-            for (int index = 0;
-                 index < ParticleCount; ++index) {
-                const float angle =
-                    static_cast<float>(index) *
-                        (2.0F * PI /
-                         static_cast<float>(ParticleCount)) +
-                    progress * 1.8F;
-                const float distance =
-                    effect.scale *
-                    (1.35F - progress * 1.12F);
-                const Vector3 particle{
-                    origin.x + std::cos(angle) * distance,
-                    origin.y + 0.18F +
-                        progress * 1.5F +
-                        std::sin(
-                            angle * 2.0F +
-                            progress * PI) *
-                            0.16F,
-                    origin.z + std::sin(angle) * distance,
-                };
-                DrawSphere(
-                    particle,
-                    effect.scale *
-                        (0.035F + fade * 0.045F),
-                    {106, 255, 158, alpha});
-            }
-            EndBlendMode();
+        if (effect.type == PresentationEffectType::BuildingUpgrade ||
+            effect.type == PresentationEffectType::BuildingRepaired) {
+            renderer_->beginColorOnlyWorldEffects();
+            drawBuildingFeedbackEffect(
+                origin, camera.position, progress, effect.scale,
+                effect.type == PresentationEffectType::BuildingUpgrade
+                    ? BuildingFeedbackKind::Upgrade : BuildingFeedbackKind::Repair,
+                static_cast<std::uint32_t>(effect.variant));
+            renderer_->endColorOnlyWorldEffects();
             continue;
         }
         if (!renderer_->settings().particles) {

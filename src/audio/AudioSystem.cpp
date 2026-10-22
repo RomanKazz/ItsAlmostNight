@@ -40,10 +40,16 @@ constexpr std::array<std::string_view, 4> HarvestSwishPaths{
     "assets/audio/tool_swish_3.wav",
 };
 
-constexpr std::array<std::string_view, 3> MusicPaths{
-    "assets/audio/music_day_0.mp3",
-    "assets/audio/music_day_1.mp3",
-    "assets/audio/music_day_2.mp3",
+// Day0 doubles as the menu theme. Tracks within each context play in sequence.
+constexpr std::array<std::string_view, 8> MusicPaths{
+    "assets/audio/temporary/muck/Day0.mp3",
+    "assets/audio/temporary/muck/Day1.mp3",
+    "assets/audio/temporary/muck/Day2.mp3",
+    "assets/audio/temporary/muck/Night0.mp3",
+    "assets/audio/temporary/muck/Night1.mp3",
+    "assets/audio/temporary/muck/Big_Chunks_Theme.mp3",
+    "assets/audio/temporary/muck/Bob_theme.mp3",
+    "assets/audio/temporary/muck/Gronk_Stonks.mp3",
 };
 
 } // namespace
@@ -78,7 +84,20 @@ void AudioSystem::initialize() {
     load(stoneBreak_, "assets/audio/stone_hit_4.ogg");
     load(critical_, "assets/audio/critical.ogg");
     load(rifleShot_, "assets/audio/rifle_shot.wav");
-    load(laserLoop_, "assets/audio/laser_loop.wav");
+    if (rifleShot_.loaded) {
+        const auto initializeVoices = [this](auto& voices) {
+            for (Clip& voice : voices) {
+                voice.sound = LoadSoundAlias(rifleShot_.sound);
+                voice.loaded = IsSoundValid(voice.sound);
+                if (!voice.loaded) {
+                    UnloadSoundAlias(voice.sound);
+                    voice.sound = {};
+                }
+            }
+        };
+        initializeVoices(playerRifleVoices_);
+        initializeVoices(defenseRifleVoices_);
+    }
     load(explosion_, "assets/audio/explosion.wav");
     if (explosion_.loaded) {
         for (Clip& alias : explosionAliases_) {
@@ -98,17 +117,35 @@ void AudioSystem::initialize() {
     load(levelupAfter_, "assets/audio/temporary/levelup_after.ogg");
     load(gate_, "assets/audio/gate.ogg");
     load(crystals_, "assets/audio/crystals.ogg");
+    load(xpPickup_, "assets/audio/xp_pickup.wav");
     load(playerHit_, "assets/audio/player_hit.ogg");
     load(enemyHit_, "assets/audio/enemy_hit.ogg");
-    load(turretHit_, "assets/audio/turret_hit.ogg");
+    load(turretHits_.front(), "assets/audio/turret_hit.ogg");
+    if (turretHits_.front().loaded) {
+        for (std::size_t index = 1; index < turretHits_.size(); ++index) {
+            Clip& alias = turretHits_[index];
+            alias.sound = LoadSoundAlias(turretHits_.front().sound);
+            alias.loaded = IsSoundValid(alias.sound);
+            if (!alias.loaded) {
+                UnloadSoundAlias(alias.sound);
+                alias.sound = {};
+            }
+        }
+    }
     load(uiError_, "assets/audio/ui_error.wav");
     load(uiConfirm_, "assets/audio/ui_confirm.wav");
     load(waveWarning_, "assets/audio/wave_warning.wav");
+    for (std::size_t index = 0; index < cues_.size(); ++index) {
+        loadCue(cues_[index], AudioCueAssets[index].name, AudioCueAssets[index].fallback);
+    }
     for (std::size_t index = 0; index < musicTracks_.size(); ++index) {
         load(musicTracks_[index], MusicPaths[index]);
+        if (musicTracks_[index].loaded) musicTracks_[index].music.looping = false;
     }
+    load(forestAmbience_, "assets/audio/temporary/muck/Ambience.mp3");
+    load(flamethrowerLoop_, "assets/audio/flamethrower_loop.wav");
+    load(laserLoop_, "assets/audio/laser_loop.wav");
     initialized_ = true;
-    playNextMusicTrack();
 }
 
 void AudioSystem::shutdown() {
@@ -130,12 +167,19 @@ void AudioSystem::shutdown() {
     unload(woodBreak_);
     unload(stoneBreak_);
     unload(critical_);
+    const auto unloadVoices = [](auto& voices) {
+        for (Clip& voice : voices) {
+            if (voice.loaded) UnloadSoundAlias(voice.sound);
+            voice = {};
+        }
+    };
+    unloadVoices(playerRifleVoices_);
+    unloadVoices(defenseRifleVoices_);
     unload(rifleShot_);
     for (Clip& alias : explosionAliases_) {
         if (alias.loaded) UnloadSoundAlias(alias.sound);
         alias = {};
     }
-    unload(laserLoop_);
     unload(explosion_);
     explosionSoundBudget_.reset();
     unload(buildPlace_);
@@ -147,23 +191,45 @@ void AudioSystem::shutdown() {
     levelupChoiceWasPending_ = false;
     unload(gate_);
     unload(crystals_);
+    unload(xpPickup_);
     unload(playerHit_);
     playerHitSoundCooldown_ = 0.0;
     unload(enemyHit_);
-    unload(turretHit_);
+    for (std::size_t index = 1; index < turretHits_.size(); ++index) {
+        Clip& alias = turretHits_[index];
+        if (alias.loaded) {
+            UnloadSoundAlias(alias.sound);
+            alias = {};
+        }
+    }
+    unload(turretHits_.front());
+    nextTurretHit_ = 0;
     unload(uiError_);
     unload(uiConfirm_);
     unload(waveWarning_);
-    for (MusicTrack& track : musicTracks_) {
-        unload(track);
-    }
+    for (auto& clip : cues_) unload(clip);
+    cueCooldowns_.fill(0.0);
+    defenseGunSoundCooldown_ = 0.0;
+    uiErrorSoundCooldown_ = 0.0;
+    upgradeChoiceWasVisible_ = false;
+    playerWasGrounded_ = true;
+    bossWasPresent_ = false;
+    for (MusicTrack& track : musicTracks_) unload(track);
+    unload(forestAmbience_);
+    unload(levelupAmbience_);
+    unload(flamethrowerLoop_);
+    unload(laserLoop_);
     currentMusicTrack_.reset();
+    currentMusicGroup_.reset();
+    currentMusicTrackStarted_ = false;
+    nextBossTheme_ = 0;
     initialized_ = false;
     previousPlayerPosition_.reset();
     pendingBuildingPlacedSounds_.clear();
     buildingPlacedSoundCooldown_ = 0.0;
     footstepDistance_ = 0.0;
     iceHitSoundCooldown_ = 0.0;
+    xpPickupSoundCooldown_ = 0.0;
     lowHealthAmount_ = 0.0F;
     if (ownsAudioDevice_ && IsAudioDeviceReady()) {
         CloseAudioDevice();
@@ -171,8 +237,9 @@ void AudioSystem::shutdown() {
     ownsAudioDevice_ = false;
 }
 
-void AudioSystem::update(const SimulationSnapshot& snapshot) {
-    updateMusic();
+void AudioSystem::update(const SimulationSnapshot& snapshot, float upgradeOverlayOpacity) {
+    if (!initialized_) return;
+    updateMusic(snapshot, upgradeOverlayOpacity);
     const bool activeRun =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::StageClear &&
@@ -193,39 +260,37 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
     const float lowHealthTarget = static_cast<float>(
         std::clamp((0.35 - healthRatio) / 0.25, 0.0, 1.0));
     const float frameSeconds = std::max(GetFrameTime(), 0.0F);
-    explosionSoundBudget_.tick(frameSeconds);
-    playerHitSoundCooldown_ = std::max(0.0, playerHitSoundCooldown_ - frameSeconds);
-    const float lowHealthBlend = 1.0F - std::exp(
-        -(lowHealthTarget > lowHealthAmount_ ? 7.5F : 4.0F) *
-        frameSeconds);
-    lowHealthAmount_ +=
-        (lowHealthTarget - lowHealthAmount_) * lowHealthBlend;
-    iceHitSoundCooldown_ = std::max(
-        0.0, iceHitSoundCooldown_ - frameSeconds);
-    buildingPlacedSoundCooldown_ = std::max(
-        0.0, buildingPlacedSoundCooldown_ - frameSeconds);
-    for (PendingBuildingPlacedSound& pending :
-         pendingBuildingPlacedSounds_) {
-        pending.delayRemaining -= frameSeconds;
-    }
-    bool playedBuildingPlacedSound = false;
-    while (!pendingBuildingPlacedSounds_.empty() &&
-           pendingBuildingPlacedSounds_.front()
-                   .delayRemaining <= 0.0) {
-        const PendingBuildingPlacedSound pending =
-            pendingBuildingPlacedSounds_.front();
-        pendingBuildingPlacedSounds_.pop_front();
-        if (playedBuildingPlacedSound ||
-            buildingPlacedSoundCooldown_ > 0.0) {
-            // Never retain an overdue placement sound. Dropping it keeps the
-            // rhythm attached to the visual pop instead of creating a tail.
-            continue;
+    if (flamethrowerLoop_.loaded) {
+        float targetGain = 0.0F;
+        float nearestPan = 0.5F;
+        if (activeRun && snapshot.state != RunState::Paused &&
+            !snapshot.runUpgradeChoicePending && !snapshot.runShop.pending) {
+            for (const auto& tower : snapshot.towers) {
+                if (tower.type != BuildingType::Flamethrower || tower.flameRemaining <= 0.0) continue;
+                const auto center = tower.flameOrigin;
+                const double x = center.x - snapshot.playerPosition.x;
+                const double z = center.z - snapshot.playerPosition.z;
+                const float distance = static_cast<float>(std::hypot(x, z));
+                const float gain = 0.24F * std::pow(std::clamp(1.0F - distance / 22.0F, 0.0F, 1.0F), 2.0F);
+                if (gain > targetGain) {
+                    targetGain = gain;
+                    nearestPan = std::clamp(0.5F + static_cast<float>(
+                        (x * std::cos(snapshot.playerYaw) + z * std::sin(snapshot.playerYaw)) /
+                        std::max(1.0, static_cast<double>(distance))) * 0.28F, 0.0F, 1.0F);
+                }
+            }
         }
-        playAt(
-            buildPlace_, pending.position, snapshot, 0.8F,
-            variedPitch(0.05F));
-        buildingPlacedSoundCooldown_ = 0.10;
-        playedBuildingPlacedSound = true;
+        // One shared loop, regardless of tower count. No per-heat-pulse voices.
+        flamethrowerLoop_.volume += (targetGain - flamethrowerLoop_.volume) *
+            (1.0F - std::exp(-12.0F * frameSeconds));
+        if (targetGain > 0.001F || flamethrowerLoop_.volume > 0.001F) {
+            if (!IsMusicStreamPlaying(flamethrowerLoop_.music)) PlayMusicStream(flamethrowerLoop_.music);
+            UpdateMusicStream(flamethrowerLoop_.music);
+            SetMusicVolume(flamethrowerLoop_.music, flamethrowerLoop_.volume * settings_.sfxVolume);
+            SetMusicPan(flamethrowerLoop_.music, nearestPan);
+        } else if (IsMusicStreamPlaying(flamethrowerLoop_.music)) {
+            StopMusicStream(flamethrowerLoop_.music);
+        }
     }
     if (laserLoop_.loaded) {
         float targetGain = 0.0F;
@@ -258,6 +323,59 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         } else if (IsMusicStreamPlaying(laserLoop_.music)) {
             StopMusicStream(laserLoop_.music);
         }
+    }
+    explosionSoundBudget_.tick(frameSeconds);
+    playerHitSoundCooldown_ = std::max(0.0, playerHitSoundCooldown_ - frameSeconds);
+    uiErrorSoundCooldown_ = std::max(0.0, uiErrorSoundCooldown_ - frameSeconds);
+    defenseGunSoundCooldown_ = std::max(0.0, defenseGunSoundCooldown_ - frameSeconds);
+    for (double& cooldown : cueCooldowns_) cooldown = std::max(0.0, cooldown - frameSeconds);
+    if (snapshot.runUpgradeChoicePending && !upgradeChoiceWasVisible_) {
+        play(cue(AudioCue::LevelUp), 0.62F, 1.0F, 0.5F, false);
+    }
+    upgradeChoiceWasVisible_ = snapshot.runUpgradeChoicePending;
+    if (activeRun && playerWasGrounded_ && !snapshot.playerGrounded &&
+        snapshot.playerVerticalVelocity > 0.1) {
+        play(cue(AudioCue::Jump), 0.20F, variedPitch(0.025F));
+    }
+    playerWasGrounded_ = snapshot.playerGrounded;
+    const bool bossPresent = std::ranges::any_of(snapshot.enemies, [](const EnemyInstance& enemy) {
+        return enemy.type == EnemyType::Boss;
+    });
+    if (bossPresent && !bossWasPresent_) play(cue(AudioCue::BossSpawn), 0.45F, 1.0F, 0.5F, false);
+    bossWasPresent_ = bossPresent;
+    const float lowHealthBlend = 1.0F - std::exp(
+        -(lowHealthTarget > lowHealthAmount_ ? 7.5F : 4.0F) *
+        frameSeconds);
+    lowHealthAmount_ +=
+        (lowHealthTarget - lowHealthAmount_) * lowHealthBlend;
+    iceHitSoundCooldown_ = std::max(
+        0.0, iceHitSoundCooldown_ - frameSeconds);
+    xpPickupSoundCooldown_ = std::max(
+        0.0, xpPickupSoundCooldown_ - frameSeconds);
+    buildingPlacedSoundCooldown_ = std::max(
+        0.0, buildingPlacedSoundCooldown_ - frameSeconds);
+    for (PendingBuildingPlacedSound& pending :
+         pendingBuildingPlacedSounds_) {
+        pending.delayRemaining -= frameSeconds;
+    }
+    bool playedBuildingPlacedSound = false;
+    while (!pendingBuildingPlacedSounds_.empty() &&
+           pendingBuildingPlacedSounds_.front()
+                   .delayRemaining <= 0.0) {
+        const PendingBuildingPlacedSound pending =
+            pendingBuildingPlacedSounds_.front();
+        pendingBuildingPlacedSounds_.pop_front();
+        if (playedBuildingPlacedSound ||
+            buildingPlacedSoundCooldown_ > 0.0) {
+            // Never retain an overdue placement sound. Dropping it keeps the
+            // rhythm attached to the visual pop instead of creating a tail.
+            continue;
+        }
+        playAt(
+            buildPlace_, pending.position, snapshot, 0.8F,
+            variedPitch(0.05F));
+        buildingPlacedSoundCooldown_ = 0.10;
+        playedBuildingPlacedSound = true;
     }
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
@@ -316,7 +434,7 @@ void AudioSystem::playEvent(
         return;
     }
     if (event.type == GameEventType::TowerFired && event.buildingType == BuildingType::WindBlower) {
-        playCue(AudioCue::Dash, event.position, snapshot, .20F, 32.0F, .18);
+        playCue(AudioCue::WindGust, event.position, snapshot, .20F, 32.0F, .18);
         return;
     }
     switch (event.type) {
@@ -354,23 +472,37 @@ void AudioSystem::playEvent(
         }
         break;
     case GameEventType::WeaponFired:
-        play(rifleShot_, 0.72F, variedPitch(0.025F));
+        {
+        const auto active=std::count_if(playerRifleVoices_.begin(),playerRifleVoices_.end(),
+            [](const Clip& voice) {return voice.loaded && IsSoundPlaying(voice.sound);});
+        for (const Clip& voice : playerRifleVoices_) {
+            if (voice.loaded && !IsSoundPlaying(voice.sound)) {
+                // Retain the normal shot gain; dense rapid fire leaves mix headroom.
+                play(voice, 0.44F/(1.0F+2.0F*static_cast<float>(active)), variedPitch(0.025F));
+                break;
+            }
+        }
+        }
         break;
     case GameEventType::IceWandChargeStarted:
+        play(cue(AudioCue::IceCharge), 0.24F, variedPitch(0.02F));
+        break;
     case GameEventType::FireWandChargeStarted:
-        // Reuse the short enemy-hit texture as a quiet crystalline charge
-        // cue until a dedicated wand sample is added to the audio pack.
-        play(enemyHit_, 0.18F, 1.62F * variedPitch(0.018F));
+        play(cue(AudioCue::FireCharge), 0.22F, variedPitch(0.02F));
         break;
     case GameEventType::IceWandFired:
+        if (cue(AudioCue::IceCharge).loaded) StopSound(cue(AudioCue::IceCharge).sound);
+        play(cue(AudioCue::IceShot), 0.46F, variedPitch(0.025F));
+        break;
     case GameEventType::FireWandFired:
-        play(rifleShot_, 0.34F, 0.66F * variedPitch(0.015F));
+        if (cue(AudioCue::FireCharge).loaded) StopSound(cue(AudioCue::FireCharge).sound);
+        play(cue(AudioCue::FireShot), 0.46F, variedPitch(0.025F));
         break;
     case GameEventType::IceWandImpact:
+        playExplosion(cue(AudioCue::IceImpact), event.position, snapshot, 0.32F, 42.0F);
+        break;
     case GameEventType::FireWandImpact:
-        playAt(
-            explosion_, event.position, snapshot, 0.42F,
-            1.38F * variedPitch(0.025F), 42.0F);
+        playExplosion(cue(AudioCue::FireImpact), event.position, snapshot, 0.32F, 42.0F);
         break;
     case GameEventType::IceWandHit:
     case GameEventType::FireWandHit:
@@ -386,56 +518,33 @@ void AudioSystem::playEvent(
             iceHitSoundCooldown_ = 0.045;
         }
         break;
-    case GameEventType::ChainLightningHit: {
-        const Vec3 impact =
-            event.targetPosition.value_or(event.position);
-        if (event.amount == 0) {
-            // Layer a sharp electrical crack over a short low transient.
-            // Following jumps are quieter so a long chain stays readable.
-            playAt(
-                rifleShot_, impact, snapshot, 0.24F,
-                1.72F * variedPitch(0.022F), 38.0F);
-            playAt(
-                critical_, impact, snapshot, 0.18F,
-                1.34F * variedPitch(0.018F), 36.0F);
-        } else if (iceHitSoundCooldown_ <= 0.0) {
-            playAt(
-                enemyHit_, impact, snapshot, 0.13F,
-                (1.76F + static_cast<float>(event.amount) * 0.035F) *
-                    variedPitch(0.02F),
-                30.0F);
-            iceHitSoundCooldown_ = 0.035;
-        }
-        break;
-    }
-    case GameEventType::TowerFired:
-        if(event.buildingType==BuildingType::MissileLauncher) playCue(AudioCue::FireShot,event.position,snapshot,0.26F,48.0F,0.09);
+    case GameEventType::ChainLightningHit:
+        playCue(AudioCue::Lightning, event.targetPosition.value_or(event.position),
+                snapshot, event.amount == 0 ? 0.34F : 0.14F, 38.0F, 0.08);
         break;
     case GameEventType::CannonFired:
-        playAt(
-            rifleShot_, event.position, snapshot, 0.48F,
-            variedPitch(0.03F) * 0.72F, 48.0F);
+        playDefenseShot(event.buildingType.value_or(BuildingType::Cannon), event.position, snapshot);
         break;
     case GameEventType::ProjectileHit:
-        if(event.buildingType==BuildingType::MissileLauncher || event.buildingType==BuildingType::TeslaTower || event.buildingType==BuildingType::LaserTower) break;
-        playAt(
-            event.sourceId ? turretHit_ : enemyHit_,
-            event.position, snapshot,
-            event.sourceId
-                ? (event.secondaryImpact ? 0.12F : 0.34F)
-                : 0.48F,
-            variedPitch(0.06F));
+        if (event.buildingType == BuildingType::Flamethrower || event.buildingType == BuildingType::MissileLauncher || event.buildingType == BuildingType::TeslaTower || event.buildingType == BuildingType::LaserTower) break;
+        if (event.sourceId) {
+            playTurretImpact(
+                event.position, snapshot, event.secondaryImpact);
+        } else {
+            playAt(enemyHit_, event.position, snapshot, 0.48F,
+                   variedPitch(0.06F));
+        }
         break;
-    case GameEventType::ItemExplosion:
     case GameEventType::MissileExplosion:
+    case GameEventType::ItemExplosion:
     case GameEventType::Explosion:
         playExplosion(explosion_, event.position, snapshot, 0.40F, 55.0F);
         break;
     case GameEventType::AnvilRepairShockwave:
+        playExplosion(cue(AudioCue::GroundSlam), event.position, snapshot, 0.40F, 48.0F);
+        break;
     case GameEventType::IronArmorBroken:
-        playAt(
-            explosion_, event.position, snapshot, 0.46F,
-            0.72F * variedPitch(0.025F), 48.0F);
+        play(cue(AudioCue::ShieldBreak), 0.48F);
         break;
     case GameEventType::EnemySplit:
         // Layer a soft body impact with a bright transient. This reads as a
@@ -478,9 +587,7 @@ void AudioSystem::playEvent(
         }
         break;
     case GameEventType::BuildingSold:
-        playAt(
-            structureBreak_, event.position, snapshot, 0.82F,
-            variedPitch(0.06F));
+        playCue(AudioCue::Coin, event.position, snapshot, 0.48F);
         break;
     case GameEventType::BuildingRepaired:
     case GameEventType::ModularBuildingRepaired:
@@ -498,9 +605,10 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::CrystalProduced:
         break;
+    case GameEventType::MetaSilverCollected:
     case GameEventType::CoinCollected:
         play(
-            crystals_,
+            cue(AudioCue::Coin),
             std::min(
                 0.78F,
                 0.42F + static_cast<float>(event.amount) * 0.055F),
@@ -509,9 +617,19 @@ void AudioSystem::playEvent(
                     0.22F,
                     static_cast<float>(event.amount) * 0.018F));
         break;
+    case GameEventType::ExperienceCollected:
+        if (xpPickupSoundCooldown_ <= 0.0) {
+            play(xpPickup_,
+                 std::min(0.42F,
+                     0.27F + static_cast<float>(event.intensity) *
+                         0.025F),
+                 variedPitch(0.045F), 0.5F, false);
+            xpPickupSoundCooldown_ = 0.075;
+        }
+        break;
     case GameEventType::WaveRewardGranted:
     case GameEventType::EarlyWaveBonusGranted:
-        play(crystals_, 0.58F, variedPitch(0.04F));
+        play(cue(AudioCue::Purchase), 0.38F);
         break;
     case GameEventType::ResourceGranted:
         break;
@@ -528,52 +646,22 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::BossRoyalImpact:
     case GameEventType::BossGroundSlam:
-        playAt(
-            structureHit_, event.position, snapshot, 0.92F,
-            0.78F, 45.0F);
+        playExplosion(cue(AudioCue::GroundSlam), event.position, snapshot, 0.40F, 50.0F);
         break;
     case GameEventType::BossPhaseChanged:
     case GameEventType::BossWarCry:
-        playAt(
-            upgrade_, event.position, snapshot, 0.78F,
-            event.type == GameEventType::BossWarCry
-                ? 0.68F
-                : 0.82F,
-            45.0F);
+        playCue(AudioCue::BossRoar, event.position, snapshot, 0.56F, 60.0F, 1.0);
         break;
-    case GameEventType::PlayerLanded: {
-        sequence_ = sequence_ * 1664525U + 1013904223U;
-        const std::size_t index =
-            static_cast<std::size_t>(sequence_) %
-            grassFootsteps_.size();
-        const float strength = static_cast<float>(
-            std::clamp((event.intensity - 1.0) / 7.0,
-                       0.25, 1.0));
-        play(grassFootsteps_[index],
-             0.2F + strength * 0.2F,
-             variedPitch(0.04F) * (0.94F - strength * 0.08F));
+    case GameEventType::PlayerLanded:
+        play(cue(AudioCue::Landing), static_cast<float>(std::clamp(event.intensity / 25.0, 0.18, 0.42)),
+             variedPitch(0.04F));
         footstepDistance_ = 0.0;
         break;
-    }
     case GameEventType::RopeFallSaved:
-        play(upgrade_, 0.72F, 1.08F);
+        play(cue(AudioCue::ShieldRecharge), 0.42F);
         break;
-    case GameEventType::PlayerDashed: {
-        sequence_ = sequence_ * 1664525U + 1013904223U;
-        const std::size_t index =
-            static_cast<std::size_t>(sequence_) %
-            grassFootsteps_.size();
-        play(grassFootsteps_[index], 0.32F, variedPitch(0.05F) * 1.28F);
-        // A quiet low transient gives the dash body without introducing a
-        // dedicated asset dependency.
-        play(rifleShot_, 0.09F, 0.52F);
-        footstepDistance_ = 0.0;
-        break;
-    }
     case GameEventType::TrapActivated:
-        playAt(
-            turretHit_, event.position, snapshot, 0.42F,
-            0.72F * variedPitch(0.04F));
+        playCue(AudioCue::Trap, event.position, snapshot, 0.32F);
         break;
     case GameEventType::GateToggled:
         playAt(
@@ -586,40 +674,43 @@ void AudioSystem::playEvent(
              event.critical ? 0.74F : 1.0F);
         break;
     case GameEventType::WaveStarted:
-        play(waveWarning_, 0.68F, 0.84F);
+        play(waveWarning_, 0.48F);
         break;
     case GameEventType::WaveCompleted:
         play(uiConfirm_, 0.52F, 0.94F);
         break;
     case GameEventType::StageCleared:
-        play(upgrade_, 0.92F, 0.88F);
-        play(uiConfirm_, 0.68F, 1.08F);
+        play(cue(AudioCue::Victory), 0.50F, 1.0F, 0.5F, false);
         break;
     case GameEventType::FinalNightStarted:
         play(waveWarning_, 0.92F, 0.72F);
         break;
     case GameEventType::InsightGranted:
-        if (event.levelsGranted > 0) {
-            play(upgrade_, 0.86F, 1.12F);
-            play(uiConfirm_, 0.48F, 1.26F);
-        }
+        // The choice-open transition owns the level-up cue, including queued levels.
         break;
     case GameEventType::ChestOpened:
-        play(gate_, 0.62F, 0.78F);
+        play(cue(AudioCue::ChestOpen), 0.54F);
         break;
     case GameEventType::ChestRerolled:
+        play(cue(AudioCue::ChestReroll), 0.44F);
+        break;
     case GameEventType::ChestRevealed:
     case GameEventType::BombPurchased:
+        playUiPurchase();
+        break;
     case GameEventType::AllBuildingsRepaired:
-        play(uiConfirm_, 0.52F, 1.08F);
+        play(cue(AudioCue::Heal), 0.48F);
         break;
     case GameEventType::LootCollected:
-        play(upgrade_, 0.78F, 1.08F);
+        play(cue(AudioCue::LootTake), 0.58F);
         break;
     case GameEventType::BattlePotionActivated:
+        play(cue(AudioCue::Potion), 0.45F);
+        break;
     case GameEventType::AppleConsumed:
     case GameEventType::BreadWellFed:
-        play(upgrade_, 0.86F, 0.82F);
+        play(cue(AudioCue::Consume), 0.50F);
+        play(cue(AudioCue::Heal), 0.24F);
         break;
     case GameEventType::BuildingRejected:
     case GameEventType::BuildingUpgradeRejected:
@@ -628,14 +719,74 @@ void AudioSystem::playEvent(
     case GameEventType::WeaponUpgradeRejected:
     case GameEventType::GateToggleRejected:
     case GameEventType::ChestOpenRejected:
+    case GameEventType::ChestRerollAlreadyUsed:
+    case GameEventType::ChestRerollUnavailable:
     case GameEventType::EconomyPurchaseRejected:
     case GameEventType::CrystalStorageFull:
     case GameEventType::ResourceStorageFull:
-        play(uiError_, 0.55F, 1.0F);
+        playUiError();
+        break;
+    case GameEventType::RunStarted:
+    case GameEventType::RunRestarted:
+        playerHitSoundCooldown_ = 0.0;
+        if (playerHit_.loaded) StopSound(playerHit_.sound);
+        for (const auto& clip : cues_) if (clip.loaded) StopSound(clip.sound);
+        cueCooldowns_.fill(0.0);
+        defenseGunSoundCooldown_ = 0.0;
+        play(cue(AudioCue::RunStart), 0.38F, 1.0F, 0.5F, false);
+        break;
+    case GameEventType::RunEnded:
+        play(cue(snapshot.state == RunState::Defeat ? AudioCue::Defeat : AudioCue::Victory),
+             0.48F, 1.0F, 0.5F, false);
+        break;
+    case GameEventType::PlayerDied:
+        if (snapshot.state != RunState::Defeat) play(cue(AudioCue::Defeat), 0.36F, 1.0F, 0.5F, false);
+        break;
+    case GameEventType::PlayerRespawned:
+        if (cue(AudioCue::Defeat).loaded) StopSound(cue(AudioCue::Defeat).sound);
+        play(cue(AudioCue::ShieldRecharge), 0.32F, 1.0F, 0.5F, false);
+        break;
+    case GameEventType::EnemyKilled:
+        playCue(AudioCue::EnemyDeath, event.position, snapshot, 0.20F, 30.0F, 0.12);
+        break;
+    case GameEventType::ObjectiveCompleted:
+        playUiReward();
+        break;
+    case GameEventType::ChallengeCompleted:
+        play(cue(AudioCue::ChallengeComplete), 0.45F, 1.0F, 0.5F, false);
+        break;
+    case GameEventType::WorldLandmarkActivated:
+        playCue(AudioCue::Purchase, event.position, snapshot, 0.40F, 24.0F, 0.3);
+        break;
+    case GameEventType::BuildingFortified:
+        playCue(AudioCue::ShieldRecharge, event.position, snapshot, 0.32F, 24.0F, 0.12);
+        break;
+    case GameEventType::ConsumableUsed:
+        play(cue(AudioCue::Potion), 0.34F);
         break;
     default:
         break;
     }
+}
+
+void AudioSystem::playTurretImpact(
+    Vec3 position, const SimulationSnapshot& snapshot,
+    bool secondaryImpact) {
+    if (!initialized_) return;
+    std::size_t selected = 0;
+    for (std::size_t offset = 0; offset < turretHits_.size(); ++offset) {
+        const std::size_t index =
+            (nextTurretHit_ + offset) % turretHits_.size();
+        if (turretHits_[index].loaded &&
+            !IsSoundPlaying(turretHits_[index].sound)) {
+            selected = index;
+            break;
+        }
+    }
+    nextTurretHit_ = (selected + 1) % turretHits_.size();
+    playAt(turretHits_[selected], position, snapshot,
+           secondaryImpact ? 0.26F : 0.34F,
+           variedPitch(0.06F));
 }
 
 void AudioSystem::queueBuildingPlaced(
@@ -667,8 +818,43 @@ void AudioSystem::queueBuildingPlaced(
     pendingBuildingPlacedSounds_.insert(insertion, pending);
 }
 
+void AudioSystem::playUiSelect() {
+    sequence_ = sequence_ * 1664525U + 1013904223U;
+    play(cue((sequence_ & 1U) ? AudioCue::UiSelect : AudioCue::UiSelectAlternate),
+         0.38F, 1.0F, 0.5F, false);
+}
+
 void AudioSystem::playUiConfirm() {
     play(uiConfirm_, 0.5F, 1.0F, 0.5F, false);
+}
+
+void AudioSystem::playUiPurchase() {
+    play(cue(AudioCue::Purchase), 0.40F, 1.0F, 0.5F, false);
+}
+
+void AudioSystem::playUiReward() {
+    play(cue(AudioCue::Achievement), 0.52F, 1.0F, 0.5F, false);
+}
+
+void AudioSystem::playDefenseShot(BuildingType type, Vec3 position,
+                                 const SimulationSnapshot& snapshot) {
+    if (type == BuildingType::WindBlower) return; // The gust cue is owned by playEvent.
+    if (type == BuildingType::Turret) playCue(AudioCue::BowShot, position, snapshot, 0.22F, 32.0F, 0.065);
+    else if (type == BuildingType::MissileLauncher) playCue(AudioCue::FireShot, position, snapshot, 0.26F, 48.0F, 0.09);
+    else if (type == BuildingType::Catapult) playCue(AudioCue::CatapultShot, position, snapshot, 0.38F, 48.0F);
+    else if (type == BuildingType::Cannon || type == BuildingType::Mortar) playCue(AudioCue::CannonShot, position, snapshot, 0.46F, 48.0F);
+    else if (defenseGunSoundCooldown_ <= 0.0) {
+        // Never restart an occupied voice or cut off the player's musket tail.
+        const auto active=std::count_if(defenseRifleVoices_.begin(),defenseRifleVoices_.end(),
+            [](const Clip& voice) {return voice.loaded && IsSoundPlaying(voice.sound);});
+        for (const Clip& voice : defenseRifleVoices_) {
+            if (voice.loaded && !IsSoundPlaying(voice.sound)) {
+                playAt(voice, position, snapshot, 0.24F/(1.0F+2.0F*static_cast<float>(active)), variedPitch(0.04F), 32.0F);
+                defenseGunSoundCooldown_ = 0.045;
+                break;
+            }
+        }
+    }
 }
 
 void AudioSystem::playHarvestSwing() {
@@ -683,7 +869,9 @@ void AudioSystem::playHarvestSwing() {
 }
 
 void AudioSystem::playUiError() {
-    play(uiError_, 0.55F, 1.0F, 0.5F, false);
+    if (uiErrorSoundCooldown_ > 0.0) return;
+    play(uiError_, 0.45F, 1.0F, 0.5F, false);
+    uiErrorSoundCooldown_ = 0.12;
 }
 
 AudioSettings& AudioSystem::settings() {
@@ -703,17 +891,30 @@ void AudioSystem::applySettings() {
             ? 0.0F
             : std::clamp(
                   settings_.masterVolume, 0.0F, 1.0F));
-    const float musicVolume = std::clamp(
-        settings_.musicVolume, 0.0F, 1.0F);
-    for (const MusicTrack& track : musicTracks_) {
-        if (track.loaded) {
-            SetMusicVolume(track.music, musicVolume);
-        }
+    for (MusicTrack& track : musicTracks_) {
+        if (settings_.musicVolume <= 0) track.volume = 0;
+        if (track.loaded) SetMusicVolume(track.music, track.volume);
+    }
+    if (forestAmbience_.loaded) {
+        if (settings_.sfxVolume <= 0) forestAmbience_.volume = 0;
+        SetMusicVolume(forestAmbience_.music, forestAmbience_.volume);
+    }
+    if (flamethrowerLoop_.loaded) {
+        SetMusicVolume(flamethrowerLoop_.music, flamethrowerLoop_.volume * settings_.sfxVolume);
+    }
+    if (levelupAmbience_.loaded) {
+        if (settings_.sfxVolume <= 0) levelupAmbience_.volume = 0;
+        SetMusicVolume(levelupAmbience_.music, levelupAmbience_.volume);
     }
 }
 
 void AudioSystem::load(Clip& clip, std::string_view path) {
-    const std::string pathString(path);
+    std::string pathString(path);
+    const auto slash = pathString.find_last_of('/');
+    const auto dot = pathString.find_last_of('.');
+    const auto start = slash == std::string::npos ? 0U : slash + 1U;
+    const std::string temporary = "assets/audio/temporary/" + pathString.substr(start, dot - start) + ".ogg";
+    if (FileExists(temporary.c_str())) pathString = temporary;
     if (!FileExists(pathString.c_str())) {
         return;
     }
@@ -748,10 +949,8 @@ void AudioSystem::load(
         track.music = {};
         return;
     }
-    track.music.looping = false;
-    SetMusicVolume(
-        track.music,
-        std::clamp(settings_.musicVolume, 0.0F, 1.0F));
+    track.music.looping = true;
+    SetMusicVolume(track.music, 0.0F);
 }
 
 void AudioSystem::unload(MusicTrack& track) {
@@ -763,70 +962,95 @@ void AudioSystem::unload(MusicTrack& track) {
     track = {};
 }
 
-void AudioSystem::updateMusic() {
-    if (!initialized_) {
-        return;
+void AudioSystem::updateMusic(const SimulationSnapshot& snapshot, float upgradeOverlayOpacity) {
+    std::size_t group = 1;
+    if (snapshot.state == RunState::MainMenu || snapshot.state == RunState::Defeat ||
+        snapshot.state == RunState::Victory) group = 0;
+    else if (snapshot.state == RunState::Wave || snapshot.state == RunState::Sunset) {
+        group = std::ranges::any_of(snapshot.enemies, [](const EnemyInstance& enemy) {
+            return enemy.type == EnemyType::Boss;
+        }) ? 3U : 2U;
+    } else if (snapshot.state == RunState::Paused && currentMusicGroup_) group = *currentMusicGroup_;
+
+    constexpr std::array<std::size_t, 4> groupFirst{0, 0, 3, 5};
+    constexpr std::array<std::size_t, 4> groupCount{1, 3, 2, 3};
+    const std::size_t first = groupFirst[group];
+    const std::size_t count = groupCount[group];
+    if (!currentMusicGroup_ || *currentMusicGroup_ != group) {
+        currentMusicGroup_ = group;
+        currentMusicTrack_ = group == 1 ? 1U : group == 3 ? first + nextBossTheme_++ % count : first;
+        currentMusicTrackStarted_ = false;
+    } else if (currentMusicTrack_ && currentMusicTrackStarted_ &&
+               !IsMusicStreamPlaying(musicTracks_[*currentMusicTrack_].music)) {
+        currentMusicTrack_ = first + (*currentMusicTrack_ - first + 1U) % count;
+        currentMusicTrackStarted_ = false;
     }
-    if (!currentMusicTrack_ ||
-        *currentMusicTrack_ >= musicTracks_.size() ||
-        !musicTracks_[*currentMusicTrack_].loaded) {
-        playNextMusicTrack();
-        return;
+    if (currentMusicTrack_ && !musicTracks_[*currentMusicTrack_].loaded) {
+        currentMusicTrack_.reset();
+        for (std::size_t index = first; index < first + count; ++index) {
+            if (musicTracks_[index].loaded) { currentMusicTrack_ = index; break; }
+        }
     }
-    Music& music = musicTracks_[*currentMusicTrack_].music;
-    UpdateMusicStream(music);
-    const float length = GetMusicTimeLength(music);
-    const bool reachedEnd = length > 0.0F &&
-        GetMusicTimePlayed(music) >= length - 0.08F;
-    if (reachedEnd || !IsMusicStreamPlaying(music)) {
-        playNextMusicTrack();
+    const float frame = std::max(GetFrameTime(), 0.0F);
+    const float blend = 1.0F - std::exp(-3.5F * frame);
+    const float duck = snapshot.runUpgradeChoicePending ? 0.32F : snapshot.state == RunState::Paused ? 0.50F : 1.0F;
+    for (std::size_t index = 0; index < musicTracks_.size(); ++index) {
+        auto& track = musicTracks_[index];
+        if (!track.loaded) continue;
+        const float target = currentMusicTrack_ && index == *currentMusicTrack_
+            ? std::clamp(settings_.musicVolume, 0.0F, 1.0F) * 0.38F * duck : 0.0F;
+        if (target > 0 && !IsMusicStreamPlaying(track.music)) {
+            PlayMusicStream(track.music);
+            if (currentMusicTrack_ && index == *currentMusicTrack_) currentMusicTrackStarted_ = true;
+        }
+        track.volume += (target - track.volume) * blend;
+        SetMusicVolume(track.music, track.volume);
+        if (IsMusicStreamPlaying(track.music)) UpdateMusicStream(track.music);
+        if (target == 0 && track.volume < 0.001F) {
+            if (IsMusicStreamPlaying(track.music)) StopMusicStream(track.music);
+            if (currentMusicTrack_ && index == *currentMusicTrack_) currentMusicTrackStarted_ = false;
+            track.volume = 0;
+        }
+    }
+    if (forestAmbience_.loaded) {
+        const float target = std::clamp(settings_.sfxVolume, 0.0F, 1.0F) *
+            (snapshot.state == RunState::MainMenu ? 0.11F : 0.20F) * duck;
+        forestAmbience_.volume += (target - forestAmbience_.volume) * blend;
+        SetMusicVolume(forestAmbience_.music, forestAmbience_.volume);
+        if (!IsMusicStreamPlaying(forestAmbience_.music)) PlayMusicStream(forestAmbience_.music);
+        UpdateMusicStream(forestAmbience_.music);
+    }
+    if (levelupAmbience_.loaded) {
+        // Follow the whole panel's opacity so this loop exists only while the
+        // level-up window is visible, including queued choices and rerolls.
+        levelupAmbience_.volume = snapshot.runUpgradeChoicePending
+            ? std::clamp(settings_.sfxVolume, 0.0F, 1.0F) * 0.38F *
+                std::clamp(upgradeOverlayOpacity, 0.0F, 1.0F) : 0.0F;
+        SetMusicVolume(levelupAmbience_.music, levelupAmbience_.volume);
+        if (levelupAmbience_.volume > 0) {
+            if (!IsMusicStreamPlaying(levelupAmbience_.music)) PlayMusicStream(levelupAmbience_.music);
+            UpdateMusicStream(levelupAmbience_.music);
+        } else if (IsMusicStreamPlaying(levelupAmbience_.music)) {
+            StopMusicStream(levelupAmbience_.music);
+        }
     }
 }
 
-void AudioSystem::playNextMusicTrack() {
-    std::size_t loadedCount = 0;
-    for (const MusicTrack& track : musicTracks_) {
-        loadedCount += track.loaded ? 1U : 0U;
-    }
-    if (loadedCount == 0U) {
-        currentMusicTrack_.reset();
-        return;
-    }
-    if (currentMusicTrack_ &&
-        *currentMusicTrack_ < musicTracks_.size() &&
-        musicTracks_[*currentMusicTrack_].loaded) {
-        StopMusicStream(
-            musicTracks_[*currentMusicTrack_].music);
-    }
-    sequence_ = sequence_ * 1664525U + 1013904223U;
-    const std::size_t start = static_cast<std::size_t>(
-        sequence_) % musicTracks_.size();
-    std::optional<std::size_t> selected;
-    for (std::size_t offset = 0; offset < musicTracks_.size(); ++offset) {
-        const std::size_t index =
-            (start + offset) % musicTracks_.size();
-        if (!musicTracks_[index].loaded) {
-            continue;
-        }
-        if (loadedCount > 1U && currentMusicTrack_ &&
-            index == *currentMusicTrack_) {
-            continue;
-        }
-        selected = index;
-        break;
-    }
-    if (!selected) {
-        selected = currentMusicTrack_;
-    }
-    if (!selected) {
-        return;
-    }
-    currentMusicTrack_ = *selected;
-    Music& music = musicTracks_[*selected].music;
-    SeekMusicStream(music, 0.0F);
-    SetMusicVolume(
-        music, std::clamp(settings_.musicVolume, 0.0F, 1.0F));
-    PlayMusicStream(music);
+void AudioSystem::loadCue(Clip& clip, std::string_view name, std::string_view fallback) {
+    const std::string temporary = "assets/audio/temporary/" + std::string(name) + ".ogg";
+    load(clip, FileExists(temporary.c_str()) ? temporary : fallback);
+}
+
+const AudioSystem::Clip& AudioSystem::cue(AudioCue type) const {
+    return cues_[static_cast<std::size_t>(type)];
+}
+
+void AudioSystem::playCue(AudioCue type, Vec3 position, const SimulationSnapshot& snapshot,
+                          float volume, float maximumDistance, double cooldown) {
+    auto& remaining = cueCooldowns_[static_cast<std::size_t>(type)];
+    if (remaining > 0.0) return;
+    playAt(cue(type), position, snapshot, volume, variedPitch(0.035F), maximumDistance);
+    remaining = cooldown;
 }
 
 void AudioSystem::playExplosion(
@@ -844,6 +1068,8 @@ void AudioSystem::playExplosion(
     };
     std::size_t active = playing(explosion_) ? 1U : 0U;
     for (const Clip& alias : explosionAliases_) active += playing(alias) ? 1U : 0U;
+    for (const AudioCue type : {AudioCue::IceImpact, AudioCue::FireImpact, AudioCue::GroundSlam})
+        active += playing(cue(type)) ? 1U : 0U;
 
     const Clip* voice = &clip;
     if (playing(*voice)) {
@@ -924,8 +1150,7 @@ void AudioSystem::playAt(
 void AudioSystem::playResourceHit(
     ResourceType type, Vec3 position,
     const SimulationSnapshot& snapshot) {
-    auto& clips =
-        type == ResourceType::Wood ? woodHits_ : stoneHits_;
+    auto& clips = type == ResourceType::Wood ? woodHits_ : stoneHits_;
     sequence_ = sequence_ * 1664525U + 1013904223U;
     const std::size_t index =
         static_cast<std::size_t>(sequence_) % clips.size();

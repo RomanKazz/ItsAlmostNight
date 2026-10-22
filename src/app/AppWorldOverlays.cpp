@@ -1,5 +1,6 @@
 #include "buildings/TowerRig.hpp"
 #include "app/App.hpp"
+#include "app/PowerupDrawing.hpp"
 #include "app/RepairStationDrawing.hpp"
 #include "app/DecoyBeaconDrawing.hpp"
 #include "app/WindBlowerDrawing.hpp"
@@ -110,13 +111,106 @@ void drawTerrainTacticalRing(
     EndBlendMode();
 }
 
+void drawTutorialTreeMarker(const SimulationSnapshot& snapshot,
+                            Vec3 spawn, const Camera3D& camera,
+                            float opacity) {
+    if (snapshot.tutorialObjective != TutorialObjective::MineWood ||
+        opacity <= 0.0F) return;
+    // The authored starter tree stays in front of the spawn even when the
+    // other resources rotate for a new run. Never mark a felled tree.
+    const auto tree = std::ranges::find_if(snapshot.resourceNodes,
+        [spawn](const ResourceNode& node) {
+            return node.active && node.type == ResourceType::Wood &&
+                std::abs(node.position.x - spawn.x) < 0.5 &&
+                std::abs(node.position.z - (spawn.z - 3.5)) < 0.5;
+        });
+    if (tree == snapshot.resourceNodes.end()) return;
+
+    Vector3 center{
+        static_cast<float>(tree->position.x),
+        static_cast<float>(tree->position.y - tree->groundOffset + 0.70),
+        static_cast<float>(tree->position.z)};
+    const Vector3 towardCamera = Vector3Normalize(
+        Vector3Subtract(camera.position, center));
+    const Vector3 right = Vector3Normalize(
+        Vector3CrossProduct(camera.up, towardCamera));
+    const Vector3 up = Vector3Normalize(
+        Vector3CrossProduct(towardCamera, right));
+    center = Vector3Add(center, Vector3Scale(towardCamera, 0.85F));
+
+    constexpr int ArcCount = 6;
+    constexpr int StepsPerArc = 8;
+    constexpr float Radius = 0.275F;
+    constexpr float Width = 0.045F;
+    constexpr float ArcSweep = 0.70F;
+    center = Vector3Add(center, Vector3Add(
+        Vector3Scale(right, -Radius * 0.5F),
+        Vector3Scale(up, Radius * 0.5F)));
+    const float rotation = static_cast<float>(snapshot.elapsedSeconds) * 0.75F;
+    const auto point = [&](float angle, float radius) {
+        return Vector3Add(center, Vector3Add(
+            Vector3Scale(right, std::cos(angle) * radius),
+            Vector3Scale(up, std::sin(angle) * radius)));
+    };
+    const auto vertex = [](Vector3 value) {
+        rlVertex3f(value.x, value.y, value.z);
+    };
+    const auto roundCap = [&](float angle) {
+        constexpr int CapSteps = 10;
+        const Vector3 centerPoint = point(angle, Radius);
+        for (int step = 0; step < CapSteps; ++step) {
+            const float a = 2.0F * PI * static_cast<float>(step) / CapSteps;
+            const float b = 2.0F * PI * static_cast<float>(step + 1) / CapSteps;
+            vertex(centerPoint);
+            vertex(Vector3Add(centerPoint, Vector3Add(
+                Vector3Scale(right, std::cos(a) * Width * 0.5F),
+                Vector3Scale(up, std::sin(a) * Width * 0.5F))));
+            vertex(Vector3Add(centerPoint, Vector3Add(
+                Vector3Scale(right, std::cos(b) * Width * 0.5F),
+                Vector3Scale(up, std::sin(b) * Width * 0.5F))));
+        }
+    };
+    rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableBackfaceCulling();
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    rlColor4ub(255, 255, 255, static_cast<unsigned char>(
+        std::lround(245.0F * std::clamp(opacity, 0.0F, 1.0F))));
+    for (int arc = 0; arc < ArcCount; ++arc) {
+        const float start = rotation + static_cast<float>(arc) *
+            (2.0F * PI / ArcCount) - ArcSweep * 0.5F;
+        for (int step = 0; step < StepsPerArc; ++step) {
+            const float a = start + ArcSweep *
+                static_cast<float>(step) / StepsPerArc;
+            const float b = start + ArcSweep *
+                static_cast<float>(step + 1) / StepsPerArc;
+            const Vector3 outerA = point(a, Radius + Width * 0.5F);
+            const Vector3 innerA = point(a, Radius - Width * 0.5F);
+            const Vector3 outerB = point(b, Radius + Width * 0.5F);
+            const Vector3 innerB = point(b, Radius - Width * 0.5F);
+            vertex(outerA); vertex(innerA); vertex(outerB);
+            vertex(innerA); vertex(innerB); vertex(outerB);
+        }
+        roundCap(start);
+        roundCap(start + ArcSweep);
+    }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    EndBlendMode();
+}
+
 } // namespace
 
 void App::drawWorldOverlays(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
+    powerup_drawing::drawWorld(snapshot, gameplayCamera_, *renderer_, userSettings_.accessibility.reduceFlashes);
     renderer_->endWorldShader();
     renderer_->beginColorOnlyWorldEffects();
+    drawTutorialTreeMarker(snapshot, simulation_.playerSpawn(), gameplayCamera_,
+        hudHidden_ ? 0.0F : playerArrival_.hudOpacity());
     wind_blower_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes);
     decoy_beacon_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes, simulation_.terrain());
     repair_station_drawing::draw(snapshot, gameplayCamera_, userSettings_.accessibility.reduceFlashes, simulation_.terrain());
@@ -638,10 +732,6 @@ void App::drawWorldOverlays(
                     ? placementLineRotation(
                           *placementDragAxis_)
                     : snapshot.buildingPreview->rotation;
-            const ResourceCost cost =
-                snapshot.buildingCosts[
-                    static_cast<std::size_t>(
-                        dragType)];
             for (std::size_t index = 0;
                  index < cells.size(); ++index) {
                 const BuildingPlatformSurface surface =
@@ -658,19 +748,6 @@ void App::drawWorldOverlays(
                     .foundationBottomHeight =
                         surface.foundationBottomHeight,
                 };
-                const int count =
-                    static_cast<int>(index + 1U);
-                const bool lineAffordable =
-                    snapshot.unlimitedResources ||
-                    (snapshot.wood >= cost.wood * count &&
-                     snapshot.stone >= cost.stone * count &&
-                     snapshot.crystals >= cost.crystals * count);
-                if (!lineAffordable &&
-                    cellPreview.placement.valid()) {
-                    cellPreview.placement.error =
-                        PlacementError::
-                            InsufficientResources;
-                }
                 const Vec3 center =
                     buildingWorldPosition(
                         dragType, cells[index]);
@@ -707,7 +784,7 @@ void App::drawWorldOverlays(
                 ? static_cast<float>(
                       CannonSystem::attackRange(type, 1))
                 : static_cast<float>(
-                      TowerSystem::attackRange(type, 1));
+                      TowerSystem::attackRange(type, previewLevel));
             renderer_->drawTacticalGroundSector(
                 {visualCenter.x,
                  static_cast<float>(
@@ -1082,7 +1159,8 @@ void App::drawWorldOverlays(
                     static_cast<void>(renderer_->drawMissileLauncher(position, yaw, WHITE, 1, 0, {},
                         snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::Flamethrower) {
-                    static_cast<void>(renderer_->drawFlamethrower(position, yaw));
+                    static_cast<void>(renderer_->drawFlamethrower(position, yaw, WHITE, 1, 0, {},
+                        snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
                 } else if (preview.type == BuildingType::GunTurret) {
                     static_cast<void>(renderer_->drawGunTurret(
                         position, yaw, yaw));
@@ -1219,7 +1297,8 @@ void App::drawWorldOverlays(
             static_cast<void>(renderer_->drawMissileLauncher({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
                 snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::Flamethrower) {
-            static_cast<void>(renderer_->drawFlamethrower({x, 0.0F, z}, yaw));
+            static_cast<void>(renderer_->drawFlamethrower({x, 0.0F, z}, yaw, WHITE, 1, 0, {},
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
         } else if (preview.type == BuildingType::GunTurret) {
             if (!renderer_->drawGunTurret(
                     {x, 0.0F, z}, yaw, yaw)) {
@@ -1274,10 +1353,6 @@ void App::drawWorldOverlays(
                         BuildingType::Wall,
                         *wallDragStart_, *wallDragEnd_,
                         placementDragAxis_);
-                const ResourceCost cost =
-                    snapshot.buildingCosts[
-                        static_cast<std::size_t>(
-                            BuildingType::Wall)];
                 for (std::size_t index = 0;
                      index < cells.size(); ++index) {
                     const PlacementResult placement =
@@ -1288,18 +1363,7 @@ void App::drawWorldOverlays(
                             placement.error)) {
                         continue;
                     }
-                    const int count =
-                        static_cast<int>(index + 1U);
-                    const bool affordable =
-                        snapshot.unlimitedResources ||
-                        (snapshot.wood >=
-                             cost.wood * count &&
-                         snapshot.stone >=
-                             cost.stone * count &&
-                         snapshot.crystals >=
-                             cost.crystals * count);
-                    const bool valid =
-                        placement.valid() && affordable;
+                    const bool valid = placement.valid();
                     WorldMaterialState cellMaterial =
                         previewMaterial;
                     Color cellColor =

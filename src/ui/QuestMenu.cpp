@@ -1,4 +1,5 @@
 #include "ui/UiMenuLayout.hpp"
+#include "ui/UiViewport.hpp"
 #include "ui/QuestMenu.hpp"
 
 #include "buildings/BuildingSystem.hpp"
@@ -6,6 +7,7 @@
 #include "progression/MetaProgression.hpp"
 #include "progression/RunUpgrade.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiMenuStyle.hpp"
 #include "ui/UiNotificationBadge.hpp"
 
 #include <algorithm>
@@ -18,10 +20,12 @@
 namespace ian {
 namespace {
 
-constexpr Color Cream{250, 241, 211, 255};
-constexpr Color Gold{255, 205, 105, 255};
-constexpr Color Muted{161, 166, 154, 255};
-constexpr Color Green{131, 215, 138, 255};
+using menuStyle::Cream;
+using menuStyle::Gold;
+using menuStyle::Muted;
+using menuStyle::Green;
+using menuStyle::panel;
+using menuStyle::text;
 constexpr Color Red{244, 102, 84, 255};
 constexpr float RowStep = 68.0F;
 constexpr float ListHeight = 472.0F;
@@ -42,38 +46,13 @@ void selectTab(QuestMenuState& state, std::size_t index) {
     state.draggingScroll = false;
 }
 
-void panel(Rectangle bounds, float scale, Color fill, Color border = {116, 79, 48, 255}) {
-    DrawRectangleRounded(bounds, 0.065F, 8, fill);
-    DrawRectangleRoundedLinesEx(bounds, 0.065F, 8, 2.0F * scale, border);
-}
-
-void text(std::string_view value, Rectangle bounds, float size, Color color,
-          UiFontRole role = UiFontRole::Body, int alignment = 0) {
-    const ScopedUiFontRole font(role);
-    const float fitted = fitUiTextSize(value, size, size * 0.60F, bounds.width, bounds.height);
-    const Vector2 measured = measureUiText(value, fitted);
-    const float x = alignment == 1 ? bounds.x + (bounds.width - measured.x) * 0.5F
-        : alignment == 2 ? bounds.x + bounds.width - measured.x : bounds.x;
-    drawUiText(value, {x, bounds.y + (bounds.height - measured.y) * 0.5F}, fitted, color);
-}
-
 bool button(Rectangle bounds, std::string_view label, const UiMenuLayout& layout,
             const QuestMenuInput& input, bool enabled = true) {
-    const bool hovered = enabled && CheckCollisionPointRec(input.pointer, bounds);
-    panel(bounds, layout.scale, !enabled ? Color{46, 50, 51, 255}
-        : hovered ? Color{212, 128, 51, 255} : Color{159, 88, 38, 255},
-        enabled ? Color{239, 185, 94, 255} : Color{88, 90, 84, 255});
-    text(label, {bounds.x + 8 * layout.scale, bounds.y,
-        bounds.width - 16 * layout.scale, bounds.height}, 15 * layout.scale,
-        enabled ? Cream : Muted, UiFontRole::BodyBold, 1);
-    return hovered && input.click;
+    return menuStyle::button(bounds, layout.scale, label, 15, input.pointer, input.click, enabled);
 }
 
 void bar(Rectangle bounds, double fraction, Color color) {
-    DrawRectangleRounded(bounds, 0.9F, 6, {17, 23, 26, 255});
-    if (fraction > 0.0) DrawRectangleRounded(
-        {bounds.x, bounds.y, bounds.width * static_cast<float>(std::clamp(fraction, 0.0, 1.0)), bounds.height},
-        0.9F, 6, color);
+    menuStyle::progress(bounds, fraction, color);
 }
 
 void check(Vector2 center, float size, Color color) {
@@ -92,7 +71,7 @@ void icon(const GameUi& ui, const QuestDefinition& definition, Rectangle bounds,
         else if (condition.subject == "spike_trap") texture = ui.buildingTexture(BuildingType::SpikeTrap);
         else if (condition.subject == "defense_damage") texture = ui.runUpgradeTexture(RunUpgradeEffect::DefenseDamage);
         else if (condition.subject == "defense_fire_rate") texture = ui.runUpgradeTexture(RunUpgradeEffect::DefenseFireRate);
-        else if (condition.subject == "ricochet") texture = ui.runUpgradeTexture(RunUpgradeEffect::Ricochet);
+        else if (condition.subject == "unlock_gun_turret") texture = ui.buildingTexture(BuildingType::GunTurret);
         else if (condition.subject == "cluster_payload") texture = ui.runUpgradeTexture(RunUpgradeEffect::ClusterPayload);
         if (texture.id != 0) break;
     }
@@ -108,7 +87,7 @@ void icon(const GameUi& ui, const QuestDefinition& definition, Rectangle bounds,
         case QuestCategory::Cosmetics: texture = ui.coreMenuTexture(CoreMenuTexture::Heart); break;
         }
     }
-    panel(bounds, scale, {27, 31, 34, 255}, {82, 87, 79, 255});
+    panel(bounds, scale, menuStyle::Inset);
     if (texture.id != 0) {
         const float size = std::min(bounds.width - 8 * scale, bounds.height - 8 * scale);
         DrawTexturePro(texture, {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
@@ -128,10 +107,9 @@ void silver(const GameUi& ui, const UiMenuLayout& layout, float x, float y, int 
 bool rewardButton(const GameUi& ui, Rectangle bounds, const UiMenuLayout& layout,
                   const QuestMenuInput& input, int amount) {
     const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
-    panel(bounds, layout.scale, hovered ? Color{230, 64, 127, 255} : Color{184, 36, 94, 255},
-        hovered ? Color{255, 181, 211, 255} : Color{104, 24, 60, 255});
+    panel(bounds, layout.scale, hovered ? Color{255, 204, 0, 255} : menuStyle::Selected);
     text("COLLECT", {bounds.x + 8 * layout.scale, bounds.y, 100 * layout.scale, bounds.height},
-        14 * layout.scale, Cream, UiFontRole::BodyBold, 1);
+        14 * layout.scale, Cream, UiFontRole::Display, 1);
     ui.drawResourceIcon({bounds.x + 116 * layout.scale, bounds.y + 8 * layout.scale,
         28 * layout.scale, 28 * layout.scale}, UiResourceIcon::Silver);
     text(std::to_string(amount), {bounds.x + 148 * layout.scale, bounds.y, 28 * layout.scale, bounds.height},
@@ -239,8 +217,7 @@ bool drawQuestSummaryCard(
     const GameUi& ui, const QuestStatus& status, Rectangle bounds, float scale,
     Vector2 pointer, bool click) {
     const bool hovered = CheckCollisionPointRec(pointer, bounds);
-    panel(bounds, scale, hovered ? Color{43, 51, 50, 247} : Color{27, 34, 36, 230},
-        hovered ? Gold : Color{124, 98, 71, 220});
+    panel(bounds, scale, hovered ? menuStyle::Hover : menuStyle::Frame);
     icon(ui, *status.definition,
         {bounds.x + 10 * scale, bounds.y + 14 * scale, 48 * scale, 48 * scale}, scale);
     const float x = bounds.x + 72 * scale;
@@ -292,12 +269,9 @@ QuestMenuResult drawQuestMenu(
         selectTab(state, static_cast<std::size_t>(index));
         result.interaction = true;
     }
-    DrawRectangle(0, 0, static_cast<int>(viewport.x), static_cast<int>(viewport.y), {7, 11, 13, 175});
     const auto bounds = questMenuPanelBounds(viewport);
-    panel({bounds.x + 5 * layout.scale, bounds.y + 7 * layout.scale, bounds.width, bounds.height},
-        layout.scale, {9, 11, 13, 160}, {9, 11, 13, 160});
-    panel(bounds, layout.scale, {29, 34, 38, 248});
-    panel(layout.rect(194, 104, 1532, 84), layout.scale, {43, 62, 54, 255});
+    panel(bounds, layout.scale, menuStyle::Frame);
+    panel(layout.rect(194, 104, 1532, 84), layout.scale, menuStyle::Card);
     text("QUESTS", layout.rect(218, 110, 360, 68), 32 * layout.scale, Cream, UiFontRole::Display);
     const auto all = quests.statuses(profile, state.completedLast);
     const auto done = static_cast<std::size_t>(std::ranges::count_if(all, [](const auto& row) { return row.completed; }));
@@ -317,7 +291,7 @@ QuestMenuResult drawQuestMenu(
     }
     const int displayedSilver = static_cast<int>(std::max<std::int64_t>(0, profile.silver - inFlightSilver));
     silver(ui, layout, 1470, 122, displayedSilver, 38);
-    if (button(layout.rect(1653, 118, 52, 52), "X", layout, input)) result.close = true;
+    if (menuStyle::closeButton(layout.rect(1653, 118, 52, 52), layout.scale, input.pointer, input.click)) result.close = true;
 
     for (std::size_t i = 0; i < TabNames.size(); ++i) {
         const float x = 204 + static_cast<float>(i) * 168;
@@ -329,13 +303,12 @@ QuestMenuResult drawQuestMenu(
         const auto category = quests.categoryProgress(profile,
             i == 0 ? std::nullopt : std::optional{static_cast<QuestCategory>(i - 1)});
         const bool selected = tabIndex(state) == i;
-        panel(tab, layout.scale, selected ? Color{61, 86, 75, 255} : Color{39, 44, 47, 255},
-            selected ? Gold : Color{77, 82, 76, 255});
+        panel(tab, layout.scale, menuStyle::selectionFill(selected, CheckCollisionPointRec(input.pointer, tab)));
         text(TabNames[i], layout.rect(x + 8, 209, category.unclaimedRewards > 0 ? 122 : 144, 27), 13 * layout.scale,
-            category.total == 0 ? Muted : selected ? Gold : Cream, UiFontRole::BodyBold, 1);
+            !selected && category.total == 0 ? Muted : Cream, UiFontRole::Display, 1);
         text(std::to_string(category.completed) + " / " + std::to_string(category.total),
-            layout.rect(x + 8, 238, 144, 19), 11 * layout.scale, category.completed > 0 ? Green : Muted,
-            UiFontRole::Body, 1);
+            layout.rect(x + 8, 238, 144, 19), 11 * layout.scale, selected ? Cream : Muted,
+            UiFontRole::BodyBold, 1);
         const auto badge = layout.rect(x + 148, 205, 0, 0);
         drawUiNotificationBadge({badge.x, badge.y}, 13 * layout.scale, category.unclaimedRewards);
     }
@@ -345,11 +318,11 @@ QuestMenuResult drawQuestMenu(
         state.scroll = 0;
         result.interaction = true;
     }
-    panel(layout.rect(205, 279, 21, 21), layout.scale, {22, 29, 31, 255}, {120, 125, 109, 255});
+    DrawRectangleRec(layout.rect(205, 279, 21, 21), BLACK);
+    DrawRectangleRec(layout.rect(208, 282, 15, 15), menuStyle::Inset);
     if (state.completedLast) check({layout.rect(215, 289, 0, 0).x, layout.rect(215, 289, 0, 0).y}, 17 * layout.scale, Green);
     text("COMPLETED LAST", layout.rect(238, 278, 260, 24), 12 * layout.scale, Cream);
-    text("SCROLL  LIST     ARROWS  SELECT     TAB  CATEGORY     ESC  BACK",
-        layout.rect(620, 278, 1080, 24), 11 * layout.scale, Muted, UiFontRole::Body, 2);
+
 
     // Rebuild order after a sort/tab click, retaining selection by stable ID.
     auto rows = quests.statuses(profile, state.completedLast);
@@ -381,7 +354,7 @@ QuestMenuResult drawQuestMenu(
     }
     state.scroll = std::clamp(state.scroll, 0.0F, maximumScroll);
 
-    BeginScissorMode(static_cast<int>(list.x), static_cast<int>(list.y),
+    beginUiScissor(static_cast<int>(list.x), static_cast<int>(list.y),
         static_cast<int>(list.width), static_cast<int>(list.height));
     for (std::size_t i = 0; i < rows.size(); ++i) {
         const auto& row = rows[i];
@@ -395,15 +368,13 @@ QuestMenuResult drawQuestMenu(
             result.interaction = true;
         }
         const bool active = row.definition->id == state.selectedId;
-        panel(rowBounds, layout.scale, row.completed ? Color{45, 67, 65, 255}
-            : active ? Color{60, 69, 71, 255} : hovered ? Color{49, 57, 61, 255} : Color{39, 44, 49, 255},
-            active ? Gold : row.completed ? Color{91, 142, 111, 255} : Color{82, 89, 89, 255});
+        panel(rowBounds, layout.scale, menuStyle::selectionFill(active, hovered, !row.prerequisitesMet));
         icon(ui, *row.definition, layout.rect(213, y + 7, 46, 46), layout.scale);
         text(row.definition->title, layout.rect(278, y + 9, 835, 42), 18 * layout.scale,
-            row.prerequisitesMet ? Cream : Muted, UiFontRole::BodyBold);
+            active || row.prerequisitesMet ? Cream : Muted, UiFontRole::BodyBold);
         text(counter(row), layout.rect(1140, y + 4, 265, 36), 17 * layout.scale,
-            row.completed ? Green : Cream, UiFontRole::BodyBold, 1);
-        bar(layout.rect(1140, y + 44, 265, 6), row.fraction, row.completed ? Green : Color{90, 179, 178, 255});
+            active ? Cream : row.completed ? Green : Cream, UiFontRole::BodyBold, 1);
+        bar(layout.rect(1140, y + 44, 265, 6), row.fraction, Green);
         if (row.rewardAvailable) {
             if (rewardButton(ui, layout.rect(1496, y + 8, 184, 44), layout, input, row.definition->reward.silver) && hovered) {
                 const auto claim = quests.claimReward(profile, row.definition->id);
@@ -425,17 +396,17 @@ QuestMenuResult drawQuestMenu(
             Muted, UiFontRole::BodyBold, 1);
     }
     if (maximumScroll > 0) {
-        DrawRectangleRounded(track, 0.8F, 6, {17, 23, 26, 255});
+        DrawRectangleRounded(track, 0.8F, 6, menuStyle::Inset);
         DrawRectangleRounded(layout.rect(1700, 312 + state.scroll / maximumScroll * (ListHeight - thumbHeight),
             10, thumbHeight), 0.8F, 6, {158, 166, 151, 255});
     }
 
-    panel(layout.rect(204, 800, 1508, 154), layout.scale, {23, 29, 31, 255});
+    panel(layout.rect(204, 800, 1508, 154), layout.scale, menuStyle::Inset);
     if (!rows.empty()) {
         const auto& row = rows[selectedIndex];
         const auto& definition = *row.definition;
         icon(ui, definition, layout.rect(222, 819, 96, 96), layout.scale);
-        text(definition.title, layout.rect(342, 814, 1060, 37), 20 * layout.scale, Gold, UiFontRole::BodyBold);
+        text(definition.title, layout.rect(342, 814, 1060, 37), 20 * layout.scale, Cream, UiFontRole::Display);
         const bool runGoal = std::ranges::any_of(definition.conditions, [](const auto& condition) { return condition.scope == QuestScope::Run; });
         const std::string description = definition.description != definition.title ? definition.description
             : runGoal ? "IN ONE RUN. UNFINISHED PROGRESS RESETS ON A NEW RUN."

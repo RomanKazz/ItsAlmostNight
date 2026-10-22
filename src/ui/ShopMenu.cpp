@@ -3,6 +3,8 @@
 #include "combat/PlayerWeaponSystem.hpp"
 #include "progression/RunUpgrade.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiMenuStyle.hpp"
+#include "ui/UiItemTooltip.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,55 +13,23 @@
 
 namespace ian {
 namespace {
-constexpr Color Cream{250,241,211,255}, Gold{255,205,105,255}, Muted{159,169,167,255}, Blue{87,197,229,255};
-constexpr Color Red{244,102,84,255}, Green{131,215,138,255};
-void panel(Rectangle r, float scale, Color fill, Color border={116,79,48,255}) {
-    DrawRectangleRounded(r,.06F,8,fill);
-    DrawRectangleRoundedLinesEx(r,.06F,8,2*scale,border);
-}
-void text(std::string_view value, Rectangle r, float size, Color color, UiFontRole role=UiFontRole::Body, int align=0) {
-    const ScopedUiFontRole font(role);
-    const float fit=fitUiTextSize(value,size,size*.6F,r.width,r.height);
-    const Vector2 measured=measureUiText(value,fit);
-    const float x=align==1?r.x+(r.width-measured.x)*.5F:align==2?r.x+r.width-measured.x:r.x;
-    drawUiText(value,{x,r.y+(r.height-measured.y)*.5F},fit,color);
-}
+using menuStyle::Cream;
+using menuStyle::Gold;
+using menuStyle::Muted;
+using menuStyle::Green;
+using menuStyle::panel;
+using menuStyle::text;
+constexpr Color Blue{87,197,229,255}, Red{244,102,84,255};
 bool button(Rectangle r, std::string_view title, const UiMenuLayout& l, const ShopMenuInput& input, bool enabled=true) {
-    const bool hover=enabled&&CheckCollisionPointRec(input.pointer,r);
-    panel(r,l.scale,!enabled?Color{46,50,51,255}:hover?Color{212,128,51,255}:Color{159,88,38,255},enabled?Gold:Color{88,90,84,255});
-    text(title,{r.x+8*l.scale,r.y,r.width-16*l.scale,r.height},18*l.scale,enabled?Cream:Muted,UiFontRole::BodyBold,1);
-    return hover&&input.click;
+    return menuStyle::button(r,l.scale,title,18,input.pointer,input.click,enabled);
 }
-void silver(const GameUi& ui, const UiMenuLayout& l, float x, float y, int amount, bool enough=true) {
+void silver(const GameUi& ui, const UiMenuLayout& l, float x, float y, int amount,
+            bool enough=true, float numberWidth=130) {
     ui.drawResourceIcon(l.rect(x,y,32,32),UiResourceIcon::Silver);
-    text(std::to_string(amount),l.rect(x+40,y,130,32),22*l.scale,enough?Cream:Red,UiFontRole::BodyBold);
+    text(std::to_string(amount),l.rect(x+40,y,numberWidth,32),22*l.scale,enough?Cream:Red,UiFontRole::BodyBold);
 }
 void icon(const GameUi& ui, MetaShopUpgrade upgrade, Rectangle r, bool locked) {
-    Texture2D texture{};
-    switch(upgrade) {
-    case MetaShopUpgrade::SilverGain: texture=ui.resourceTexture(UiResourceIcon::Silver);break;
-    case MetaShopUpgrade::Luck: texture=ui.resourceTexture(UiResourceIcon::Crystal);break;
-    case MetaShopUpgrade::DefenseDamage: texture=ui.coreMenuTexture(CoreMenuTexture::Turret);break;
-    case MetaShopUpgrade::DefenseFireRate: texture=ui.runUpgradeTexture(RunUpgradeEffect::TwinBatteries);break;
-    case MetaShopUpgrade::BuildingSlots:
-    case MetaShopUpgrade::BuildingHealth: texture=ui.coreMenuTexture(CoreMenuTexture::Shield);break;
-    case MetaShopUpgrade::ProductionSpeed: texture=ui.coreMenuTexture(CoreMenuTexture::Gear);break;
-    case MetaShopUpgrade::TomeSlots: texture=ui.runUpgradeTexture(RunUpgradeEffect::Luck);break;
-    case MetaShopUpgrade::ResourceYield: texture=ui.weaponTexture(PlayerWeapon::Pickaxe);break;
-    case MetaShopUpgrade::Rerolls: {
-        const Vector2 c{r.x+r.width*.5F,r.y+r.height*.5F};
-        const Color color=locked?Color{9,14,17,255}:Blue;
-        DrawRing(c,r.width*.24F,r.width*.41F,33,322,36,{9,14,17,255});
-        DrawRing(c,r.width*.27F,r.width*.38F,35,320,36,color);
-        const Vector2 tip{c.x+r.width*.41F,c.y+r.height*.13F};
-        DrawTriangle({tip.x-r.width*.065F,tip.y-r.height*.275F},
-            {tip.x-r.width*.25F,tip.y+r.height*.02F},{tip.x+r.width*.025F,tip.y+r.height*.02F},{9,14,17,255});
-        DrawTriangle({tip.x-r.width*.05F,tip.y-r.height*.25F},
-            {tip.x-r.width*.22F,tip.y},tip,color);
-        return;
-    }
-    case MetaShopUpgrade::Count: return;
-    }
+    const Texture2D texture=ui.metaShopTexture(upgrade);
     if (texture.id==0) return;
     const float fit=std::min(r.width/static_cast<float>(texture.width),r.height/static_cast<float>(texture.height));
     const float w=static_cast<float>(texture.width)*fit,h=static_cast<float>(texture.height)*fit;
@@ -71,7 +41,7 @@ void levels(Rectangle r, int current, int max) {
     const float size=std::min(r.height,(r.width-static_cast<float>(max-1)*gap)/static_cast<float>(max));
     const float total=static_cast<float>(max)*size+static_cast<float>(max-1)*gap;
     for(int i=0;i<max;++i) DrawRectangleRounded({r.x+(r.width-total)*.5F+static_cast<float>(i)*(size+gap),r.y,size,size},.12F,4,
-        i<current?Blue:Color{76,87,89,255});
+        i<current?Gold:menuStyle::Hover);
 }
 std::string bonusLabel(const MetaShopDefinition& d, int level) {
     return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots || d.upgrade==MetaShopUpgrade::BuildingSlots)?"":"%");
@@ -87,13 +57,14 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
         const auto index=std::clamp<std::int64_t>(static_cast<int>(state.selected)+static_cast<std::int64_t>(input.selectionStep),0,static_cast<int>(MetaShopUpgradeCount)-1);
         state.selected=static_cast<MetaShopUpgrade>(index);result.interaction=true;
     }
-    panel(shopMenuPanelBounds(viewport),l.scale,{26,33,36,250});
-    panel(l.rect(358,148,1204,72),l.scale,{35,47,48,255});
+    panel(shopMenuPanelBounds(viewport),l.scale,menuStyle::Frame);
+    panel(l.rect(358,148,1204,72),l.scale,menuStyle::Card);
     text("SHOP",l.rect(382,158,690,50),32*l.scale,Cream,UiFontRole::Display);
-    silver(ui,l,1374,169,profile.silver);
-    if(button(l.rect(1505,162,40,40),"X",l,input)) result.close=true;
-    text("PERMANENT UPGRADES",l.rect(380,233,950,26),16*l.scale,Muted,UiFontRole::BodyBold);
-    panel(l.rect(358,266,1204,506),l.scale,{20,28,31,255},{56,66,67,255});
+    silver(ui,l,1340,169,profile.silver,true,100);
+    if(menuStyle::closeButton(l.rect(1490,158,52,52),l.scale,input.pointer,input.click)) result.close=true;
+    text("PERMANENT UPGRADES",l.rect(380,233,950,26),16*l.scale,Cream,UiFontRole::Display);
+    panel(l.rect(358,266,1204,506),l.scale,menuStyle::Inset);
+    const MetaShopDefinition* hoveredUpgrade = nullptr;
     for(std::size_t i=0;i<MetaShopUpgradeCount;++i) {
         const auto& d=MetaShopDefinitions[i];const int level=metaShopLevel(profile,d.upgrade);
         const bool unlocked=metaShopAvailable(profile,d.upgrade);
@@ -103,12 +74,13 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
             y=282+static_cast<float>(i/MetaShopGridColumns)*240;
         const Rectangle tile=l.rect(x,y,width,218);
         const bool hover=CheckCollisionPointRec(input.pointer,tile);
+        if (hover) hoveredUpgrade = &d;
         if(hover&&input.click) { state.selected=d.upgrade;result.interaction=true; }
-        panel(tile,l.scale,unlocked?Color{49,64,67,255}:Color{34,42,46,255},
-            state.selected==d.upgrade?Gold:hover?Cream:Color{82,109,111,255});
+        const bool selected=state.selected==d.upgrade;
+        panel(tile,l.scale,menuStyle::selectionFill(selected,hover,!unlocked));
         icon(ui,d.upgrade,l.rect(x+(width-131)*.5F,y+10,131,129),!unlocked);
-        text(d.title,l.rect(x+9,y+146,width-18,26),16*l.scale,unlocked?Cream:Muted,UiFontRole::BodyBold,1);
-        panel(l.rect(x+8,y+180,width-16,28),l.scale,{20,28,31,255},{49,63,66,255});
+        text(d.title,l.rect(x+9,y+146,width-18,26),16*l.scale,selected||unlocked?Cream:Muted,UiFontRole::BodyBold,1);
+        panel(l.rect(x+8,y+180,width-16,28),l.scale,menuStyle::Inset);
         levels(l.rect(x+19,y+188,width-38,12),level,d.maximumLevel);
         if(!unlocked) text("?",l.rect(x+width-34,y+8,24,28),20*l.scale,Muted,UiFontRole::BodyBold,1);
         if(level==d.maximumLevel) text("MAX",l.rect(x+width-55,y+9,46,22),12*l.scale,Blue,UiFontRole::BodyBold,1);
@@ -116,9 +88,9 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
     const auto& d=MetaShopDefinitions[static_cast<std::size_t>(state.selected)];
     const int level=metaShopLevel(profile,state.selected),price=metaShopCost(profile,state.selected);
     const bool unlocked=metaShopAvailable(profile,state.selected),maxed=level>=d.maximumLevel;
-    panel(l.rect(358,788,1204,144),l.scale,{21,28,30,255},{77,76,60,255});
+    panel(l.rect(358,788,1204,144),l.scale,menuStyle::Inset);
     icon(ui,d.upgrade,l.rect(378,807,104,105),!unlocked);
-    text(d.title,l.rect(510,799,680,30),23*l.scale,Gold,UiFontRole::BodyBold);
+    text(d.title,l.rect(510,799,680,30),23*l.scale,Cream,UiFontRole::Display);
     text(d.description,l.rect(510,835,680,29),16*l.scale,Cream);
     text("CURRENT",l.rect(510,875,96,23),13*l.scale,Muted,UiFontRole::BodyBold);
     text(bonusLabel(d,level),l.rect(610,875,82,23),16*l.scale,Blue,UiFontRole::BodyBold);
@@ -137,12 +109,19 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
     } else {
         silver(ui,l,1320,800,price,profile.silver>=price);
         const bool enabled=profile.silver>=price;
-        if(button(l.rect(1240,848,286,45),"BUY",l,input,enabled)||(input.confirm&&enabled)) {
+        const Rectangle buyBounds=l.rect(1240,848,286,45);
+        const bool bought=button(buyBounds,"",l,input,enabled);
+        const auto purchaseIcon=ui.shopActionTexture(ShopActionIcon::Purchase);
+        if(IsTextureValid(purchaseIcon)) DrawTexturePro(purchaseIcon,{0,0,static_cast<float>(purchaseIcon.width),static_cast<float>(purchaseIcon.height)},
+            l.rect(1252,853,35,35),{},0,enabled?WHITE:Muted);
+        text("BUY",l.rect(1288,848,223,45),18*l.scale,enabled?Cream:Muted,UiFontRole::Display,1);
+        if(bought||(input.confirm&&enabled)) {
             result.purchase=purchaseMetaShopUpgrade(profile,state.selected)==MetaShopPurchaseResult::Purchased;
             result.interaction=true;
         }
         if(!enabled) text("NOT ENOUGH SILVER",l.rect(1230,903,309,22),13*l.scale,Red,UiFontRole::BodyBold,1);
     }
+    if (hoveredUpgrade) drawItemTooltip(hoveredUpgrade->title,hoveredUpgrade->description,input.pointer,viewport,l.scale);
     return result;
 }
 } // namespace ian

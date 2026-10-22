@@ -13,6 +13,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             .position = activation.position,
             .amount = activation.affectedCount,
         });
+        if (activation.wearDamage <= 0.0) continue;
         const auto destroyedVisual = buildingBeforeLethalHit(buildings_,activation.trapId,activation.wearDamage);
         const auto wear = buildings_.damage(
             activation.trapId, activation.wearDamage);
@@ -35,6 +36,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             .buildingType = hit.type,
             .position = hit.result.position,
             .damage = hit.result.damage,
+            .critical = hit.critical,
         });
         if (hit.result.killed) {
             events_.push_back(enemyKilledEvent(
@@ -77,6 +79,7 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .buildingType = hit.type,
             .position = hit.result.position,
             .damage = hit.result.damage,
+            .critical = hit.critical,
         });
         if (hit.result.killed) {
             events_.push_back(enemyKilledEvent(

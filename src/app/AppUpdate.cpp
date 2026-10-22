@@ -9,6 +9,7 @@
 #include "presentation/PresentationTimeline.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
+#include "localization/Localization.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -28,6 +29,14 @@ using namespace app_detail;
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
     const RunState currentRunState = simulation_.snapshot().state;
+    if (currentRunState == RunState::MainMenu &&
+        menuBackgroundTerrainSeed_ &&
+        simulation_.terrain().seed() !=
+            *menuBackgroundTerrainSeed_) {
+        simulation_.regenerateTerrain(
+            *menuBackgroundTerrainSeed_);
+        rebuildTerrainGraphics();
+    }
     if ((currentRunState == RunState::Victory ||
          currentRunState == RunState::Defeat) &&
         suspendedRunAvailable()) {
@@ -46,17 +55,19 @@ void App::update() {
         pendingLootGrant_.reset();
     }
     if (pendingSandboxCardGrant_) {
-        const bool granted = simulation_.grantDebugRunUpgrade(
-            *pendingSandboxCardGrant_);
-        statusMessage_ = granted
-            ? "SANDBOX CARD GRANTED"
-            : "CARD ALREADY ACTIVE";
-        statusMessageRemaining_ = 1.4;
-        if (granted) {
-            audio_.playUiConfirm();
-        } else {
-            audio_.playUiError();
+        int granted = 0;
+        for (const auto& definition : RunUpgradeDefinitions) {
+            if (pendingSandboxCardGrant_->selected[runUpgradeIndex(definition.effect)] &&
+                simulation_.grantDebugRunUpgradeBatch(definition.effect,
+                    pendingSandboxCardGrant_->count, pendingSandboxCardGrant_->rarity)) ++granted;
         }
+        if (pendingSandboxCardGrant_->powerup &&
+            simulation_.grantDebugPowerup(*pendingSandboxCardGrant_->powerup)) ++granted;
+        sandboxCardMenuState_.feedback = granted > 0
+            ? localizeText("GRANTED") + ": " + std::to_string(granted)
+            : localizeText("NOTHING GRANTED");
+        if (granted > 0) audio_.playUiConfirm();
+        else audio_.playUiError();
         pendingSandboxCardGrant_.reset();
     }
     const auto& progressionSnapshot = simulation_.snapshot();
@@ -64,10 +75,10 @@ void App::update() {
         progressionSnapshot.state!=RunState::Paused) runShopOverlayEntranceSeconds_+=frameSeconds;
     else if(!progressionSnapshot.runShop.pending) runShopOverlayEntranceSeconds_=0;
     if (progressionSnapshot.runUpgradeChoicePending) {
-        runUpgradeOverlayEntranceSeconds_ = std::min(
-            1.5, runUpgradeOverlayEntranceSeconds_ + frameSeconds);
-        const auto hovered = hoveredRunUpgradeChoice(
-            progressionSnapshot, GetMousePosition());
+        // Also drives the level-up rays while gameplay is paused for choice.
+        runUpgradeOverlayEntranceSeconds_ += frameSeconds;
+        const auto hovered = runUpgradeKeyboardChoice_ ? runUpgradeKeyboardChoice_
+            : hoveredRunUpgradeChoice(progressionSnapshot, GetMousePosition());
         const float hoverBlend = static_cast<float>(
             1.0 - std::exp(-12.0 * frameSeconds));
         for (std::size_t index = 0;
@@ -80,6 +91,12 @@ void App::update() {
         }
     }
     insightPulseRemaining_ = std::max(0.0, insightPulseRemaining_ - frameSeconds);
+    const float insightGlowTarget = static_cast<float>(
+        std::clamp(insightPulseRemaining_ / insightPulseDuration_,
+                   0.0, 1.0));
+    insightBarGlow_ += (insightGlowTarget - insightBarGlow_) *
+        static_cast<float>(1.0 - std::exp(-12.0 * frameSeconds));
+    const bool wasInsightLevelUpAnimating = insightPointSequenceRemaining_ > 0.0;
     insightPointSequenceRemaining_ = std::max(
         0.0, insightPointSequenceRemaining_ - frameSeconds);
     objectivePulseRemaining_ = std::max(
@@ -100,11 +117,6 @@ void App::update() {
             objectiveCompletionReward_ = 0;
         }
     }
-    insightGainRemaining_ = std::max(
-        0.0, insightGainRemaining_ - frameSeconds);
-    if (insightGainRemaining_ <= 0.0) {
-        insightGainAmount_ = 0.0;
-    }
     for (const ObjectiveStatus& objective :
          progressionSnapshot.objectives) {
         auto [progress, inserted] =
@@ -119,36 +131,22 @@ void App::update() {
     }
     std::string trackedObjectiveId;
     double trackedObjectiveProgress = 0.0;
-    if (progressionSnapshot.tutorialObjective) {
-        trackedObjectiveId = "tutorial:" + std::to_string(
-            static_cast<int>(*progressionSnapshot.tutorialObjective));
-        if (*progressionSnapshot.tutorialObjective ==
-            TutorialObjective::MineWood) {
-            trackedObjectiveProgress =
-                static_cast<double>(progressionSnapshot.wood);
-        } else if (*progressionSnapshot.tutorialObjective ==
-                   TutorialObjective::PlaceCore) {
-            trackedObjectiveProgress =
-                progressionSnapshot.coreId ? 1.0 : 0.0;
+    for (const int index :
+         progressionSnapshot.recommendedObjectives) {
+        if (index < 0 ||
+            static_cast<std::size_t>(index) >=
+                progressionSnapshot.objectives.size()) {
+            continue;
         }
-    } else {
-        for (const int index :
-             progressionSnapshot.recommendedObjectives) {
-            if (index < 0 ||
-                static_cast<std::size_t>(index) >=
-                    progressionSnapshot.objectives.size()) {
-                continue;
-            }
-            const ObjectiveStatus& objective =
-                progressionSnapshot.objectives[
-                    static_cast<std::size_t>(index)];
-            if (!objective.active || objective.completed) {
-                continue;
-            }
-            trackedObjectiveId = objective.definition.id;
-            trackedObjectiveProgress = objective.progress;
-            break;
+        const ObjectiveStatus& objective =
+            progressionSnapshot.objectives[
+                static_cast<std::size_t>(index)];
+        if (!objective.active || objective.completed) {
+            continue;
         }
+        trackedObjectiveId = objective.definition.id;
+        trackedObjectiveProgress = objective.progress;
+        break;
     }
     if (trackedObjectiveId.empty()) {
         objectiveTrackerId_.clear();
@@ -176,23 +174,20 @@ void App::update() {
     objectiveTrackerExpansion_ +=
         (trackerExpansionTarget - objectiveTrackerExpansion_) *
         trackerExpansionBlend;
-    if (displayedInsight_ < 0.0) displayedInsight_ = progressionSnapshot.currentInsight;
+    const double targetInsightFraction = presentation::insightFraction(
+        progressionSnapshot.currentInsight, progressionSnapshot.requiredInsight);
+    if (displayedInsightFraction_ < 0.0) {
+        displayedInsightFraction_ = targetInsightFraction;
+    }
     const double insightPointProgress =
         presentation::timelineProgress(
             insightPointSequenceRemaining_,
             insightPointSequenceDuration_);
-    if (insightPointSequenceRemaining_ > 0.0) {
-        const double progress = insightPointProgress;
-        if (progress < 0.35) {
-            displayedInsight_ = insightAnimationBefore_ +
-                (insightAnimationRequirement_ - insightAnimationBefore_) * (progress / 0.35);
-        } else if (progress < 0.55) {
-            displayedInsight_ = insightAnimationRequirement_;
-        } else {
-            displayedInsight_ = insightAnimationAfter_ * ((progress - 0.55) / 0.45);
-        }
+    if (wasInsightLevelUpAnimating) {
+        displayedInsightFraction_ = presentation::levelUpInsightFraction(
+            insightPointProgress, insightAnimationStartFraction_, targetInsightFraction);
     } else {
-        displayedInsight_ += (progressionSnapshot.currentInsight - displayedInsight_) *
+        displayedInsightFraction_ += (targetInsightFraction - displayedInsightFraction_) *
             (1.0 - std::exp(-10.0 * frameSeconds));
     }
     const auto updateHudResourceCounter =
@@ -427,9 +422,7 @@ void App::update() {
                  : frameSeconds));
     const bool alternateHarvestContact =
         toolSwingAlternateAnimation_ &&
-        (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
-         displayedToolVisual_ == FirstPersonToolVisual::Pickaxe ||
-         displayedToolVisual_ == FirstPersonToolVisual::Club);
+        usesAuthoredToolSwing(displayedToolVisual_);
     const double toolContactProgress = alternateHarvestContact
         ? 27.0 / 60.0
         : std::clamp(
@@ -470,18 +463,14 @@ void App::update() {
     FirstPersonToolVisual desiredToolVisual =
         FirstPersonToolVisual::None;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
-        graphicsPanelTab_ == ToolSettingsTab) {
+        debugSettings_ && graphicsPanelTab_ == ToolSettingsTab) {
         desiredToolVisual = toolPanelPreviewVisual_;
     } else if (actionMode_ == ActionMode::Buildings) {
         desiredToolVisual = FirstPersonToolVisual::None;
-    } else if (contextualHammerRemaining_ > 0.0) {
-        desiredToolVisual = FirstPersonToolVisual::Hammer;
     } else {
         desiredToolVisual = toolVisualForWeapon(
             hotbarSnapshot.selectedWeapon);
     }
-    contextualHammerRemaining_ = std::max(
-        0.0, contextualHammerRemaining_ - frameSeconds);
     if (!toolViewModelInitialized_) {
         // Establish the initial state without playing an equip animation as
         // the run or settings preview is first created.
@@ -526,18 +515,6 @@ void App::update() {
             toolSwapRemaining_ = toolSwapDuration_;
         }
     }
-    if (contextualHammerSwingPending_ &&
-        displayedToolVisual_ == FirstPersonToolVisual::Hammer &&
-        toolSwapRemaining_ <= 0.0 &&
-        toolSwingRemaining_ <= 0.0) {
-        toolSwingDuration_ = activeToolTuning().swingDuration;
-        toolSwingRemaining_ = toolSwingDuration_;
-        toolSwingAttackPending_ = false;
-        contextualHammerSwingPending_ = false;
-        contextualHammerRemaining_ = std::max(
-            contextualHammerRemaining_,
-            toolSwingDuration_ + 0.18);
-    }
     const bool queuedResourceStillTargeted =
         !toolQueuedResourceTarget_ ||
         (hotbarSnapshot.aimedResource ==
@@ -578,15 +555,9 @@ void App::update() {
     }
     const SimulationSnapshot& movementSnapshot =
         simulation_.snapshot();
-    const float targetFov = movementSnapshot.dashing ? 88.0F : 75.0F;
-    const float fovBlend =
-        1.0F -
-        std::exp(
-            -(movementSnapshot.dashing ? 24.0F : 7.5F) *
-            static_cast<float>(frameSeconds));
     if (!movementSnapshot.runUpgradeChoicePending) {
-        cameraFov_ +=
-            (targetFov - cameraFov_) * fovBlend;
+        cameraFov_ += (75.0F - cameraFov_) *
+            (1.0F - std::exp(-7.5F * static_cast<float>(frameSeconds)));
     }
     buildingStatsUpgradeRemaining_ = std::max(
         0.0,
@@ -607,8 +578,6 @@ void App::update() {
         std::max(0.0, statusMessageRemaining_ - frameSeconds);
     statusMessageShakeRemaining_ = std::max(
         0.0, statusMessageShakeRemaining_ - frameSeconds);
-    lootDescriptionRemaining_ =
-        std::max(0.0, lootDescriptionRemaining_ - frameSeconds);
     cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
     explosionShakeCooldownRemaining_ = std::max(
         0.0, explosionShakeCooldownRemaining_ - frameSeconds);
@@ -634,6 +603,8 @@ void App::update() {
         std::max(0.0, crystalHudBounceRemaining_ - frameSeconds);
     coinHudBounceRemaining_ =
         std::max(0.0, coinHudBounceRemaining_ - frameSeconds);
+    silverHudRemaining_ =
+        std::max(0.0, silverHudRemaining_ - frameSeconds);
     buildingRotationCooldownRemaining_ = std::max(
         0.0, buildingRotationCooldownRemaining_ - frameSeconds);
     rampSocketLostGraceRemaining_ = std::max(
@@ -646,18 +617,6 @@ void App::update() {
         cameraShakeStrength_ = 0.0;
     }
     presentation::advanceTimeline(effects_, frameSeconds);
-    // Tower damage is simulated when the shot fires, while its visible
-    // projectile reaches the enemy only at the end of this timeline.
-    for (const ArrowVisual& arrow : arrowVisuals_) {
-        const double activeSeconds = std::max(
-            0.0, frameSeconds - arrow.startDelayRemaining);
-        if (arrow.flashTarget && activeSeconds > 0.0 &&
-            arrow.remaining <= activeSeconds) {
-            startEnemyHitFlash(*arrow.flashTarget);
-        }
-    }
-    presentation::advanceTimeline(
-        arrowVisuals_, frameSeconds);
     presentation::advanceTimeline(
         damageIndicators_, frameSeconds);
     presentation::advanceTimeline(
@@ -669,14 +628,26 @@ void App::update() {
     presentation::advanceTimeline(
         destroyedResourceVisuals_,
         resourceAnimationSeconds);
-    // Enemy death is a presentation animation, not gameplay state. It must
-    // finish during the post-night upgrade overlay and dawn instead of
-    // leaving the final enemy frozen on screen.
+    // The enemy fade must finish during the post-night upgrade overlay
+    // and dawn instead of leaving the final enemy frozen on screen.
     const double enemyDeathAnimationSeconds =
         frameState == RunState::Paused ? 0.0 : frameSeconds;
-    presentation::advanceTimeline(
+    for (DestroyedEnemyVisual& visual : destroyedEnemyVisuals_) {
+        const double activeSeconds = std::max(
+            0.0, enemyDeathAnimationSeconds -
+                visual.startDelayRemaining);
+        visual.startDelayRemaining = std::max(
+            0.0, visual.startDelayRemaining -
+                enemyDeathAnimationSeconds);
+        visual.remaining = std::max(
+            0.0, visual.remaining - activeSeconds);
+    }
+    std::erase_if(
         destroyedEnemyVisuals_,
-        enemyDeathAnimationSeconds);
+        [](const DestroyedEnemyVisual& visual) {
+            return visual.startDelayRemaining <= 0.0 &&
+                visual.remaining <= 0.0;
+        });
     presentation::advanceTimeline(
         soldBuildingVisuals_, resourceAnimationSeconds);
     presentation::advanceTimeline(
@@ -772,15 +743,16 @@ void App::update() {
     const double simulationFrameSeconds =
         frameSeconds;
     const auto simulationStart = PerformanceClock::now();
+    double simulationTickTotalMilliseconds = 0.0;
     performanceStats_.fixedTicks = fixedStep_.advance(
         simulationFrameSeconds,
-        [this, &consumedTransientInput](double deltaSeconds) {
+        [this, &consumedTransientInput,
+         &simulationTickTotalMilliseconds](double deltaSeconds) {
         PlayerCommand tickInput = input_;
         if (!consumedTransientInput) {
             tickInput.lookYaw = pendingYaw_;
             tickInput.lookPitch = pendingPitch_;
             tickInput.jump = pendingJump_;
-            tickInput.dash = pendingDash_;
             tickInput.usePickaxe = pendingPickaxe_;
             tickInput.fireRifle = pendingRifleShot_;
             tickInput.fireIceWand = pendingIceWandShot_;
@@ -790,6 +762,8 @@ void App::update() {
             tickInput.placeBuilding = pendingBuildingPlacement_;
             tickInput.placeBuildingBatch.assign(pendingWallPlacements_.begin(), pendingWallPlacements_.end());
             tickInput.rotateBuilding = pendingBuildingRotation_;
+            tickInput.setBuildingRotation =
+                pendingBuildingRotationOverride_;
             if (pendingStartWave_) {
                 tickInput.startWaveEarly = StartWaveEarlyCommand{};
             }
@@ -797,12 +771,8 @@ void App::update() {
                 tickInput.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
             }
             tickInput.upgradeBuilding = pendingBuildingUpgrade_;
-            tickInput.upgradeBuildingBlueprint =
-                pendingBuildingBlueprintUpgrade_;
+            tickInput.collectProducer = pendingCollectProducer_;
             tickInput.repairBuilding = pendingBuildingRepair_;
-            if (pendingPurchaseBombBundle_) {
-                tickInput.purchaseBombBundle = PurchaseBombBundleCommand{};
-            }
             tickInput.sellBuilding = pendingBuildingSale_;
             tickInput.removeModularBuilding =
                 pendingModularBuildingRemoval_;
@@ -860,16 +830,19 @@ void App::update() {
         }
         const auto tickStart = PerformanceClock::now();
         simulation_.tick(deltaSeconds, tickInput);
-        performanceStats_.simulationTick.sample(
-            performanceMilliseconds(tickStart));
+        const double tickMilliseconds =
+            performanceMilliseconds(tickStart);
+        simulationTickTotalMilliseconds += tickMilliseconds;
+        performanceStats_.simulationTick.sample(tickMilliseconds);
         });
+    performanceStats_.simulationTickTotal.sample(
+        simulationTickTotalMilliseconds);
     performanceStats_.simulation.sample(
         performanceMilliseconds(simulationStart));
     if (consumedTransientInput) {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
         pendingJump_ = false;
-        pendingDash_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
@@ -879,12 +852,12 @@ void App::update() {
         pendingBuildingPlacement_.reset();
         pendingWallPlacements_.clear();
         pendingBuildingRotation_ = 0;
+        pendingBuildingRotationOverride_.reset();
         pendingStartWave_ = false;
         pendingUnlimitedResources_ = false;
         pendingBuildingUpgrade_.reset();
-        pendingBuildingBlueprintUpgrade_.reset();
+        pendingCollectProducer_.reset();
         pendingBuildingRepair_.reset();
-        pendingPurchaseBombBundle_ = false;
         pendingBuildingSale_.reset();
         pendingModularBuildingRemoval_.reset();
         pendingWeaponSelection_.reset();
@@ -987,24 +960,6 @@ void App::update() {
                            building.type == BuildingType::Gate;
                 });
         });
-    // The attackless flamethrower has no combat rig yet. Keep its manual
-    // turns in presentation so world, shadow, selection and aim share a pose.
-    std::erase_if(flamethrowerRotationVisuals_, [&eventSnapshot](const auto& visual) {
-        return std::ranges::none_of(eventSnapshot.buildings, [&visual](const auto& building) {
-            return building.id == visual.id && building.type == BuildingType::Flamethrower;
-        });
-    });
-    for (const auto& building : eventSnapshot.buildings) {
-        if (building.type != BuildingType::Flamethrower) continue;
-        const double targetYaw = buildingRotationYaw(building.type, building.rotation);
-        const auto visual = std::ranges::find(
-            flamethrowerRotationVisuals_, building.id, &FlamethrowerRotationVisual::id);
-        if (visual == flamethrowerRotationVisuals_.end()) {
-            flamethrowerRotationVisuals_.push_back({building.id, targetYaw});
-        } else {
-            visual->yaw = smoothBuildingAngle(visual->yaw, targetYaw, frameSeconds);
-        }
-    }
     if (eventSnapshot.runUpgradeChoicePending) {
         if (!groundCameraSmoothingInitialized_) {
             smoothedGroundCameraY_ =
@@ -1209,7 +1164,10 @@ void App::update() {
         cameraBobPhase_ +=
             cameraBobSpeed_ * frameSeconds * 2.35;
     }
-    audio_.update(eventSnapshot);
+    const float upgradeOverlayOpacity = eventSnapshot.runUpgradeChoicePending
+        ? runUpgradeOverlayTransition(runUpgradeOverlayEntranceSeconds_, runUpgradeOverlayExitSeconds_,
+            runUpgradePendingChoice_.has_value()).opacity : 0.0F;
+    audio_.update(eventSnapshot, upgradeOverlayOpacity);
     updateHoverTarget(eventSnapshot, frameSeconds);
     if (buildingContextCardTarget_ &&
         (eventSnapshot.selectedBuilding || foundationBuildMode_)) {

@@ -1,3 +1,4 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -24,29 +25,6 @@ namespace {
     Color color, unsigned char alpha) {
     color.a = alpha;
     return color;
-}
-
-[[nodiscard]] SdfUiTextStyle damageNumberStyle(
-    bool critical, unsigned char alpha) {
-    SdfUiTextStyle style{};
-    style.fillColor = alphaColor(
-        critical
-            ? Color{255, 196, 48, 255}
-            : Color{255, 239, 211, 255},
-        alpha);
-    style.outlineColor = alphaColor(
-        critical
-            ? Color{91, 43, 18, 255}
-            : Color{62, 35, 31, 255},
-        alpha);
-    style.shadowColor = alphaColor(
-        {15, 9, 12, 255},
-        static_cast<unsigned char>(
-            static_cast<unsigned int>(alpha) * 4U / 5U));
-    style.shadowOffsetPixels = {3.0F, 4.0F};
-    style.outlinePixels = critical ? 2.8F : 2.5F;
-    style.softness = 0.62F;
-    return style;
 }
 
 [[nodiscard]] SdfUiTextStyle resourceNumberStyle(
@@ -77,8 +55,30 @@ namespace {
 
 void App::drawFloatingDamageNumbers(
     const Camera3D& camera) const {
+    if (floatingDamageNumbers_.empty()) return;
+    const WorldUiOcclusion occlusion = renderer_->worldUiOcclusion();
+    if (occlusion.valid()) {
+        BeginShaderMode(occlusion.shader);
+        SetShaderValueTexture(
+            occlusion.shader, occlusion.depthLocation, occlusion.depth);
+        SetShaderValue(
+            occlusion.shader, occlusion.viewportLocation,
+            &occlusion.viewport, SHADER_UNIFORM_VEC2);
+    } else if (occlusion.nativeDepth) {
+        rlDrawRenderBatchActive();
+        rlEnableDepthTest();
+        rlDisableDepthMask();
+    }
     const Vector3 cameraForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
+    const Vector3 cameraRight = Vector3Normalize(
+        Vector3CrossProduct(cameraForward, camera.up));
+    const Vector3 cameraUp = Vector3Normalize(
+        Vector3CrossProduct(cameraRight, cameraForward));
+    constexpr float MaximumDamageNumberDistance = 25.0F;
+    constexpr float FullOpacityDistance = 20.0F;
+    constexpr float LaneHorizontal[]{
+        -0.75F, 0.75F, -1.50F, 1.50F};
     for (const FloatingDamageNumber& number :
          floatingDamageNumbers_) {
         if (number.startDelayRemaining > 0.0) {
@@ -89,39 +89,55 @@ void App::drawFloatingDamageNumbers(
              static_cast<float>(number.position.y),
              static_cast<float>(number.position.z)},
             camera.position);
+        const float distanceSquared = Vector3LengthSqr(toNumber);
+        if (distanceSquared >
+            MaximumDamageNumberDistance *
+                MaximumDamageNumberDistance) {
+            continue;
+        }
         if (Vector3DotProduct(toNumber, cameraForward) <= 0.0F) {
             continue;
         }
-
+        const float distance = std::sqrt(distanceSquared);
         const float progress = static_cast<float>(
             1.0 - number.remaining / number.duration);
         const float fastMotion =
             1.0F - std::pow(1.0F - progress, 2.35F);
-        const Vector3 animatedPosition{
+        Vector3 animatedPosition{
             static_cast<float>(number.position.x),
             static_cast<float>(number.position.y) +
                 fastMotion * number.verticalRise,
             static_cast<float>(number.position.z),
         };
-        Vector2 screenPosition =
-            GetWorldToScreen(animatedPosition, camera);
+        if (number.lane > 0) {
+            const std::size_t laneIndex = number.lane - 1U;
+            animatedPosition.y +=
+                0.24F +
+                static_cast<float>(laneIndex / 4U) * 0.68F;
+            animatedPosition = Vector3Add(
+                animatedPosition,
+                Vector3Scale(
+                    cameraRight,
+                    LaneHorizontal[laneIndex % 4U]));
+        }
+        animatedPosition = Vector3Add(
+            animatedPosition,
+            Vector3Scale(
+                cameraRight,
+                number.horizontalDrift * fastMotion));
         const float fadeProgress = std::clamp(
             (progress - 0.56F) / 0.44F, 0.0F, 1.0F);
-        const float fade =
+        const float lifetimeFade =
             1.0F - fadeProgress * fadeProgress *
                 (3.0F - 2.0F * fadeProgress);
+        const float distanceFade = std::clamp(
+            (MaximumDamageNumberDistance - distance) /
+                (MaximumDamageNumberDistance -
+                 FullOpacityDistance),
+            0.0F, 1.0F);
         const auto alpha = static_cast<unsigned char>(
-            std::lround(fade * 255.0F));
-        const float distance = Vector3Length(toNumber);
-        // Damage text is drawn in screen space, so apply an explicit
-        // perspective scale. The square-root curve preserves readability
-        // while still making distant tower hits visibly smaller.
-        constexpr float ReferenceDistance = 6.0F;
-        const float distanceScale = std::clamp(
-            std::sqrt(ReferenceDistance / std::max(distance, 1.0F)),
-            0.38F, 1.45F);
-        screenPosition.x +=
-            number.horizontalDrift * fastMotion * distanceScale;
+            std::lround(lifetimeFade * distanceFade * 255.0F));
+        if (alpha == 0) continue;
         const float popProgress =
             std::clamp(progress / 0.18F, 0.0F, 1.0F);
         const float shiftedPop = popProgress - 1.0F;
@@ -136,24 +152,91 @@ void App::drawFloatingDamageNumbers(
             (progress - 0.42F) / 0.58F, 0.0F, 1.0F);
         const float exitScale =
             1.0F - 0.25F * shrinkProgress * shrinkProgress;
-        const float fontSize =
-            (number.critical ? 50.0F : 40.0F) *
+        const float worldSize =
+            (number.critical ? 0.42F : 0.35F) *
             number.scaleVariation * entranceScale *
-            exitScale * distanceScale;
+            exitScale;
         const char* text = number.critical
             ? TextFormat("%d!", combatDisplayValue(number.damage))
             : TextFormat("%d", combatDisplayValue(number.damage));
-        const Vector2 textSize =
-            measureUiText(text, fontSize);
         const float rotation =
             number.initialRotationDegrees +
             number.rotationTravelDegrees * fastMotion;
-        drawRotatedStyledUiText(
-            text,
-            {screenPosition.x,
-             screenPosition.y + textSize.y * 0.45F},
-            fontSize, rotation,
-            damageNumberStyle(number.critical, alpha));
+        drawWorldBillboardOutlinedText(
+            text, animatedPosition, worldSize,
+            camera, cameraRight, cameraUp,
+            number.critical
+                ? Color{255, 196, 48, alpha}
+                : Color{255, 239, 211, alpha},
+            number.critical
+                ? Color{91, 43, 18, alpha}
+                : Color{62, 35, 31, alpha},
+            {15, 9, 12, static_cast<unsigned char>(
+                static_cast<unsigned int>(alpha) * 4U / 5U)},
+            rotation);
+    }
+    rlDrawRenderBatchActive();
+    if (occlusion.valid()) EndShaderMode();
+    if (occlusion.nativeDepth) {
+        rlEnableDepthMask();
+        rlDisableDepthTest();
+    }
+}
+
+void App::drawProducerResourceGainVisuals(
+    const Camera3D& camera, Vec3 playerPosition) const {
+    constexpr float VisibleDistance = 16.0F;
+    constexpr float FullOpacityDistance = 12.0F;
+    constexpr float IconSize = 0.45F;
+    constexpr float TextSize = 0.42F;
+    constexpr float Gap = 0.09F;
+    const Vector3 cameraForward = Vector3Normalize(
+        Vector3Subtract(camera.target, camera.position));
+    const Vector3 cameraRight = Vector3Normalize(
+        Vector3CrossProduct(cameraForward, camera.up));
+    const Vector3 cameraUp = Vector3Normalize(
+        Vector3CrossProduct(cameraRight, cameraForward));
+    for (const ResourceGainVisual& gain : resourceGainVisuals_) {
+        if (!gain.lingerAboveSource) continue;
+        const float dx = static_cast<float>(gain.position.x - playerPosition.x);
+        const float dy = static_cast<float>(gain.position.y - playerPosition.y);
+        const float dz = static_cast<float>(gain.position.z - playerPosition.z);
+        const float playerDistance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (playerDistance >= VisibleDistance) continue;
+        const float progress = std::clamp(static_cast<float>(
+            1.0 - gain.remaining / gain.duration), 0.0F, 1.0F);
+        const float fadeIn = std::clamp(progress / 0.12F, 0.0F, 1.0F);
+        const float fadeOut = std::clamp((1.0F - progress) / 0.45F, 0.0F, 1.0F);
+        const float distanceFade = std::clamp(
+            (VisibleDistance - playerDistance) /
+                (VisibleDistance - FullOpacityDistance),
+            0.0F, 1.0F);
+        const auto alpha = static_cast<unsigned char>(std::lround(
+            255.0F * fadeIn * fadeOut * distanceFade));
+        if (alpha == 0) continue;
+        const Vector3 anchor{
+            static_cast<float>(gain.position.x),
+            static_cast<float>(gain.position.y) + 0.52F +
+                0.30F * (1.0F - std::pow(1.0F - progress, 2.0F)),
+            static_cast<float>(gain.position.z),
+        };
+        if (Vector3DotProduct(Vector3Subtract(anchor, camera.position),
+                cameraForward) <= 0.0F) continue;
+        const std::string amount = "+" + std::to_string(gain.amount);
+        const float textWidth = measureWorldBillboardText(amount, TextSize);
+        const Vector3 iconCenter = Vector3Add(anchor, Vector3Scale(
+            cameraRight, -(Gap + textWidth) * 0.5F));
+        const Vector3 textCenter = Vector3Add(anchor, Vector3Scale(
+            cameraRight, (IconSize + Gap) * 0.5F));
+        const UiResourceIcon icon = gain.type == ResourceType::Wood
+            ? UiResourceIcon::Wood : gain.type == ResourceType::Crystal
+            ? UiResourceIcon::Crystal : UiResourceIcon::Stone;
+        drawWorldBillboardTexture(ui_.resourceTexture(icon), iconCenter,
+            {IconSize, IconSize}, camera, cameraUp, {255, 255, 255, alpha});
+        const auto style = resourceNumberStyle(gain.type, alpha);
+        drawWorldBillboardOutlinedText(amount, textCenter, TextSize,
+            camera, cameraRight, cameraUp, style.fillColor,
+            style.outlineColor, style.shadowColor);
     }
 }
 
@@ -162,6 +245,7 @@ void App::drawResourceGainVisuals(
     const Vector3 cameraForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
     for (const ResourceGainVisual& gain : resourceGainVisuals_) {
+        if (gain.lingerAboveSource) continue;
         const Vector3 worldPosition{
             static_cast<float>(gain.position.x),
             static_cast<float>(gain.position.y),
@@ -186,7 +270,7 @@ void App::drawResourceGainVisuals(
             (elapsed - FeedbackDelaySeconds) / activeDuration,
             0.0F, 1.0F);
         const Vector2 projected =
-            GetWorldToScreen(worldPosition, camera);
+            uiWorldToScreen(worldPosition, camera);
         const Vector2 start{
             projected.x, projected.y - 62.0F,
         };
@@ -407,14 +491,36 @@ float App::buildingAnimationScaleAt(
                     std::exp(-4.5F * progress) * 0.09F;
             scale = std::clamp(bounce, 0.94F, 1.09F);
         } else {
-            // A fast, readable squash mirrors enemy hit feedback. It returns
-            // exactly to 1.0, so repeated attacks cannot leave scale drift.
+            // A fast building hit squash returns exactly to 1.0, so
+            // repeated attacks cannot leave scale drift.
             const float squash =
                 1.0F - std::sin(progress * PI) * 0.14F;
             scale = std::min(scale, squash);
         }
     }
     return scale;
+}
+
+BuildingFeedbackHighlight App::buildingFeedbackHighlightAt(
+    Vec3 center, EntityId id, double bottomY, double topY) const {
+    // The latest repair/upgrade owns the sweep when feedback overlaps.
+    for (auto it = effects_.rbegin(); it != effects_.rend(); ++it) {
+        const PresentationEffect& effect = *it;
+        if (effect.startDelayRemaining > 0 || effect.duration <= 0 || effect.remaining <= 0 ||
+            (effect.type != PresentationEffectType::BuildingRepaired &&
+             effect.type != PresentationEffectType::BuildingUpgrade)) continue;
+        if (effect.entityId) {
+            if (*effect.entityId != id) continue;
+        } else if (std::abs(effect.position.x - center.x) > .01 ||
+                   std::abs(effect.position.y - center.y) > .01 ||
+                   std::abs(effect.position.z - center.z) > .01) continue;
+        return sampleBuildingFeedbackHighlight(
+            static_cast<float>(1.0 - effect.remaining / effect.duration),
+            static_cast<float>(bottomY), static_cast<float>(topY),
+            effect.type == PresentationEffectType::BuildingRepaired
+                ? BuildingFeedbackKind::Repair : BuildingFeedbackKind::Upgrade);
+    }
+    return {};
 }
 
 std::span<const ModularAnimationScale>
@@ -430,13 +536,26 @@ App::modularAnimationScales(
         snapshot.modularWalls.size() +
         snapshot.ramps.size());
     const auto addScale =
-        [this, &scales](EntityId id, Vec3 center) {
+        [this, &scales](EntityId id, Vec3 center, double bottomY, double topY) {
             const float scale =
                 buildingAnimationScaleAt(center, id);
-            if (std::abs(scale - 1.0F) > 1e-4F) {
+            const auto feedback = buildingFeedbackHighlightAt(center, id, bottomY, topY);
+            if (std::abs(scale - 1.0F) > 1e-4F || feedback.sweep.z > 0) {
+                std::optional<Vec3> scaleOrigin;
+                for (const PresentationEffect& effect : effects_) {
+                    if (effect.type == PresentationEffectType::BuildingPlaced &&
+                        effect.entityId == id && effect.startDelayRemaining <= 0.0) {
+                        // ID-linked foundations use their owning building's
+                        // pivot; standalone pieces keep their normal pivot.
+                        scaleOrigin = effect.position;
+                        break;
+                    }
+                }
                 scales.push_back({
                     .id = id,
                     .scale = scale,
+                    .feedback = feedback,
+                    .scaleOrigin = scaleOrigin,
                 });
             }
         };
@@ -448,7 +567,10 @@ App::modularAnimationScales(
                 (frame.anchor.x + 1.0) * cellSize,
                 frame.floorHeight,
                 (frame.anchor.z + 1.0) * cellSize,
-            });
+            },
+            std::ranges::min(frame.supports, {}, [](const FoundationSupport& support) {
+                return support.bottom.y;
+            }).bottom.y, frame.floorHeight + .15);
     }
     for (const WallInstance& wall :
          snapshot.modularWalls) {
@@ -458,7 +580,7 @@ App::modularAnimationScales(
                 (wall.anchor.x + 0.5) * cellSize,
                 wall.bottomHeight,
                 (wall.anchor.z + 0.5) * cellSize,
-            });
+            }, wall.bottomHeight, wall.topHeight);
     }
     for (const RampInstance& ramp : snapshot.ramps) {
         const bool alongZ =
@@ -480,7 +602,7 @@ App::modularAnimationScales(
                 (ramp.anchor.z +
                  depthCells * 0.5) *
                     cellSize,
-            });
+            }, ramp.bottomHeight, ramp.topHeight + .15);
     }
     return std::span<const ModularAnimationScale>{scales};
 }
@@ -530,10 +652,7 @@ float App::gateOpenAmount(EntityId id, bool open) const {
 }
 
 float App::flamethrowerVisualYaw(const BuildingInstance& building) const {
-    const auto visual = std::ranges::find(
-        flamethrowerRotationVisuals_, building.id, &FlamethrowerRotationVisual::id);
-    return static_cast<float>(visual != flamethrowerRotationVisuals_.end()
-        ? visual->yaw : buildingRotationYaw(building.type, building.rotation));
+    return app_detail::towerYaw(simulation_.snapshot(), building);
 }
 
 } // namespace ian

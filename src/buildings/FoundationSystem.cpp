@@ -235,13 +235,6 @@ FoundationSystem::previewFloorPlatform(
     GridCoord anchor, int storey,
     double floorHeight,
     Vec3 playerPosition) const {
-    // Automatic foundations follow the building's exact footprint and may
-    // therefore use an odd anchor. Preserve it when stacking on a real frame;
-    // free/manual placement uses the same one-cell placement step.
-    if (storey <= 0 || !frameAt(anchor, storey - 1)) {
-        anchor.x = snapPlatformFrameAxis(anchor.x);
-        anchor.z = snapPlatformFrameAxis(anchor.z);
-    }
     PlatformFramePlacement placement{
         .anchor = anchor,
         .floorHeight = floorHeight,
@@ -289,27 +282,17 @@ FoundationSystem::previewFloorPlatform(
             .length = modularStoreyHeight(config),
         };
     }
-    const PlatformFrameInstance* previous =
-        frameAt(anchor, storey - 1);
-    if (!previous ||
-        previous->supportState !=
-            StructuralSupportState::Supported) {
+    // A 2x2 floor can straddle neighbouring frames. Check support for every
+    // cell rather than requiring a lower frame with the identical anchor.
+    if (!floorPlatformSupports(
+             anchor, storey - 1,
+             floorHeight - modularStoreyHeight(config)).complete) {
         placement.error =
             ModularPlacementError::NoSupport;
         return placement;
     }
-    const double baseElevation =
-        previous->floorHeight -
-        static_cast<double>(storey - 1) *
-            modularStoreyHeight(config);
-    const double expectedFloorHeight =
-        baseElevation +
-        static_cast<double>(storey) *
-            modularStoreyHeight(config);
-    if (std::abs(expectedFloorHeight - floorHeight) >
-        1e-6) {
-        placement.error =
-            ModularPlacementError::NoSupport;
+    if (floorOverlapsRampCells(anchor, storey)) {
+        placement.error = ModularPlacementError::Occupied;
         return placement;
     }
     const Vec3 center = grid_.worldCenter(
@@ -333,10 +316,68 @@ FoundationSystem::previewFloorPlatform(
     return placement;
 }
 
+bool FoundationSystem::floorOverlapsRampCells(GridCoord anchor, int storey) const {
+    for (const RampInstance& ramp : ramps_) {
+        if (ramp.targetStorey != storey) continue;
+        const int width = ramp.rotation == Rotation::Deg0 ||
+                ramp.rotation == Rotation::Deg180
+            ? ModularRampWidthCells : ModularRampRunCells;
+        const int depth = ramp.rotation == Rotation::Deg0 ||
+                ramp.rotation == Rotation::Deg180
+            ? ModularRampRunCells : ModularRampWidthCells;
+        if (anchor.x < ramp.anchor.x + width &&
+            anchor.x + PlatformFrameWidthCells > ramp.anchor.x &&
+            anchor.z < ramp.anchor.z + depth &&
+            anchor.z + PlatformFrameWidthCells > ramp.anchor.z)
+            return true;
+    }
+    return false;
+}
+
+const PlatformFrameInstance* FoundationSystem::frameAtCell(
+    int x, int z, int storey, double floorHeight,
+    bool requireSupported) const {
+    const auto frame = std::find_if(
+        platformFrames_.begin(), platformFrames_.end(),
+        [=](const PlatformFrameInstance& candidate) {
+            return candidate.storey == storey &&
+                std::abs(candidate.floorHeight - floorHeight) <= 1e-6 &&
+                (!requireSupported || candidate.supportState ==
+                    StructuralSupportState::Supported) &&
+                x >= candidate.anchor.x &&
+                x < candidate.anchor.x + PlatformFrameWidthCells &&
+                z >= candidate.anchor.z &&
+                z < candidate.anchor.z + PlatformFrameWidthCells;
+        });
+    return frame == platformFrames_.end() ? nullptr : &*frame;
+}
+
+FoundationSystem::FloorPlatformSupports
+FoundationSystem::floorPlatformSupports(
+    GridCoord anchor, int supportStorey, double supportHeight,
+    bool requireSupported) const {
+    FloorPlatformSupports result;
+    for (int z = 0; z < PlatformFrameWidthCells; ++z) {
+        for (int x = 0; x < PlatformFrameWidthCells; ++x) {
+            const auto* frame = frameAtCell(
+                anchor.x + x, anchor.z + z, supportStorey,
+                supportHeight, requireSupported);
+            if (!frame) {
+                result.complete = false;
+            } else if (std::ranges::find(result.ids, frame->id) == result.ids.end()) {
+                result.ids.push_back(frame->id);
+            }
+        }
+    }
+    return result;
+}
+
 std::optional<PlatformFrameInstance>
 FoundationSystem::placePlatformFrame(
     const PlatformFramePlacement& placement) {
-    if (!placement.valid()) {
+    if (!placement.valid() ||
+        (placement.storey > 0 &&
+         floorOverlapsRampCells(placement.anchor, placement.storey))) {
         return std::nullopt;
     }
     PlatformFrameInstance instance{
@@ -361,16 +402,13 @@ FoundationSystem::placePlatformFrame(
         graphAdded =
             structuralGraph_.add(instance.id, true);
     } else {
-        const PlatformFrameInstance* previous =
-            frameAt(instance.anchor, instance.storey - 1);
+        const auto sources = floorPlatformSupports(
+            instance.anchor, instance.storey - 1,
+            instance.floorHeight - modularStoreyHeight(grid_.config()));
         graphAdded =
-            previous &&
-            previous->supportState ==
-                StructuralSupportState::Supported &&
+            sources.complete &&
             structuralGraph_.add(
-                instance.id, false,
-                std::span<const EntityId>{
-                    &previous->id, 1U});
+                instance.id, false, sources.ids);
     }
     if (!graphAdded) {
         supports_.release(instance.supportIds);

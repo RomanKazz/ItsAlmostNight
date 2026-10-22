@@ -359,15 +359,15 @@
     },
     {
       "id": "upgrade_ricochet",
-      "title": "Get Ricochet to level 3",
-      "description": "Get Ricochet to level 3",
+      "title": "Get Gun Turret to level 3",
+      "description": "Get Gun Turret to level 3",
       "category": "upgrades",
       "conditions": [
         {
           "metric": "upgrade_level",
           "scope": "run",
           "target": 3,
-          "subject": "ricochet"
+          "subject": "unlock_gun_turret"
         }
       ],
       "prerequisites": [],

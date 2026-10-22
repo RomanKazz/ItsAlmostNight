@@ -4,6 +4,7 @@
 #include "buildings/BuildingOrientation.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
+#include "presentation/PresentationTimeline.hpp"
 
 #include "ui/UiLabels.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
@@ -12,7 +13,6 @@
 #include <raymath.h>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <ranges>
 #include <string>
@@ -25,21 +25,15 @@ using namespace app_detail;
 void App::processPresentationEvents(
     std::span<const GameEvent> events,
     const SimulationSnapshot& eventSnapshot) {
+    damageNumberObserverPosition_ = eventSnapshot.playerPosition;
     const auto setStatusMessage =
-        [this](std::string message, double duration,
-               bool lootDescription = false) {
-            if (!lootDescription && lootDescriptionRemaining_ > 0.0) {
-                return;
-            }
+        [this](std::string message, double duration) {
             if (statusMessageRemaining_ > 0.0 &&
                 statusMessage_ == message) {
                 statusMessageShakeRemaining_ = 0.22;
             }
             statusMessage_ = std::move(message);
             statusMessageRemaining_ = duration;
-            if (lootDescription) {
-                lootDescriptionRemaining_ = duration;
-            }
         };
     const auto addProductionVisual =
         [this](EntityId buildingId) {
@@ -88,7 +82,9 @@ void App::processPresentationEvents(
         [&enemyBounds](EntityId id, Vec3 fallback) {
             const auto bounds = enemyBounds(id);
             if (!bounds) {
-                return fallback;
+                return Vec3{
+                    fallback.x, fallback.y + 0.7,
+                    fallback.z};
             }
             return Vec3{
                 static_cast<double>((bounds->min.x + bounds->max.x) * 0.5F),
@@ -107,30 +103,67 @@ void App::processPresentationEvents(
                 static_cast<double>(bounds->min.y + height * 0.56F),
                 fallback.z};
         };
-    for (const auto& event : events) {
+    const auto isFlameHit = [](const GameEvent& event) {
+        return event.entityId && event.buildingType == BuildingType::Flamethrower &&
+            (event.type == GameEventType::ProjectileHit || event.type == GameEventType::FlamethrowerBurnHit);
+    };
+    const bool hasFlameFeedback = std::ranges::any_of(events, isFlameHit);
+    if (hasFlameFeedback) {
+        for (auto& feedback : flameHitFeedback_) feedback.firstEvent = std::numeric_limits<std::size_t>::max();
+        for (std::size_t index = 0; index < events.size(); ++index) {
+            const auto& event = events[index];
+            if (!isFlameHit(event)) continue;
+            auto& feedback = flameHitFeedback_[event.entityId->index % flameHitFeedback_.size()];
+            if (feedback.firstEvent == std::numeric_limits<std::size_t>::max()) {
+                feedback = {*event.entityId, index, event.damage, event.intensity, event.critical};
+            } else if (feedback.id == *event.entityId) {
+                feedback.damage += event.damage;
+                feedback.duration = std::max(feedback.duration, event.intensity);
+                feedback.critical |= event.critical;
+            }
+        }
+    }
+    for (std::size_t eventIndex = 0; eventIndex < events.size(); ++eventIndex) {
+        const GameEvent* currentEvent = &events[eventIndex];
+        GameEvent combinedFlameHit{};
+        if (isFlameHit(*currentEvent)) {
+            const auto& feedback = flameHitFeedback_[currentEvent->entityId->index % flameHitFeedback_.size()];
+            if (feedback.id == *currentEvent->entityId) {
+                if (feedback.firstEvent != eventIndex) continue;
+                combinedFlameHit = *currentEvent;
+                combinedFlameHit.damage = feedback.damage;
+                combinedFlameHit.intensity = feedback.duration;
+                combinedFlameHit.critical = feedback.critical;
+                currentEvent = &combinedFlameHit;
+            }
+        }
+        const auto& event = *currentEvent;
         const bool towerHit =
             event.type == GameEventType::ProjectileHit &&
             event.sourceId && event.buildingType &&
             (*event.buildingType == BuildingType::Turret ||
-             *event.buildingType == BuildingType::GunTurret || *event.buildingType == BuildingType::LaserTower);
-        bool towerShotVisualScheduled = false;
-        double towerDamageNumberDelay = 0.0;
+             *event.buildingType == BuildingType::GunTurret || *event.buildingType == BuildingType::MissileLauncher || *event.buildingType == BuildingType::TeslaTower || *event.buildingType == BuildingType::LaserTower);
+        const bool flameHit = (event.type == GameEventType::ProjectileHit ||
+            event.type == GameEventType::FlamethrowerBurnHit) &&
+            event.buildingType == BuildingType::Flamethrower;
         const bool enemyHit =
             (event.type == GameEventType::ProjectileHit &&
              !event.sourceId) ||
-            towerHit ||
+            towerHit || flameHit ||
             event.type == GameEventType::TrapHit ||
             event.type == GameEventType::CannonHit ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit ||
+            event.type == GameEventType::ItemHit ||
+            event.type == GameEventType::ItemBurnHit ||
             event.type == GameEventType::PoisonHit ||
             event.type == GameEventType::ChainLightningHit ||
             event.type == GameEventType::OverkillHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(
                 *event.entityId, event.damage);
-            if (!towerHit) {
+            if (!towerHit && !flameHit) {
                 startEnemyHitFlash(*event.entityId);
             }
         }
@@ -142,9 +175,10 @@ void App::processPresentationEvents(
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
             enemyHitFlashById_.clear();
-            displayedInsight_ = 0.0;
+            displayedInsightFraction_ = 0.0;
+            insightPulseRemaining_ = 0.0;
+            insightBarGlow_ = 0.0F;
             insightPointSequenceRemaining_ = 0.0;
-            lootDescriptionRemaining_ = 0.0;
             objectiveProgressCache_.clear();
             objectivePulseId_.clear();
             objectivePulseRemaining_ = 0.0;
@@ -156,8 +190,6 @@ void App::processPresentationEvents(
             objectiveCompletionTitle_.clear();
             objectiveCompletionReward_ = 0;
             objectiveCompletionRemaining_ = 0.0;
-            insightGainAmount_ = 0.0;
-            insightGainRemaining_ = 0.0;
         }
         if (event.type == GameEventType::InsightGranted) {
             const InsightConfig& insightConfig = simulation_.insightSystem().config();
@@ -170,14 +202,11 @@ void App::processPresentationEvents(
                 insightPointSequenceDuration_ = std::max(
                     0.05, insightConfig.hudPointSequenceSeconds);
                 insightPointSequenceRemaining_ = insightPointSequenceDuration_;
-                insightAnimationBefore_ = event.insightBefore;
-                insightAnimationAfter_ = event.insightAfter;
-                insightAnimationRequirement_ = event.insightRequirement;
-            }
-            if (event.insightAmount > 0.0 &&
-                event.insightSource != InsightSource::Objective) {
-                insightGainAmount_ += event.insightAmount;
-                insightGainRemaining_ = insightGainDuration_;
+                // Start at the visible fill, not the unsmoothed XP value.
+                insightAnimationStartFraction_ = displayedInsightFraction_ >= 0.0
+                    ? displayedInsightFraction_
+                    : presentation::insightFraction(
+                        event.insightBefore, event.insightRequirement);
             }
         }
         if (event.type == GameEventType::ObjectiveCompleted && event.objectiveId) {
@@ -208,7 +237,9 @@ void App::processPresentationEvents(
             event.type == GameEventType::RunRestarted) {
             playerArrival_.start();
         }
-        audio_.playEvent(event, eventSnapshot);
+        if (!towerHit) {
+            audio_.playEvent(event, eventSnapshot);
+        }
         if (event.type == GameEventType::EnemyMagicFired ||
             event.type == GameEventType::EnemyMagicImpact) {
             const bool impact = event.type == GameEventType::EnemyMagicImpact;
@@ -218,33 +249,23 @@ void App::processPresentationEvents(
                       static_cast<float>(event.intensity), event.sourceId);
             if(!effects_.empty()) effects_.back().variant=event.enemyType==EnemyType::Bee ? 2 : event.enemyType==EnemyType::Boss ? 1 : 0;
         }
-        if (event.type == GameEventType::PlayerDashed) {
-            Vec3 dustPosition = event.position;
-            dustPosition.y = simulation_.terrain().getHeight(
-                dustPosition.x, dustPosition.z) + 0.04;
-            addEffect(
-                PresentationEffectType::LandingDust,
-                dustPosition, 0.34, 0.72F);
-            addCameraImpulse({0.0, 0.002, -0.032});
-            addCameraShake(0.08, 0.009);
-        } else if (event.type == GameEventType::CannonFired &&
+        if (event.type == GameEventType::CannonFired &&
             event.sourceId &&
             event.buildingType != BuildingType::Catapult) {
             addBuildingShotRecoil(
                 *event.sourceId, 0.18, 0.13F);
         } else if (
-            event.type == GameEventType::ProjectileHit &&
-            event.sourceId && !event.secondaryImpact) {
+            event.type == GameEventType::TowerFired && event.sourceId && event.buildingType != BuildingType::WindBlower) {
             addBuildingShotRecoil(
                 *event.sourceId, 0.12, 0.075F);
         }
         const bool playerHit =
-            event.type == GameEventType::ResourceHit ||
-            event.type == GameEventType::ResourceCollected ||
+            ((event.type == GameEventType::ResourceHit ||
+              event.type == GameEventType::ResourceCollected) && !event.sourceId) ||
             event.type == GameEventType::PickaxeHit ||
-            event.type == GameEventType::ChainLightningHit ||
+            (event.type == GameEventType::ChainLightningHit && !event.buildingType && !event.sourceId) ||
             (event.type == GameEventType::ProjectileHit &&
-             !event.sourceId);
+             !event.sourceId && !event.buildingType);
         if (playerHit) {
             crosshairHitRemaining_ = crosshairHitDuration_;
             crosshairHitCritical_ = event.critical;
@@ -294,7 +315,9 @@ void App::processPresentationEvents(
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position)
                 : event.position;
-            addFloatingDamageNumber(numberPosition, event.damage, false);
+            addFloatingDamageNumber(
+                numberPosition, event.damage, false, 0.0,
+                event.entityId);
             if (event.critical) {
                 addEffect(PresentationEffectType::IceCrack,
                           event.position, 0.38, 0.55F,
@@ -317,11 +340,13 @@ void App::processPresentationEvents(
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position) : event.position;
             addFloatingDamageNumber(numberPosition, event.damage, false, 0.0, event.entityId);
-        } else if (event.type == GameEventType::FireWandHit) {
+        } else if (event.type == GameEventType::FireWandHit || flameHit) {
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position)
                 : event.position;
-            addFloatingDamageNumber(numberPosition, event.damage, false);
+            addFloatingDamageNumber(
+                numberPosition, event.damage, event.critical, 0.0,
+                event.entityId);
             if (event.entityId && event.intensity > 0.0) {
                 const auto existing = std::find_if(
                     effects_.begin(), effects_.end(),
@@ -332,9 +357,12 @@ void App::processPresentationEvents(
                     });
                 if (existing != effects_.end()) {
                     existing->position = event.position;
-                    existing->remaining = event.intensity;
-                    existing->duration = event.intensity;
+                    existing->remaining = flameHit
+                        ? std::max(existing->remaining, event.intensity) : event.intensity;
+                    existing->duration = flameHit
+                        ? std::max(existing->duration, event.intensity) : event.intensity;
                 } else {
+                    if (flameHit) startEnemyHitFlash(*event.entityId);
                     addEffect(
                         PresentationEffectType::EnemyBurn,
                         event.position, event.intensity, 1.0F,
@@ -345,7 +373,9 @@ void App::processPresentationEvents(
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position)
                 : event.position;
-            addFloatingDamageNumber(numberPosition, event.damage, false);
+            addFloatingDamageNumber(
+                numberPosition, event.damage, false, 0.0,
+                event.entityId);
         } else if (
             event.type == GameEventType::PickaxeHit ||
             (!event.sourceId &&
@@ -402,8 +432,14 @@ void App::processPresentationEvents(
                 event.position,
                 event.intensity > 0.0 ? event.intensity : 1.15,
                 1.0F, event.entityId);
-        } else if (event.type == GameEventType::MissileExplosion) {
-            addEffect(PresentationEffectType::Explosion,event.position,.55,static_cast<float>(event.intensity)*.55F,event.entityId);
+        } else if (event.type == GameEventType::ItemExplosion || event.type == GameEventType::MissileExplosion) {
+            addEffect(PresentationEffectType::Explosion, event.position, 0.55,
+                static_cast<float>(event.intensity) * 0.55F, event.entityId);
+        } else if (event.type == GameEventType::ItemIceShatter) {
+            addEffect(PresentationEffectType::IceCrack, event.position, 0.60,
+                static_cast<float>(event.intensity) * 0.6F, event.entityId);
+        } else if (event.type == GameEventType::ItemBurnHit) {
+            addEffect(PresentationEffectType::EnemyBurn, event.position, 0.60, 0.7F, event.entityId);
         } else if (event.type == GameEventType::ChainLightningHit &&
             event.entityId && event.targetPosition) {
             // Lightning should connect through the enemies' torsos. The
@@ -452,6 +488,9 @@ void App::processPresentationEvents(
             toolContactHoldRemaining_ = std::max(
                 toolContactHoldRemaining_, 0.04);
         }
+        if (event.type == GameEventType::BuildingRejected && event.placementError) {
+            setStatusMessage(localizeText(std::string{placementErrorMessage(*event.placementError)}), 1.8);
+        }
         if (event.type == GameEventType::BuildingRejected ||
             event.type ==
                 GameEventType::BuildingUpgradeRejected ||
@@ -469,155 +508,44 @@ void App::processPresentationEvents(
                 GameEventType::ChestOpenRejected) {
             invalidActionRemaining_ = 0.22;
         }
-        if (event.type == GameEventType::ProjectileHit &&
-            event.sourceId && !event.secondaryImpact) {
-            const auto source = std::find_if(
-                eventSnapshot.buildings.begin(),
-                eventSnapshot.buildings.end(),
-                [&event](const BuildingInstance& building) {
-                    return building.id == *event.sourceId &&
-                           (building.type == BuildingType::Turret ||
-                            building.type == BuildingType::GunTurret);
-                });
-            if (source != eventSnapshot.buildings.end()) {
-                Vec3 origin = buildingWorldPosition(*source);
-                Vec3 projectileTarget = event.position;
-                std::optional<Vec3> authoredDirection;
-                const bool gunTurret =
-                    source->type == BuildingType::GunTurret;
-                if (gunTurret) {
-                    const auto runtime = std::find_if(
-                        eventSnapshot.towers.begin(),
-                        eventSnapshot.towers.end(),
-                        [&source](const TowerRuntime& tower) {
-                            return tower.buildingId == source->id;
-                        });
-                    const float yaw = runtime != eventSnapshot.towers.end()
-                        ? static_cast<float>(runtime->yaw)
-                        : static_cast<float>(buildingRotationYaw(
-                              source->type, source->rotation));
-                    origin = renderer_->gunTurretMuzzlePosition(
-                        origin, yaw,
-                        static_cast<std::size_t>(std::max(0, event.amount)));
-                    if (event.entityId) {
-                        if (const auto bounds = enemyBounds(*event.entityId)) {
-                            projectileTarget.y =
-                                (static_cast<double>(bounds->min.y) +
-                                 static_cast<double>(bounds->max.y)) * 0.5;
-                        }
-                    }
-                } else {
-                    const auto runtime = std::find_if(
-                        eventSnapshot.towers.begin(),
-                        eventSnapshot.towers.end(),
-                        [&source](const TowerRuntime& tower) {
-                            return tower.buildingId == source->id;
-                        });
-                    const float yaw = runtime != eventSnapshot.towers.end()
-                        ? static_cast<float>(runtime->yaw)
-                        : static_cast<float>(buildingRotationYaw(
-                              source->type, source->rotation));
-                    const float pitch = runtime != eventSnapshot.towers.end()
-                        ? static_cast<float>(runtime->pitch) : 0.0F;
-                    origin = renderer_->crossbowMuzzlePosition(
-                        origin, yaw, pitch);
-                    const double horizontal = std::cos(
-                        static_cast<double>(pitch));
-                    authoredDirection = Vec3{
-                        -std::sin(static_cast<double>(yaw)) * horizontal,
-                        std::sin(static_cast<double>(pitch)),
-                        -std::cos(static_cast<double>(yaw)) * horizontal,
-                    };
+        if (event.type == GameEventType::TowerFired && event.buildingType) {
+            audio_.playDefenseShot(*event.buildingType, event.position, eventSnapshot);
+            if (*event.buildingType == BuildingType::GunTurret) {
+                addEffect(PresentationEffectType::TurretMuzzleFlash, event.position, 0.10, 1.0F);
+                double yaw = 0.0;
+                if (event.sourceId) {
+                    const auto runtime = std::ranges::find(
+                        eventSnapshot.towers, *event.sourceId, &TowerRuntime::buildingId);
+                    if (runtime != eventSnapshot.towers.end()) yaw = runtime->yaw;
                 }
-                const double deltaX = projectileTarget.x - origin.x;
-                const double deltaY = projectileTarget.y - origin.y;
-                const double deltaZ = projectileTarget.z - origin.z;
-                const double distance = std::sqrt(
-                    deltaX * deltaX + deltaY * deltaY +
-                    deltaZ * deltaZ);
-                const double duration =
-                    std::clamp(distance / (gunTurret ? 32.0 : 14.0),
-                               gunTurret ? 0.10 : 0.14,
-                               gunTurret ? 0.32 : 0.52);
-                constexpr std::size_t MaximumShotVisuals = 1024;
-                if (arrowVisuals_.size() < MaximumShotVisuals) {
-                    arrowVisuals_.push_back({
-                        .origin = origin,
-                        .target = projectileTarget,
-                        .direction = authoredDirection.value_or(Vec3{
-                            deltaX, deltaY, deltaZ}),
-                        .remaining = duration,
-                        .duration = duration,
-                        .bulletAppearance = presentation::bulletAppearance(
-                            event.projectileDamage),
-                        .turretBullet = gunTurret,
-                        .flashTarget = event.entityId,
-                    });
-                    towerShotVisualScheduled = true;
-                    towerDamageNumberDelay = duration;
-                }
-            }
-        } else if (event.type == GameEventType::ProjectileHit &&
-                   event.secondaryImpact && event.targetPosition) {
-            const Vec3 origin = *event.targetPosition;
-            Vec3 target = event.position;
-            if (event.entityId) {
-                if (const auto bounds = enemyBounds(*event.entityId)) {
-                    target.y =
-                        (static_cast<double>(bounds->min.y) +
-                         static_cast<double>(bounds->max.y)) * 0.5;
-                }
-            }
-            const double deltaX = target.x - origin.x;
-            const double deltaY = target.y - origin.y;
-            const double deltaZ = target.z - origin.z;
-            const double distance = std::sqrt(
-                deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-            constexpr std::size_t MaximumShotVisuals = 1024;
-            if (arrowVisuals_.size() < MaximumShotVisuals) {
-                const double duration = std::clamp(
-                    distance / 24.0, 0.10, 0.28);
-                double startDelay = 0.0;
-                // Secondary projectiles are simulated immediately, but each
-                // visible segment starts when the previous one reaches this
-                // enemy. This makes ricochets read as one travelling chain.
-                for (auto previous = arrowVisuals_.rbegin();
-                     previous != arrowVisuals_.rend(); ++previous) {
-                    const double linkX = previous->target.x - origin.x;
-                    const double linkZ = previous->target.z - origin.z;
-                    if (linkX * linkX + linkZ * linkZ <
-                        0.75 * 0.75) {
-                        startDelay = previous->startDelayRemaining +
-                            previous->remaining;
-                        break;
-                    }
-                }
-                arrowVisuals_.push_back({
-                    .origin = origin,
-                    .target = target,
-                    .direction = {deltaX, deltaY, deltaZ},
-                    .remaining = duration,
-                    .duration = duration,
-                    .startDelayRemaining = startDelay,
-                    .bulletAppearance = presentation::bulletAppearance(
-                        event.projectileDamage),
-                    .turretBullet =
-                        event.buildingType == BuildingType::GunTurret,
-                    .shrapnel = event.amount < 0,
-                    .flashTarget = event.entityId,
-                });
-                towerShotVisualScheduled = true;
-                towerDamageNumberDelay = startDelay + duration;
+                // A launch owns its flash even if the physical bullet hits
+                // an adjacent enemy immediately or the pool reuses its slot.
+                effects_.back().targetPosition = Vec3{
+                    event.position.x - std::sin(yaw), event.position.y,
+                    event.position.z - std::cos(yaw)};
+            } else if (*event.buildingType != BuildingType::WindBlower) {
+                addEffect(PresentationEffectType::Hit, event.position, 0.06, 0.35F);
             }
         }
         if (towerHit && event.entityId && event.damage > 0.0) {
             addFloatingDamageNumber(
                 enemyDamageAnchor(*event.entityId, event.position),
-                event.damage, false, towerDamageNumberDelay);
+                event.damage, event.critical, 0.0,
+                event.entityId);
         }
-        if (towerHit && event.entityId &&
-            !towerShotVisualScheduled) {
-            startEnemyHitFlash(*event.entityId);
+        if (event.type == GameEventType::ProjectileHit &&
+            !event.sourceId && event.entityId && event.damage > 0.0) {
+            addFloatingDamageNumber(
+                enemyDamageAnchor(*event.entityId, event.position),
+                event.damage, false, 0.0, event.entityId);
+        }
+        if (towerHit) {
+            if (event.buildingType != BuildingType::MissileLauncher && event.buildingType != BuildingType::TeslaTower && event.buildingType != BuildingType::LaserTower) audio_.playTurretImpact(event.position, eventSnapshot, event.secondaryImpact);
+            if (event.entityId) startEnemyHitFlash(*event.entityId);
+            if (event.buildingType == BuildingType::GunTurret) {
+                addEffect(PresentationEffectType::GunBulletImpact, event.position, 0.18, 1.0F);
+                effects_.back().bulletAppearance = presentation::bulletAppearance(event.projectileDamage);
+            }
         }
         if (event.type == GameEventType::CannonFired &&
             event.buildingType != BuildingType::Catapult) {
@@ -659,6 +587,19 @@ void App::processPresentationEvents(
                     static_cast<float>(event.position.y),
                     static_cast<float>(event.position.z),
                 };
+                const Vector3 playerViewPosition{
+                    static_cast<float>(eventSnapshot.playerPosition.x),
+                    static_cast<float>(eventSnapshot.playerPosition.y),
+                    static_cast<float>(eventSnapshot.playerPosition.z),
+                };
+                const float playerDistance = Vector3Distance(
+                    hitPosition, playerViewPosition);
+                const float proximity = std::clamp(
+                    (playerDistance - 1.25F) / 4.0F, 0.0F, 1.0F);
+            const float fragmentSizeScale =
+                0.9F + 0.1F * proximity;
+                const float outwardSpeedScale =
+                    0.25F + 0.75F * proximity;
                 Vector3 impactNormal{0.0F, 1.0F, 0.0F};
                 if (event.targetPosition) {
                     impactNormal = Vector3Subtract(
@@ -736,7 +677,7 @@ void App::processPresentationEvents(
                             impactNormal,
                             (1.15F +
                              randomUnit(seed ^ 0x68e31da4U) * 0.85F) *
-                                burstSpeed),
+                                burstSpeed * outwardSpeedScale),
                         Vector3Scale(
                             Vector3Add(
                                 Vector3Scale(tangent, std::cos(angle)),
@@ -759,10 +700,12 @@ void App::processPresentationEvents(
                          event.position.z + impactNormal.z * 0.06},
                         duration,
                         resourceDestroyed
-                            ? 0.22F +
-                                  randomUnit(seed ^ 0xd8163841U) * 0.15F
-                            : 0.18F +
-                                  randomUnit(seed ^ 0xd8163841U) * 0.12F,
+                            ? (0.22F +
+                                  randomUnit(seed ^ 0xd8163841U) * 0.15F) *
+                                  fragmentSizeScale
+                            : (0.18F +
+                                  randomUnit(seed ^ 0xd8163841U) * 0.12F) *
+                                  fragmentSizeScale,
                         event.entityId);
                     effects_.back().targetPosition = Vec3{
                         velocity.x, velocity.y, velocity.z};
@@ -785,7 +728,7 @@ void App::processPresentationEvents(
                    event.entityId) {
             addFloatingDamageNumber(
                 enemyDamageAnchor(*event.entityId, event.position),
-                event.damage, false);
+                event.damage, false, 0.0, event.entityId);
         } else if (event.type == GameEventType::ResourceCollected) {
             if (event.resourceType) {
                 const auto node = std::find_if(
@@ -1102,12 +1045,12 @@ void App::processPresentationEvents(
             }
             effectScale *= 1.15F;
             addEffect(PresentationEffectType::BuildingUpgrade,
-                      event.position, 0.85, effectScale);
+                      event.position, 1.25 / 1.5, effectScale, event.entityId);
         } else if (event.type ==
                    GameEventType::WorldLandmarkActivated) {
             addEffect(
                 PresentationEffectType::BuildingUpgrade,
-                event.position, 1.05, 1.8F,
+                event.position, 1.05 / 1.5, 1.8F,
                 event.entityId);
             addCameraImpulse({0.0, 0.025, -0.012});
         } else if (event.type ==
@@ -1123,10 +1066,10 @@ void App::processPresentationEvents(
                    event.entityId && event.buildingType) {
             addEffect(
                 PresentationEffectType::BuildingRepaired,
-                event.position, 0.62,
+                event.position, 1.15 / 1.5,
                 static_cast<float>(
                     buildingFootprintHalfExtent(
-                        *event.buildingType)));
+                        *event.buildingType)), event.entityId);
             targetHealthBar_.notifyRepair(*event.entityId);
             recentlyDamagedBuilding_ = *event.entityId;
             damagedBuildingHealthBarRemaining_ = 1.25;
@@ -1136,7 +1079,7 @@ void App::processPresentationEvents(
             event.entityId) {
             addEffect(
                 PresentationEffectType::BuildingRepaired,
-                event.position, 0.62, 1.0F);
+                event.position, 1.15 / 1.5, 1.0F, event.entityId);
             targetHealthBar_.notifyRepair(*event.entityId);
             recentlyDamagedBuilding_ = *event.entityId;
             damagedBuildingHealthBarRemaining_ = 1.25;
@@ -1201,7 +1144,7 @@ void App::processPresentationEvents(
                     addResourceGainVisual(
                         *event.resourceType,
                         buildingProductionVisualWorldAnchor(*producer),
-                        event.amount, false);
+                        event.amount, true, true);
                     addProductionVisual(*event.entityId);
                 }
             }
@@ -1216,7 +1159,7 @@ void App::processPresentationEvents(
                 addResourceGainVisual(
                     ResourceType::Crystal,
                     buildingProductionVisualWorldAnchor(*producer),
-                    event.amount, false);
+                    event.amount, true, true);
                 addProductionVisual(*event.entityId);
             }
         } else if (event.type == GameEventType::CoinCollected &&
@@ -1231,7 +1174,8 @@ void App::processPresentationEvents(
                 numberPosition.y += 1.2;
             }
             addFloatingDamageNumber(
-                numberPosition, event.damage, event.critical);
+                numberPosition, event.damage, event.critical,
+                0.0, event.entityId);
         }
         constexpr std::size_t MaxDestroyedEnemyVisuals =
             192U;
@@ -1240,6 +1184,7 @@ void App::processPresentationEvents(
             event.entityId &&
             destroyedEnemyVisuals_.size() <
                 MaxDestroyedEnemyVisuals) {
+            double fadeDelay = 0.0;
             const auto enemy = std::find_if(
                 eventSnapshot.enemies.begin(),
                 eventSnapshot.enemies.end(),
@@ -1251,8 +1196,13 @@ void App::processPresentationEvents(
             const bool splittingDeath = event.type == GameEventType::EnemyKilled &&
                 ((enemy != eventSnapshot.enemies.end() && enemy->splitAnimationRemaining > 0.0) ||
                  event.enemyType == EnemyType::Splitter);
+            const bool flashOnDeath =
+                event.type == GameEventType::EnemyKilled;
+            const double deathDuration = flashOnDeath
+                ? EnemyHitFlashDuration + EnemyDeathHoldDuration +
+                      EnemyDeathFadeDuration
+                : 0.12;
             if (!splittingDeath && enemy != eventSnapshot.enemies.end()) {
-                constexpr double DeathDuration = 0.9;
                 destroyedEnemyVisuals_.push_back({
                     .type = enemy->type,
                     .eliteAffixes = enemy->eliteAffixes,
@@ -1260,21 +1210,24 @@ void App::processPresentationEvents(
                     .surfaceHeightOffset =
                         enemy->surfaceHeightOffset,
                     .yaw = enemy->yaw,
-                    .remaining = DeathDuration,
-                    .duration = DeathDuration,
+                    .remaining = deathDuration,
+                    .duration = deathDuration,
+                    .startDelayRemaining = fadeDelay,
+                    .flashOnDeath = flashOnDeath,
                     .summonerId = enemy->summonerId,
                     .bossHoverOffset = enemy->bossHoverOffset,
                 });
             } else if (!splittingDeath && event.enemyType) {
-                constexpr double DeathDuration = 0.9;
                 destroyedEnemyVisuals_.push_back({
                     .type = *event.enemyType,
                     .eliteAffixes = event.enemyEliteAffixes,
                     .position = event.position,
                     .surfaceHeightOffset = 0.0,
                     .yaw = 0.0,
-                    .remaining = DeathDuration,
-                    .duration = DeathDuration,
+                    .remaining = deathDuration,
+                    .duration = deathDuration,
+                    .startDelayRemaining = fadeDelay,
+                    .flashOnDeath = flashOnDeath,
                 });
             }
         }
@@ -1302,6 +1255,11 @@ void App::processPresentationEvents(
             addDamageIndicator(event.position, eventSnapshot, false);
         } else if (event.type == GameEventType::BossRamImpact) {
             addDamageIndicator(event.position, eventSnapshot, true);
+        } else if (event.type == GameEventType::ChestOpened) {
+            addEffect(PresentationEffectType::ChestOpened,
+                      event.position, 0.58, 1.0F, event.entityId);
+            addCameraImpulse({0.0, 0.018, -0.014});
+            addCameraShake(0.10, 0.010);
         } else if (event.type == GameEventType::LootCollected) {
             if (event.lootRarity && event.lootUpgradeEffect) {
                 addLootPickupEffect(
@@ -1312,7 +1270,8 @@ void App::processPresentationEvents(
                           event.position, 0.96, 0.88F,
                           event.entityId);
             }
-            addCameraImpulse({0.0, 0.012, -0.008});
+            addCameraImpulse({0.0, 0.024, -0.018});
+            addCameraShake(0.12, 0.014);
         } else if (event.type == GameEventType::BattlePotionActivated) {
             addLootPickupEffect(
                 event.position, LootRarity::Rare,
@@ -1335,15 +1294,7 @@ void App::processPresentationEvents(
         }
 
         std::string message;
-        if (event.type == GameEventType::AttackDirectionWarned &&
-            event.critical) {
-            constexpr std::array<const char*, 4> Directions{
-                "NORTH", "EAST", "SOUTH", "WEST"};
-            if (event.amount >= 0 && event.amount < 4) {
-                message = std::string("HORDE FROM ") +
-                    Directions[static_cast<std::size_t>(event.amount)];
-            }
-        } else if (event.type == GameEventType::BuildingUpgraded && event.buildingType) {
+        if (event.type == GameEventType::BuildingUpgraded && event.buildingType) {
             message =
                 std::string(buildingDisplayName(
                     *event.buildingType)) +
@@ -1474,7 +1425,7 @@ void App::processPresentationEvents(
             message = "Not enough Coins";
         } else if (event.type ==
                    GameEventType::WorldLandmarkActivated) {
-            message = event.resourceType == ResourceType::Stone
+            message = !event.resourceType ? "Shrine activated — choose a blessing" : event.resourceType == ResourceType::Stone
                 ? "Mine activated — producing Stone"
                 : "Lumber mill activated — producing Wood";
         } else if (event.type == GameEventType::CrystalStorageFull) {
@@ -1486,18 +1437,9 @@ void App::processPresentationEvents(
                 : *event.resourceType == ResourceType::Stone
                     ? "Stone storage full"
                     : "Crystal storage full";
-        } else if (event.type == GameEventType::LootCollected &&
-                   event.lootRarity && event.lootUpgradeEffect) {
-            message = std::string(lootRarityName(*event.lootRarity)) +
-                " " + lootUpgradeName(*event.lootUpgradeEffect) +
-                " — " + lootUpgradeDescription(*event.lootUpgradeEffect);
         }
         if (!message.empty()) {
-            const bool lootDescription =
-                event.type == GameEventType::LootCollected;
-            setStatusMessage(
-                std::move(message), lootDescription ? 4.0 : 2.5,
-                lootDescription);
+            setStatusMessage(std::move(message), 2.5);
         }
     }
 }

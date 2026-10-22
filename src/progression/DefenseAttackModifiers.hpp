@@ -16,12 +16,10 @@ inline constexpr std::array DefenseAttackUpgradeBindings{
     AttackUpgradeBinding{RunUpgradeEffect::DefenseDamage, AttackStat::Damage, 0.0, 0.12},
     AttackUpgradeBinding{RunUpgradeEffect::DefenseFireRate, AttackStat::AttackSpeed, 0.0, 0.10},
     AttackUpgradeBinding{RunUpgradeEffect::ProjectileCount, AttackStat::Quantity, 1.0, 0.0},
-    AttackUpgradeBinding{RunUpgradeEffect::Bounces, AttackStat::Bounces, 1.0, 0.0},
-    AttackUpgradeBinding{RunUpgradeEffect::Pierce, AttackStat::Pierce, 1.0, 0.0},
     AttackUpgradeBinding{RunUpgradeEffect::ProjectileSpeed, AttackStat::ProjectileSpeed, 0.0, 0.20},
     AttackUpgradeBinding{RunUpgradeEffect::AttackDuration, AttackStat::Duration, 0.0, 0.20},
     AttackUpgradeBinding{RunUpgradeEffect::AttackSize, AttackStat::Size, 0.0, 0.15},
-    AttackUpgradeBinding{RunUpgradeEffect::CriticalChance, AttackStat::CritChance, 0.05, 0.0},
+    AttackUpgradeBinding{RunUpgradeEffect::CriticalChance, AttackStat::CritChance, 0.075, 0.0},
     AttackUpgradeBinding{RunUpgradeEffect::CriticalDamage, AttackStat::CritDamage, 0.0, 0.25},
     AttackUpgradeBinding{RunUpgradeEffect::AttackKnockback, AttackStat::Knockback, 0.0, 0.20},
 };

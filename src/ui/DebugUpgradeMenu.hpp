@@ -4,6 +4,7 @@
 #include "ui/GameUi.hpp"
 #include "ui/UiItemTooltip.hpp"
 #include "ui/UiViewport.hpp"
+#include "ui/PowerupIcon.hpp"
 
 #include <charconv>
 #include <limits>
@@ -12,12 +13,13 @@
 namespace ian {
 
 using DebugUpgradeSelection = std::array<bool, RunUpgradeEffectCount>;
-enum class DebugUpgradeCategory { All, Player, Defense, Economy, Unlocks, Utility };
+enum class DebugUpgradeCategory { All, Player, Defense, Economy, Unlocks, Utility, Powerups };
 enum class DebugUpgradeField { None, Search, Count };
 struct DebugUpgradeGrant {
     DebugUpgradeSelection selected{};
     int count{1};
     RunUpgradeRarity rarity{RunUpgradeRarity::Common};
+    std::optional<PowerupType> powerup{};
 };
 struct DebugUpgradeMenuState {
     DebugUpgradeSelection selected{};
@@ -25,6 +27,7 @@ struct DebugUpgradeMenuState {
     DebugUpgradeField field{};
     RunUpgradeRarity rarity{RunUpgradeRarity::Common};
     RunUpgradeEffect focused{RunUpgradeEffect::DefenseDamage};
+    PowerupType focusedPowerup{PowerupType::Magnet};
     std::string search;
     std::string countText{"1"};
     std::string feedback;
@@ -115,7 +118,7 @@ inline void debugUpgradeBackspace(std::string& value) {
 inline bool debugUpgradeGrantable(RunUpgradeEffect effect, const SimulationSnapshot& snapshot) {
     if (const auto building = runUpgradeBuilding(effect)) {
         if (runSlottedBuilding(*building))
-            return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] < MaxBuildingLevel;
+            return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] < MaxStructureLevel;
         const auto* character = playerClassDefinition(snapshot.playerClass);
         const auto starting = character ? character->startingBuilding : BuildingType::GunTurret;
         return *building != starting && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0;
@@ -140,7 +143,7 @@ inline void debugUpgradeSelect(DebugUpgradeMenuState& state, RunUpgradeEffect ef
 
 struct DebugUpgradeMenuLayout {
     Rectangle panel{}, catalog{}, details{}, search{}, clearSearch{}, close{};
-    std::array<Rectangle, 6> tabs{};
+    std::array<Rectangle, 7> tabs{};
     Rectangle selectVisible{}, clearSelection{}, count{}, minus{}, plus{}, grant{};
     std::array<Rectangle, 5> rarities{};
     std::array<Rectangle, 4> presets{};
@@ -171,7 +174,7 @@ inline DebugUpgradeMenuLayout debugUpgradeMenuLayout(Vector2 screen) {
     l.clearSearch = r(28+catalogWidth-54,112,54,54);
     l.close = r(width-76,28,48,48);
     for (std::size_t i=0;i<l.tabs.size();++i)
-        l.tabs[i]=r(28+static_cast<float>(i)*(catalogWidth+8)/6,180,(catalogWidth-40)/6,40);
+        l.tabs[i]=r(28+static_cast<float>(i)*(catalogWidth+8)/7,180,(catalogWidth-48)/7,40);
     l.catalog = r(28,234,catalogWidth,l.portrait ? 522 : 538);
     l.selectVisible = r(28,l.portrait?772:790,238,54);
     l.clearSelection = r(280,l.portrait?772:790,238,54);
@@ -214,7 +217,8 @@ inline DebugUpgradeMenuResult drawDebugUpgradeMenu(GameUi& ui, const SimulationS
     result.close=ms::closeButton(l.close,s,input.pointer,input.click);
 
     if(input.click) state.field=CheckCollisionPointRec(input.pointer,l.search)?DebugUpgradeField::Search
-        :CheckCollisionPointRec(input.pointer,l.count)?DebugUpgradeField::Count:DebugUpgradeField::None;
+        :state.category!=DebugUpgradeCategory::Powerups && CheckCollisionPointRec(input.pointer,l.count)
+            ?DebugUpgradeField::Count:DebugUpgradeField::None;
     if(state.field!=DebugUpgradeField::None) {
         auto& value=state.field==DebugUpgradeField::Search?state.search:state.countText;
         const std::string before=value;
@@ -238,14 +242,74 @@ inline DebugUpgradeMenuResult drawDebugUpgradeMenu(GameUi& ui, const SimulationS
         {l.search.x+16*s,l.search.y,l.search.width-32*s,l.search.height},20,
         state.search.empty()?ms::Muted:ms::Cream,UiFontRole::Body);
     if(button(l.clearSearch,"X")){state.search.clear();state.scroll=0;}
-    constexpr std::array<std::string_view,6> Categories{"ALL","PLAYER","DEFENSE","ECONOMY","UNLOCKS","UTILITY"};
-    for(std::size_t i=0;i<6;++i) {
+    constexpr std::array<std::string_view,7> Categories{"ALL","PLAYER","DEFENSE","ECONOMY","UNLOCKS","UTILITY","POWERUPS"};
+    for(std::size_t i=0;i<Categories.size();++i) {
         const bool selected=static_cast<std::size_t>(state.category)==i;
         ms::panel(l.tabs[i],s,selected?ms::Selected:ms::Card);
-        label(Categories[i],l.tabs[i],17,ms::Cream,UiFontRole::Display,1);
+        label(Categories[i],l.tabs[i],15,ms::Cream,UiFontRole::Display,1);
         if(input.click&&CheckCollisionPointRec(input.pointer,l.tabs[i])) {
             state.category=static_cast<DebugUpgradeCategory>(i);state.scroll=0;
         }
+    }
+    if (state.category == DebugUpgradeCategory::Powerups) {
+        // Temporary buffs bypass permanent-upgrade count and rarity controls.
+        const auto powerupColor = [](PowerupType type) {
+            return type == PowerupType::Fury ? Color{192,85,255,255}
+                : type == PowerupType::GoldRush ? Color{255,203,36,255}
+                : Color{66,222,255,255};
+        };
+        const auto drawIcon = [&](PowerupType type, Rectangle bounds, bool selected = false) {
+            const Color tint = selected && type == PowerupType::GoldRush
+                ? Color{75,54,19,255} : powerupColor(type);
+            drawPowerupIconGeometry(type, [&](Vector2 a, Vector2 b, Vector2 c) {
+                const auto point = [&](Vector2 p) {
+                    return Vector2{bounds.x+bounds.width*(.5F+p.x*.45F),
+                        bounds.y+bounds.height*(.5F+p.y*.45F)};
+                };
+                DrawTriangle(point(a),point(b),point(c),tint);
+                DrawTriangle(point(c),point(b),point(a),tint);
+            });
+        };
+        int visibleCount = 0;
+        const ScopedSdfUiTextCache directText(false);
+        for (std::size_t i=0;i<PowerupTypeCount;++i) {
+            const auto type = static_cast<PowerupType>(i);
+            const auto& definition = PowerupDefinitions[i];
+            const std::string haystack = std::string(definition.name)+" "+std::string(definition.description)
+                +" "+localizeText(definition.name)+" "+localizeText(definition.description);
+            if (!state.search.empty() && debugUpgradeFold(haystack).find(debugUpgradeFold(state.search)) == std::string::npos) continue;
+            const auto bounds = l.card(visibleCount++,0);
+            const bool hover = CheckCollisionPointRec(input.pointer,bounds);
+            if (hover && input.click) state.focusedPowerup = type;
+            ms::panel(bounds,s,state.focusedPowerup==type?ms::Selected:hover?ms::Hover:ms::Card);
+            drawIcon(type,{bounds.x+18*s,bounds.y+24*s,50*s,50*s},state.focusedPowerup==type);
+            label(definition.name,{bounds.x+82*s,bounds.y+12*s,bounds.width-98*s,44*s},19);
+            const double remaining = snapshot.powerups.remaining[i];
+            label(remaining>0 ? localizeText("ACTIVE")+" · "+TextFormat("%.0f s",std::ceil(remaining))
+                             : localizeText("READY"),
+                {bounds.x+82*s,bounds.y+61*s,bounds.width-100*s,26*s},15,
+                remaining>0?ms::Green:ms::Muted,UiFontRole::Body);
+        }
+        if (!visibleCount) label("NO MATCHING UPGRADES",l.catalog,24,ms::Muted,UiFontRole::Display,1);
+        label("SELECT A POWERUP, THEN ACTIVATE IT.",
+            {l.selectVisible.x,l.selectVisible.y,l.catalog.width,l.selectVisible.height},18,ms::Muted,UiFontRole::Body);
+        ms::panel(l.details,s,ms::Inset);
+        const auto d=[&](float x,float y,float w,float h){return Rectangle{l.details.x+x*s,l.details.y+y*s,w*s,h*s};};
+        const float dw=l.details.width/s;
+        const auto& definition=PowerupDefinitions[static_cast<std::size_t>(state.focusedPowerup)];
+        drawIcon(state.focusedPowerup,d(26,26,70,70));
+        label(definition.name,d(120,22,dw-140,54),25,ms::Gold);
+        const auto lines=itemTooltipLines(localizeText(definition.description),(dw-40)*s,19*s);
+        for(std::size_t i=0;i<lines.size();++i)
+            label(lines[i],d(20,124+26*static_cast<float>(i),dw-40,26),19,ms::Cream,UiFontRole::Body);
+        label("DURATION",d(20,244,dw-40,28),17,ms::Muted);
+        label(TextFormat("%.0f s",definition.duration),d(20,280,dw-40,48),28,powerupColor(state.focusedPowerup));
+        const auto notes=itemTooltipLines(localizeText("Repeated grants refresh the timer."),(dw-40)*s,17*s);
+        for(std::size_t i=0;i<notes.size();++i)
+            label(notes[i],d(20,360+24*static_cast<float>(i),dw-40,24),17,ms::Muted,UiFontRole::Body);
+        if (button(l.grant,"ACTIVATE POWERUP",23) || (input.enter && state.field!=DebugUpgradeField::Search))
+            result.grant=DebugUpgradeGrant{.powerup=state.focusedPowerup};
+        return result;
     }
     std::array<RunUpgradeEffect,RunUpgradeEffectCount> visible{};
     int visibleCount=0;

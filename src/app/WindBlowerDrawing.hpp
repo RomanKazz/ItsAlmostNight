@@ -16,12 +16,13 @@ inline void draw(const SimulationSnapshot& snapshot, const Camera3D& camera, boo
     const auto vertex=[](Vector3 p,Color c) {rlColor4ub(c.r,c.g,c.b,c.a);rlVertex3f(p.x,p.y,p.z);};
     int visible=0;
     for(const auto& tower:snapshot.towers) {
-        if(tower.type!=BuildingType::WindBlower || tower.windAge>=WindBlowerPulseSeconds)continue;
+        const double duration=std::max(WindBlowerPulseSeconds,tower.attack.stats.duration);
+        if(tower.type!=BuildingType::WindBlower || tower.windAge>=duration)continue;
         const Vector3 origin{float(tower.windOrigin.x),float(tower.windOrigin.y),float(tower.windOrigin.z)};
         const Vector3 offset=Vector3Subtract(origin,camera.position);
         if(Vector3LengthSqr(offset)>2500 || Vector3DotProduct(offset,view)<-8)continue;
         if(++visible>24)break;
-        const float age=float(tower.windAge/WindBlowerPulseSeconds);
+        const float age=float(tower.windAge/duration);
         const float length=float(windBlowerRange(tower.attack.stats))-.479F;
         const Vector3 forward{-float(std::sin(tower.windYaw)),0,-float(std::cos(tower.windYaw))};
         const Vector3 side{-forward.z,0,forward.x};

@@ -12,7 +12,7 @@
     "upgradeCrystal": [25, 50]
   },
   "bomb": {
-    "startingBombs": 0,
+    "throwCooldown": 1.8,
     "throwSpeed": 6.0,
     "upwardSpeed": 4.0,
     "gravity": 9.8,

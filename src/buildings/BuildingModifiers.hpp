@@ -21,12 +21,13 @@ namespace ian {
 [[nodiscard]] inline FinalAttackStats resolveBuildingAttackStats(
     const AttackStats& base, const BuildingInstance& building,
     const AttackModifiers& run, BuildingType bonusType,
-    const AttackModifiers& typeBonus, double highGroundDamage = 1.0) {
+    const AttackModifiers& typeBonus, double highGroundDamage = 1.0,
+    const AttackModifiers& upgradeBonus = {}) {
     AttackModifiers local;
     local[AttackStat::Damage].multiplier = buildingAnvilMultiplier(building) *
         (building.platformStorey > 0 ? highGroundDamage : 1.0);
     const std::array sources{run, local,
-        building.type == bonusType ? typeBonus : AttackModifiers{}};
+        building.type == bonusType ? typeBonus : AttackModifiers{}, upgradeBonus};
     return resolveAttackStats(base, sources);
 }
 

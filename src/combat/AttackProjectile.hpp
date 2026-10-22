@@ -59,7 +59,7 @@ struct ProjectileImpact {
     bool shrapnel{};
 };
 struct ProjectileBlast { EntityId sourceId; Vec3 position; double radius; };
-[[nodiscard]] inline double missileExplosionRadius(const AttackStats& stats) { return 1.6 * stats.size; }
+[[nodiscard]] inline double missileExplosionRadius(const AttackStats& stats) { return 2.0 * stats.size; }
 class AttackProjectileSystem {
   public:
     AttackProjectileSystem() : pool_(100000) {}

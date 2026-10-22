@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Union">
+<mask id="path-1-inside-1_0_24" fill="white">
+<path d="M20 0V8H8V20H0V0H20Z"/>
+</mask>
+<path d="M20 0V8H8V20H0V0H20Z" fill="white"/>
+<path d="M20 0H22V-2H20V0ZM20 8V10H22V8H20ZM8 8V6H6V8H8ZM8 20V22H10V20H8ZM0 20H-2V22H0V20ZM0 0V-2H-2V0H0ZM20 0H18V8H20H22V0H20ZM20 8V6H8V8V10H20V8ZM8 8H6V20H8H10V8H8ZM8 20V18H0V20V22H8V20ZM0 20H2V0H0H-2V20H0ZM0 0V2H20V0V-2H0V0Z" fill="black" mask="url(#path-1-inside-1_0_24)"/>
+</g>
+</svg>

@@ -27,9 +27,6 @@ std::string actionKeyLabel(
         }
         return "LMB / " + keyboardKeyName(key);
     }
-    if (action == ControlAction::Dash && key == KEY_NULL) {
-        return "RMB";
-    }
     return keyboardKeyName(key);
 }
 
@@ -143,12 +140,15 @@ void drawBuildingContextCard(
     const Camera3D& camera, const ControlSettings&) {
     std::array<StatRow, 20> rows{};
     std::size_t count=0;
+    const bool showUpgradePreview =
+        snapshot.sandboxMode || snapshot.unlimitedResources;
     if (snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats) {
         const auto& comparison=*snapshot.aimedBuildingStats;
         const auto add=[&](std::string_view label, std::optional<double> BuildingStats::* member,
                           int decimals=0, const char* suffix="") {
             if (const auto value=comparison.current.*member)
-                rows[count++]={label,*value,comparison.next ? comparison.next.value().*member : std::nullopt,decimals,suffix};
+                rows[count++]={label,*value,showUpgradePreview && comparison.next
+                    ? comparison.next.value().*member : std::nullopt,decimals,suffix};
         };
         add("DAMAGE", &BuildingStats::attackDamage);
         add("RANGE", &BuildingStats::attackRange,1,"m");
@@ -159,7 +159,8 @@ void drawBuildingContextCard(
         if (comparison.current.finalAttack && building.type != BuildingType::WindBlower) {
             const auto addAttack = [&](std::string_view label, auto member, int decimals = 0, const char* suffix = "") {
                 std::optional<double> next;
-                if (comparison.next && comparison.next->finalAttack) next = static_cast<double>(comparison.next->finalAttack.value().*member);
+                if (showUpgradePreview && comparison.next && comparison.next->finalAttack)
+                    next = static_cast<double>(comparison.next->finalAttack.value().*member);
                 rows[count++] = {label, static_cast<double>(comparison.current.finalAttack.value().*member), next, decimals, suffix};
             };
             addAttack("PROJECTILE COUNT", &AttackStats::quantity,1);
@@ -188,15 +189,13 @@ void drawBuildingContextCard(
         add("REPAIR INTERVAL", &BuildingStats::repairInterval,1,"s");
         add("PER CYCLE", &BuildingStats::productionPerCycle);
         add("CYCLE TIME", &BuildingStats::productionInterval,1,"s");
-        add("CAPACITY", &BuildingStats::producerCapacity);
-        add("BUILDINGS", &BuildingStats::buildingLimit);
         add("WOOD CAPACITY", &BuildingStats::woodCapacity);
         add("STONE CAPACITY", &BuildingStats::stoneCapacity);
         add("CRYSTAL CAPACITY", &BuildingStats::crystalCapacity);
     }
     const Vec3 center=buildingWorldPosition(building);
     const std::optional<double> nextMaxHealth =
-        snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats &&
+        showUpgradePreview && snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats &&
         snapshot.aimedBuildingStats->next
             ? std::optional<double>{snapshot.aimedBuildingStats->next->maxHealth}
             : std::nullopt;

@@ -15,6 +15,35 @@
 namespace ian {
 namespace {
 
+const char* lootPromptDescription(LootUpgradeEffect effect) {
+    switch (effect) {
+    case LootUpgradeEffect::Apple: return "Auto-heal once per night below 35% HP";
+    case LootUpgradeEffect::Bread: return "Regenerate outside combat; full HP boosts attack speed";
+    case LootUpgradeEffect::IronBar: return "+12 armor; breaking it stuns nearby enemies";
+    case LootUpgradeEffect::FuelJerrycan: return "Hits ignite; repeated burns deal more damage";
+    case LootUpgradeEffect::Compass: return "Points toward nearby chests";
+    case LootUpgradeEffect::Nail: return "Every fifth hit chains lightning";
+    case LootUpgradeEffect::Key: return "First chest each day is free";
+    case LootUpgradeEffect::Map: return "Reveals chests; boss waves add more";
+    case LootUpgradeEffect::Anvil: return "Full repairs release a knockback shockwave";
+    case LootUpgradeEffect::Saw: return "Trees launch saw blades when destroyed";
+    case LootUpgradeEffect::Potion: return "Low HP triggers Berserk";
+    case LootUpgradeEffect::Blueprint: return "First building of each type grants XP";
+    case LootUpgradeEffect::Hourglass: return "End the night early for Coins and XP";
+    case LootUpgradeEffect::Rope: return "Reduce fall damage; prevent a fatal fall";
+    case LootUpgradeEffect::Magnet: return "Attract Coins and hearts from farther away";
+    case LootUpgradeEffect::HealthAid: return "Harvesting trees or stone restores health";
+    case LootUpgradeEffect::CoalBell: return "Burning kills ignite nearby enemies";
+    case LootUpgradeEffect::PowderPouch: return "Critical hits explode";
+    case LootUpgradeEffect::PlagueMushroom: return "Hits can poison enemies";
+    case LootUpgradeEffect::InfectedPouch: return "Poisoned kills leave a toxic cloud";
+    case LootUpgradeEffect::GasMask: return "Nearby poisoned enemies reduce damage taken";
+    case LootUpgradeEffect::IcePrism: return "Frozen kills shatter into icy shards";
+    case LootUpgradeEffect::TargetingLens: return "Your hits mark targets for defenses";
+    default: return lootUpgradeDescription(effect);
+    }
+}
+
 bool terrainOccludesPrompt(
     Vector3 cameraPosition, Vector3 anchor,
     const TerrainHeightfield& terrain) {
@@ -102,8 +131,25 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                        !value.activated;
             });
         if (landmark != snapshot.worldLandmarks.end()) {
-            const bool mine =
-                landmark->type == WorldLandmarkType::Mine;
+            const auto shrine=landmarkShrineKind(landmark->type);
+            if (shrine!=ShrineKind::None) {
+                const auto cost=shrineActivationCost(shrine,snapshot.shrines.activations);
+                const bool affordable=snapshot.unlimitedResources || canAfford(cost,snapshot.wood,snapshot.stone,snapshot.crystals);
+                return finalize(InteractionPrompt{
+                    .targetKind=InteractionPromptTargetKind::Landmark,
+                    .targetId=landmark->id,
+                    .worldAnchor={static_cast<float>(landmark->position.x),static_cast<float>(landmark->position.y+2.8),static_cast<float>(landmark->position.z)},
+                    .objectName=shrine==ShrineKind::Player ? "Player Shrine" : "Building Shrine",
+                    .actionText=shrine==ShrineKind::Player ? "Player bonus" : "Building bonus",
+                    .input=ControlAction::Interact,
+                    .state=affordable ? InteractionState::Available : InteractionState::Warning,
+                    .cost=cost,
+                    .showResourceCost=true,
+                    .availableResources=snapshot.unlimitedResources ? cost : ResourceCost{snapshot.wood,snapshot.stone,snapshot.crystals},
+                    .recentFailure=invalidActionRemaining_>0,
+                    .accentColor=shrine==ShrineKind::Player ? Color{242,123,162,255} : Color{105,203,244,255},
+                });
+            }
             const bool affordable = snapshot.unlimitedResources ||
                 snapshot.coins >= landmark->activationCoinCost;
             ResourceCost cost{};
@@ -116,8 +162,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(landmark->position.y + 6.7),
                     static_cast<float>(landmark->position.z),
                 },
-                .objectName = mine ? "Abandoned Mine"
-                                   : "Abandoned Lumber Mill",
                 .actionText = "Restore",
                 .input = ControlAction::Interact,
                 .state = affordable ? InteractionState::Available
@@ -126,11 +170,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .availableCurrency = snapshot.unlimitedResources
                     ? std::nullopt
                     : std::optional<int>{snapshot.coins},
-                .hint = affordable
-                    ? std::optional<std::string>{
-                          mine ? "PRODUCES 4 STONE EVERY 10s"
-                               : "PRODUCES 6 WOOD EVERY 8s"}
-                    : std::nullopt,
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = affordable
                     ? Color{224, 184, 92, 255}
@@ -153,13 +192,14 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetId = loot->loot.id,
                 .worldAnchor = {
                     static_cast<float>(visualPosition.x),
-                    static_cast<float>(visualPosition.y + 0.78),
+                    static_cast<float>(visualPosition.y + 0.58),
                     static_cast<float>(visualPosition.z),
                 },
                 .objectName = lootUpgradeName(loot->loot.effect),
                 .actionText = "Pick Up",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
+                .hint = lootPromptDescription(loot->loot.effect),
                 .accentColor = loot->loot.rarity == LootRarity::Legendary
                     ? Color{255, 126, 38, 255}
                     : loot->loot.rarity == LootRarity::Rare
@@ -179,15 +219,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                        value.state == LootChestState::Closed;
         });
         if (chest != snapshot.lootChests.end()) {
-            const int paidOpeningCost = chest->coinCost <= 0
-                ? 0
-                : std::max(
-                      1,
-                      static_cast<int>(std::lround(
-                          static_cast<double>(
-                              chest->coinCost +
-                              snapshot.chestOpeningCostSurcharge) *
-                          snapshot.chestOpeningCostMultiplier)));
+            const int paidOpeningCost = scaledChestOpeningCost(
+                chest->coinCost, snapshot.chestOpeningCostSurcharge,
+                snapshot.chestOpeningCostMultiplier,
+                snapshot.openedPaidChestCount);
             const bool freeWithKey =
                 paidOpeningCost > 0 &&
                 snapshot.freeChestOpeningAvailable;
@@ -214,11 +249,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(chest->surfaceNormal.y),
                     static_cast<float>(chest->surfaceNormal.z),
                 },
-                .actionText = std::string("Open ") +
-                    (chest->type == LootChestType::Stone
-                         ? "Stone Chest"
-                         : "Wooden Chest") +
-                    (freeWithKey ? " (Free Key)" : ""),
+                .actionText = "Open",
                 .input = ControlAction::Interact,
                 .state = affordable ? InteractionState::Available
                                     : InteractionState::Warning,
@@ -259,36 +290,35 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 return value.id == *snapshot.aimedBuilding;
             });
         if (building != snapshot.buildings.end()) {
+            if (building->type == BuildingType::Wall ||
+                building->type == BuildingType::Gate) {
+                const Vec3 anchor = buildingHealthBarWorldAnchor(*building,
+                    renderer_->buildingVisualHeight(building->type, building->level));
+                return finalize(InteractionPrompt{
+                    .targetKind = InteractionPromptTargetKind::Building,
+                    .targetId = building->id,
+                    .worldAnchor = {static_cast<float>(anchor.x),
+                        static_cast<float>(anchor.y), static_cast<float>(anchor.z)},
+                    .actionText = building->type == BuildingType::Wall
+                        ? "DOOR" : building->open ? "CLOSE" : "OPEN",
+                    .input = ControlAction::Interact,
+                    .accentColor = {245, 231, 198, 255},
+                });
+            }
+            if (!snapshot.sandboxMode && !snapshot.unlimitedResources)
+                return std::nullopt;
             const bool isProducer =
                 building->type == BuildingType::CrystalMine ||
                 building->type == BuildingType::LumberMill ||
                 building->type == BuildingType::Quarry;
+            if (isProducer && !snapshot.aimedBuildingUpgradeCost)
+                return std::nullopt;
             if (!isProducer &&
                 (!snapshot.aimedBuildingUpgradeCost ||
-                 building->level >= MaxBuildingLevel))
+                 building->level >= buildingLevelLimit(building->type)))
                 return std::nullopt;
-            std::optional<ProducerStockPrompt> stock;
-            if (isProducer) {
-                stock = ProducerStockPrompt{
-                    .icon = building->type == BuildingType::LumberMill
-                        ? UiResourceIcon::Wood
-                        : building->type == BuildingType::Quarry
-                            ? UiResourceIcon::Stone
-                            : UiResourceIcon::Crystal,
-                };
-                for (const ProducerCardStatus& producer : snapshot.producerCards) {
-                    const auto source = std::ranges::find(
-                        snapshot.buildings, producer.buildingId,
-                        &BuildingInstance::id);
-                    if (source != snapshot.buildings.end() &&
-                        source->type == building->type) {
-                        stock->stored += producer.stored;
-                        stock->capacity += producer.capacity;
-                    }
-                }
-            }
             const std::optional<ResourceCost> cost =
-                building->level < MaxBuildingLevel
+                building->level < buildingLevelLimit(building->type)
                     ? snapshot.aimedBuildingUpgradeCost
                     : std::nullopt;
             const bool affordable = snapshot.unlimitedResources ||
@@ -303,10 +333,11 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(anchor.y),
                     static_cast<float>(anchor.z),
                 },
-                .input = ControlAction::Upgrade,
+                .actionText = cost ? "Upgrade" : "Collect",
+                .input = cost ? ControlAction::Upgrade : ControlAction::Interact,
                 .state = affordable ? InteractionState::Available : InteractionState::Warning,
                 .cost = cost,
-                .producerStock = stock,
+                .showResourceCost = true,
                 .availableResources = snapshot.unlimitedResources
                     ? cost.value_or(ResourceCost{})
                     : ResourceCost{snapshot.wood, snapshot.stone, snapshot.crystals},
@@ -346,10 +377,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = buildingManagementActive
-                    ? std::optional<std::string>{
-                          "Q COPY · X SELL · E CLOSE"}
-                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }
@@ -373,10 +400,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = buildingManagementActive
-                    ? std::optional<std::string>{
-                          "Q COPY · X SELL · E CLOSE"}
-                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }
@@ -408,10 +431,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = buildingManagementActive
-                    ? std::optional<std::string>{
-                          "Q COPY · X SELL · E CLOSE"}
-                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }

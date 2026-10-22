@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/FoundationSystem.hpp"
+#include "graphics/BuildingFeedbackEffect.hpp"
 
 #include <optional>
 #include <span>
@@ -16,7 +17,7 @@ platformSupportVisibilityMasks(
 platformSupportVisualLengths(
     std::span<const PlatformFrameInstance> platformFrames,
     std::span<const SharedSupport> sharedSupports);
-[[nodiscard]] std::vector<std::array<bool, 4>>
+[[nodiscard]] std::vector<PlatformEdgeVisibilityMask>
 platformEdgeVisibilityMasks(
     std::span<const PlatformFrameInstance> platformFrames);
 
@@ -25,6 +26,8 @@ class Renderer;
 struct ModularAnimationScale {
     EntityId id;
     float scale{1.0F};
+    BuildingFeedbackHighlight feedback{};
+    std::optional<Vec3> scaleOrigin;
 };
 
 struct ModularBuildingView {

@@ -136,6 +136,11 @@ QuestUpdate QuestGameplayTracker::record(
             continue;
         }
         if (!progression.quests.runActive) continue;
+        if (event.type == GameEventType::MetaSilverCollected && event.amount > 0) {
+            progression.silver = saturatingAdd(progression.silver,event.amount);
+            result.changed = true;
+            continue;
+        }
         if (event.type == GameEventType::RunEnded) {
             observeStats(snapshot);
             flush();

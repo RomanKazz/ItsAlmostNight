@@ -36,8 +36,15 @@ enum class LootUpgradeEffect {
     Rope,
     Magnet,
     HealthAid,
+    CoalBell,
+    PowderPouch,
+    PlagueMushroom,
+    InfectedPouch,
+    GasMask,
+    IcePrism,
+    TargetingLens,
 };
-constexpr std::size_t LootUpgradeEffectCount = 19U;
+constexpr std::size_t LootUpgradeEffectCount = 26U;
 
 [[nodiscard]] constexpr std::size_t lootUpgradeIndex(
     LootUpgradeEffect effect) {
@@ -80,6 +87,7 @@ struct LootChestInstance {
 };
 
 enum class ChestOpenResult { None, Opened, InsufficientCoins, AlreadyOpen };
+
 struct LootPickup {
     EntityId lootId;
     LootRarity rarity;
@@ -95,6 +103,8 @@ class LootChestSystem {
                Vec3 playerSpawn);
     [[nodiscard]] bool restoreChests(
         std::span<const LootChestInstance> chests);
+    [[nodiscard]] bool relocateExplorationChest(
+        EntityId id, Vec3 position, const TerrainHeightfield& terrain, double yaw);
     void tick(double deltaSeconds);
 
     [[nodiscard]] std::optional<EntityId> raycastChest(
@@ -107,6 +117,8 @@ class LootChestSystem {
         Vec3 playerPosition);
     void setCoinCostMultiplier(double multiplier);
     void setOpeningCostSurcharge(int surcharge);
+    void setOpenedPaidChestCount(int count);
+    [[nodiscard]] int openedPaidChestCount() const;
     [[nodiscard]] int openingCost(
         const LootChestInstance& chest) const;
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
@@ -141,7 +153,12 @@ class LootChestSystem {
     std::uint32_t nextEntityIndex_{};
     double coinCostMultiplier_{1.0};
     int openingCostSurcharge_{};
+    int openedPaidChestCount_{};
 };
+
+[[nodiscard]] int scaledChestOpeningCost(
+    int baseCost, int surcharge, double discountMultiplier,
+    int previouslyOpenedPaidChests);
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);
 [[nodiscard]] const char* lootUpgradeName(LootUpgradeEffect effect);

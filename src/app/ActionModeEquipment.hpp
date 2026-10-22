@@ -12,6 +12,7 @@ namespace ian::app_detail {
     PlayerWeapon weapon) {
     switch (weapon) {
     case PlayerWeapon::LegacyBareHands:
+    case PlayerWeapon::LegacyHammer:
     case PlayerWeapon::Rifle:
         return FirstPersonToolVisual::None;
     case PlayerWeapon::Bomb:
@@ -26,8 +27,6 @@ namespace ian::app_detail {
         return FirstPersonToolVisual::IceWand;
     case PlayerWeapon::FireWand:
         return FirstPersonToolVisual::FireWand;
-    case PlayerWeapon::Hammer:
-        return FirstPersonToolVisual::Hammer;
     }
     return FirstPersonToolVisual::None;
 }

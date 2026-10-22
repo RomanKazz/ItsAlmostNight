@@ -4,6 +4,7 @@
 #include "core/DeterministicRandom.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace ian {
 namespace {
@@ -59,6 +60,29 @@ int coinDropAmount(EnemyType type) {
     return 1;
 }
 
+// Rewards arrive as visible orbs; their total value is independent of count.
+int enemyExperience(
+    const InsightConfig& config, EnemyType type, bool elite) {
+    const int amount = static_cast<int>(std::lround(
+        config.enemy[static_cast<std::size_t>(type)]));
+    return elite ? amount * 2 : amount;
+}
+
+int resourceExperience(const InsightConfig& config, ResourceType type) {
+    const std::size_t index = static_cast<std::size_t>(type);
+    return static_cast<int>(std::lround(
+        isHarvestableResource(type)
+            ? config.resourceDepleted[index]
+            : config.prop[index - 3U]));
+}
+
+int experienceOrbCount(int amount) {
+    // Merge pairs from the previous 2–8 orb burst. Integer value distribution
+    // in spawnExperience preserves the entire reward, including odd remainders.
+    const int previousCount = std::clamp(amount / 3 + (amount % 3 != 0), 2, 8);
+    return (previousCount + 1) / 2;
+}
+
 std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
     return (static_cast<std::uint64_t>(id.generation) << 32U) ^
            static_cast<std::uint64_t>(id.index) ^
@@ -67,7 +91,43 @@ std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
 
 } // namespace
 
-void Simulation::updateCoinPickups(double deltaSeconds) {
+void Simulation::updateCoinPickups(
+    double deltaSeconds, bool suppressEnemyRewards) {
+    int overflowExperience = 0;
+    const InsightConfig& experienceConfig = insight_.config();
+    const auto dropExperience = [this, &overflowExperience](
+        Vec3 position, int amount, std::uint64_t seed,
+        double spread = 1.0, bool valuableProp = false) {
+        if (coinPickups_.spawnExperience(
+                position, amount, valuableProp ? std::max(1,amount/8) : experienceOrbCount(amount),
+                seed ^ 0x8ebc6af09c88c6e3ULL, terrain_, spread) == 0) {
+            overflowExperience = saturatingAdd(overflowExperience, amount);
+        }
+    };
+    for (const GameEvent& event : events_) {
+        if (unlimitedResources_ || !event.entityId) continue;
+        if (event.type == GameEventType::ResourceCollected &&
+            event.resourceType) {
+            const int amount = resourceExperience(
+                experienceConfig, *event.resourceType);
+            dropExperience(event.position, amount,
+                           coinSeed(*event.entityId, tick_),
+                           isDestructibleProp(*event.resourceType) ? 0.5 : 1.0,
+                           isDestructibleProp(*event.resourceType));
+        } else if (event.type == GameEventType::ChestOpened) {
+            const auto chest = std::find_if(
+                lootChests_.chests().begin(), lootChests_.chests().end(),
+                [&event](const LootChestInstance& value) {
+                    return value.id == *event.entityId;
+                });
+            if (chest != lootChests_.chests().end()) {
+                dropExperience(chest->position,
+                    static_cast<int>(std::lround(experienceConfig.chest[
+                        static_cast<std::size_t>(chest->type)])),
+                    coinSeed(*event.entityId, tick_));
+            }
+        }
+    }
     const auto rolledCoinValue = [this](
         EntityId id, EnemyType type,
         bool elite) -> int {
@@ -79,8 +139,8 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             return 0;
         }
         const int baseCoins = coinDropAmount(type);
-        return baseCoins +
-            (elite ? std::max(2, baseCoins / 2) : 0);
+        return (baseCoins +
+            (elite ? std::max(2, baseCoins / 2) : 0)) * powerups_.enemyCoinMultiplier();
     };
     const auto maybeDropMedkit = [this](
         EntityId id, Vec3 position, EnemyType type,
@@ -94,9 +154,16 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             coinPickups_.spawnHeart(position, seed, terrain_);
         }
     };
-    int automaticallyCollectedCoins = 0;
-    int automaticCollectionCount = 0;
-    Vec3 automaticCollectionPosition = playerPosition_;
+    const auto maybeDropPowerup = [this, suppressEnemyRewards](EntityId id, Vec3 position, EnemyType type, bool elite) {
+        if (suppressEnemyRewards) return;
+        const auto drop = PowerupSystem::rollDrop(coinSeed(id, tick_), elite, type == EnemyType::Boss);
+        if (!drop) return;
+        const double ground = terrain_.getHeight(position.x, position.z);
+        const auto support = collisionWorld_.playerSupportHeight(
+            position.x, position.z, 0.2, std::max(position.y, ground) + 0.2);
+        position.y = std::max(ground, support.value_or(ground));
+        static_cast<void>(powerups_.spawn(*drop, position));
+    };
     // Explicit kill events preserve the death position even when the enemy
     // slot is reused by wave spawning later in the same simulation tick.
     for (const GameEvent& event : events_) {
@@ -124,25 +191,21 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             ? event.enemyEliteAffixes != 0U
             : enemy != enemies_.enemies().end() &&
                 enemy->eliteAffixes != 0U;
+        if (!suppressEnemyRewards) {
+            dropExperience(event.position,
+                           enemyExperience(experienceConfig, type, elite),
+                           coinSeed(*event.entityId, tick_));
+        }
         const int coinValue = rolledCoinValue(
             *event.entityId, type, elite);
-        const bool killedByTurret =
-            event.buildingType == BuildingType::Turret ||
-            event.buildingType == BuildingType::GunTurret ||
-            event.buildingType == BuildingType::Cannon ||
-            event.buildingType == BuildingType::Catapult;
-        if (coinValue > 0 && killedByTurret) {
-            automaticallyCollectedCoins = saturatingAdd(
-                automaticallyCollectedCoins, coinValue);
-            ++automaticCollectionCount;
-            automaticCollectionPosition = event.position;
-        } else if (coinValue > 0) {
+        if (coinValue > 0) {
             coinPickups_.spawnValue(
                 event.position, coinValue,
                 coinSeed(*event.entityId, tick_), terrain_);
         }
         maybeDropMedkit(
             *event.entityId, event.position, type, elite);
+        maybeDropPowerup(*event.entityId, event.position, type, elite);
     }
 
     // Fallback for deaths that do not emit a source-aware kill event.
@@ -157,6 +220,13 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         const int coinValue = rolledCoinValue(
             enemy.id, enemy.type,
             enemy.eliteAffixes != 0U);
+        if (!suppressEnemyRewards) {
+            dropExperience(enemy.position,
+                enemyExperience(
+                    experienceConfig, enemy.type,
+                    enemy.eliteAffixes != 0U),
+                coinSeed(enemy.id, tick_));
+        }
         if (coinValue > 0) {
             coinPickups_.spawnValue(
                 enemy.position, coinValue,
@@ -165,18 +235,10 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         maybeDropMedkit(
             enemy.id, enemy.position, enemy.type,
             enemy.eliteAffixes != 0U);
+        maybeDropPowerup(enemy.id, enemy.position, enemy.type, enemy.eliteAffixes != 0U);
     }
 
-    if (automaticallyCollectedCoins > 0) {
-        coins_ = saturatingAdd(coins_, automaticallyCollectedCoins);
-        events_.push_back({
-            .type = GameEventType::CoinCollected,
-            .position = automaticCollectionPosition,
-            .amount = automaticallyCollectedCoins,
-            .intensity = static_cast<double>(automaticCollectionCount),
-        });
-    }
-
+    if (powerups_.active(PowerupType::Magnet)) coinPickups_.magnetizeExperienceAndCoins();
     const CoinCollection collected = coinPickups_.tick(
         deltaSeconds, playerPosition_, terrain_, collisionWorld_,
         playerPermanentMaxHealth() + playerTemporaryHealth_ -
@@ -199,6 +261,26 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             .amount = collected.value,
             .intensity = static_cast<double>(collected.count),
         });
+    }
+    if (collected.silver > 0) {
+        events_.push_back({.type=GameEventType::MetaSilverCollected,
+            .position=collected.position,.amount=collected.silver,
+            .intensity=static_cast<double>(collected.silverCount)});
+    }
+    if (collected.experience > 0) {
+        events_.push_back({
+            .type = GameEventType::ExperienceCollected,
+            .position = collected.position,
+            .amount = collected.experience,
+            .intensity = static_cast<double>(collected.experienceCount),
+        });
+    }
+    const int earnedExperience = saturatingAdd(
+        collected.experience, overflowExperience);
+    if (earnedExperience > 0) {
+        grantConfiguredInsight(
+            earnedExperience, InsightSource::Other,
+            InsightCategory::Exploration, {.bypassDiminishing = true});
     }
 }
 

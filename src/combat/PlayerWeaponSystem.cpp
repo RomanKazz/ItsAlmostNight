@@ -31,7 +31,7 @@ void PlayerWeaponSystem::setRifleModifiers(
 void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) {
     selectedWeapon_ =
         weapon == PlayerWeapon::LegacyBareHands ||
-            weapon == PlayerWeapon::Hammer
+            weapon == PlayerWeapon::LegacyHammer
         ? PlayerWeapon::Axe
         : weapon;
 }
@@ -47,19 +47,24 @@ void PlayerWeaponSystem::restoreState(
     selectWeapon(selectedWeapon);
 }
 
+void PlayerWeaponSystem::reloadImmediately() {
+    ammunition_ = magazineSize();
+    reloadRemaining_ = 0.0;
+}
+
 void PlayerWeaponSystem::setRifleLevel(int level) {
     const int previousMagazine = magazineSize();
     rifleLevel_ = std::clamp(level, 1, MaximumPlayerWeaponLevel);
     ammunition_ = std::clamp(ammunition_ + magazineSize() - previousMagazine, 0, magazineSize());
 }
 
-void PlayerWeaponSystem::tick(double deltaSeconds) {
+void PlayerWeaponSystem::tick(double deltaSeconds, double reloadSpeed) {
     fireCooldownRemaining_ = std::max(0.0, fireCooldownRemaining_ - deltaSeconds);
     if (reloadRemaining_ <= 0.0) {
         return;
     }
 
-    reloadRemaining_ = std::max(0.0, reloadRemaining_ - deltaSeconds);
+    reloadRemaining_ = std::max(0.0, reloadRemaining_ - deltaSeconds * std::max(0.0,reloadSpeed));
     if (reloadRemaining_ <= 0.0) {
         ammunition_ = magazineSize();
     }

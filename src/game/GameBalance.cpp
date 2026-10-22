@@ -166,7 +166,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
             .upgradeCrystal = rifle.at("upgradeCrystal").get<std::array<int, 2>>(),
         },
         .bomb = {
-            .startingBombs = bomb.at("startingBombs").get<int>(),
+            .throwCooldown = bomb.value("throwCooldown", 1.8),
             .throwSpeed = bomb.at("throwSpeed").get<double>(),
             .upwardSpeed = bomb.at("upwardSpeed").get<double>(),
             .gravity = bomb.at("gravity").get<double>(),
@@ -221,7 +221,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
         configuredRifle.reloadDuration - 2.0 * configuredRifle.reloadReductionPerLevel <= 0.0 ||
         configuredRifle.magazineSize <= 0 || configuredRifle.magazineBonusPerLevel < 0 ||
         configuredRifle.upgradeCrystal[0] < 0 || configuredRifle.upgradeCrystal[1] < 0 ||
-        configuredBomb.startingBombs < 0 || configuredBomb.throwSpeed <= 0.0 ||
+        configuredBomb.throwCooldown <= 0.0 || configuredBomb.throwSpeed <= 0.0 ||
         configuredBomb.upwardSpeed < 0.0 || configuredBomb.gravity <= 0.0 ||
         configuredBomb.fuseDuration <= 0.0 || configuredBomb.groundHeight < 0.0 ||
         configuredBomb.explosionRadius <= 0.0 || configuredBomb.explosionDamage <= 0.0 ||
@@ -297,7 +297,7 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         .chestRerollCoinCosts = value.value(
             "chestRerollCoinCosts", std::array<int, 3>{15, 30, 60}),
         .chestOpeningCoinCostPerWave =
-            value.value("chestOpeningCoinCostPerWave", 4),
+            value.value("chestOpeningCoinCostPerWave", 0),
         .repairAllCoinCost = value.value("repairAllCoinCost", 35),
         .repairAllCoinCostPerWave =
             value.value("repairAllCoinCostPerWave", 6),
@@ -460,24 +460,24 @@ GameBalance GameBalance::defaults() {
             {36.0, 1.8, 36.0, 0.0, 1.0, 0.0},
         }},
         .waves = {{
-            {15, 15, 0, 0, 0, 0, 0, 0, false, 3, 1.6},
-            {25, 12, 5, 0, 1, 0, 0, 0, false, 4, 1.6},
-            {40, 10, 5, 2, 2, 0, 0, 1, false, 4, 1.4},
-            {55, 19, 8, 2, 2, 0, 0, 1, false, 5, 1.4},
-            {75, 16, 8, 3, 2, 0, 2, 2, false, 5, 1.2, 0, 1},
-            {100, 21, 10, 5, 4, 0, 1, 2, false, 6, 1.1, 1, 1},
+            {10, 10, 0, 0, 0, 0, 0, 0, false, 3, 1.6},
+            {17, 13, 2, 0, 0, 0, 0, 0, false, 3, 1.6},
+            {23, 12, 3, 1, 0, 0, 0, 0, false, 4, 1.5},
+            {30, 14, 4, 1, 1, 0, 0, 0, false, 4, 1.4},
+            {44, 16, 4, 2, 2, 0, 0, 1, false, 5, 1.3},
+            {100, 32, 10, 5, 4, 0, 1, 2, false, 6, 1.1},
         }},
         .buildings = {{
-            {30, 0, 0, 500.0, 0, 1},
+            {20, 0, 0, 500.0, 0, 1},
             {10, 0, 0, 100.0, 1, 256},
-            {25, 15, 5, 120.0, 1, 64},
-            {20, 10, 0, 140.0, 1, 8},
+            {25, 15, 0, 120.0, 1, 64},
+            {10, 20, 5, 140.0, 1, 8},
             {40, 30, 15, 180.0, 1, 64},
-            {15, 20, 5, 100.0, 1, 64},
-            {15, 5, 0, 130.0, 1, 128},
-            {40, 15, 0, 150.0, 1, 8},
-            {30, 40, 0, 170.0, 1, 8},
-            {20, 25, 5, 100.0, 1, 64},
+            {15, 20, 0, 100.0, 1, 64},
+            {15, 5, 0, 100.0, 1, 128},
+            {30, 10, 0, 150.0, 1, 8},
+            {10, 30, 0, 170.0, 1, 8},
+            {20, 25, 0, 100.0, 1, 64},
             {20, 10, 0, 180.0, 1, 8},
             {25, 5, 0, 200.0, 1, 8},
             {30, 25, 0, 160.0, 1, 8},
@@ -499,7 +499,7 @@ GameBalance GameBalance::defaults() {
         }},
         .weapons = {
             .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {25, 50}},
-            .bomb = {0, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
+            .bomb = {1.8, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
             .club = {1.35, 1.25, 0.0, 4.0},
             .iceWand = {0.95, 11.0, 18.0, 0.22, 2.5, 2.8, 1.4, 0.65,
                         0.35, 0.12, 0.45},
@@ -507,7 +507,7 @@ GameBalance GameBalance::defaults() {
                          0.5, 0.14, 0.4},
         },
         .economy = {
-            .crystalMineInterval = 12.0,
+            .crystalMineInterval = 20.0,
             .crystalMineAmount = 2,
             .waveRewardBase = 15,
             .waveRewardPerWave = 6,
@@ -515,7 +515,7 @@ GameBalance GameBalance::defaults() {
             .bombPurchaseCoinCostPerWave = 3,
             .bombPurchaseAmount = 2,
             .chestRerollCoinCosts = {15, 30, 60},
-            .chestOpeningCoinCostPerWave = 4,
+            .chestOpeningCoinCostPerWave = 0,
             .repairAllCoinCost = 35,
             .repairAllCoinCostPerWave = 6,
             .chestRevealCoinCost = 20,

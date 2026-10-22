@@ -36,6 +36,11 @@ void main()
     vec4 centerSample = selectionSample(fragTexCoord);
     vec3 centerColor = centerSample.rgb;
     float centerMask = max(centerColor.r, max(centerColor.g, centerColor.b));
+    // Filled pixels never contribute to the exterior contour.
+    if (centerMask >= 0.95)
+    {
+        discard;
+    }
     float exteriorCoverage = 1.0 -
         smoothstep(0.05, 0.95, centerMask);
 
@@ -84,6 +89,10 @@ void main()
 
     float alpha = exteriorCoverage*
         smoothstep(0.05, 0.95, outsideMask);
+    if (alpha <= 0.001)
+    {
+        discard;
+    }
     // Use the mask's actual depth attachment, not its quantised RGBA8 alpha.
     // Alpha precision allowed close terrain to look level with a selected
     // surface, drawing a contour along the terrain's cut through the object.

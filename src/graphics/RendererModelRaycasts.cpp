@@ -9,6 +9,7 @@
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
+#include "graphics/FlamethrowerModel.hpp"
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
@@ -377,6 +378,34 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return closest;
         }
+        if (building.type == BuildingType::Flamethrower) {
+            std::optional<double> closest;
+            for (int index = 0; index < model.meshCount; ++index) {
+                const Matrix pose = MatrixMultiply(model.transform,
+                    flamethrower_model::meshTransform(index, position,
+                        defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(
+                            building.type, building.rotation))), defensiveYaw, cannonPitchRadians));
+                const auto distance = acceptCollision(GetRayCollisionMesh(ray, model.meshes[index], pose));
+                if (distance && (!closest || *distance < *closest)) closest = distance;
+            }
+            auto& upgrades = resources_.flamethrowerUpgradeModel();
+            if (upgrades.valid()) {
+                auto& extra = upgrades.get();
+                flamethrower_model::forEachUpgradePart(building.level, [&](int mesh, int role) {
+                    if (mesh >= extra.meshCount) return;
+                    const Matrix pose = MatrixMultiply(extra.transform,
+                        flamethrower_model::meshTransform(role, position,
+                            defenseBaseYaw.value_or(static_cast<float>(buildingRotationYaw(building.type, building.rotation))),
+                            defensiveYaw, cannonPitchRadians));
+                    const auto broad = acceptCollision(GetRayCollisionBox(ray, world_transforms::transformBounds(
+                        flamethrower_model::UpgradeBounds[static_cast<std::size_t>(mesh)], pose)));
+                    if (!broad || (closest && *broad >= *closest)) return;
+                    const auto distance = acceptCollision(GetRayCollisionMesh(ray, extra.meshes[mesh], pose));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+            }
+            return closest;
+        }
         if (building.type == BuildingType::TeslaTower) {
             auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
             auto& upgrades = resources_.teslaUpgradeModel();
@@ -642,7 +671,7 @@ std::optional<double> Renderer::worldLandmarkRaycastDistance(
     const BoundingBox bounds = resource.visualBounds();
     const float authoredHeight = std::max(
         0.001F, bounds.max.y - bounds.min.y);
-    constexpr float TargetHeight = 6.76F;
+    const float TargetHeight = variant >= 2 ? 2.8F : 6.76F;
     const float modelScale = TargetHeight / authoredHeight;
     position.y -= bounds.min.y * modelScale;
     const Matrix transform = MatrixMultiply(

@@ -1,6 +1,6 @@
 {
   "core": {
-    "wood": 30, "stone": 0, "crystals": 0,
+    "wood": 20, "stone": 0, "crystals": 0,
     "maxHealth": 500, "unlockCoreLevel": 0, "maxCount": 1
   },
   "wall": {
@@ -8,11 +8,11 @@
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 256
   },
   "turret": {
-    "wood": 25, "stone": 15, "crystals": 5,
+    "wood": 25, "stone": 15, "crystals": 0,
     "maxHealth": 120, "unlockCoreLevel": 1, "maxCount": 64
   },
   "crystalMine": {
-    "wood": 20, "stone": 10, "crystals": 0,
+    "wood": 10, "stone": 20, "crystals": 5,
     "maxHealth": 140, "unlockCoreLevel": 1, "maxCount": 8
   },
   "cannon": {
@@ -20,23 +20,23 @@
     "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 64
   },
   "slowTrap": {
-    "wood": 15, "stone": 20, "crystals": 5,
+    "wood": 15, "stone": 20, "crystals": 0,
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 64
   },
   "gate": {
     "wood": 15, "stone": 5, "crystals": 0,
-    "maxHealth": 130, "unlockCoreLevel": 1, "maxCount": 128
+    "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 128
   },
   "lumberMill": {
-    "wood": 40, "stone": 15, "crystals": 0,
+    "wood": 30, "stone": 10, "crystals": 0,
     "maxHealth": 150, "unlockCoreLevel": 1, "maxCount": 8
   },
   "quarry": {
-    "wood": 30, "stone": 40, "crystals": 0,
+    "wood": 10, "stone": 30, "crystals": 0,
     "maxHealth": 170, "unlockCoreLevel": 1, "maxCount": 8
   },
   "spikeTrap": {
-    "wood": 20, "stone": 25, "crystals": 5,
+    "wood": 20, "stone": 25, "crystals": 0,
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 64
   },
   "gunTurret": {

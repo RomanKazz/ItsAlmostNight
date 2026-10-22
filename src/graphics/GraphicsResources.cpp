@@ -406,7 +406,6 @@ bool ModelResource::load(const char* path) {
             static_cast<std::size_t>(std::max(model_.meshCount, 0)), {});
         meshValid_.assign(meshBounds_.size(), false);
         meshHasSkinning_.assign(meshBounds_.size(), false);
-        meshSkinningValid_.assign(meshBounds_.size(), true);
         bool boundsInitialized = false;
         bool hasSkinnedMesh = false;
         bool allSkinningValid = true;
@@ -572,8 +571,6 @@ bool ModelResource::load(const char* path) {
                     allSkinningValid = false;
                 }
             }
-            meshSkinningValid_[static_cast<std::size_t>(index)] =
-                skinningValid;
 
             if (model_.meshMaterial == nullptr ||
                 model_.materials == nullptr ||
@@ -658,7 +655,6 @@ void ModelResource::unload() {
     meshBounds_.clear();
     meshValid_.clear();
     meshHasSkinning_.clear();
-    meshSkinningValid_.clear();
     gpuSkinningCompatible_ = false;
     runtimeBoneWarningLogged_ = false;
     path_.clear();
@@ -697,11 +693,6 @@ bool ModelResource::meshValid(std::size_t index) const {
 bool ModelResource::meshHasSkinning(std::size_t index) const {
     return index < meshHasSkinning_.size() &&
            meshHasSkinning_[index];
-}
-
-bool ModelResource::meshSkinningValid(std::size_t index) const {
-    return index < meshSkinningValid_.size() &&
-           meshSkinningValid_[index];
 }
 
 bool ModelResource::gpuSkinningCompatible() const {
@@ -824,6 +815,39 @@ bool RenderTextureResource::loadSingleChannel(int width, int height) {
     }
     SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
     SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
+    return true;
+}
+
+bool RenderTextureResource::loadWithDepthTexture(int width, int height) {
+    unload();
+    if (width <= 0 || height <= 0) return false;
+    target_.id = rlLoadFramebuffer();
+    target_.texture = {rlLoadTexture(nullptr, width, height,
+        RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1), width, height, 1,
+        PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    target_.depth = {rlLoadTextureDepth(width, height, false), width, height, 1,
+        PIXELFORMAT_UNCOMPRESSED_R32};
+    if (!target_.id || !target_.texture.id || !target_.depth.id) {
+        if (target_.texture.id) rlUnloadTexture(target_.texture.id);
+        if (target_.depth.id) rlUnloadTexture(target_.depth.id);
+        if (target_.id) rlUnloadFramebuffer(target_.id);
+        target_ = {};
+        return false;
+    }
+    rlFramebufferAttach(target_.id, target_.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0,
+        RL_ATTACHMENT_TEXTURE2D, 0);
+    rlFramebufferAttach(target_.id, target_.depth.id, RL_ATTACHMENT_DEPTH,
+        RL_ATTACHMENT_TEXTURE2D, 0);
+    loaded_ = rlFramebufferComplete(target_.id);
+    if (!loaded_) {
+        UnloadRenderTexture(target_);
+        target_ = {};
+        return false;
+    }
+    SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
+    SetTextureFilter(target_.depth, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target_.depth, TEXTURE_WRAP_CLAMP);
     return true;
 }
 
@@ -1072,19 +1096,11 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         nullptr, "assets/shaders/viewmodel_composite.fs");
     grassShader_.load("assets/shaders/grass_instanced.vs",
                       "assets/shaders/grass_instanced.fs");
-    upgradeEffectShader_.load("assets/shaders/upgrade_effect.vs",
-                              "assets/shaders/upgrade_effect.fs");
     shockwaveShader_.load("assets/shaders/shockwave.vs",
                           "assets/shaders/shockwave.fs");
     iceMagicShader_.load(nullptr, "assets/shaders/ice_magic.fs");
     portalMatterShader_.load(
         nullptr, "assets/shaders/portal_matter.fs");
-    coinOutlineShader_.load(
-        "assets/shaders/coin_outline.vs",
-        "assets/shaders/coin_outline.fs");
-    heartOutlineShader_.load(
-        "assets/shaders/heart_outline.vs",
-        "assets/shaders/coin_outline.fs");
     terrainTexture_.load("assets/textures/grass_painterly_tile.png");
     if (terrainTexture_.valid()) {
         Texture2D& texture = terrainTexture_.get();
@@ -1145,7 +1161,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         missileLauncherModels_[index].load(path.c_str());
     }
     flamethrowerModel_.load("assets/models/buildings/flamethrower.glb");
-    turretBulletModel_.load("assets/models/projectiles/turret_bullet.glb");
+    flamethrowerUpgradeModel_.load("assets/models/buildings/flamethrower_upgrades.glb");
     coreModel_.load("assets/models/buildings/core_levels.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
@@ -1156,7 +1172,6 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     static_cast<void>(pickaxeAlternateAnimation_.load(
         "assets/models/tools/pickaxe_anim2.glb", "swing pivot.001"));
     clubModel_.load("assets/models/tools/club.glb");
-    hammerModel_.load("assets/models/tools/hammer.glb");
     iceWandModel_.load("assets/models/weapons/elemental_wands/ice_wand.glb");
     fireWandModel_.load("assets/models/weapons/elemental_wands/fire_wand.glb");
     woodenChestModel_.load(
@@ -1181,10 +1196,14 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
             SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
         }
     }
+    for (std::size_t i=0;i<WorldSceneryModelCount;++i)
+        worldSceneryModels_[i].load(WorldSceneryDefinitions[i].path.data());
     worldLandmarkModels_[0].load(
         "assets/models/world_landmarks/abandoned_mine.glb");
     worldLandmarkModels_[1].load(
         "assets/models/world_landmarks/abandoned_lumbermill.glb");
+    worldLandmarkModels_[2].load("assets/models/world_landmarks/player_shrine.glb");
+    worldLandmarkModels_[3].load("assets/models/world_landmarks/building_shrine.glb");
     coinModels_[0].load("assets/models/coins/coin-bronze.glb");
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
     coinModels_[2].load("assets/models/coins/coin-high-value.glb");
@@ -1466,7 +1485,7 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         if (needsScreenSpaceBuffers) {
             sceneTarget_.loadScreenSpace(desiredWidth, desiredHeight);
         } else {
-            sceneTarget_.load(desiredWidth, desiredHeight);
+            sceneTarget_.loadWithDepthTexture(desiredWidth, desiredHeight);
         }
     }
     if (settings.postProcessing) {
@@ -1628,7 +1647,6 @@ void GraphicsResources::shutdown() {
     for (auto& model : mineModels_) model.unload();
     rampModel_.unload();
     platformModel_.unload();
-    hammerModel_.unload();
     iceWandModel_.unload();
     fireWandModel_.unload();
     clubModel_.unload();
@@ -1637,6 +1655,7 @@ void GraphicsResources::shutdown() {
     challengeArenaPegModel_.unload();
     enemyPortalModel_.unload();
     for (auto& model : worldLandmarkModels_) model.unload();
+    for (auto& model : worldSceneryModels_) model.unload();
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
     for (auto& model : powerupPickupModels_) model.unload();
@@ -1677,24 +1696,19 @@ void GraphicsResources::shutdown() {
     teslaUpgradeModel_.unload();
     for (auto& model : missileLauncherModels_) model.unload();
     flamethrowerModel_.unload();
-    turretBulletModel_.unload();
+    flamethrowerUpgradeModel_.unload();
     sawBladeModel_.unload();
     arrowModel_.unload();
     cannonballModel_.unload();
     cannonModel_.unload();
     catapultBallModel_.unload();
     catapultModel_.unload();
-    placeholderModel_.unload();
     terrainTexture_.unload();
     portalMatterTexture_.unload();
     for (auto& texture : skyboxTextures_) texture.unload();
-    fallbackTexture_.unload();
-    upgradeEffectShader_.unload();
     shockwaveShader_.unload();
     iceMagicShader_.unload();
     portalMatterShader_.unload();
-    coinOutlineShader_.unload();
-    heartOutlineShader_.unload();
     grassShader_.unload();
     ssaoShader_.unload();
     fxaaShader_.unload();

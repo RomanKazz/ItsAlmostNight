@@ -38,7 +38,8 @@ inline void drawRunDefenseInventory(const GameUi& ui, const SimulationSnapshot& 
         if ((pointer || !IsCursorHidden()) && CheckCollisionPointRec(mouse, cell)) hovered = effect;
     };
     drawType(starter);
-    for (const auto type : RunBuildingTypes) if (type != starter) drawType(type);
+    for (const auto type : RunBuildingTypes)
+        if (type != starter && type != BuildingType::Wall && runCombatBuilding(type)) drawType(type);
     for (; position < slots; ++position) {
         const Rectangle cell{bounds.x + static_cast<float>(position) * pitch, bounds.y, pitch - 3, pitch - 3};
         DrawRectangleRounded(cell, .18F, 4, fade({24, 29, 27, 120}));

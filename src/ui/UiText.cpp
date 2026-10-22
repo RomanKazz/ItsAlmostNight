@@ -1,4 +1,5 @@
 #include "ui/UiRenderLayer.hpp"
+#include "ui/UiViewport.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiCString.hpp"
 #include "core/PerformanceStats.hpp"
@@ -24,11 +25,20 @@ namespace ian {
 namespace {
 
 UiFontRole currentFontRole{UiFontRole::Display};
-std::array<Font, 2> bodyFonts{};
-std::array<Font, 2> bodySdfFonts{};
-std::array<Font, 2> bodySmallSdfFonts{};
+std::array<Font, 3> bodyFonts{};
+std::array<Font, 3> bodySdfFonts{};
+std::array<Font, 3> bodySmallSdfFonts{};
 constexpr std::array BodyFontPaths{
-    "assets/ui/BalsamiqSans-Regular.ttf", "assets/ui/BalsamiqSans-Bold.ttf"};
+    "assets/ui/BalsamiqSans-Regular.ttf", "assets/ui/BalsamiqSans-Bold.ttf",
+    "assets/ui/main_menu/DicoSansSoft-ExtraBold.otf"};
+
+std::size_t bodyFontIndex(UiFontRole role) {
+    // Dico has no Cyrillic face; retain the existing Cyrillic body fallback.
+    if (role == UiFontRole::MenuBodyBold) {
+        return currentLanguage() == Language::English ? 2U : 1U;
+    }
+    return role == UiFontRole::BodyBold ? 1U : 0U;
+}
 
 Font primaryFont{};
 Font cyrillicFallbackFont{};
@@ -102,19 +112,53 @@ struct GlyphLayoutKey {
     bool operator==(const GlyphLayoutKey&) const = default;
 };
 
+struct GlyphLayoutLookupKey {
+    std::string_view text;
+    unsigned int textureId{};
+    std::uint32_t scaledSizeBits{};
+};
+
 struct GlyphLayoutKeyHash {
-    std::size_t operator()(const GlyphLayoutKey& key) const noexcept {
-        std::size_t hash = std::hash<std::string>{}(key.text);
+    using is_transparent = void;
+
+    std::size_t operator()(GlyphLayoutLookupKey key) const noexcept {
+        std::size_t hash = std::hash<std::string_view>{}(key.text);
         hash ^= std::hash<unsigned int>{}(key.textureId) +
             0x9e3779b9U + (hash << 6U) + (hash >> 2U);
         hash ^= std::hash<std::uint32_t>{}(key.scaledSizeBits) +
             0x9e3779b9U + (hash << 6U) + (hash >> 2U);
         return hash;
     }
+
+    std::size_t operator()(const GlyphLayoutKey& key) const noexcept {
+        return (*this)(GlyphLayoutLookupKey{
+            key.text, key.textureId, key.scaledSizeBits});
+    }
+};
+
+struct GlyphLayoutKeyEqual {
+    using is_transparent = void;
+
+    bool operator()(const GlyphLayoutKey& left,
+                    const GlyphLayoutKey& right) const noexcept {
+        return left == right;
+    }
+
+    bool operator()(GlyphLayoutLookupKey left,
+                    const GlyphLayoutKey& right) const noexcept {
+        return left.text == right.text &&
+            left.textureId == right.textureId &&
+            left.scaledSizeBits == right.scaledSizeBits;
+    }
+
+    bool operator()(const GlyphLayoutKey& left,
+                    GlyphLayoutLookupKey right) const noexcept {
+        return (*this)(right, left);
+    }
 };
 
 std::unordered_map<GlyphLayoutKey, CachedGlyphLayout,
-                   GlyphLayoutKeyHash> glyphLayoutCache;
+                   GlyphLayoutKeyHash, GlyphLayoutKeyEqual> glyphLayoutCache;
 std::unordered_map<SdfTextTextureKey, CachedSdfTextTexture,
                    SdfTextTextureKeyHash> sdfTextTextureCache;
 std::unordered_map<SdfTextTextureKey, SdfTextObservation,
@@ -251,9 +295,13 @@ Font loadSdfFont(const char* path, const int* codepoints,
 }
 
 Font activeSdfFont(float scaledSize, UiFontRole role) {
+    // stb_truetype's SDF generator does not support Dico's cubic CFF
+    // outlines. Use styled bitmap text for both menu body faces, keeping
+    // the Cyrillic fallback's small punctuation readable too.
+    if (role == UiFontRole::MenuBodyBold) return {};
     const bool preferSmall = scaledSize <= SmallSdfMaximumDrawSize;
     if (role != UiFontRole::Display) {
-        const std::size_t index = role == UiFontRole::BodyBold ? 1U : 0U;
+        const std::size_t index = bodyFontIndex(role);
         if (preferSmall && isDrawableFont(bodySmallSdfFonts[index])) {
             return bodySmallSdfFonts[index];
         }
@@ -386,16 +434,21 @@ CachedGlyphLayout buildGlyphLayout(
 
 const CachedGlyphLayout& cachedGlyphLayout(
     std::string_view text, Font font, float scaledSize) {
+    const GlyphLayoutLookupKey lookup{
+        .text = text,
+        .textureId = font.texture.id,
+        .scaledSizeBits = std::bit_cast<std::uint32_t>(scaledSize),
+    };
+    auto found = glyphLayoutCache.find(lookup);
+    if (found != glyphLayoutCache.end()) return found->second;
     if (glyphLayoutCache.size() >= MaximumCachedGlyphLayouts) {
         glyphLayoutCache.clear();
     }
     GlyphLayoutKey key{
         .text = std::string{text},
-        .textureId = font.texture.id,
-        .scaledSizeBits = std::bit_cast<std::uint32_t>(scaledSize),
+        .textureId = lookup.textureId,
+        .scaledSizeBits = lookup.scaledSizeBits,
     };
-    auto found = glyphLayoutCache.find(key);
-    if (found != glyphLayoutCache.end()) return found->second;
     auto [inserted, unused] = glyphLayoutCache.emplace(
         std::move(key), buildGlyphLayout(text, font, scaledSize));
     static_cast<void>(unused);
@@ -508,10 +561,20 @@ bool textLayerVisible(const SdfUiTextStyle& style,
     return false;
 }
 
+// A text batch can visit each item several times for shadow, outline and
+// fill. Resolve its atlas once so those passes use the same font and avoid
+// repeating the language/font selection for every glyph layer.
+std::vector<Font> sdfTextFontScratch;
+
 void drawSdfTextItemsDirect(
     std::span<const QueuedSdfText* const> items,
     std::optional<float> forcedFramebufferScale = std::nullopt) {
     if (items.empty()) return;
+    sdfTextFontScratch.clear();
+    sdfTextFontScratch.reserve(items.size());
+    for (const QueuedSdfText* queued : items) {
+        sdfTextFontScratch.push_back(activeSdfFont(queued->scaledSize, queued->fontRole));
+    }
     configureSdfTextShader(forcedFramebufferScale);
     BeginShaderMode(sdfTextShader);
     for (const SdfTextLayer layer : {
@@ -520,11 +583,13 @@ void drawSdfTextItemsDirect(
              SdfTextLayer::Fill}) {
         std::array<unsigned int, 4> submittedTextures{};
         std::size_t submittedTextureCount = 0U;
-        for (const QueuedSdfText* queued : items) {
+        for (std::size_t itemIndex = 0;
+             itemIndex < items.size(); ++itemIndex) {
+            const QueuedSdfText* queued = items[itemIndex];
             if (!textLayerVisible(queued->style, layer)) {
                 continue;
             }
-            const Font font = activeSdfFont(queued->scaledSize, queued->fontRole);
+            const Font font = sdfTextFontScratch[itemIndex];
             const auto submittedEnd = submittedTextures.begin() +
                 static_cast<std::ptrdiff_t>(submittedTextureCount);
             if (std::find(
@@ -535,12 +600,14 @@ void drawSdfTextItemsDirect(
             submittedTextures[submittedTextureCount++] = font.texture.id;
             rlSetTexture(font.texture.id);
             rlBegin(RL_QUADS);
-            for (const QueuedSdfText* candidate : items) {
+            for (std::size_t candidateIndex = 0;
+                 candidateIndex < items.size(); ++candidateIndex) {
+                const QueuedSdfText* candidate = items[candidateIndex];
                 if (!textLayerVisible(candidate->style, layer)) {
                     continue;
                 }
-                const Font candidateFont = activeSdfFont(
-                    candidate->scaledSize, candidate->fontRole);
+                const Font candidateFont =
+                    sdfTextFontScratch[candidateIndex];
                 if (candidateFont.texture.id != font.texture.id) {
                     continue;
                 }
@@ -683,6 +750,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
     QueuedSdfText local = queued;
     local.position = {-drawOffsetX, -drawOffsetY};
     const QueuedSdfText* localPointer = &local;
+    suspendUiCanvas();
     BeginTextureMode(target);
     ClearBackground(BLANK);
     rlSetBlendFactorsSeparate(
@@ -696,6 +764,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
     EndBlendMode();
     EndTextureMode();
     restoreUiRenderLayer();
+    resumeUiCanvas();
     return CachedSdfTextTexture{
         .target = target,
         .drawOffset = {drawOffsetX, drawOffsetY},
@@ -737,8 +806,8 @@ std::vector<CachedSdfTextDraw> sdfTextCachedDrawScratch;
 
 std::size_t currentSdfTextBatchHash() {
     std::size_t hash = sdfTextBatch.size();
-    hashCombine(hash, static_cast<std::size_t>(GetScreenWidth()));
-    hashCombine(hash, static_cast<std::size_t>(GetScreenHeight()));
+    hashCombine(hash, static_cast<std::size_t>(uiScreenWidth()));
+    hashCombine(hash, static_cast<std::size_t>(uiScreenHeight()));
     for (const QueuedSdfText& queued : sdfTextBatch) {
         hashCombine(hash, std::hash<std::string>{}(queued.text));
         hashCombine(hash, static_cast<std::size_t>(queued.fontRole));
@@ -767,8 +836,8 @@ std::size_t currentSdfTextBatchHash() {
 }
 
 bool ensureHudTextBatchTarget() {
-    const int width = std::max(GetScreenWidth(), 1);
-    const int height = std::max(GetScreenHeight(), 1);
+    const int width = std::max(uiScreenWidth(), 1);
+    const int height = std::max(uiScreenHeight(), 1);
     if (IsRenderTextureValid(hudTextBatchTarget) &&
         hudTextBatchTarget.texture.width == width &&
         hudTextBatchTarget.texture.height == height) {
@@ -792,8 +861,8 @@ std::vector<Rectangle> buildHudTextBatchRegions(
     std::span<const QueuedSdfText* const> items) {
     constexpr int TileSize = 128;
     constexpr float SamplingPadding = 2.0F;
-    const int width = std::max(GetScreenWidth(), 1);
-    const int height = std::max(GetScreenHeight(), 1);
+    const int width = std::max(uiScreenWidth(), 1);
+    const int height = std::max(uiScreenHeight(), 1);
     const int columnCount = (width + TileSize - 1) / TileSize;
     const int rowCount = (height + TileSize - 1) / TileSize;
     std::vector<unsigned char> occupied(
@@ -913,6 +982,7 @@ bool drawCachedHudTextBatch(
         if (hudTextBatchCandidateFrames < 2U) {
             return false;
         }
+        suspendUiCanvas();
         BeginTextureMode(hudTextBatchTarget);
         ClearBackground(BLANK);
         rlSetBlendFactorsSeparate(
@@ -923,7 +993,8 @@ bool drawCachedHudTextBatch(
         drawSdfTextItemsDirect(items, 1.0F);
         EndBlendMode();
         EndTextureMode();
-    restoreUiRenderLayer();
+        restoreUiRenderLayer();
+        resumeUiCanvas();
         hudTextBatchRegions = buildHudTextBatchRegions(items);
         hudTextBatchHash = hash;
         hudTextBatchCacheValid = true;
@@ -1018,6 +1089,15 @@ void drawSdfTextValue(const char* value, Vector2 position,
     const ScopedTextPerformanceSample performanceSample(
         std::char_traits<char>::length(value));
     if (!isSdfTextReady(scaledSize)) {
+        if (currentFontRole == UiFontRole::MenuBodyBold) {
+            const Vector2 measured = MeasureTextEx(
+                uiFont(), value, scaledSize, scaledSize * 0.02F);
+            drawRotatedStyledUiText(value,
+                {position.x + measured.x * 0.5F,
+                 position.y + measured.y * 0.5F},
+                scaledSize / UiTextScale, 0.0F, style);
+            return;
+        }
         drawBitmapUiText(value, position, scaledSize, style.fillColor);
         return;
     }
@@ -1237,6 +1317,7 @@ void initializeUiText() {
     }
     constexpr std::size_t ExpectedHudTextItems = 128U;
     sdfTextBatch.reserve(ExpectedHudTextItems);
+    sdfTextFontScratch.reserve(ExpectedHudTextItems);
     sdfTextPointerScratch.reserve(ExpectedHudTextItems);
     sdfTextCachedDrawScratch.reserve(ExpectedHudTextItems);
     std::array<int, GlyphCount> codepoints{};
@@ -1271,6 +1352,7 @@ void initializeUiText() {
         bodyFonts[face] = LoadFontEx(BodyFontPaths[face], 64,
             codepoints.data(), GlyphCount);
         configureFontFiltering(bodyFonts[face]);
+        if (face == 2U) continue; // Dico's CFF face uses bitmap text.
         bodySdfFonts[face] = loadSdfFont(BodyFontPaths[face],
             codepoints.data(), GlyphCount, SdfBaseGlyphSize);
         bodySmallSdfFonts[face] = loadSdfFont(BodyFontPaths[face],
@@ -1375,7 +1457,7 @@ ScopedUiFontRole::~ScopedUiFontRole() {
 
 Font uiFont() {
     if (currentFontRole != UiFontRole::Display) {
-        const std::size_t index = currentFontRole == UiFontRole::BodyBold ? 1U : 0U;
+        const std::size_t index = bodyFontIndex(currentFontRole);
         if (IsFontValid(bodyFonts[index])) return bodyFonts[index];
     }
     if (currentLanguage() == Language::English &&
@@ -1621,7 +1703,7 @@ void drawCenteredUiText(std::string_view text, float y,
     const Vector2 size = measureUiText(text, fontSize);
     drawUiText(
         text,
-        {(static_cast<float>(GetScreenWidth()) - size.x) * 0.5F,
+        {(static_cast<float>(uiScreenWidth()) - size.x) * 0.5F,
          y},
         fontSize, color);
 }
@@ -1632,7 +1714,7 @@ void drawCenteredStyledSdfUiText(
     const Vector2 size = measureUiText(text, fontSize);
     drawStyledSdfUiText(
         text,
-        {(static_cast<float>(GetScreenWidth()) - size.x) * 0.5F,
+        {(static_cast<float>(uiScreenWidth()) - size.x) * 0.5F,
          y},
         fontSize, style);
 }

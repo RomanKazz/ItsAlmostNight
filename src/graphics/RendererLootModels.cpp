@@ -13,7 +13,43 @@ namespace {
 
 void drawLootItemGeometry(
     LootUpgradeEffect effect, Color color) {
-    if (effect == LootUpgradeEffect::Damage) {
+    const Color gold{255, 193, 39, color.a}, steel{99, 137, 168, color.a};
+    const Color green{112, 218, 62, color.a}, ink{32, 47, 55, color.a};
+    if (effect == LootUpgradeEffect::CoalBell) {
+        DrawCylinder({0,-.17F,0}, .13F,.22F,.30F,8, gold);
+        DrawSphereEx({0,-.15F,0},.10F,4,6,ink);
+        DrawCube({0,.22F,0},.10F,.13F,.10F,gold);
+        DrawSphereEx({0,.32F,0},.10F,4,5,ink);
+    } else if (effect == LootUpgradeEffect::PowderPouch || effect == LootUpgradeEffect::InfectedPouch) {
+        const Color body = effect == LootUpgradeEffect::PowderPouch ? Color{189,115,55,color.a} : green;
+        DrawSphereEx({0,-.04F,0},.23F,5,8,body);
+        DrawCylinder({0,.12F,0},.10F,.16F,.17F,7,body);
+        DrawCylinder({0,.14F,0},.12F,.12F,.04F,7,gold);
+        DrawSphereEx({0,0,.22F},.095F,4,6,ink);
+        DrawSphereEx({0,.015F,.28F},.047F,4,5,effect == LootUpgradeEffect::PowderPouch ? gold : green);
+    } else if (effect == LootUpgradeEffect::PlagueMushroom) {
+        DrawCylinder({0,-.22F,0},.08F,.11F,.27F,7,{220,211,154,color.a});
+        DrawCylinder({0,-.015F,0},.25F,.22F,.06F,10,{151,96,189,color.a});
+        DrawCylinder({0,.045F,0},.075F,.25F,.18F,10,{130,81,179,color.a});
+        DrawSphereEx({-.12F,.12F,.135F},.045F,4,5,green);
+        DrawSphereEx({.12F,.11F,.14F},.045F,4,5,green);
+    } else if (effect == LootUpgradeEffect::GasMask) {
+        DrawSphereEx({},.21F,5,8,steel);
+        DrawSphereEx({-.09F,.06F,.16F},.075F,4,6,green);
+        DrawSphereEx({.09F,.06F,.16F},.075F,4,6,green);
+        DrawSphereEx({-.15F,-.11F,.12F},.09F,4,6,ink);
+        DrawSphereEx({.15F,-.11F,.12F},.09F,4,6,ink);
+        DrawCube({0,-.07F,.21F},.13F,.12F,.10F,gold);
+    } else if (effect == LootUpgradeEffect::IcePrism) {
+        DrawCylinder({},0,.18F,.33F,5,{97,230,255,color.a});
+        rlRotatef(180,1,0,0);
+        DrawCylinder({},0,.18F,.20F,5,{42,142,215,color.a});
+    } else if (effect == LootUpgradeEffect::TargetingLens) {
+        rlRotatef(90,1,0,0);
+        DrawCylinder({0,-.06F,0},.23F,.23F,.12F,12,gold);
+        DrawCylinder({0,.065F,0},.16F,.16F,.025F,12,{72,211,250,color.a});
+        DrawCube({0,-.02F,.31F},.09F,.10F,.28F,ink);
+    } else if (effect == LootUpgradeEffect::Damage) {
         rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
         DrawCube({}, 0.32F, 0.32F, 0.32F, color);
     } else if (effect == LootUpgradeEffect::MoveSpeed) {
@@ -99,6 +135,13 @@ ModelResource* lootItemModelFor(
         return &resources.magnetLootModel();
     case LootUpgradeEffect::HealthAid:
         return &resources.healthAidLootModel();
+    case LootUpgradeEffect::CoalBell:
+    case LootUpgradeEffect::PowderPouch:
+    case LootUpgradeEffect::PlagueMushroom:
+    case LootUpgradeEffect::InfectedPouch:
+    case LootUpgradeEffect::GasMask:
+    case LootUpgradeEffect::IcePrism:
+    case LootUpgradeEffect::TargetingLens:
     case LootUpgradeEffect::Damage:
     case LootUpgradeEffect::MoveSpeed:
     case LootUpgradeEffect::MaximumHealth:
@@ -543,45 +586,6 @@ void Renderer::drawCoin(
     rlPopMatrix();
 }
 
-
-void Renderer::drawSawBladeProjectile(
-    Vector3 position, Vector3 direction,
-    float spinDegrees, float scale, Color tint) {
-    ModelResource& resource = resources_.sawBladeModel();
-    const float horizontalLength = std::sqrt(
-        direction.x * direction.x + direction.z * direction.z);
-    const float headingDegrees = horizontalLength > 0.0001F
-        ? std::atan2(direction.x, direction.z) * RAD2DEG
-        : 0.0F;
-
-    rlPushMatrix();
-    rlTranslatef(position.x, position.y, position.z);
-    // The authored blade lies in its local XY plane. Keep that plane along
-    // the flight path, then roll it around its axle like a thrown saw.
-    rlRotatef(headingDegrees + 90.0F, 0.0F, 1.0F, 0.0F);
-    rlRotatef(spinDegrees, 0.0F, 0.0F, 1.0F);
-    rlScalef(scale * 1.55F, scale * 1.55F, scale * 1.55F);
-    if (resource.valid()) {
-        Model& model = resource.get();
-        Shader shader{
-            .id = rlGetShaderIdDefault(),
-            .locs = rlGetShaderLocsDefault(),
-        };
-        if (worldShaderActive_ && resources_.worldShader().valid()) {
-            shader = resources_.worldShader().get();
-        }
-        if (model.materials != nullptr) {
-            for (int index = 0; index < model.materialCount; ++index) {
-                model.materials[index].shader = shader;
-            }
-        }
-        drawFittedLootModel(resource, tint);
-    } else {
-        DrawCylinder({}, 0.28F, 0.28F, 0.055F, 16, tint);
-    }
-    rlPopMatrix();
-}
-
 void Renderer::drawExperienceOctahedron(
     Vector3 position, float rotationRadians, float scale, int experienceValue) {
     if (scale <= 0.0F) return;
@@ -689,6 +693,44 @@ void Renderer::drawExperienceOctahedron(
         }
     }
     rlEnd();
+    rlPopMatrix();
+}
+
+void Renderer::drawSawBladeProjectile(
+    Vector3 position, Vector3 direction,
+    float spinDegrees, float scale, Color tint) {
+    ModelResource& resource = resources_.sawBladeModel();
+    const float horizontalLength = std::sqrt(
+        direction.x * direction.x + direction.z * direction.z);
+    const float headingDegrees = horizontalLength > 0.0001F
+        ? std::atan2(direction.x, direction.z) * RAD2DEG
+        : 0.0F;
+
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    // The authored blade lies in its local XY plane. Keep that plane along
+    // the flight path, then roll it around its axle like a thrown saw.
+    rlRotatef(headingDegrees + 90.0F, 0.0F, 1.0F, 0.0F);
+    rlRotatef(spinDegrees, 0.0F, 0.0F, 1.0F);
+    rlScalef(scale * 1.55F, scale * 1.55F, scale * 1.55F);
+    if (resource.valid()) {
+        Model& model = resource.get();
+        Shader shader{
+            .id = rlGetShaderIdDefault(),
+            .locs = rlGetShaderLocsDefault(),
+        };
+        if (worldShaderActive_ && resources_.worldShader().valid()) {
+            shader = resources_.worldShader().get();
+        }
+        if (model.materials != nullptr) {
+            for (int index = 0; index < model.materialCount; ++index) {
+                model.materials[index].shader = shader;
+            }
+        }
+        drawFittedLootModel(resource, tint);
+    } else {
+        DrawCylinder({}, 0.28F, 0.28F, 0.055F, 16, tint);
+    }
     rlPopMatrix();
 }
 

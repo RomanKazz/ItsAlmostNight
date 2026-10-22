@@ -43,6 +43,9 @@ void Renderer::cycleShadowQuality() {
 void Renderer::cycleFrameRateLimit() {
     switch (settings_.frameRateLimit) {
     case 60:
+        settings_.frameRateLimit = 90;
+        break;
+    case 90:
         settings_.frameRateLimit = 120;
         break;
     case 120:

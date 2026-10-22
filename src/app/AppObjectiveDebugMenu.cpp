@@ -1,3 +1,4 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 
 #include "ui/UiText.hpp"
@@ -9,16 +10,17 @@
 namespace ian {
 
 void App::drawObjectiveDebugMenu(const SimulationSnapshot& snapshot) {
+    const ScopedUiCanvas canvas;
     if (!objectiveDebugMenuVisible_) return;
 
     const float width = std::min(
-        1120.0F, static_cast<float>(GetScreenWidth()) - 48.0F);
+        1120.0F, static_cast<float>(uiScreenWidth()) - 48.0F);
     const float height = std::min(
-        700.0F, static_cast<float>(GetScreenHeight()) - 48.0F);
-    const float x = (static_cast<float>(GetScreenWidth()) - width) * 0.5F;
-    const float y = (static_cast<float>(GetScreenHeight()) - height) * 0.5F;
+        700.0F, static_cast<float>(uiScreenHeight()) - 48.0F);
+    const float x = (static_cast<float>(uiScreenWidth()) - width) * 0.5F;
+    const float y = (static_cast<float>(uiScreenHeight()) - height) * 0.5F;
     ui_.drawPanel({x, y, width, height}, 252);
-    drawCenteredUiText("OBJECTIVE DEBUG [SHIFT+F9]", y + 14.0F, 24.0F,
+    drawCenteredUiText("OBJECTIVE DEBUG", y + 14.0F, 24.0F,
                        {255, 224, 151, 255});
 
     constexpr float ColumnGap = 14.0F;

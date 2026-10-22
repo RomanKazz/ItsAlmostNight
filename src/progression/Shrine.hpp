@@ -5,6 +5,7 @@
 #include "progression/RunUpgrade.hpp"
 #include "progression/DefenseAttackModifiers.hpp"
 
+#include <cmath>
 #include <optional>
 
 namespace ian {
@@ -16,6 +17,8 @@ struct ShrineRunState {
     int activations{};
     std::array<int, RunUpgradeEffectCount> playerBonuses{};
     std::array<int, RunUpgradeEffectCount> buildingBonuses{};
+    std::array<double, RunUpgradeEffectCount> playerPowers{};
+    std::array<double, RunUpgradeEffectCount> buildingPowers{};
     ShrineKind offer{ShrineKind::None};
     std::optional<EntityId> source;
 };
@@ -27,6 +30,10 @@ struct ShrineBlessing {
     std::string_view description;
     double increment;
 };
+[[nodiscard]] constexpr bool availableShrineBlessing(RunUpgradeEffect effect) {
+    return effect == RunUpgradeEffect::DefenseDamage ||
+        effect == RunUpgradeEffect::DefenseFireRate || !retiredRunUpgrade(effect);
+}
 // Offer metadata comes from the active tome catalog. Damage and speed use
 // only the half appropriate to the shrine; no blueprint/unlock/retired cards.
 [[nodiscard]] constexpr ShrineBlessing tomeBlessing(ShrineKind kind, RunUpgradeEffect effect,
@@ -40,7 +47,7 @@ struct ShrineBlessing {
 inline constexpr std::array ShrineBlessings{
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::Damage, .10, RunUpgradeEffect::Damage, "+10% player damage"),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::AttackSpeed, .15, RunUpgradeEffect::AttackSpeed, "+15% weapon attack speed"),
-    tomeBlessing(ShrineKind::Player, RunUpgradeEffect::MoveSpeed, .07),
+    tomeBlessing(ShrineKind::Player, RunUpgradeEffect::MoveSpeed, .08),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::MaximumHealth, 12),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::RecoverableArmor, 8),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::Luck, .10),
@@ -51,21 +58,26 @@ inline constexpr std::array ShrineBlessings{
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::PoisonChance, .10),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::DefenseDamage, .12, RunUpgradeEffect::Damage, "+12% defense damage"),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::DefenseFireRate, .10, RunUpgradeEffect::AttackSpeed, "+10% defense speed"),
-    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::BuildingHealth, .12),
+    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::BuildingHealth, .15),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::BuildingCapacity, 1),
-    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::ProductionSpeed, .15),
+    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::ProductionSpeed, .12),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::ProjectileCount, 1),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::Bounces, 1),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::Pierce, 1),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::ProjectileSpeed, .20),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::AttackDuration, .20),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::AttackSize, .15),
-    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::CriticalChance, .05),
+    tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::CriticalChance, .075),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::CriticalDamage, .25),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::AttackKnockback, .20),
     tomeBlessing(ShrineKind::Buildings, RunUpgradeEffect::PoisonChance, .10),
 };
+inline constexpr ShrineBlessing CoreShrineBlessing{
+    ShrineKind::Buildings, RunUpgradeEffect::UpgradeCore, RunUpgradeEffect::UpgradeCore,
+    "CORE", "Upgrade one Core characteristic", 0.0};
 [[nodiscard]] constexpr const ShrineBlessing* shrineBlessing(ShrineKind kind, RunUpgradeEffect effect) {
+    if (kind == ShrineKind::Buildings && effect == RunUpgradeEffect::UpgradeCore)
+        return &CoreShrineBlessing;
     for (const auto& blessing : ShrineBlessings)
         if (blessing.kind == kind && blessing.effect == effect) return &blessing;
     return nullptr;
@@ -79,9 +91,18 @@ inline constexpr std::array ShrineBlessings{
 [[nodiscard]] inline int shrineBonusCount(const ShrineRunState& state, ShrineKind kind, RunUpgradeEffect effect) {
     return shrineBlessing(kind,effect) ? shrineBonusCounts(state,kind)[runUpgradeIndex(effect)] : 0;
 }
+[[nodiscard]] inline const auto& shrineBonusPowers(const ShrineRunState& state, ShrineKind kind) {
+    return kind == ShrineKind::Buildings ? state.buildingPowers : state.playerPowers;
+}
+[[nodiscard]] inline auto& shrineBonusPowers(ShrineRunState& state, ShrineKind kind) {
+    return kind == ShrineKind::Buildings ? state.buildingPowers : state.playerPowers;
+}
+[[nodiscard]] inline double shrineBonusPower(const ShrineRunState& state, ShrineKind kind, RunUpgradeEffect effect) {
+    return shrineBlessing(kind,effect) ? shrineBonusPowers(state,kind)[runUpgradeIndex(effect)] : 0.0;
+}
 [[nodiscard]] inline double shrineMultiplier(const ShrineRunState& state, RunUpgradeEffect effect) {
     for (const auto& blessing : ShrineBlessings)
-        if (blessing.effect == effect) return 1.0 + blessing.increment * shrineBonusCount(state,blessing.kind,effect);
+        if (blessing.effect == effect) return 1.0 + blessing.increment * shrineBonusPower(state,blessing.kind,effect);
     return 1.0;
 }
 // Keep the shared AttackStats binding/hit flow. Flat counters add, independent
@@ -89,9 +110,7 @@ inline constexpr std::array ShrineBlessings{
 [[nodiscard]] inline AttackModifiers shrineDefenseAttackModifiers(
     const std::array<double, RunUpgradeEffectCount>& powers, const ShrineRunState& state) {
     auto result=defenseAttackCardModifiers(powers);
-    std::array<double,RunUpgradeEffectCount> shrinePowers{};
-    for (std::size_t i=0;i<shrinePowers.size();++i) shrinePowers[i]=state.buildingBonuses[i];
-    const auto extra=defenseAttackCardModifiers(shrinePowers);
+    const auto extra=defenseAttackCardModifiers(state.buildingPowers);
     for (std::size_t i=0;i<result.values.size();++i) {
         result.values[i].flat+=extra.values[i].flat;
         result.values[i].multiplier*=extra.values[i].multiplier;
@@ -110,11 +129,14 @@ inline constexpr std::array ShrineBlessings{
     int total = 0;
     for (const auto kind : {ShrineKind::Player,ShrineKind::Buildings}) {
         const auto& counts=shrineBonusCounts(state,kind);
+        const auto& powers=shrineBonusPowers(state,kind);
         int kindTotal=state.offer==kind ? 1 : 0;
         for (std::size_t i=0; i<counts.size(); ++i) {
             const int count=counts[i];
             if (count<0 || count>MaximumShrineActivations ||
                 (count && !shrineBlessing(kind,static_cast<RunUpgradeEffect>(i)))) return false;
+            if (!std::isfinite(powers[i]) || powers[i]<0.0 ||
+                powers[i]>2.0*count+1e-6) return false;
             total += count;
             kindTotal += count;
         }

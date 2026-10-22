@@ -207,10 +207,23 @@ class FoundationSystem {
         int storey{};
     };
 
+    struct FloorPlatformSupports {
+        std::vector<EntityId> ids;
+        bool complete{true};
+    };
+
+    [[nodiscard]] FloorPlatformSupports floorPlatformSupports(
+        GridCoord anchor, int supportStorey, double supportHeight,
+        bool requireSupported = true) const;
+    [[nodiscard]] bool floorOverlapsRampCells(GridCoord anchor, int storey) const;
+
     [[nodiscard]] std::optional<FloorSurface>
     topFloorAtCell(int x, int z) const;
     [[nodiscard]] const PlatformFrameInstance*
     frameAt(GridCoord anchor, int storey) const;
+    [[nodiscard]] const PlatformFrameInstance* frameAtCell(
+        int x, int z, int storey, double floorHeight,
+        bool requireSupported) const;
     [[nodiscard]] PlatformFramePlacement
     previewGroundPlatformAtAnchor(
         GridCoord anchor, double baseHeight,

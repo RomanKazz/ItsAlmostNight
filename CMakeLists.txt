@@ -44,6 +44,10 @@ FetchContent_MakeAvailable(raylib)
 target_compile_definitions(raylib PRIVATE
     FONT_SDF_CHAR_PADDING=10
     FONT_SDF_PIXEL_DIST_SCALE=16.0f
+    # World, postprocess and HUD flush the shared batch several times per
+    # frame. Rotate VBOs so uploads do not immediately overwrite the buffer
+    # still being consumed by the previous draw (raylib defaults to one).
+    RL_DEFAULT_BATCH_BUFFERS=4
 )
 
 find_package(nlohmann_json 3.11.3 CONFIG QUIET)
@@ -120,6 +124,7 @@ add_library(ian_simulation
     src/enemies/EnemyNavigation.cpp
     src/enemies/EnemyAirTank.cpp
     src/enemies/EnemyProjectiles.cpp
+    src/enemies/EnemySpawning.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
     src/game/SimulationCombat.cpp
@@ -133,8 +138,11 @@ add_library(ian_simulation
     src/game/SimulationDebug.cpp
     src/game/SimulationDefenses.cpp
     src/game/SimulationTowerCombat.cpp
+    src/game/SimulationClassAbilities.cpp
+    src/game/ChestItemCombatSystem.cpp
     src/game/SimulationLoot.cpp
     src/game/SimulationLandmarks.cpp
+    src/game/SimulationShrines.cpp
     src/game/SimulationModularPlacement.cpp
     src/game/SimulationPlayerActions.cpp
     src/game/SimulationPlayerLifecycle.cpp
@@ -157,6 +165,8 @@ add_library(ian_simulation
     src/world/SpatialHash.cpp
     src/world/TerrainHeightfield.cpp
     src/world/WorldConfig.cpp
+    src/world/WorldScenery.cpp
+    src/world/WorldSceneryLoot.cpp
     src/waves/WaveDirector.cpp
 )
 target_include_directories(ian_simulation PUBLIC src)
@@ -196,6 +206,7 @@ add_library(ian_presentation
 target_include_directories(ian_presentation PUBLIC src)
 
 add_library(ian_graphics
+    src/graphics/BuildingFeedbackEffect.cpp
     src/graphics/DecorationExclusionMap.cpp
     src/graphics/EnvironmentSystem.cpp
     src/graphics/GlbNodeAnimation.cpp
@@ -228,6 +239,9 @@ add_library(ian_ui
     src/ui/QuestMenu.cpp
     src/ui/UnlockMenu.cpp
     src/ui/ShopMenu.cpp
+    src/ui/RunMenus.cpp
+    src/ui/SettingsMenu.cpp
+    src/ui/MainMenuHome.cpp
     src/ui/HudBuildingContextCard.cpp
     src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
@@ -241,10 +255,11 @@ add_library(ian_ui
     src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
+target_compile_definitions(ian_ui PRIVATE IAN_GAME_VERSION="${PROJECT_VERSION}")
 target_include_directories(ian_ui SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src"
     "${raygui_SOURCE_DIR}/src")
-target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression
+target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression ian_settings
     PRIVATE nlohmann_json::nlohmann_json lunasvg::lunasvg ian_simulation)
 
 add_executable(its_almost_night
@@ -259,11 +274,13 @@ add_executable(its_almost_night
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppEventPresentation.cpp
     src/app/AppGraphicsPanel.cpp
+    src/app/AppSettingsMenu.cpp
     src/app/AppGameplayInput.cpp
     src/app/AppGameplayRender.cpp
     src/app/AppGameplayUi.cpp
     src/app/AppInteractionPrompt.cpp
     src/app/AppMainMenu.cpp
+    src/app/MenuBackgroundScene.cpp
     src/app/AppInput.cpp
     src/app/AppItemGrantMenu.cpp
     src/app/AppModularPlacement.cpp
@@ -278,6 +295,7 @@ add_executable(its_almost_night
     src/app/AppUpdate.cpp
     src/app/AppWorldOverlayEffects.cpp
     src/app/AppWorldEnemies.cpp
+    src/app/AppChallengeFence.cpp
     src/app/AppWorldRender.cpp
     src/app/AppWorldOverlays.cpp
     src/app/main.cpp
@@ -396,9 +414,21 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_balance_lab_checks COMMAND ian_balance_lab --self-test)
     set_tests_properties(ian_balance_lab_checks PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 60)
+    add_executable(ian_defense_balance tools/DefenseBalance.cpp)
+    target_link_libraries(ian_defense_balance PRIVATE ian_simulation)
+    ian_set_warnings(ian_defense_balance)
+    if(IAN_ENABLE_SANITIZERS)
+        target_compile_options(ian_defense_balance PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_defense_balance PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_defense_balance_checks COMMAND ian_defense_balance --self-test)
+    set_tests_properties(ian_defense_balance_checks PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 60)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
         add_test(NAME ian_balance_report_checks COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_balance_lab_report.py")
+        add_test(NAME ian_defense_balance_report_checks COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_defense_balance_report.py")
+        set_tests_properties(ian_defense_balance_report_checks PROPERTIES ENVIRONMENT "IAN_DEFENSE_BALANCE_BINARY=$<TARGET_FILE:ian_defense_balance>")
+        add_test(NAME ian_defense_balance_compare_checks COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_defense_balance_compare.py")
     endif()
 
     add_executable(ian_render_performance_smoke tests/RenderPerformanceSmokeTests.cpp)
@@ -411,6 +441,29 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_render_performance_smoke COMMAND ian_render_performance_smoke)
     set_tests_properties(ian_render_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+    add_executable(ian_defense_tests tests/DefenseSystemTests.cpp
+        tests/TowerSystemTests.cpp tests/CannonSystemTests.cpp tests/TrapSystemTests.cpp)
+    target_link_libraries(ian_defense_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_defense_tests)
+    add_test(NAME ian_defense_tests COMMAND ian_defense_tests)
+    set_tests_properties(ian_defense_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
+    add_executable(ian_attack_tests tests/AttackSystemTests.cpp)
+    target_link_libraries(ian_attack_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_attack_tests)
+    add_test(NAME ian_attack_tests COMMAND ian_attack_tests)
+    set_tests_properties(ian_attack_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
+    add_executable(ian_flamethrower_tests tests/FlamethrowerAttackTests.cpp)
+    target_link_libraries(ian_flamethrower_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_flamethrower_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_flamethrower_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_flamethrower_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_flamethrower_tests COMMAND ian_flamethrower_tests)
+    set_tests_properties(ian_flamethrower_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+
     target_compile_definitions(its_almost_night PRIVATE IAN_PRESENTATION_SMOKE_TEST)
     target_sources(its_almost_night PRIVATE tests/AppPresentationEventsSmoke.cpp tools/FrameBenchmark.cpp)
     add_test(NAME ian_presentation_events_smoke COMMAND its_almost_night --test-presentation-events)
@@ -527,13 +580,15 @@ if(BUILD_TESTING)
 
     add_executable(ian_tests
         tests/FixedStepTests.cpp
-        tests/RunShopTests.cpp
         tests/GeometryTests.cpp
+        tests/RendererMathTests.cpp
         tests/ResourceCostTests.cpp
         tests/SaturatingArithmeticTests.cpp
         tests/DeterministicRandomTests.cpp
         tests/DecorationExclusionMapTests.cpp
         tests/BuildingSystemTests.cpp
+        tests/MenuBackgroundSceneTests.cpp
+        src/app/MenuBackgroundScene.cpp
         tests/BuildingStatsTests.cpp
         tests/BuildGridTests.cpp
         tests/FoundationSystemTests.cpp
@@ -546,6 +601,7 @@ if(BUILD_TESTING)
         tests/PlacementLineTests.cpp
         tests/BombSystemTests.cpp
         tests/IceWandSystemTests.cpp
+        tests/ChestItemCombatTests.cpp
         tests/LootChestSystemTests.cpp
         tests/CannonSystemTests.cpp
         tests/CollisionWorldTests.cpp
@@ -557,12 +613,16 @@ if(BUILD_TESTING)
         tests/PlayerWeaponSystemTests.cpp
         tests/ResourceSystemTests.cpp
         tests/SimulationTests.cpp
+        tests/RunShopTests.cpp
+        tests/PlayerClassAbilityTests.cpp
         tests/RunUpgradeTests.cpp
+        tests/PowerupTests.cpp
         tests/GameBalanceTests.cpp
         tests/MapDefinitionTests.cpp
         tests/GlbCollisionTests.cpp
         tests/GlbNodeAnimationTests.cpp
         tests/TerrainHeightfieldTests.cpp
+        tests/WorldSceneryTests.cpp
         tests/SpatialHashTests.cpp
         tests/InsightSystemTests.cpp
         tests/ObjectiveSystemTests.cpp
@@ -575,14 +635,45 @@ if(BUILD_TESTING)
     target_link_libraries(ian_tests PRIVATE
         ian_simulation ian_graphics ian_presentation
         ian_progression ian_settings)
+    target_link_libraries(ian_tests PRIVATE nlohmann_json::nlohmann_json)
     target_compile_definitions(ian_tests PRIVATE
         IAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_include_directories(ian_tests SYSTEM PRIVATE
         "${raylib_SOURCE_DIR}/src")
     ian_set_warnings(ian_tests)
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        target_compile_options(ian_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(ian_tests PRIVATE -fsanitize=address,undefined)
+        foreach(target ian_tests ian_attack_tests ian_defense_tests)
+            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        endforeach()
+    endif()
+    add_executable(ian_chest_item_tests tests/ChestItemTestMain.cpp tests/ChestItemCombatTests.cpp)
+    target_link_libraries(ian_chest_item_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_chest_item_tests)
+    add_test(NAME ian_chest_item_tests COMMAND ian_chest_item_tests)
+    set_tests_properties(ian_chest_item_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 120)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_chest_item_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_chest_item_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_executable(ian_shrine_tests tests/ShrineTests.cpp)
+    target_link_libraries(ian_shrine_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_shrine_tests)
+    add_test(NAME ian_shrine_tests COMMAND ian_shrine_tests)
+    set_tests_properties(ian_shrine_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 120)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_shrine_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_shrine_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_executable(ian_weapon_progression_tests tests/WeaponCardProgressionTests.cpp)
+    target_link_libraries(ian_weapon_progression_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_weapon_progression_tests)
+    add_test(NAME ian_weapon_progression_tests COMMAND ian_weapon_progression_tests)
+    set_tests_properties(ian_weapon_progression_tests PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 120)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_weapon_progression_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_weapon_progression_tests PRIVATE -fsanitize=address,undefined)
     endif()
     add_executable(ian_run_shop_tests tests/RunShopTests.cpp)
     target_compile_definitions(ian_run_shop_tests PRIVATE IAN_RUN_SHOP_TEST_MAIN=1)
@@ -598,9 +689,10 @@ if(BUILD_TESTING)
 
     add_executable(ian_graphics_smoke
         tests/GraphicsResourceSmokeTests.cpp
+        src/app/AppRenderSupport.cpp
     )
     target_link_libraries(ian_graphics_smoke PRIVATE
-        ian_graphics ian_simulation)
+        ian_graphics ian_simulation ian_ui nlohmann_json::nlohmann_json)
     target_include_directories(ian_graphics_smoke SYSTEM PRIVATE
         "${raylib_SOURCE_DIR}/src")
     ian_set_warnings(ian_graphics_smoke)
@@ -651,14 +743,43 @@ if(BUILD_TESTING)
     set_tests_properties(ian_run_upgrade_ui_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 30 LABELS "graphics;ui;integration")
+    add_executable(ian_quest_menu_smoke tests/QuestMenuSmokeTests.cpp)
     add_executable(ian_ui_viewport_smoke tests/UiViewportSmokeTests.cpp)
+    add_executable(ian_ui_solid_shapes_smoke tests/UiSolidShapesSmokeTests.cpp)
+    target_link_libraries(ian_ui_solid_shapes_smoke PRIVATE ian_ui)
+    ian_set_warnings(ian_ui_solid_shapes_smoke)
+    add_test(NAME ian_ui_solid_shapes_smoke COMMAND ian_ui_solid_shapes_smoke)
+    set_tests_properties(ian_ui_solid_shapes_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     target_link_libraries(ian_ui_viewport_smoke PRIVATE ian_ui ian_settings)
     ian_set_warnings(ian_ui_viewport_smoke)
     add_test(NAME ian_ui_viewport_smoke COMMAND ian_ui_viewport_smoke)
     set_tests_properties(ian_ui_viewport_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
-    add_executable(ian_quest_menu_smoke tests/QuestMenuSmokeTests.cpp)
+    add_executable(ian_main_menu_home_smoke tests/MainMenuHomeSmokeTests.cpp)
+    add_executable(ian_settings_menu_smoke tests/SettingsMenuSmokeTests.cpp)
+    add_executable(ian_run_menus_smoke tests/RunMenusSmokeTests.cpp)
+    target_link_libraries(ian_run_menus_smoke PRIVATE ian_ui)
+    ian_set_warnings(ian_run_menus_smoke)
+    add_test(NAME ian_run_menus_smoke COMMAND ian_run_menus_smoke)
+    set_tests_properties(ian_run_menus_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
+    target_link_libraries(ian_settings_menu_smoke PRIVATE ian_ui)
+    ian_set_warnings(ian_settings_menu_smoke)
+    add_test(NAME ian_settings_menu_smoke COMMAND ian_settings_menu_smoke)
+    set_tests_properties(ian_settings_menu_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
+    target_link_libraries(ian_main_menu_home_smoke PRIVATE ian_ui)
+    target_include_directories(ian_main_menu_home_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_main_menu_home_smoke)
+    add_test(NAME ian_main_menu_home_smoke COMMAND ian_main_menu_home_smoke)
+    set_tests_properties(ian_main_menu_home_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     target_link_libraries(ian_quest_menu_smoke PRIVATE ian_ui)
     target_include_directories(ian_quest_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
     ian_set_warnings(ian_quest_menu_smoke)
@@ -666,6 +787,14 @@ if(BUILD_TESTING)
     set_tests_properties(ian_quest_menu_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
+    add_executable(ian_audio_smoke tests/AudioSystemSmokeTests.cpp)
+    target_link_libraries(ian_audio_smoke PRIVATE ian_audio nlohmann_json::nlohmann_json)
+    target_include_directories(ian_audio_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_audio_smoke)
+    add_test(NAME ian_audio_smoke COMMAND ian_audio_smoke)
+    set_tests_properties(ian_audio_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "audio;integration")
     add_executable(ian_meta_shop_tests tests/MetaShopTests.cpp)
     target_link_libraries(ian_meta_shop_tests PRIVATE ian_simulation ian_progression nlohmann_json::nlohmann_json)
     ian_set_warnings(ian_meta_shop_tests)
@@ -704,19 +833,9 @@ if(BUILD_TESTING)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        foreach(target ian_ui_viewport_smoke ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke ian_shop_menu_smoke ian_meta_shop_tests)
+        foreach(target ian_audio_smoke ian_ui_text_sdf_smoke ian_ui_viewport_smoke ian_ui_solid_shapes_smoke ian_main_menu_home_smoke ian_settings_menu_smoke ian_run_menus_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke ian_shop_menu_smoke ian_meta_shop_tests)
             target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
         endforeach()
-    endif()
-    add_executable(ian_weapon_progression_tests tests/WeaponCardProgressionTests.cpp)
-    target_link_libraries(ian_weapon_progression_tests PRIVATE ian_simulation)
-    ian_set_warnings(ian_weapon_progression_tests)
-    add_test(NAME ian_weapon_progression_tests COMMAND ian_weapon_progression_tests)
-    set_tests_properties(ian_weapon_progression_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 120)
-    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        target_compile_options(ian_weapon_progression_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(ian_weapon_progression_tests PRIVATE -fsanitize=address,undefined)
     endif()
 endif()

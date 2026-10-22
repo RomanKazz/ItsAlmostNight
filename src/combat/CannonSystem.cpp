@@ -5,6 +5,7 @@
 #include "combat/DefenseAiming.hpp"
 #include "combat/AttackArea.hpp"
 #include "combat/DefenseTomeScaling.hpp"
+#include "combat/AttackStatCompatibility.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -89,7 +90,7 @@ double CannonSystem::attackRange(
 
 double CannonSystem::minimumRange(
     BuildingType type, std::uint8_t level) {
-    if (type == BuildingType::Mortar) return 4.0;
+    if (type == BuildingType::Mortar) return 5.25;
     if (type != BuildingType::Catapult) return 0.0;
     return std::max(
         3.25, CatapultMinimumRange -
@@ -103,7 +104,7 @@ double CannonSystem::fireInterval(std::uint8_t level) {
 
 double CannonSystem::fireInterval(
     BuildingType type, std::uint8_t level) {
-    if (type == BuildingType::Mortar) return 4.0 / (1.0 + 0.06 * (std::clamp<int>(level,1,8)-1));
+    if (type == BuildingType::Mortar) return 5.0 / (1.0 + 0.06 * (std::clamp<int>(level,1,8)-1));
     if (type == BuildingType::Catapult) {
         return 1.0 / (0.25 +
             0.02 * static_cast<double>(level - 1));
@@ -118,7 +119,7 @@ double CannonSystem::explosionRadius(std::uint8_t level) {
 
 double CannonSystem::explosionRadius(
     BuildingType type, std::uint8_t level) {
-    if (type == BuildingType::Mortar) return 3.25 + 0.12 * (std::clamp<int>(level,1,8)-1);
+    if (type == BuildingType::Mortar) return 2.75 + 0.12 * (std::clamp<int>(level,1,8)-1);
     if (type == BuildingType::Catapult) {
         return CatapultExplosionRadius +
             0.1 * static_cast<double>(level - 1);
@@ -150,7 +151,7 @@ void CannonSystem::reset() {
     setTypeBonuses(BuildingType::Core, 1.0, 1.0);
     cannons_.clear();
     pool_.clear();
-    modifiers_ = {}; typeModifiers_ = {}; highGroundDamageMultiplier_ = 1.0; clusterExplosionCount_ = 0;
+    modifiers_ = {}; typeModifiers_ = {}; buildingUpgradeModifiers_ = {}; highGroundDamageMultiplier_ = 1.0; clusterExplosionCount_ = 0;
     explosionBuffer_.clear();
     shotBuffer_.clear();
     hitBuffer_.clear();
@@ -181,8 +182,10 @@ FinalAttackStats CannonSystem::finalStats(const BuildingInstance& building) cons
     base.quantity = profile.projectileCount;
     base.attackInterval *= profile.interval;
     base.damage *= profile.damage;
-    return resolveBuildingAttackStats(base, building, modifiers_, bonusType_, typeModifiers_,
-        highGroundDamageMultiplier_);
+    return resolveBuildingAttackStats(base, building,
+        compatibleAttackModifiers(building.type, modifiers_), bonusType_,
+        compatibleAttackModifiers(building.type, typeModifiers_),
+        highGroundDamageMultiplier_, buildingUpgradeModifiers_[static_cast<std::size_t>(building.type)]);
 }
 
 void CannonSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
@@ -574,6 +577,13 @@ void CannonSystem::explode(CannonProjectile& projectile, EnemySystem& enemies) {
         explosionBuffer_.push_back({projectile.id, origin, radius, hits, kills});
     };
     pulse(projectile.position, projectile.explosionRadius, 1.0, 0, &projectile.runtime.alreadyHitTargets);
+    if (projectile.type == BuildingType::Catapult) {
+        // A catapult impact leaves struck ground enemies staggered. Duration
+        // extends this aftermath; projectile lifetime remains long enough for
+        // the ballistic flight at ordinary attack ranges.
+        enemies.applySlowInRadius(projectile.position, projectile.explosionRadius,
+            0.75, projectile.configuration.stats.duration * 0.30, false);
+    }
     constexpr double FullCircle = 6.283185307179586;
     // Cluster payload remains a weapon-specific area pattern. Each mini blast
     // is its own attack instance, sharing the central hit calculation.

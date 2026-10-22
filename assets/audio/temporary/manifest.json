@@ -234,8 +234,8 @@
       "channels": 2
     },
     {
-      "cue": "dash",
-      "file": "dash.ogg",
+      "cue": "wind_gust",
+      "file": "wind_gust.ogg",
       "source": "070. Evade.ogg",
       "duration": 0.542667,
       "sample_rate": 48000,
@@ -418,46 +418,6 @@
       "channels": 2
     },
     {
-      "cue": "music_menu",
-      "file": "music_menu.ogg",
-      "source": "155. Music Menu.ogg",
-      "duration": 131.899501,
-      "sample_rate": 44100,
-      "channels": 2
-    },
-    {
-      "cue": "music_day",
-      "file": "music_day.ogg",
-      "source": "144. Music Forest1 Loop.ogg",
-      "duration": 142.614059,
-      "sample_rate": 44100,
-      "channels": 2
-    },
-    {
-      "cue": "music_night",
-      "file": "music_night.ogg",
-      "source": "148. Music Forest3 Loop.ogg",
-      "duration": 109.334059,
-      "sample_rate": 44100,
-      "channels": 2
-    },
-    {
-      "cue": "music_boss",
-      "file": "music_boss.ogg",
-      "source": "152. Music Forest Boss Loop.ogg",
-      "duration": 120.616054,
-      "sample_rate": 44100,
-      "channels": 2
-    },
-    {
-      "cue": "forest_ambience",
-      "file": "forest_ambience.ogg",
-      "source": "007. Ambience Forest.ogg",
-      "duration": 42.489333,
-      "sample_rate": 48000,
-      "channels": 2
-    },
-    {
       "cue": "ui_select_0",
       "file": "ui_select_0.ogg",
       "source": "242. Select.ogg",
@@ -471,14 +431,6 @@
       "source": "243. Select2.ogg",
       "duration": 0.088526,
       "sample_rate": 44100,
-      "channels": 2
-    },
-    {
-      "cue": "levelup_ambience",
-      "file": "levelup_ambience.ogg",
-      "source": "113. Levelup Ambience.ogg",
-      "duration": 10.190667,
-      "sample_rate": 48000,
       "channels": 2
     },
     {

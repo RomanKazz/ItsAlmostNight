@@ -13,9 +13,6 @@ std::string InputKeycap::label(
     if (action == ControlAction::Attack && key == KEY_NULL) {
         return "LMB";
     }
-    if (action == ControlAction::Dash && key == KEY_NULL) {
-        return "RMB";
-    }
     return keyboardKeyName(key);
 }
 
@@ -24,10 +21,6 @@ bool InputKeycap::held(
     if (action == ControlAction::Attack &&
         controlKey(controls, action) == KEY_NULL) {
         return IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-    }
-    if (action == ControlAction::Dash &&
-        controlKey(controls, action) == KEY_NULL) {
-        return IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
     }
     const int key = controlKey(controls, action);
     return key != KEY_NULL && IsKeyDown(key);

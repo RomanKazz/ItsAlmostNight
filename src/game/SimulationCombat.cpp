@@ -57,7 +57,10 @@ int Simulation::earlyWaveCoinBonus() const {
 int Simulation::earlyWaveInsightBonus() const {
     const int hourglassStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
-    return remainingTimeUnits(phaseTimeRemaining_) * hourglassStacks;
+    return saturatingMultiplyNonNegative(
+        saturatingMultiplyNonNegative(
+            remainingTimeUnits(phaseTimeRemaining_), hourglassStacks),
+        2);
 }
 
 void Simulation::updateRunPhase(
@@ -459,6 +462,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     removeUnsupportedPlatformBuildings();
                     if (!buildings_.core()) {
                         enemies_.clearProjectiles();
+                        towers_.clearProjectiles();
                         cannons_.clearProjectiles();
                         bombs_.clearProjectiles();
                         iceWand_.clearProjectiles();
@@ -520,6 +524,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 worldStructuresDirty = true;
                 if (damage->type == BuildingType::Core) {
                     enemies_.clearProjectiles();
+                    towers_.clearProjectiles();
                     cannons_.clearProjectiles();
                     bombs_.clearProjectiles();
                     iceWand_.clearProjectiles();

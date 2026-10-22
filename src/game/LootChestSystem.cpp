@@ -45,25 +45,14 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position,
     const std::uint64_t roll =
         mixBits64(seed ^ 0xe7037ed1a0b428dbULL ^
                   mixBits64(reroll + 0x9e3779b97f4a7c15ULL));
-    constexpr std::array<LootUpgradeEffect, 9> CommonLoot{{
-        LootUpgradeEffect::Apple,
-        LootUpgradeEffect::Bread,
-        LootUpgradeEffect::IronBar,
-        LootUpgradeEffect::FuelJerrycan,
-        LootUpgradeEffect::Compass,
-        LootUpgradeEffect::Nail,
-        LootUpgradeEffect::Key,
-        LootUpgradeEffect::Magnet,
-        LootUpgradeEffect::HealthAid,
+    constexpr std::array<LootUpgradeEffect, 5> CommonLoot{{
+        LootUpgradeEffect::FuelJerrycan, LootUpgradeEffect::Nail,
+        LootUpgradeEffect::PlagueMushroom, LootUpgradeEffect::PowderPouch,
+        LootUpgradeEffect::TargetingLens,
     }};
-    constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
-        LootUpgradeEffect::Map,
-        LootUpgradeEffect::Anvil,
-        LootUpgradeEffect::Saw,
-        LootUpgradeEffect::Potion,
-        LootUpgradeEffect::Blueprint,
-        LootUpgradeEffect::Hourglass,
-        LootUpgradeEffect::Rope,
+    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+        LootUpgradeEffect::CoalBell, LootUpgradeEffect::InfectedPouch,
+        LootUpgradeEffect::GasMask, LootUpgradeEffect::IcePrism,
     }};
     // Distant exploration chests demand a meaningful detour during the short
     // day, so they deserve a noticeably better rare-item chance than the
@@ -169,6 +158,7 @@ void LootChestSystem::reset(
     ++runGeneration_;
     if (runGeneration_ == 0U) ++runGeneration_;
     nextEntityIndex_ = 0U;
+    openedPaidChestCount_ = 0;
     chests_.clear();
     chests_.reserve(ChestCount);
     spawnAdditionalChests(
@@ -262,6 +252,22 @@ bool LootChestSystem::restoreChests(
         runGeneration_ = generation;
     }
     nextEntityIndex_ = nextIndex;
+    return true;
+}
+
+bool LootChestSystem::relocateExplorationChest(
+    EntityId id, Vec3 position, const TerrainHeightfield& terrain, double yaw) {
+    if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+        !std::isfinite(position.z) || !std::isfinite(yaw)) return false;
+    const auto chest = std::ranges::find(chests_, id, &LootChestInstance::id);
+    if (chest == chests_.end() || chest->looseLoot ||
+        chest->purpose != LootChestPurpose::Exploration ||
+        chest->state != LootChestState::Closed) return false;
+    position.y = terrain.getHeight(position.x, position.z);
+    chest->position = position;
+    chest->surfaceNormal = terrain.getNormal(position.x, position.z);
+    chest->yaw = yaw;
+    chest->loot.position = position;
     return true;
 }
 
@@ -504,6 +510,8 @@ ChestOpenResult LootChestSystem::open(
     coins -= cost;
     chest->state = LootChestState::Opening;
     chest->openingProgress = 0.0;
+    if (chest->coinCost > 0 && openedPaidChestCount_ < 1'000'000)
+        ++openedPaidChestCount_;
     return ChestOpenResult::Opened;
 }
 
@@ -534,14 +542,33 @@ void LootChestSystem::setOpeningCostSurcharge(int surcharge) {
     openingCostSurcharge_ = std::max(0, surcharge);
 }
 
+void LootChestSystem::setOpenedPaidChestCount(int count) {
+    openedPaidChestCount_ = std::clamp(count, 0, 1'000'000);
+}
+
+int LootChestSystem::openedPaidChestCount() const {
+    return openedPaidChestCount_;
+}
+
+int scaledChestOpeningCost(
+    int baseCost, int surcharge, double discountMultiplier,
+    int previouslyOpenedPaidChests) {
+    if (baseCost <= 0) return 0;
+    const double growth = std::pow(
+        1.15, std::min(std::max(0, previouslyOpenedPaidChests), 100));
+    const double scaled = std::min(
+        1'000'000.0,
+        (static_cast<double>(baseCost) +
+         static_cast<double>(std::max(0, surcharge))) *
+            growth * std::clamp(discountMultiplier, 0.01, 1.0));
+    return std::max(5, static_cast<int>(std::round(scaled / 5.0)) * 5);
+}
+
 int LootChestSystem::openingCost(
     const LootChestInstance& chest) const {
-    if (chest.coinCost <= 0) return 0;
-    return std::max(
-        1,
-        static_cast<int>(std::lround(
-            static_cast<double>(chest.coinCost + openingCostSurcharge_) *
-            coinCostMultiplier_)));
+    return scaledChestOpeningCost(
+        chest.coinCost, openingCostSurcharge_,
+        coinCostMultiplier_, openedPaidChestCount_);
 }
 
 std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
@@ -578,19 +605,14 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
 
 void LootChestSystem::spawnLooseLoot(
     Vec3 position, LootRarity rarity, std::uint64_t seed) {
-    constexpr std::array<LootUpgradeEffect, 9> CommonLoot{{
-        LootUpgradeEffect::Apple, LootUpgradeEffect::Bread,
-        LootUpgradeEffect::IronBar, LootUpgradeEffect::FuelJerrycan,
-        LootUpgradeEffect::Compass, LootUpgradeEffect::Nail,
-        LootUpgradeEffect::Key,
-        LootUpgradeEffect::Magnet,
-        LootUpgradeEffect::HealthAid,
+    constexpr std::array<LootUpgradeEffect, 5> CommonLoot{{
+        LootUpgradeEffect::FuelJerrycan, LootUpgradeEffect::Nail,
+        LootUpgradeEffect::PlagueMushroom, LootUpgradeEffect::PowderPouch,
+        LootUpgradeEffect::TargetingLens,
     }};
-    constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
-        LootUpgradeEffect::Map, LootUpgradeEffect::Anvil,
-        LootUpgradeEffect::Saw, LootUpgradeEffect::Potion,
-        LootUpgradeEffect::Blueprint, LootUpgradeEffect::Hourglass,
-        LootUpgradeEffect::Rope,
+    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+        LootUpgradeEffect::CoalBell, LootUpgradeEffect::InfectedPouch,
+        LootUpgradeEffect::GasMask, LootUpgradeEffect::IcePrism,
     }};
     const auto pool = rarity == LootRarity::Common
         ? std::span<const LootUpgradeEffect>{CommonLoot}
@@ -668,6 +690,13 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Rope: return "Safety Rope";
     case LootUpgradeEffect::Magnet: return "Pickup Magnet";
     case LootUpgradeEffect::HealthAid: return "Field Medkit";
+    case LootUpgradeEffect::CoalBell: return "Coal Bell";
+    case LootUpgradeEffect::PowderPouch: return "Powder Pouch";
+    case LootUpgradeEffect::PlagueMushroom: return "Plague Mushroom";
+    case LootUpgradeEffect::InfectedPouch: return "Infected Pouch";
+    case LootUpgradeEffect::GasMask: return "Gas Mask";
+    case LootUpgradeEffect::IcePrism: return "Ice Prism";
+    case LootUpgradeEffect::TargetingLens: return "Targeting Lens";
     }
     return "Unknown Item";
 }
@@ -684,7 +713,7 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::IronBar:
         return "+12 regenerating armor; breaking it knocks back and briefly stuns enemies";
     case LootUpgradeEffect::FuelJerrycan:
-        return "Player attacks ignite enemies; stacks increase burn damage";
+        return "Hits can ignite enemies; repeated burns deal more damage";
     case LootUpgradeEffect::Compass:
         return "Points to nearby chests; range grows per stack";
     case LootUpgradeEffect::Nail:
@@ -709,6 +738,13 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
         return "Coins and hearts attract from 6m farther per stack (max 20m)";
     case LootUpgradeEffect::HealthAid:
         return "Destroying a tree or stone restores 4 health per stack (max 16)";
+    case LootUpgradeEffect::CoalBell: return "Burning kills explode and ignite nearby enemies";
+    case LootUpgradeEffect::PowderPouch: return "Critical hits explode, damaging nearby enemies";
+    case LootUpgradeEffect::PlagueMushroom: return "Hits can poison; repeated doses strengthen poison";
+    case LootUpgradeEffect::InfectedPouch: return "Poisoned kills leave a poison cloud";
+    case LootUpgradeEffect::GasMask: return "Nearby poisoned enemies reduce damage taken (max 35%)";
+    case LootUpgradeEffect::IcePrism: return "Frozen kills shatter; shards hit slowed enemies harder";
+    case LootUpgradeEffect::TargetingLens: return "Player hits mark targets; defenses prioritize them and deal more damage";
     }
     return "";
 }

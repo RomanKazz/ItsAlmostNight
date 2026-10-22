@@ -246,6 +246,20 @@ bool ResourceSystem::restoreNodes(
     return true;
 }
 
+bool ResourceSystem::relocateDestructibleProp(
+    EntityId id, Vec3 groundPosition, double yaw) {
+    if (!std::isfinite(groundPosition.x) || !std::isfinite(groundPosition.y) ||
+        !std::isfinite(groundPosition.z) || !std::isfinite(yaw)) return false;
+    const auto node = std::ranges::find(nodes_, id, &ResourceNode::id);
+    if (node == nodes_.end() || !node->active || !isDestructibleProp(node->type))
+        return false;
+    node->position = groundPosition;
+    node->position.y += node->groundOffset;
+    node->visualYaw = yaw;
+    collisionGeometryDirty_ = true;
+    return true;
+}
+
 void ResourceSystem::setWoodYieldMultiplier(double multiplier) {
     const double next = std::max(0.0, multiplier);
     if (std::abs(next - woodYieldMultiplier_) <= 1e-9) {

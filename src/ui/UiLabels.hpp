@@ -7,6 +7,8 @@
 
 namespace ian {
 
+[[nodiscard]] std::string_view placementErrorMessage(PlacementError error);
+
 [[nodiscard]] std::string_view buildingDisplayName(
     BuildingType type);
 

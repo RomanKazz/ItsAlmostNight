@@ -27,8 +27,9 @@ std::size_t attackDirectionIndex(AttackDirection direction) {
     return static_cast<std::size_t>(direction);
 }
 
-std::array<std::optional<Vec3>, 4> portalPositions(
-    std::span<const EnemySpawn> spawns, GridPosition corePosition) {
+std::array<std::optional<Vec3>, MaximumAttackPortals> portalPositions(
+    std::span<const EnemySpawn> spawns, GridPosition corePosition,
+    bool addSecondPortal, double worldLimit) {
     constexpr std::size_t DirectionCount = 4U;
     std::array<double, DirectionCount> nearestRadius{};
     nearestRadius.fill(std::numeric_limits<double>::infinity());
@@ -56,7 +57,7 @@ std::array<std::optional<Vec3>, 4> portalPositions(
         ++counts[index];
     }
 
-    std::array<std::optional<Vec3>, DirectionCount> result{};
+    std::array<std::optional<Vec3>, MaximumAttackPortals> result{};
     for (std::size_t index = 0; index < DirectionCount; ++index) {
         if (counts[index] == 0U) continue;
         const double inverseCount =
@@ -113,6 +114,51 @@ std::array<std::optional<Vec3>, 4> portalPositions(
         }
         if (!moved) break;
     }
+
+    if (addSecondPortal) {
+        // Keep the original lane at each front, then place its second lane
+        // sideways. Search both sides and a few outward offsets; omit a
+        // candidate if the terrain is too small to fit it safely.
+        constexpr std::array<double, 6> SideOffsets{
+            7.0, -7.0, 10.5, -10.5, 14.0, -14.0};
+        constexpr std::array<double, 3> OutwardOffsets{0.0, 3.5, 7.0};
+        const double edge = worldLimit - MinimumPortalSeparation * 0.5;
+        for (std::size_t index = 0; index < DirectionCount; ++index) {
+            if (!result[index]) continue;
+            const Vec3 primary = *result[index];
+            const double outwardX =
+                primary.x - static_cast<double>(corePosition.x);
+            const double outwardZ =
+                primary.z - static_cast<double>(corePosition.z);
+            const double length =
+                std::max(0.001, std::hypot(outwardX, outwardZ));
+            const double normalX = outwardX / length;
+            const double normalZ = outwardZ / length;
+            for (const double outward : OutwardOffsets) {
+                for (const double side : SideOffsets) {
+                    const Vec3 candidate{
+                        primary.x - normalZ * side + normalX * outward,
+                        0.0,
+                        primary.z + normalX * side + normalZ * outward,
+                    };
+                    if (std::abs(candidate.x) > edge ||
+                        std::abs(candidate.z) > edge) continue;
+                    const bool separated = std::ranges::all_of(
+                        result, [&candidate](const auto& portal) {
+                            return !portal ||
+                                std::hypot(
+                                    portal->x - candidate.x,
+                                    portal->z - candidate.z) >=
+                                    MinimumPortalSeparation;
+                        });
+                    if (!separated) continue;
+                    result[index + DirectionCount] = candidate;
+                    break;
+                }
+                if (result[index + DirectionCount]) break;
+            }
+        }
+    }
     return result;
 }
 
@@ -142,17 +188,34 @@ std::pair<double, double> portalSpawnOffset(std::span<const EnemySpawn> group, s
 
 void routeSpawnsThroughPortals(
     std::vector<EnemySpawn>& spawns,
-    const std::array<std::optional<Vec3>, 4>& portals,
+    const std::array<std::optional<Vec3>, MaximumAttackPortals>& portals,
     GridPosition corePosition, int groupSize) {
+    constexpr std::size_t DirectionCount = 4U;
     const std::size_t normalizedGroupSize =
         static_cast<std::size_t>(std::max(1, groupSize));
+    std::array<std::size_t, DirectionCount> groupsPerDirection{};
+    std::size_t groupDirection = DirectionCount;
+    std::size_t groupPortal = 0U;
     for (std::size_t index = 0; index < spawns.size(); ++index) {
         EnemySpawn& spawn = spawns[index];
         const std::size_t directionIndex = attackDirectionIndex(
             attackDirection(spawn.position, corePosition));
-        if (!portals[directionIndex]) continue;
+        if (index % normalizedGroupSize == 0U) {
+            groupDirection = directionIndex;
+            const std::size_t groupNumber =
+                groupsPerDirection[directionIndex]++;
+            const std::size_t secondPortal =
+                directionIndex + DirectionCount;
+            groupPortal = groupNumber % 2U == 1U &&
+                    portals[secondPortal]
+                ? secondPortal : directionIndex;
+        }
+        const std::size_t portalIndex =
+            directionIndex == groupDirection
+                ? groupPortal : directionIndex;
+        if (!portals[portalIndex]) continue;
 
-        const Vec3 portal = *portals[directionIndex];
+        const Vec3 portal = *portals[portalIndex];
         const double outwardX =
             portal.x - static_cast<double>(corePosition.x);
         const double outwardZ =
@@ -217,6 +280,30 @@ void moveGroupToPortal(
     }
 }
 
+void spreadGroupAcrossPortals(
+    std::span<EnemySpawn> spawns,
+    const std::array<std::optional<Vec3>, MaximumAttackPortals>& portals,
+    GridPosition corePosition, std::uint32_t serial) {
+    std::array<std::size_t, MaximumAttackPortals> available{};
+    std::size_t portalCount = 0;
+    for (std::size_t index = 0; index < portals.size(); ++index)
+        if (portals[index]) available[portalCount++] = index;
+    if (portalCount == 0) return;
+    for (std::size_t index = 0; index < spawns.size(); ++index) {
+        const std::size_t portalIndex = available[(serial + index) % portalCount];
+        const Vec3 portal = *portals[portalIndex];
+        const double outwardX = portal.x - static_cast<double>(corePosition.x);
+        const double outwardZ = portal.z - static_cast<double>(corePosition.z);
+        const double length = std::max(0.001, std::hypot(outwardX, outwardZ));
+        const double lane = (static_cast<double>(index / portalCount) -
+            static_cast<double>((spawns.size() - 1) / portalCount) * .5) * 1.2;
+        spawns[index].position.x = portal.x - outwardZ / length * lane - outwardX / length * .15;
+        spawns[index].position.z = portal.z + outwardX / length * lane - outwardZ / length * .15;
+        spawns[index].arrivalPortal = portal;
+        spawns[index].portalExitYaw = std::atan2(-outwardX, -outwardZ);
+    }
+}
+
 } // namespace
 
 void Simulation::resetNightEncounter() {
@@ -248,7 +335,9 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     wavePortalsActive_ = false;
     waveFirstAnchorIndex_ = firstAnchorIndex %
         map_.enemySpawnAnchors.size();
-    wavePortalPositions_ = portalPositions(plan.spawns, corePosition);
+    wavePortalPositions_ = portalPositions(
+        plan.spawns, corePosition, plan.wave >= 4,
+        map_.worldLimit);
     routeSpawnsThroughPortals(
         waveSpawnQueue_, wavePortalPositions_, corePosition,
         plan.groupSize);
@@ -275,12 +364,8 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
         attackDirection(
             map_.enemySpawnAnchors[waveFirstAnchorIndex_], corePosition);
     upcomingAttackDirections_.fill(false);
-    for (int act = 0; act < 3; ++act) {
-        for (std::uint32_t group = 0; group < wavePortalPositions_.size(); ++group) {
-            const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, act, group);
-            if (wavePortalPositions_[portal]) upcomingAttackDirections_[portal % 4] = true;
-        }
-    }
+    for (std::size_t portal = 0; portal < wavePortalPositions_.size(); ++portal)
+        if (wavePortalPositions_[portal]) upcomingAttackDirections_[portal % 4] = true;
     currentWaveHasBoss_ = std::ranges::any_of(
         plan.spawns, [](const EnemySpawn& spawn) { return spawn.type == EnemyType::Boss; });
 }
@@ -290,18 +375,17 @@ void Simulation::beginPreparedWave() {
     // the regular BuildPhase -> Sunset transition.
     rebuildFlowFieldIfDirty();
     bestWave_ = std::max(bestWave_, wave_);
-    if (playerWeaponUnlocked(PlayerWeapon::Bomb)) {
-        bombs_.addBombs(2 + runNightlyBombBonus_);
-    }
     const std::size_t firstGroupSize = std::min({
         static_cast<std::size_t>(waveSpawnGroupSize_),
         waveSpawnQueue_.size(), MaximumActiveEnemies});
     enemies_.setOvertimeDifficulty(overtimeDifficulty(overtimeSeconds_, gameplay_.overtime));
-    enemies_.spawnWave(
-        std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
+    if (const auto core = buildings_.core())
+        spreadGroupAcrossPortals(std::span<EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize},
+            wavePortalPositions_, core->gridPosition, 0);
+    enemies_.spawnWave(std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
     waveObservedActive_ = enemies_.activeCount();
-    waveGroupSerial_ = 1;
+    waveGroupSerial_ = static_cast<std::uint32_t>(firstGroupSize);
     waveSpawnGroupsDue_ = 0U;
     wavePortalsActive_ = true;
 }
@@ -385,14 +469,13 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
         waveObservedActive_ = activeBefore;
         return;
     }
+    const WaveDifficulty difficulty = waveDifficulty(wave_);
     const OvertimeDifficulty overtime = overtimeDifficulty(overtimeSeconds_, gameplay_.overtime);
     const bool surge = act == 2 || (act == 1 && progress < .55);
-    const auto baseTarget = static_cast<std::size_t>(std::min(34, 7 + std::min(wave_, 9) * 3 + static_cast<int>(progress * 5))) +
-        (act == 2 ? 9U : surge ? 5U : 0U);
     const auto targetActive = std::min(MaximumActiveEnemies, static_cast<std::size_t>(std::ceil(
-        static_cast<double>(baseTarget) * nightPopulationScale(wavePattern_, wave_) * overtime.spawnRate)));
+        waveTargetActiveEnemies(wave_, wavePattern_, progress) * overtime.spawnRate)));
     const double interval = std::clamp(waveSpawnInterval_, .35, 2.0) /
-        overtime.spawnRate * (surge ? .6 : 1.0);
+        (difficulty.spawnRateMultiplier * overtime.spawnRate) * (surge ? .6 : 1.0);
     waveSpawnTimeRemaining_ -= deltaSeconds;
     while (waveSpawnTimeRemaining_ <= 0) {
         waveSpawnGroupsDue_ = std::min(std::size_t{2}, waveSpawnGroupsDue_ + 1);
@@ -410,10 +493,11 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
         // Bounded stack formation replaces the old per-group heap allocation.
         std::array<EnemySpawn, 10> group{};
         std::copy_n(waveSpawnQueue_.begin() + static_cast<std::ptrdiff_t>(nextWaveSpawnIndex_), count, group.begin());
-        const auto portal = encounterPortalIndex(wavePortalPositions_, upcomingAttackDirection_, wavePattern_, act, waveGroupSerial_++);
-        if (const auto core = buildings_.core(); core && wavePortalPositions_[portal])
-            moveGroupToPortal(std::span<EnemySpawn>{group}.first(count), *wavePortalPositions_[portal], core->gridPosition);
+        if (const auto core = buildings_.core(); core)
+            spreadGroupAcrossPortals(std::span<EnemySpawn>{group}.first(count),
+                wavePortalPositions_, core->gridPosition, waveGroupSerial_);
         enemies_.spawnGroup(std::span<const EnemySpawn>{group}.first(count));
+        waveGroupSerial_ += static_cast<std::uint32_t>(count);
         nextWaveSpawnIndex_ += count;
         waveReplacementDemand_ -= std::min(waveReplacementDemand_, count);
         waveReplacementTime_ = .22 / overtime.spawnRate;
@@ -429,6 +513,7 @@ void Simulation::completeWave() {
     resetNightEncounter();
     waveStartCheckpoint_.reset();
     enemies_.clearProjectiles();
+    towers_.clearProjectiles();
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
     iceWand_.clearProjectiles();
@@ -480,7 +565,6 @@ void Simulation::completeWave() {
         wave_ == StageClearWave) {
         stageCleared_ = true;
         state_ = RunState::StageClear;
-        prepareRunShop();
         phaseTimeRemaining_ = 0.0;
         phaseDuration_ = 0.0;
         events_.push_back({
@@ -511,7 +595,6 @@ void Simulation::completeWave() {
         return;
     }
     state_ = RunState::WaveComplete;
-    if (!sandboxMode_) prepareRunShop();
     phaseTimeRemaining_ = gameplay_.dawnSeconds;
     phaseDuration_ = phaseTimeRemaining_;
 }

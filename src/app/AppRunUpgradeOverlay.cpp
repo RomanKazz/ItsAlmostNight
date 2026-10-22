@@ -1,257 +1,163 @@
 #include "app/AppRunUpgradeOverlay.hpp"
-
-#include "ui/UiText.hpp"
-#include "ui/RunHammerUi.hpp"
+#include "progression/DefenseAttackModifiers.hpp"
+#include "progression/CoreCardUpgrades.hpp"
+#include "ui/UiMenuStyle.hpp"
+#include "ui/UiLabels.hpp"
+#include "ui/UiItemDescriptions.hpp"
+#include "ui/UiItemTooltip.hpp"
+#include "localization/Localization.hpp"
+#include "ui/UiViewport.hpp"
 #include "ui/RewardBackdrop.hpp"
 #include "ui/UiSolidGeometry.hpp"
-#include "ui/UiViewport.hpp"
 
 #include <algorithm>
 #include <array>
-#include <cstdint>
-#include <cctype>
 #include <cmath>
+#include <cctype>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <string_view>
+#include <vector>
 
 namespace ian::app_detail {
 namespace {
 
-constexpr float CardWidth = 360.0F;
-constexpr float CardHeight = 548.0F;
-constexpr float CardGap = 64.0F;
-constexpr float UpgradeUiScale = 0.80F;
-constexpr Color CardBrown{0x6E, 0x37, 0x21, 255};
-constexpr Color CardBlack{0, 0, 0, 255};
-constexpr Color CardShadowBlack{0, 0, 0, 64};
-constexpr Color CardInset{0x34, 0x22, 0x15, 255};
-constexpr Color CardInk{20, 21, 20, 255};
-constexpr Color CardValueCream{0xF9, 0xE8, 0xCD, 255};
-constexpr Color LevelText{0xBF, 0xAD, 0x9D, 255};
-constexpr Color LevelOutline{0x3A, 0x25, 0x14, 255};
-constexpr float UiTextRasterScale = 1.68F;
-
-enum class UpgradeColorClass { Blue, Red, Yellow, Green, Purple };
-
-struct UpgradePalette {
-    Color border;
-    Color borderShadow;
-    Color badge;
-    Color accent;
+struct UpgradeLayout {
+    Rectangle offers;
+    Rectangle inventory;
+    Rectangle stats;
+    float scale;
+    float rowHeight;
 };
 
-constexpr UpgradePalette upgradePalette(UpgradeColorClass colorClass) {
-    switch (colorClass) {
-    case UpgradeColorClass::Blue:
-        return {
-            {0x36, 0xE3, 0xF6, 255},
-            {0x00, 0xA9, 0xDB, 255},
-            {0x04, 0xA1, 0xD6, 255},
-            {0x3E, 0xED, 0xFA, 255},
-        };
-    case UpgradeColorClass::Red:
-        return {
-            {0xE8, 0x50, 0x57, 255},
-            {0xB8, 0x32, 0x42, 255},
-            {0xA1, 0x33, 0x3D, 255},
-            {0xFF, 0x40, 0x58, 255},
-        };
-    case UpgradeColorClass::Yellow:
-        return {
-            {0xFF, 0xB8, 0x12, 255},
-            {0xD9, 0x86, 0x00, 255},
-            {0xED, 0x95, 0x37, 255},
-            {0xFF, 0xC2, 0x0D, 255},
-        };
-    case UpgradeColorClass::Green:
-        return {
-            {0x48, 0xB8, 0x79, 255},
-            {0x16, 0x8B, 0x5B, 255},
-            {0x07, 0x9B, 0x65, 255},
-            {0x00, 0xC7, 0x7B, 255},
-        };
-    case UpgradeColorClass::Purple:
-        return {
-            {0xA3, 0x69, 0xD8, 255},
-            {0x75, 0x3A, 0xB2, 255},
-            {0x71, 0x36, 0xA8, 255},
-            {0xB5, 0x5A, 0xF0, 255},
-        };
+// All bounds come from one layout, shared by rendering and physical input.
+UpgradeLayout upgradeLayout(std::size_t count) {
+    const float width = static_cast<float>(uiScreenWidth());
+    const float height = static_cast<float>(uiScreenHeight());
+    const float scale = std::min(1.0F, height / 1080.0F);
+    const float gap = 24.0F * scale;
+    count = std::clamp(count, std::size_t{1}, MaximumRunUpgradeChoices);
+    const float desiredRowHeight = count <= DefaultRunUpgradeChoices ? 180.0F : 150.0F;
+    if (height > width) {
+        const float groupWidth = std::min(1200.0F, width - 80.0F);
+        const float rowHeight = desiredRowHeight;
+        const float offerHeight = 152.0F + static_cast<float>(count) * rowHeight + static_cast<float>(count - 1) * 20.0F;
+        const float sideHeight = std::min(900.0F, height - offerHeight - 120.0F);
+        const float top = std::max(40.0F, (height - offerHeight - gap - sideHeight) * 0.5F);
+        const float left = (width - groupWidth) * 0.5F;
+        const float sideWidth = (groupWidth - gap) * 0.5F;
+        return {{left, top, groupWidth, offerHeight},
+            {left, top + offerHeight + gap, sideWidth, sideHeight},
+            {left + sideWidth + gap, top + offerHeight + gap, sideWidth, sideHeight},
+            1.0F, rowHeight};
     }
-    return upgradePalette(UpgradeColorClass::Blue);
-}
-
-float upgradeStatsPanelWidth() {
-    return std::clamp(static_cast<float>(GetScreenWidth()) * 0.19F, 220.0F, 340.0F);
-}
-
-float upgradeCardsAreaWidth() {
-    return static_cast<float>(GetScreenWidth()) - upgradeStatsPanelWidth() - 48.0F;
-}
-
-float cardLayoutScale(std::size_t count) {
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float horizontal =
-        (upgradeCardsAreaWidth() - 48.0F) /
-        (CardWidth * static_cast<float>(count) +
-         CardGap * static_cast<float>(count - 1U));
-    const float vertical = (screenHeight - 350.0F) / CardHeight;
-    return std::clamp(std::min(horizontal, vertical), 0.30F, UpgradeUiScale);
-}
-
-UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return UpgradeColorClass::Yellow;
-    if (runUpgradeProductionBuilding(effect)) return UpgradeColorClass::Green;
-    switch (effect) {
-    case RunUpgradeEffect::Damage:
-    case RunUpgradeEffect::AttackSpeed:
-    case RunUpgradeEffect::MaximumHealth:
-    case RunUpgradeEffect::BloodHarvest:
-        return UpgradeColorClass::Red;
-    case RunUpgradeEffect::MoveSpeed:
-    case RunUpgradeEffect::Luck:
-        return UpgradeColorClass::Blue;
-    case RunUpgradeEffect::RecoverableArmor:
-    case RunUpgradeEffect::BuildingHealth:
-    case RunUpgradeEffect::BuildRadius:
-    case RunUpgradeEffect::DefenseDamage:
-    case RunUpgradeEffect::DefenseFireRate:
-    case RunUpgradeEffect::CannonHeavyShell:
-    case RunUpgradeEffect::CannonScattershot:
-    case RunUpgradeEffect::CannonClusterShell:
-    case RunUpgradeEffect::ClusterPayload:
-    case RunUpgradeEffect::ReactiveTraps:
-    case RunUpgradeEffect::GunPiercing:
-    case RunUpgradeEffect::GunShrapnel:
-        return UpgradeColorClass::Yellow;
-    case RunUpgradeEffect::ProductionSpeed:
-    case RunUpgradeEffect::GatheringSpeed:
-    case RunUpgradeEffect::RichResources:
-    case RunUpgradeEffect::NightlyBomb:
-    case RunUpgradeEffect::LongerDay:
-    case RunUpgradeEffect::Salvager:
-        return UpgradeColorClass::Green;
-    case RunUpgradeEffect::WiderChoice:
-    case RunUpgradeEffect::DoubleDown:
-    case RunUpgradeEffect::LockChoice:
-    case RunUpgradeEffect::RerollToken:
-    case RunUpgradeEffect::RiskyInvestment:
-    case RunUpgradeEffect::Overkill:
-    case RunUpgradeEffect::Ricochet:
-    case RunUpgradeEffect::TwinBatteries:
-        return UpgradeColorClass::Purple;
-    case RunUpgradeEffect::UnlockGunTurret:
-    case RunUpgradeEffect::UnlockTurret:
-    case RunUpgradeEffect::UnlockCannon:
-    case RunUpgradeEffect::UnlockCatapult:
-    case RunUpgradeEffect::UnlockSpikeTrap:
-    case RunUpgradeEffect::UnlockSlowTrap:
-    case RunUpgradeEffect::UnlockLumberMill:
-    case RunUpgradeEffect::UnlockQuarry:
-    case RunUpgradeEffect::UnlockCrystalMine:
-    case RunUpgradeEffect::LumberMillProduction:
-    case RunUpgradeEffect::QuarryProduction:
-    case RunUpgradeEffect::CrystalMineProduction:
-    case RunUpgradeEffect::Regeneration:
-    case RunUpgradeEffect::UnlockClub:
-    case RunUpgradeEffect::UnlockRifle:
-    case RunUpgradeEffect::UnlockBomb:
-    case RunUpgradeEffect::UnlockIceWand:
-    case RunUpgradeEffect::UnlockFireWand:
-        break;
-    }
-    return UpgradeColorClass::Blue;
-}
-
-std::string_view upgradeMark(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return "NEW";
-    switch (effect) {
-    case RunUpgradeEffect::Damage: return "DMG";
-    case RunUpgradeEffect::AttackSpeed: return "SPD";
-    case RunUpgradeEffect::MoveSpeed: return "MOVE";
-    case RunUpgradeEffect::Luck: return "LUCK";
-    case RunUpgradeEffect::MaximumHealth: return "HP";
-    case RunUpgradeEffect::RecoverableArmor: return "DEF";
-    case RunUpgradeEffect::BuildingHealth: return "BASE";
-    case RunUpgradeEffect::BuildRadius: return "AREA";
-    case RunUpgradeEffect::DefenseDamage: return "DEF";
-    case RunUpgradeEffect::DefenseFireRate: return "RATE";
-    case RunUpgradeEffect::ProductionSpeed: return "PROD";
-    case RunUpgradeEffect::NightlyBomb: return "BOMB";
-    case RunUpgradeEffect::WiderChoice: return "+1";
-    case RunUpgradeEffect::BloodHarvest: return "BLOOD";
-    case RunUpgradeEffect::Overkill: return "OVER";
-    case RunUpgradeEffect::Ricochet: return "RICO";
-    case RunUpgradeEffect::DoubleDown: return "X2";
-    case RunUpgradeEffect::LockChoice: return "LOCK";
-    case RunUpgradeEffect::RerollToken: return "ROLL";
-    case RunUpgradeEffect::RiskyInvestment: return "RISK";
-    case RunUpgradeEffect::Salvager: return "SCRAP";
-    case RunUpgradeEffect::TwinBatteries: return "X2";
-    case RunUpgradeEffect::CannonHeavyShell: return "HEAVY";
-    case RunUpgradeEffect::CannonScattershot: return "SPREAD";
-    case RunUpgradeEffect::CannonClusterShell: return "BURST";
-    case RunUpgradeEffect::ClusterPayload: return "BURST";
-    case RunUpgradeEffect::ReactiveTraps: return "PULSE";
-    case RunUpgradeEffect::GunPiercing: return "PIERCE";
-    case RunUpgradeEffect::GunShrapnel: return "SHARD";
-    case RunUpgradeEffect::GatheringSpeed: return "TOOL";
-    case RunUpgradeEffect::LongerDay: return "DAY";
-    case RunUpgradeEffect::RichResources: return "NODE";
-    case RunUpgradeEffect::UnlockGunTurret:
-    case RunUpgradeEffect::UnlockTurret:
-    case RunUpgradeEffect::UnlockCannon:
-    case RunUpgradeEffect::UnlockCatapult:
-    case RunUpgradeEffect::UnlockSpikeTrap:
-    case RunUpgradeEffect::UnlockSlowTrap:
-    case RunUpgradeEffect::UnlockLumberMill:
-    case RunUpgradeEffect::UnlockQuarry:
-    case RunUpgradeEffect::UnlockCrystalMine:
-    case RunUpgradeEffect::LumberMillProduction:
-    case RunUpgradeEffect::QuarryProduction:
-    case RunUpgradeEffect::CrystalMineProduction:
-    case RunUpgradeEffect::Regeneration:
-    case RunUpgradeEffect::UnlockClub:
-    case RunUpgradeEffect::UnlockRifle:
-    case RunUpgradeEffect::UnlockBomb:
-    case RunUpgradeEffect::UnlockIceWand:
-    case RunUpgradeEffect::UnlockFireWand:
-        break;
-    }
-    return "+";
+    const float groupWidth = std::min(1640.0F * scale, width - 80.0F * scale);
+    const float inventoryWidth = 310.0F * scale;
+    const float statsWidth = 340.0F * scale;
+    const float offersWidth = groupWidth - inventoryWidth - statsWidth - gap * 2.0F;
+    const float rowHeight = std::min(desiredRowHeight * scale,
+        (height - 240.0F * scale - static_cast<float>(count - 1) * 20.0F * scale) / static_cast<float>(count));
+    const float offersHeight = 152.0F * scale + static_cast<float>(count) * rowHeight + static_cast<float>(count - 1) * 20.0F * scale;
+    const float sideHeight = std::min(810.0F * scale, height - 80.0F * scale);
+    const float left = (width - groupWidth) * 0.5F;
+    return {{left + inventoryWidth + gap, (height - offersHeight) * 0.5F, offersWidth, offersHeight},
+        {left, (height - sideHeight) * 0.5F, inventoryWidth, sideHeight},
+        {left + groupWidth - statsWidth, (height - sideHeight) * 0.5F, statsWidth, sideHeight},
+        scale, rowHeight};
 }
 
 float smoothUnit(float value) {
-    const float clamped = std::clamp(value, 0.0F, 1.0F);
-    return clamped * clamped * (3.0F - 2.0F * clamped);
+    const float t = std::clamp(value, 0.0F, 1.0F);
+    return t * t * (3.0F - 2.0F * t);
 }
-
-float popEntranceScale(float value) {
-    const float t = smoothUnit(value);
-    constexpr float Overshoot = 1.35F;
-    constexpr float ShiftedOvershoot = Overshoot + 1.0F;
-    const float shifted = t - 1.0F;
-    return 1.0F + ShiftedOvershoot * shifted * shifted * shifted +
-        Overshoot * shifted * shifted;
+UpgradeLayout scaledUpgradeLayout(UpgradeLayout layout, float scale) {
+    const float left = std::min({layout.offers.x, layout.inventory.x, layout.stats.x});
+    const float top = std::min({layout.offers.y, layout.inventory.y, layout.stats.y});
+    const float right = std::max({layout.offers.x + layout.offers.width,
+        layout.inventory.x + layout.inventory.width, layout.stats.x + layout.stats.width});
+    const float bottom = std::max({layout.offers.y + layout.offers.height,
+        layout.inventory.y + layout.inventory.height, layout.stats.y + layout.stats.height});
+    const Vector2 center{(left + right) * 0.5F, (top + bottom) * 0.5F};
+    const auto transform = [center, scale](Rectangle bounds) {
+        return Rectangle{center.x + (bounds.x - center.x) * scale,
+            center.y + (bounds.y - center.y) * scale, bounds.width * scale, bounds.height * scale};
+    };
+    layout.offers = transform(layout.offers);
+    layout.inventory = transform(layout.inventory);
+    layout.stats = transform(layout.stats);
+    layout.scale *= scale;
+    layout.rowHeight *= scale;
+    return layout;
 }
-
-Rectangle scaleRectangle(Rectangle bounds, float scale, float lift) {
-    const float centerX = bounds.x + bounds.width * 0.5F;
-    const float centerY = bounds.y + bounds.height * 0.5F - lift;
-    bounds.width *= scale;
-    bounds.height *= scale;
-    bounds.x = centerX - bounds.width * 0.5F;
-    bounds.y = centerY - bounds.height * 0.5F;
-    return bounds;
+Rectangle upgradeCardBounds(const UpgradeLayout& layout, std::size_t index) {
+    const float s = layout.scale;
+    return {layout.offers.x + 44 * s,
+        layout.offers.y + 90 * s + index * (layout.rowHeight + 20 * s),
+        layout.offers.width - 88 * s, layout.rowHeight};
 }
-
+Rectangle upgradeRerollBounds(const UpgradeLayout& layout) {
+    const float s = layout.scale;
+    return {layout.offers.x + layout.offers.width * 0.5F - 110 * s,
+        layout.offers.y + layout.offers.height - 52 * s, 220 * s, 38 * s};
+}
 Color fadedColor(Color color, float opacity) {
-    color.a = static_cast<unsigned char>(std::lround(
-        static_cast<float>(color.a) *
-        std::clamp(opacity, 0.0F, 1.0F)));
+    color.a = static_cast<unsigned char>(std::lround(color.a * std::clamp(opacity, 0.0F, 1.0F)));
     return color;
+}
+void label(std::string_view value, Rectangle bounds, float size, Color color, float fade,
+           UiFontRole role = UiFontRole::Body, int align = 0) {
+    if (role == UiFontRole::BodyBold) role = UiFontRole::MenuBodyBold;
+    const ScopedUiFontRole font(role);
+    const float fitted = fitUiTextSize(value, size, size * 0.60F, bounds.width, bounds.height);
+    const Vector2 measured = measureUiText(value, fitted);
+    const float x = align == 1 ? bounds.x + (bounds.width - measured.x) * 0.5F
+        : align == 2 ? bounds.x + bounds.width - measured.x : bounds.x;
+    SdfUiTextStyle style{};
+    style.fillColor = fadedColor(color, fade);
+    style.outlineColor = fadedColor({18, 18, 15, 255}, fade);
+    style.outlinePixels = fitted * (role == UiFontRole::Display ? 0.12F
+        : role == UiFontRole::MenuBodyBold ? 0.09F : 0.04F);
+    style.shadowColor = fadedColor(BLACK, fade);
+    style.shadowOffsetPixels = {0, fitted * 0.1F};
+    style.softness = 0.6F;
+    drawStyledSdfUiText(value, {x, bounds.y + (bounds.height - measured.y) * 0.5F}, fitted, style);
+}
+void plate(Rectangle bounds, float scale, Color color, float fade) {
+    menuStyle::panel(bounds, scale, color, fade);
+}
+Color tinted(Color base, Color accent, float amount) {
+    const auto channel = [amount](unsigned char from, unsigned char to) {
+        return static_cast<unsigned char>(std::lround(from + (to - from) * amount));
+    };
+    return {channel(base.r, accent.r), channel(base.g, accent.g), channel(base.b, accent.b), 255};
+}
+void panelHeader(Rectangle bounds, float scale, std::string_view title, float fade) {
+    plate(bounds, scale, menuStyle::Frame, fade);
+    const Rectangle header{bounds.x, bounds.y, bounds.width, 72 * scale};
+    plate(header, scale, menuStyle::Card, fade);
+    label(title, {header.x + 20 * scale, header.y, header.width - 40 * scale, header.height},
+        32 * scale, menuStyle::Cream, fade, UiFontRole::Display);
+}
+Color rarityColor(RunUpgradeRarity rarity) {
+    switch (rarity) {
+    case RunUpgradeRarity::Common: return {200, 204, 204, 255};
+    case RunUpgradeRarity::Uncommon: return {89, 185, 255, 255};
+    case RunUpgradeRarity::Rare: return {80, 229, 147, 255};
+    case RunUpgradeRarity::Epic: return {205, 120, 246, 255};
+    case RunUpgradeRarity::Legendary: return {255, 221, 90, 255};
+    }
+    return menuStyle::Cream;
+}
+Color rarityFill(RunUpgradeRarity rarity) {
+    switch (rarity) {
+    case RunUpgradeRarity::Common: return {45, 47, 48, 255};
+    case RunUpgradeRarity::Uncommon: return {20, 54, 83, 255};
+    case RunUpgradeRarity::Rare: return {18, 66, 44, 255};
+    case RunUpgradeRarity::Epic: return {62, 29, 79, 255};
+    case RunUpgradeRarity::Legendary: return {91, 76, 24, 255};
+    }
+    return menuStyle::Card;
 }
 
 float rayRandom(std::uint32_t index, std::uint32_t salt) {
@@ -306,124 +212,13 @@ void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=fal
     }
 }
 
-Rectangle expandedRectangle(Rectangle bounds, float amount) {
-    return {
-        bounds.x - amount,
-        bounds.y - amount,
-        bounds.width + amount * 2.0F,
-        bounds.height + amount * 2.0F,
-    };
+void drawIcon(Texture2D texture, Rectangle bounds, float fade) {
+    if (!IsTextureValid(texture)) return;
+    const float size = std::min(bounds.width, bounds.height);
+    DrawTexturePro(texture, {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+        {bounds.x + (bounds.width - size) * 0.5F, bounds.y + (bounds.height - size) * 0.5F, size, size},
+        {}, 0, fadedColor(WHITE, fade));
 }
-
-float roundedRectangleRoundness(Rectangle bounds, float radius) {
-    return std::clamp(
-        radius * 2.0F / std::min(bounds.width, bounds.height),
-        0.0F, 1.0F);
-}
-
-void drawOutlinedCenteredText(
-    std::string_view text, float centerX, float y, float fontSize,
-    Color fill, float opacity, float scale,
-    Color outline = CardInk, float outlinePixels = 3.2F,
-    bool shadowEnabled = true) {
-    const Vector2 measured = measureUiText(text, fontSize);
-    SdfUiTextStyle style{
-        .fillColor = fadedColor(fill, opacity),
-        .outlineColor = fadedColor(outline, opacity),
-        .shadowColor = shadowEnabled
-            ? fadedColor({0, 0, 0, 210}, opacity) : BLANK,
-        .shadowOffsetPixels = shadowEnabled
-            ? Vector2{3.0F * scale, 5.0F * scale} : Vector2{},
-        .outlinePixels = std::clamp(
-            outlinePixels * scale, 1.8F, 4.0F),
-        .softness = 0.68F,
-    };
-    drawStyledSdfUiText(
-        text, {centerX - measured.x * 0.5F, y}, fontSize, style);
-}
-
-void drawRasterOutlinedCenteredText(
-    const std::string& text, Vector2 center, float fontSize,
-    float outlineRadius, Color fill, Color outline, float opacity) {
-    const Font font = uiFont();
-    const float spacing = fontSize * 0.02F;
-    const Vector2 measured = MeasureTextEx(
-        font, text.c_str(), fontSize, spacing);
-    const Vector2 position{
-        center.x - measured.x * 0.5F,
-        center.y - measured.y * 0.5F,
-    };
-    const int radius = std::max(
-        1, static_cast<int>(std::ceil(outlineRadius)));
-    const float radiusSquared = outlineRadius * outlineRadius;
-    // The outline is built from many overlapping text stamps. Fading every
-    // stamp linearly makes their tiny rounded alphas accumulate into an
-    // almost opaque black silhouette after the fill has nearly vanished.
-    // Fade the redundant stamps faster so the complete glyph disappears
-    // cleanly with its card.
-    const float outlineOpacity = opacity * opacity * opacity;
-    for (int y = -radius; y <= radius; ++y) {
-        for (int x = -radius; x <= radius; ++x) {
-            const float distanceSquared =
-                static_cast<float>(x * x + y * y);
-            if (distanceSquared > radiusSquared) continue;
-            DrawTextEx(
-                font, text.c_str(),
-                {position.x + static_cast<float>(x),
-                 position.y + static_cast<float>(y)},
-                fontSize, spacing,
-                fadedColor(outline, outlineOpacity));
-        }
-    }
-    DrawTextEx(
-        font, text.c_str(), position, fontSize, spacing,
-        fadedColor(fill, opacity));
-}
-
-float fitRasterTextSize(
-    const std::string& text, float preferredSize,
-    float minimumSize, float maximumWidth) {
-    const Font font = uiFont();
-    float size = preferredSize;
-    while (size > minimumSize) {
-        const float spacing = size * 0.02F;
-        if (MeasureTextEx(
-                font, text.c_str(), size, spacing).x <= maximumWidth) {
-            break;
-        }
-        size = std::max(minimumSize, size - 1.0F);
-    }
-    return size;
-}
-
-void drawLevelArrow(Vector2 center, float scale, Color color,
-                    float opacity) {
-    const Color outline = fadedColor(LevelOutline, opacity);
-    const Color fill = fadedColor(color, opacity);
-    DrawRectangleRounded(
-        {center.x - 16.0F * scale, center.y - 8.0F * scale,
-         20.0F * scale, 16.0F * scale},
-        0.70F, 6, outline);
-    DrawTriangle(
-        {center.x + 16.0F * scale, center.y},
-        {center.x + 1.0F * scale, center.y - 12.0F * scale},
-        {center.x + 1.0F * scale, center.y + 12.0F * scale},
-        outline);
-    DrawRectangleRounded(
-        {center.x - 13.0F * scale, center.y - 5.0F * scale,
-         17.0F * scale, 10.0F * scale},
-        0.70F, 6, fill);
-    DrawTriangle(
-        {center.x + 12.0F * scale, center.y},
-        {center.x + 1.0F * scale, center.y - 8.0F * scale},
-        {center.x + 1.0F * scale, center.y + 8.0F * scale},
-        fill);
-}
-
-struct UpgradeValueCopy {
-    std::string value;
-    std::string label;
-};
 
 std::string statNumber(double value, int precision = 1) {
     std::ostringstream text;
@@ -447,6 +242,105 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
         return snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
             ? "Upgrade weapon by one level" : "Unlock level 1 weapon";
     }
+    std::string description{runUpgradeDefinition(effect).description};
+    if (fixedRunUpgradePower(effect)) return description;
+    const std::size_t numberEnd = description.find_first_not_of("0123456789.", 1);
+    if (numberEnd == std::string::npos || numberEnd <= 1) return description;
+    const double power = runUpgradeAppliedPowerGain(
+        effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
+    double amount = std::stod(description.substr(1, numberEnd - 1)) * power;
+    description.replace(1, numberEnd - 1, statNumber(amount, effect == RunUpgradeEffect::Regeneration ? 2 : 1));
+    return description;
+}
+
+std::string buildingStatBonusLine(AttackStat stat, double power, BuildingType type) {
+    const double value = buildingStatUpgradeIncrement(stat) * power;
+    std::string_view name = "";
+    switch (stat) {
+    case AttackStat::Damage: name = "Damage"; break;
+    case AttackStat::AttackSpeed: name = "Fire rate"; break;
+    case AttackStat::Range: name = "Range"; break;
+    case AttackStat::Quantity:
+        name = type == BuildingType::TeslaTower ? "Attack count" : "Extra projectiles";
+        break;
+    case AttackStat::Bounces: name = "Bounces"; break;
+    case AttackStat::Pierce: name = "Pierce"; break;
+    case AttackStat::CritChance: name = "Crit chance"; break;
+    case AttackStat::CritDamage: name = "Crit damage"; break;
+    case AttackStat::ProjectileSpeed: name = "Projectile speed"; break;
+    case AttackStat::Size: name = "Size"; break;
+    case AttackStat::Duration: name = "Duration"; break;
+    case AttackStat::Knockback: name = "Knockback"; break;
+    case AttackStat::SlowStrength: name = "Slow strength"; break;
+    default: break;
+    }
+    const bool percentagePoints = stat == AttackStat::CritChance || stat == AttackStat::CritDamage;
+    const bool percentage = !buildingStatUpgradeIsFlat(stat) || percentagePoints;
+    const std::string amount = statNumber(value * (percentage ? 100.0 : 1.0), 2);
+    return "+" + amount + (percentagePoints ? " pp " : percentage ? "% " :
+        stat == AttackStat::Range ? "m " : " ") +
+        localizeText(name);
+}
+
+std::string buildingStatRollLine(AttackStat stat, RunUpgradeRarity rarity, BuildingType type) {
+    return buildingStatBonusLine(stat, runUpgradeRarityMultiplier(rarity), type);
+}
+
+std::string buildingUpgradeSummary(BuildingType type,
+    const BuildingUpgradePowers& powers) {
+    const auto typeIndex = static_cast<std::size_t>(type);
+    std::string result;
+    for (const auto stat : buildingStatUpgradePool(type)) {
+        const double power = powers[typeIndex][static_cast<std::size_t>(stat)];
+        if (power <= 0.0) continue;
+        if (!result.empty()) result += " · ";
+        result += buildingStatBonusLine(stat, power, type);
+    }
+    return result;
+}
+
+std::string buildingStatRollDescription(BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t seed, std::string_view separator) {
+    const auto roll = rollBuildingStatUpgrade(type, rarity, seed);
+    std::string result;
+    for (std::size_t i = 0; i < roll.count; ++i) {
+        if (i != 0) result += separator;
+        result += buildingStatRollLine(roll.stats[i], rarity, type);
+    }
+    return result;
+}
+
+std::string localizedUpgradeDescription(const SimulationSnapshot& snapshot,
+    RunUpgradeEffect effect, RunUpgradeRarity rarity, std::uint64_t rollSeed = 0) {
+    if (effect == RunUpgradeEffect::UpgradeCore) {
+        const auto roll = rollCoreCardUpgrade(rarity, rollSeed);
+        std::string result;
+        for (std::size_t i = 0; i < roll.count; ++i) {
+            if (i) result += " / ";
+            const auto stat = roll.stats[i];
+            const double oldPower = snapshot.coreCardPowers[static_cast<std::size_t>(stat)];
+            switch (stat) {
+            case CoreCardStat::Health:
+                result += "+" + statNumber(15.0 * roll.power) + "% " + localizeText("Core HP");
+                break;
+            case CoreCardStat::BuildRadius:
+                result += "+" + statNumber(std::floor(oldPower + roll.power) - std::floor(oldPower), 0) + "m " + localizeText("Build range");
+                break;
+            case CoreCardStat::Buildings:
+                result += "+" + statNumber(std::floor(2.0 * (oldPower + roll.power)) - std::floor(2.0 * oldPower), 0) + " " + localizeText("Buildings");
+                break;
+            case CoreCardStat::Storage:
+                result += "+" + statNumber(100.0 * CoreStorageBonusPerPoint * roll.power) + "% " + localizeText("All storage");
+                break;
+            }
+        }
+        return result;
+    }
+    if (const auto building = runUpgradeBuilding(effect);
+        building && runCombatBuilding(*building) &&
+        snapshot.runUpgradeStacks[runUpgradeIndex(effect)] > 0) {
+        return buildingStatRollDescription(*building, rarity, rollSeed, " / ");
+    }
     if (effect == RunUpgradeEffect::AttackSpeed) {
         const double gain = runUpgradeAppliedPowerGain(effect, rarity,
             snapshot.runUpgradePower[runUpgradeIndex(effect)]);
@@ -459,30 +353,179 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
             statNumber(12.0 * gain) + "% " +
             localizeText("Defense damage");
     }
-    std::string description{runUpgradeDefinition(effect).description};
-    if (fixedRunUpgradePower(effect)) return description;
-    const std::size_t numberEnd = description.find_first_not_of("0123456789.", 1);
-    if (numberEnd == std::string::npos || numberEnd <= 1) return description;
-    const double power = runUpgradeAppliedPowerGain(
-        effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
-    double amount = std::stod(description.substr(1, numberEnd - 1)) * power;
-    if (effect == RunUpgradeEffect::BuildRadius) amount = std::round(amount);
-    description.replace(1, numberEnd - 1, statNumber(amount, effect == RunUpgradeEffect::Regeneration ? 2 : 1));
-    return description;
-}
-
-UpgradePalette rarityPalette(RunUpgradeRarity rarity) {
-    switch (rarity) {
-    case RunUpgradeRarity::Common: return upgradePalette(UpgradeColorClass::Green);
-    case RunUpgradeRarity::Uncommon: return upgradePalette(UpgradeColorClass::Blue);
-    case RunUpgradeRarity::Rare: return upgradePalette(UpgradeColorClass::Purple);
-    case RunUpgradeRarity::Epic: return upgradePalette(UpgradeColorClass::Red);
-    case RunUpgradeRarity::Legendary: return upgradePalette(UpgradeColorClass::Yellow);
+    if (effect == RunUpgradeEffect::CriticalChance) {
+        const double gain = runUpgradeAppliedPowerGain(effect, rarity,
+            snapshot.runUpgradePower[runUpgradeIndex(effect)]);
+        return "+" + statNumber(7.5 * gain, 2) + " pp " + localizeText("Crit chance");
     }
-    return upgradePalette(UpgradeColorClass::Green);
+    const auto description = upgradeDescription(snapshot, effect, rarity);
+    const auto separator = description.find(' ');
+    if (separator != std::string::npos && description.size() > 1 &&
+        (description.front() == '+' || description.front() == '-') &&
+        std::isdigit(static_cast<unsigned char>(description[1]))) {
+        std::string name = description.substr(separator + 1);
+        if (!name.empty()) name.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(name.front())));
+        return description.substr(0, separator + 1) + localizeText(name);
+    }
+    return localizeText(description);
 }
 
-void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
+void offerDescription(const SimulationSnapshot& snapshot, std::size_t choice,
+                      Rectangle bounds, float scale, float fade) {
+    struct StatLine { std::string name, before, after; };
+    std::vector<StatLine> lines;
+    const auto effect = snapshot.runUpgradeChoices[choice];
+    const auto compare = [&](std::string_view name, double before, double after,
+                             std::string_view suffix = "", int precision = 2) {
+        lines.push_back({localizeText(name), statNumber(before, precision) + std::string(suffix),
+            statNumber(after, precision) + std::string(suffix)});
+    };
+    if (effect == RunUpgradeEffect::UpgradeCore) {
+        const auto roll = rollCoreCardUpgrade(snapshot.runUpgradeRarities[choice],
+            snapshot.runUpgradeRollSeeds[choice]);
+        for (std::size_t i = 0; i < roll.count; ++i) {
+            const auto stat = roll.stats[i];
+            const double power = snapshot.coreCardPowers[static_cast<std::size_t>(stat)];
+            switch (stat) {
+            case CoreCardStat::Health:
+                compare("Core HP", 100 + 15 * power, 100 + 15 * (power + roll.power), "%"); break;
+            case CoreCardStat::BuildRadius:
+                compare("Build range", snapshot.coreBuildRadius,
+                    snapshot.coreBuildRadius + std::floor(power + roll.power) - std::floor(power), "m", 0); break;
+            case CoreCardStat::Buildings:
+                compare("Buildings", snapshot.totalBuildingLimit,
+                    snapshot.totalBuildingLimit + std::floor(2 * (power + roll.power)) - std::floor(2 * power), "", 0); break;
+            case CoreCardStat::Storage:
+                compare("All storage", 100 + 100 * CoreStorageBonusPerPoint * power,
+                    100 + 100 * CoreStorageBonusPerPoint * (power + roll.power), "%"); break;
+            }
+        }
+    } else if (const auto producer = runUpgradeBuilding(effect);
+        producer && std::find(RunEconomyBuildingTypes.begin(),
+            RunEconomyBuildingTypes.end(), *producer) != RunEconomyBuildingTypes.end()) {
+        const auto index = static_cast<std::size_t>(*producer);
+        compare("Production", snapshot.producerRatesPerSecond[index] * 60.0,
+            snapshot.nextProducerRatesPerSecond[index] * 60.0, "/min", 1);
+    } else if (const auto building = runUpgradeBuilding(effect);
+        building && runCombatBuilding(*building) &&
+        snapshot.runUpgradeStacks[runUpgradeIndex(effect)] > 0) {
+        const auto roll = rollBuildingStatUpgrade(*building,
+            snapshot.runUpgradeRarities[choice], snapshot.runUpgradeRollSeeds[choice]);
+        for (std::size_t i = 0; i < roll.count; ++i) {
+            const AttackStat stat = roll.stats[i];
+            const auto [before, after] = buildingStatBonusPreview(
+                snapshot.buildingUpgradePowers, *building, stat,
+                snapshot.runUpgradeRarities[choice]);
+            std::string_view name = "Power";
+            switch (stat) {
+            case AttackStat::Damage: name = "Damage"; break;
+            case AttackStat::AttackSpeed: name = "Fire rate"; break;
+            case AttackStat::Range: name = "Range"; break;
+            case AttackStat::Quantity: name = *building == BuildingType::TeslaTower ? "Attack count" : "Extra projectiles"; break;
+            case AttackStat::Bounces: name = "Bounces"; break;
+            case AttackStat::Pierce: name = "Pierce"; break;
+            case AttackStat::CritChance: name = "Crit chance"; break;
+            case AttackStat::CritDamage: name = "Crit damage"; break;
+            case AttackStat::ProjectileSpeed: name = "Projectile speed"; break;
+            case AttackStat::Size: name = "Size"; break;
+            case AttackStat::Duration: name = "Duration"; break;
+            case AttackStat::Knockback: name = "Knockback"; break;
+            case AttackStat::SlowStrength: name = "Slow strength"; break;
+            default: break;
+            }
+            if (stat == AttackStat::Range) compare(name, before, after, "m");
+            else if (stat == AttackStat::Quantity || stat == AttackStat::Bounces || stat == AttackStat::Pierce)
+                compare(name, std::floor(before + 1e-6), std::floor(after + 1e-6), "", 0);
+            else if (stat == AttackStat::CritDamage)
+                compare(name, 200 + 100 * before, 200 + 100 * after, "%");
+            else if (stat == AttackStat::CritChance)
+                compare(name, 100 * before, 100 * after, "%");
+            else compare(name, 100 * (1 + before), 100 * (1 + after), "%");
+        }
+    } else {
+    const auto next = previewRunUpgrade(snapshot, choice);
+    if (const auto weapon = runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect)) {
+        const auto index = static_cast<std::size_t>(*weapon);
+        compare("Weapon level", snapshot.weaponLevels[index], next.weaponLevels[index], "", 0);
+    } else if (runUpgradeBuilding(effect)) {
+        compare("Building level", snapshot.runUpgradeStacks[runUpgradeIndex(effect)],
+            snapshot.runUpgradeStacks[runUpgradeIndex(effect)] + 1, "", 0);
+    }
+    switch (effect) {
+    case RunUpgradeEffect::PoisonChance: compare("Poison chance",
+        runPoisonChance(snapshot.runUpgradePower[runUpgradeIndex(effect)]) * 100 +
+            100 * .10 * shrineBonusPower(snapshot.shrines, snapshot.shrines.offer, effect),
+        runPoisonChance(next.runUpgradePower[runUpgradeIndex(effect)]) * 100 +
+            100 * .10 * shrineBonusPower(next.shrines, snapshot.shrines.offer, effect), "%"); break;
+    case RunUpgradeEffect::Damage:
+        compare("Player damage", snapshot.playerDamageMultiplier, next.playerDamageMultiplier, "x");
+        if (snapshot.shrines.offer == ShrineKind::None)
+            compare("Defense damage", snapshot.upgradeStats.defenseDamage, next.upgradeStats.defenseDamage, "x");
+        break;
+    case RunUpgradeEffect::AttackSpeed:
+        if (snapshot.shrines.offer == ShrineKind::Player)
+            compare("Weapon speed", snapshot.upgradeStats.playerAttackSpeed, next.upgradeStats.playerAttackSpeed, "x");
+        else compare("Defense speed", snapshot.upgradeStats.defenseFireRate, next.upgradeStats.defenseFireRate, "x");
+        break;
+    case RunUpgradeEffect::GatheringSpeed: compare("Tool speed", snapshot.upgradeStats.toolAttackSpeed, next.upgradeStats.toolAttackSpeed, "x"); break;
+    case RunUpgradeEffect::MoveSpeed: compare("Move speed", snapshot.playerMoveSpeedMultiplier, next.playerMoveSpeedMultiplier, "x"); break;
+    case RunUpgradeEffect::MaximumHealth: compare("Max HP", snapshot.playerMaxHealth, next.playerMaxHealth); break;
+    case RunUpgradeEffect::RecoverableArmor: compare("Shield", snapshot.playerMaxRecoverableArmor, next.playerMaxRecoverableArmor); break;
+    case RunUpgradeEffect::Regeneration: compare("HP regen", snapshot.upgradeStats.healthRegeneration, next.upgradeStats.healthRegeneration, "/s"); break;
+    case RunUpgradeEffect::BuildingHealth: compare("Building HP", snapshot.upgradeStats.buildingHealth, next.upgradeStats.buildingHealth, "x"); break;
+    case RunUpgradeEffect::DefenseDamage: compare("Defense damage", snapshot.upgradeStats.defenseDamage, next.upgradeStats.defenseDamage, "x"); break;
+    case RunUpgradeEffect::DefenseFireRate: compare("Fire rate", snapshot.upgradeStats.defenseFireRate, next.upgradeStats.defenseFireRate, "x"); break;
+    case RunUpgradeEffect::ProductionSpeed: compare("Production", snapshot.upgradeStats.productionSpeed, next.upgradeStats.productionSpeed, "x"); break;
+    case RunUpgradeEffect::ResourceCapacity: compare("Resource node capacity", snapshot.upgradeStats.resourceCapacity, next.upgradeStats.resourceCapacity, "x"); break;
+    case RunUpgradeEffect::BuildingCapacity:
+    case RunUpgradeEffect::ExtraBuilding: compare("Buildings", snapshot.totalBuildingLimit, next.totalBuildingLimit); break;
+    case RunUpgradeEffect::BuildRadius: compare("Build range", snapshot.coreBuildRadius, next.coreBuildRadius, "m"); break;
+    case RunUpgradeEffect::Luck: compare("Luck", snapshot.upgradeStats.luck * 100, next.upgradeStats.luck * 100, "%"); break;
+    case RunUpgradeEffect::ProjectileCount: compare("Extra projectiles", std::floor(snapshot.upgradeStats.projectileCountBonus+1e-9), std::floor(next.upgradeStats.projectileCountBonus+1e-9), "", 0); break;
+    case RunUpgradeEffect::Pierce: compare("Pierce", std::floor(snapshot.upgradeStats.pierce+1e-9), std::floor(next.upgradeStats.pierce+1e-9), "", 0); break;
+    case RunUpgradeEffect::Bounces: compare("Bounces", std::floor(snapshot.upgradeStats.bounces+1e-9), std::floor(next.upgradeStats.bounces+1e-9), "", 0); break;
+    case RunUpgradeEffect::ProjectileSpeed: compare("Projectile speed", snapshot.upgradeStats.projectileSpeed, next.upgradeStats.projectileSpeed, "x"); break;
+    case RunUpgradeEffect::AttackDuration: compare("Duration", snapshot.upgradeStats.attackDuration, next.upgradeStats.attackDuration, "x"); break;
+    case RunUpgradeEffect::AttackSize: compare("Size", snapshot.upgradeStats.attackSize, next.upgradeStats.attackSize, "x"); break;
+    case RunUpgradeEffect::CriticalChance: compare("Crit chance", snapshot.upgradeStats.critChance * 100, next.upgradeStats.critChance * 100, "%"); break;
+    case RunUpgradeEffect::CriticalDamage: compare("Crit damage", snapshot.upgradeStats.critDamage, next.upgradeStats.critDamage, "x"); break;
+    case RunUpgradeEffect::AttackKnockback: compare("Knockback", snapshot.upgradeStats.knockback, next.upgradeStats.knockback, "x"); break;
+    case RunUpgradeEffect::ClusterPayload: compare("Cluster blasts", snapshot.upgradeStats.clusterExplosions, next.upgradeStats.clusterExplosions); break;
+    default: break;
+    }
+    }
+    if (lines.empty()) compare("Level", snapshot.runUpgradeStacks[runUpgradeIndex(effect)],
+        snapshot.runUpgradeStacks[runUpgradeIndex(effect)] + 1, "", 0);
+    const ScopedUiFontRole statFont(UiFontRole::MenuBodyBold);
+    const float lineHeight = bounds.height / static_cast<float>(lines.size());
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        const auto& line = lines[i];
+        const std::string title = line.name + ": ";
+        const float size = fitUiTextSize(title + "  " + line.before + "      " + line.after,
+            22 * scale, 16 * scale, bounds.width - 30 * scale, lineHeight);
+        float x = bounds.x;
+        const float y = bounds.y + static_cast<float>(i) * lineHeight;
+        const float titleWidth = measureUiText(title, size).x;
+        label(title, {x, y, titleWidth + scale, lineHeight}, size,
+            menuStyle::Gold, fade, UiFontRole::BodyBold);
+        x += titleWidth + 9 * scale;
+        const float beforeWidth = measureUiText(line.before, size).x;
+        label(line.before, {x, y, beforeWidth + scale, lineHeight}, size,
+            menuStyle::Cream, fade, UiFontRole::BodyBold);
+        x += beforeWidth + 11 * scale;
+        const float arrowY = y + lineHeight * 0.5F;
+        const Color arrow = fadedColor(menuStyle::Cream, fade);
+        DrawLineEx({x, arrowY}, {x + 14 * scale, arrowY}, 3 * scale, arrow);
+        DrawTriangle({x + 20 * scale, arrowY},
+            {x + 11 * scale, arrowY - 6 * scale},
+            {x + 11 * scale, arrowY + 6 * scale}, arrow);
+        x += 32 * scale;
+        label(line.after, {x, y, std::max(0.0F, bounds.x + bounds.width - x), lineHeight},
+            size, menuStyle::Green, fade, UiFontRole::BodyBold);
+    }
+}
+
+void drawUpgradeStats(const SimulationSnapshot& snapshot, const UpgradeLayout& layout, float fade,
                       std::optional<std::size_t> hoveredChoice) {
     const auto projected = hoveredChoice ? previewRunUpgrade(snapshot, *hoveredChoice) : snapshot;
     const bool cannonPreview = hoveredChoice &&
@@ -494,69 +537,31 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
         hoveredEffect == RunUpgradeEffect::Salvager || hoveredEffect == RunUpgradeEffect::NightlyBomb ||
         hoveredEffect == RunUpgradeEffect::LongerDay || hoveredEffect == RunUpgradeEffect::DoubleDown ||
         hoveredEffect == RunUpgradeEffect::RerollToken);
-    const Rectangle bounds = runUpgradeStatsPanelBounds(snapshot.runUpgradeChoiceCount);
-    DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
-    DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
-        fadedColor({126, 112, 85, 255}, fade));
-    const float scale = bounds.height / 765.0F;
-    const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
-    const float left = bounds.x + 18.0F;
-    const float right = bounds.x + bounds.width - 18.0F;
-    float y = bounds.y + 18.0F * scale;
-    const float titleSize = fitUiTextSize("STATS",
-        28.0F / UiTextRasterScale * scale, 16.0F / UiTextRasterScale * scale,
-        right - left);
-    drawUiText("STATS", {left, y}, titleSize, fadedColor(UiWhite, fade));
-    if (hoveredChoice) {
-        const ScopedUiFontRole body(UiFontRole::BodyBold);
-        const float previewSize = fitUiTextSize("PREVIEW", fontSize, fontSize * 0.8F, bounds.width * 0.43F);
-        const float previewWidth = measureUiText("PREVIEW", previewSize).x;
-        drawUiText("PREVIEW", {right - previewWidth, y + 28.0F * scale}, previewSize,
-            fadedColor({110, 229, 164, 255}, fade));
-    }
-    y += 45.0F * scale;
+    const Rectangle bounds = layout.stats;
+    const float scale = std::min(layout.scale, bounds.height / 1010.0F);
+    panelHeader(bounds, scale, "STATS", fade);
+    const float left = bounds.x + 18 * scale;
+    const float right = bounds.x + bounds.width - 18 * scale;
+    float y = bounds.y + 82 * scale;
     const auto section = [&](std::string_view name) {
-        y += 8.0F * scale;
-        drawUiText(name, {left, y}, fontSize, fadedColor({255, 198, 94, 255}, fade));
-        y += 30.0F * scale;
+        y += 8 * scale;
+        label(name, {left, y, right - left, 25 * scale}, 19 * scale,
+            menuStyle::Gold, fade, UiFontRole::Display);
+        y += 30 * scale;
     };
-    const auto row = [&](std::string_view label, const std::string& value,
+    const auto row = [&](std::string_view name, const std::string& value,
                          const std::string& nextValue, bool positive = true) {
         const bool changed = value != nextValue;
-        const Color changeColor = positive ? Color{110, 229, 164, 255} : Color{255, 173, 105, 255};
-        float valueWidth{};
-        {
-            const ScopedUiFontRole valueFont(UiFontRole::BodyBold);
-            float valueSize = fontSize;
-            const auto width = [&](float size) {
-                return measureUiText(value, size).x + (changed
-                    ? measureUiText(" > ", size).x + measureUiText(nextValue, size).x : 0.0F);
-            };
-            const float available = (right - left) * (changed ? 0.53F : 0.46F);
-            if (width(valueSize) > available) valueSize *= available / width(valueSize);
-            valueWidth = width(valueSize);
-            if (changed) {
-                DrawRectangleRounded({left - 5.0F, y - 3.0F * scale,
-                    right - left + 10.0F, 26.0F * scale}, 0.20F, 4,
-                    fadedColor({48, 67, 53, 150}, fade));
-                const float nextWidth = measureUiText(nextValue, valueSize).x;
-                const float arrowWidth = measureUiText(" > ", valueSize).x;
-                drawUiText(value, {right - valueWidth, y}, valueSize,
-                    fadedColor({169, 178, 169, 255}, fade));
-                drawUiText(" > ", {right - nextWidth - arrowWidth, y}, valueSize,
-                    fadedColor({173, 187, 172, 255}, fade));
-                drawUiText(nextValue, {right - nextWidth, y}, valueSize,
-                    fadedColor(changeColor, fade));
-            } else {
-                drawUiText(value, {right - valueWidth, y}, valueSize, fadedColor(UiWhite, fade));
-            }
-        }
-        const ScopedUiFontRole labelFont(UiFontRole::Body);
-        const float labelSize = fitUiTextSize(label, fontSize, fontSize * 0.72F,
-            bounds.width - 36.0F - valueWidth - 14.0F);
-        drawUiText(label, {left, y}, labelSize,
-            fadedColor(changed ? changeColor : Color{205, 207, 196, 255}, fade));
-        y += 27.0F * scale;
+        const Color accent = positive ? menuStyle::Green : Color{255, 145, 112, 255};
+        const float valueWidth = (right - left) * (changed ? 0.48F : 0.29F);
+        if (changed) drawChamferedFill({left - 4 * scale, y, right - left + 8 * scale, 24 * scale},
+            4 * scale, fadedColor({53, 66, 57, 255}, fade));
+        label(name, {left, y, right - left - valueWidth - 8 * scale, 24 * scale},
+            18 * scale, changed ? menuStyle::Cream : menuStyle::Muted, fade);
+        label(changed ? value + " > " + nextValue : value,
+            {right - valueWidth, y, valueWidth, 24 * scale}, 18 * scale,
+            changed ? accent : menuStyle::Cream, fade, UiFontRole::BodyBold, 2);
+        y += 24 * scale;
     };
     const auto multiplier = [](double value) { return statNumber(value, 2) + "x"; };
     const RunUpgradeStats& stats = snapshot.upgradeStats;
@@ -567,10 +572,8 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     row("Defense damage", multiplier(stats.defenseDamage), multiplier(next.defenseDamage));
     row("Fire rate", multiplier(stats.defenseFireRate), multiplier(next.defenseFireRate));
     row("Building HP", multiplier(stats.buildingHealth), multiplier(next.buildingHealth));
-    row("Side shots", std::to_string(stats.sideShots), std::to_string(next.sideShots));
-    row("Gun piercing", std::to_string(stats.gunPiercing), std::to_string(next.gunPiercing));
-    row("Shot bounces", std::to_string(stats.ricochets), std::to_string(next.ricochets));
-    row("Cluster blasts", std::to_string(stats.clusterExplosions), std::to_string(next.clusterExplosions));
+    row("Extra projectiles", statNumber(stats.projectileCountBonus), statNumber(next.projectileCountBonus));
+    row("Cluster blasts", statNumber(stats.clusterExplosions), statNumber(next.clusterExplosions));
     const auto cannonStyleName = [](CannonAttackStyle style) {
         switch (style) {
         case CannonAttackStyle::Heavy: return "HEAVY";
@@ -581,25 +584,36 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
         return "STANDARD";
     };
     row("Cannon attack", cannonStyleName(stats.cannonAttackStyle), cannonStyleName(next.cannonAttackStyle));
+    row("Projectile speed", multiplier(stats.projectileSpeed), multiplier(next.projectileSpeed));
+    row("Duration", multiplier(stats.attackDuration), multiplier(next.attackDuration));
+    row("Size", multiplier(stats.attackSize), multiplier(next.attackSize));
+    row("Crit chance", statNumber(stats.critChance * 100.0) + "%", statNumber(next.critChance * 100.0) + "%");
+    row("Crit damage", multiplier(stats.critDamage), multiplier(next.critDamage));
+    row("Knockback", multiplier(stats.knockback), multiplier(next.knockback));
     section("ECONOMY");
     row("Production", multiplier(stats.productionSpeed), multiplier(next.productionSpeed));
     row("Resource node capacity", multiplier(stats.resourceCapacity), multiplier(next.resourceCapacity));
-    row("Buildings", std::to_string(snapshot.totalBuildingLimit), std::to_string(projected.totalBuildingLimit));
     row("Build range", std::to_string(snapshot.coreBuildRadius) + "m", std::to_string(projected.coreBuildRadius) + "m");
     row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
-    if (snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)] > 0 ||
-        projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)] > 0) {
-        row("Poison chance", statNumber(runPoisonChance(snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]) * 100) + "%",
-            statNumber(runPoisonChance(projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]) * 100) + "%");
-    }
+    const auto poisonChance=[](const SimulationSnapshot& state,ShrineKind kind) {
+        return runPoisonChance(state.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]+
+            shrineBonusPower(state.shrines,kind,RunUpgradeEffect::PoisonChance));
+    };
+    if (poisonChance(snapshot,ShrineKind::Player)>0 || poisonChance(projected,ShrineKind::Player)>0)
+        row("Poison chance",statNumber(poisonChance(snapshot,ShrineKind::Player)*100)+"%",
+            statNumber(poisonChance(projected,ShrineKind::Player)*100)+"%");
+    if (poisonChance(snapshot,ShrineKind::Buildings)>0 || poisonChance(projected,ShrineKind::Buildings)>0)
+        row("Defense poison",statNumber(poisonChance(snapshot,ShrineKind::Buildings)*100)+"%",
+            statNumber(poisonChance(projected,ShrineKind::Buildings)*100)+"%");
     row("Max HP", statNumber(snapshot.playerMaxHealth), statNumber(projected.playerMaxHealth));
     row("HP regen", statNumber(stats.healthRegeneration, 2) + "/s", statNumber(next.healthRegeneration, 2) + "/s");
     row("Shield", statNumber(snapshot.playerMaxRecoverableArmor), statNumber(projected.playerMaxRecoverableArmor));
     row("Player damage", multiplier(snapshot.playerDamageMultiplier), multiplier(projected.playerDamageMultiplier));
     row("Attack speed", multiplier(stats.playerAttackSpeed), multiplier(next.playerAttackSpeed));
     if (snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)] > 0 ||
-        projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)] > 0)
+        projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)] > 0 ||
+        shrineBonusPower(projected.shrines,ShrineKind::Player,RunUpgradeEffect::GatheringSpeed)>0)
         row("Tool speed", multiplier(stats.toolAttackSpeed), multiplier(next.toolAttackSpeed));
     row("Move speed", multiplier(snapshot.playerMoveSpeedMultiplier), multiplier(projected.playerMoveSpeedMultiplier));
     if (cannonPreview) {
@@ -614,8 +628,8 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
         if (next.cannonAttackStyle == CannonAttackStyle::Scatter) {
             row("Shells per shot", std::to_string(before.projectileCount), std::to_string(after.projectileCount));
         } else if (next.cannonAttackStyle == CannonAttackStyle::Cluster) {
-            row("Cannon mini blasts", std::to_string(before.clusterCount + stats.clusterExplosions),
-                std::to_string(after.clusterCount + next.clusterExplosions));
+            row("Cannon mini blasts", statNumber(before.clusterCount + stats.clusterExplosions),
+                statNumber(after.clusterCount + next.clusterExplosions));
         } else {
             row("Cannon fire rate", multiplier(rate / before.interval), multiplier(rate / after.interval), after.interval <= before.interval);
         }
@@ -629,8 +643,8 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     }
     if (contextualPreview) {
         const auto index = runUpgradeIndex(hoveredEffect);
-        const double before = snapshot.runUpgradePower[index];
-        const double after = projected.runUpgradePower[index];
+        const double before = snapshot.runUpgradePower[index]+shrineBonusPower(snapshot.shrines,ShrineKind::Player,hoveredEffect);
+        const double after = projected.runUpgradePower[index]+shrineBonusPower(projected.shrines,ShrineKind::Player,hoveredEffect);
         const auto bonus = [&](std::string_view label, double step, std::string_view suffix = "") {
             row(label, statNumber(before * step) + std::string(suffix), statNumber(after * step) + std::string(suffix));
         };
@@ -651,71 +665,139 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
 
 }
 
-UpgradeValueCopy upgradeValueCopy(
-    std::string_view description, std::string_view fallback) {
-    if (description.size() >= 2U &&
-        (description.front() == '+' || description.front() == '-') &&
-        std::isdigit(static_cast<unsigned char>(description[1]))) {
-        const std::size_t separator = description.find(' ');
-        if (separator != std::string_view::npos) {
-            std::string label{description.substr(separator + 1U)};
-            if (!label.empty()) label.front() = static_cast<char>(
-                std::toupper(static_cast<unsigned char>(label.front())));
-            if (!label.empty() && label.back() == '.') label.pop_back();
-            return {
-                std::string{description.substr(0U, separator)},
-                std::move(label),
-            };
+struct InventoryEntry {
+    Texture2D icon;
+    std::string title;
+    std::string_view description;
+    int level;
+    std::optional<BuildingType> buildingType{};
+};
+std::optional<InventoryEntry> drawUpgradeInventory(GameUi& ui, const SimulationSnapshot& snapshot, Rectangle bounds,
+                          float scale, float fade, Vector2 pointer) {
+    std::array<std::vector<InventoryEntry>, 4> groups;
+    constexpr std::array<std::string_view, 7> weaponNames{
+        "AXE", "PICKAXE", "CLUB", "RIFLE", "BOMB", "ICE WAND", "FIRE WAND"};
+    for (std::size_t index = 0; index < PlayerWeaponHotbarOrder.size(); ++index) {
+        const auto weapon = PlayerWeaponHotbarOrder[index];
+        if (snapshot.unlockedWeapons[static_cast<std::size_t>(weapon)])
+            groups[0].push_back({ui.weaponTexture(weapon), std::string{weaponNames[index]}, weaponDescription(weapon), 0});
+    }
+    for (const auto type : RunBuildingTypes)
+        if (type != BuildingType::Wall &&
+            (std::find(RunEconomyBuildingTypes.begin(), RunEconomyBuildingTypes.end(), type) ==
+                RunEconomyBuildingTypes.end() ||
+             snapshot.runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(type))] > 0) &&
+            snapshot.unlockedBuildings[static_cast<std::size_t>(type)])
+            groups[1].push_back({ui.buildingTexture(type), std::string{buildingDisplayName(type)}, buildingDescription(type),
+                snapshot.sandboxMode || snapshot.unlimitedResources ? 0 :
+                    snapshot.runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(type))], type});
+    for (const auto& definition : RunUpgradeDefinitions) {
+        if (definition.effect == RunUpgradeEffect::DefenseDamage || definition.effect == RunUpgradeEffect::DefenseFireRate) continue;
+        const int level = runTomeLevel(definition.effect, snapshot.runUpgradeStacks);
+        if (level > 0 && !retiredRunUpgrade(definition.effect) &&
+            !runUpgradeBuilding(definition.effect) && !runUpgradeWeapon(definition.effect))
+            groups[2].push_back({ui.runUpgradeTexture(definition.effect), std::string{definition.name}, definition.description, level});
+    }
+    for (std::size_t i=0;i<LootUpgradeEffectCount;++i) {
+        const int stacks = snapshot.lootStacks[i];
+        if (stacks > 0) {
+            const auto effect = static_cast<LootUpgradeEffect>(i);
+            groups[3].push_back({ui.lootTexture(effect),lootUpgradeName(effect),lootUpgradeDescription(effect),stacks});
         }
     }
-    return {std::string{fallback}, "Special upgrade"};
+    const float innerWidth = bounds.width - 36 * scale;
+    const std::size_t columns = std::max(std::size_t{1}, static_cast<std::size_t>(innerWidth / (54 * scale)));
+    std::size_t rows = 0;
+    for (const auto& group : groups) rows += std::max(std::size_t{1}, (group.size() + columns - 1) / columns);
+    const float contentHeight = std::min(bounds.height, (302 + static_cast<float>(rows) * 54) * scale);
+    bounds.y += (bounds.height - contentHeight) * 0.5F;
+    bounds.height = contentHeight;
+    panelHeader(bounds, scale, "INVENTORY", fade);
+    const float cell = std::min(innerWidth / static_cast<float>(columns),
+        (bounds.height - 264 * scale) / static_cast<float>(rows));
+    float y = bounds.y + 86 * scale;
+    const std::array<std::string_view, 4> titles{"WEAPONS", "BUILDINGS", "TOMES & PERKS", "ITEMS"};
+    const InventoryEntry* hovered = nullptr;
+    for (std::size_t groupIndex = 0; groupIndex < groups.size(); ++groupIndex) {
+        const auto& group = groups[groupIndex];
+        label(titles[groupIndex], {bounds.x + 18 * scale, y, innerWidth, 30 * scale},
+            21 * scale, menuStyle::Cream, fade, UiFontRole::Display);
+        y += 34 * scale;
+        if (group.empty()) label("—", {bounds.x + 20 * scale, y, innerWidth, cell},
+            20 * scale, menuStyle::Muted, fade);
+        for (std::size_t index = 0; index < group.size(); ++index) {
+            const auto& entry = group[index];
+            const Rectangle slot{bounds.x + 18 * scale + (index % columns) * cell,
+                y + (index / columns) * cell, cell - 5 * scale, cell - 5 * scale};
+            const bool over = CheckCollisionPointRec(pointer, slot);
+            plate(slot, scale * 0.45F, over ? menuStyle::Hover : menuStyle::Inset, fade);
+            drawIcon(entry.icon, {slot.x + 4 * scale, slot.y + 3 * scale,
+                slot.width - 8 * scale, slot.height - 6 * scale}, fade);
+            if (entry.level > 0) label(std::to_string(entry.level),
+                {slot.x, slot.y + slot.height - 19 * scale, slot.width - 4 * scale, 19 * scale},
+                16 * scale, menuStyle::Cream, fade, UiFontRole::BodyBold, 2);
+            if (over) hovered = &entry;
+        }
+        y += static_cast<float>(std::max(std::size_t{1}, (group.size() + columns - 1) / columns)) * cell + 10 * scale;
+    }
+    return hovered ? std::optional<InventoryEntry>{*hovered} : std::nullopt;
 }
 
+void drawSelectionCorners(Rectangle bounds, float scale, float fade) {
+    const float length = 15 * scale;
+    const float thickness = 3 * scale;
+    const float offset = 6 * scale;
+    for (int xSide : {0, 1}) for (int ySide : {0, 1}) {
+        const float x = xSide ? bounds.x + bounds.width + offset : bounds.x - offset;
+        const float y = ySide ? bounds.y + bounds.height + offset : bounds.y - offset;
+        const float left = xSide ? x - length : x;
+        const float top = ySide ? y - length : y;
+        DrawRectangleRec({left - scale, y - thickness * 0.5F - scale,
+            length + scale * 2, thickness + scale * 2}, fadedColor(BLACK, fade));
+        DrawRectangleRec({x - thickness * 0.5F - scale, top - scale,
+            thickness + scale * 2, length + scale * 2}, fadedColor(BLACK, fade));
+        DrawRectangleRec({left, y - thickness * 0.5F, length, thickness}, fadedColor(menuStyle::Cream, fade));
+        DrawRectangleRec({x - thickness * 0.5F, top, thickness, length}, fadedColor(menuStyle::Cream, fade));
+    }
+}
 } // namespace
 
+RunUpgradeOverlayTransition runUpgradeOverlayTransition(double entranceSeconds, double exitSeconds, bool closing) {
+    const float visibility = closing
+        ? 1.0F - smoothUnit(static_cast<float>(exitSeconds / RunUpgradeOverlayExitDuration))
+        : smoothUnit(static_cast<float>(entranceSeconds / RunUpgradeOverlayEntranceDuration));
+    return {visibility, 0.4F + 0.6F * visibility};
+}
+
 Rectangle runUpgradeCardBounds(std::size_t index, std::size_t count) {
-    const float screenWidth = upgradeCardsAreaWidth();
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float layoutScale = cardLayoutScale(count);
-    const float cardWidth = CardWidth * layoutScale;
-    const float cardHeight = CardHeight * layoutScale;
-    const float gap = CardGap * layoutScale;
-    const float totalWidth = cardWidth * static_cast<float>(count) +
-        gap * static_cast<float>(count - 1U);
-    const float desiredY =
-        screenHeight * 0.5F - cardHeight * 0.5F + 125.0F;
-    return {
-        (screenWidth - totalWidth) * 0.5F +
-            static_cast<float>(index) * (cardWidth + gap),
-        std::clamp(desiredY, 186.0F,
-                   std::max(186.0F, screenHeight - cardHeight - 58.0F)),
-        cardWidth,
-        cardHeight,
-    };
+    const ScopedUiCoordinates coordinates;
+    if (count == 0 || index >= count || index >= MaximumRunUpgradeChoices) return {};
+    const auto layout = upgradeLayout(count);
+    const Rectangle bounds = upgradeCardBounds(layout, index);
+    return coordinates.owns() ? coordinates.viewport().toScreen(bounds) : bounds;
 }
-
 Rectangle runUpgradeStatsPanelBounds(std::size_t count) {
-    const float width = upgradeStatsPanelWidth();
-    const float height = std::min(630.0F, static_cast<float>(GetScreenHeight()) - 80.0F);
-    const Rectangle card = runUpgradeCardBounds(0, count);
-    const float center = card.y + card.height * 0.5F;
-    return {static_cast<float>(GetScreenWidth()) - width - 24.0F,
-        std::clamp(center - height * 0.5F, 40.0F,
-            static_cast<float>(GetScreenHeight()) - height - 40.0F), width, height};
+    const ScopedUiCoordinates coordinates;
+    const auto bounds = upgradeLayout(count).stats;
+    return coordinates.owns() ? coordinates.viewport().toScreen(bounds) : bounds;
 }
-
-std::optional<std::size_t> hoveredRunUpgradeChoice(
-    const SimulationSnapshot& snapshot, Vector2 mousePosition) {
+Rectangle runUpgradeInventoryPanelBounds(std::size_t count) {
+    const ScopedUiCoordinates coordinates;
+    const auto bounds = upgradeLayout(count).inventory;
+    return coordinates.owns() ? coordinates.viewport().toScreen(bounds) : bounds;
+}
+Rectangle runUpgradeRerollBounds(std::size_t count) {
+    const ScopedUiCoordinates coordinates;
+    const auto layout = upgradeLayout(count);
+    const Rectangle bounds = upgradeRerollBounds(layout);
+    return coordinates.owns() ? coordinates.viewport().toScreen(bounds) : bounds;
+}
+std::optional<std::size_t> hoveredRunUpgradeChoice(const SimulationSnapshot& snapshot, Vector2 pointer) {
+    const ScopedUiCoordinates coordinates;
+    if (coordinates.owns()) pointer = coordinates.viewport().toUi(pointer);
     if (!snapshot.runUpgradeChoicePending) return std::nullopt;
-    for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
-         ++index) {
-        if (CheckCollisionPointRec(
-                mousePosition,
-                runUpgradeCardBounds(index,
-                                     snapshot.runUpgradeChoiceCount))) {
-            return index;
-        }
-    }
+    for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount; ++index)
+        if (CheckCollisionPointRec(pointer, runUpgradeCardBounds(index, snapshot.runUpgradeChoiceCount))) return index;
     return std::nullopt;
 }
 
@@ -726,11 +808,66 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     const auto index = runUpgradeIndex(effect);
     if (index >= RunUpgradeEffectCount ||
         static_cast<std::size_t>(snapshot.runUpgradeRarities[choiceIndex]) >= RunUpgradeRarityCount) return projected;
+    if (const auto* blessing=shrineBlessing(snapshot.shrines.offer,effect)) {
+        ++shrineBonusCounts(projected.shrines,snapshot.shrines.offer)[index];
+        const double previousPower=shrineBonusPower(snapshot.shrines,snapshot.shrines.offer,effect);
+        const double gain=effect==RunUpgradeEffect::UpgradeCore ? 0.0 :
+            runUpgradeRarityMultiplier(snapshot.runUpgradeRarities[choiceIndex]);
+        shrineBonusPowers(projected.shrines,snapshot.shrines.offer)[index]+=gain;
+        const double ratio=(1+blessing->increment*(previousPower+gain)) /
+            (1+blessing->increment*previousPower);
+        switch(effect) {
+        case RunUpgradeEffect::Damage: projected.playerDamageMultiplier*=ratio; break;
+        case RunUpgradeEffect::AttackSpeed: projected.upgradeStats.playerAttackSpeed*=ratio; projected.upgradeStats.toolAttackSpeed*=ratio; break;
+        case RunUpgradeEffect::MoveSpeed: projected.playerMoveSpeedMultiplier*=ratio; break;
+        case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth+=blessing->increment*gain; break;
+        case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor+=blessing->increment*gain; break;
+        case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage*=ratio; break;
+        case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate*=ratio; break;
+        case RunUpgradeEffect::BuildingCapacity: {
+            const int added=static_cast<int>(std::floor(previousPower+gain+1e-9)-std::floor(previousPower+1e-9));
+            projected.totalBuildingLimit+=added;
+            projected.buildingLimitBonus+=added;
+            break;
+        }
+        case RunUpgradeEffect::BuildingHealth: projected.upgradeStats.buildingHealth*=ratio; break;
+        case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed*=ratio; break;
+        case RunUpgradeEffect::ResourceCapacity: projected.upgradeStats.resourceCapacity+=blessing->increment*gain; break;
+        case RunUpgradeEffect::Luck: projected.upgradeStats.luck+=blessing->increment*gain; break;
+        case RunUpgradeEffect::Regeneration: projected.upgradeStats.healthRegeneration+=blessing->increment*gain; break;
+        case RunUpgradeEffect::GatheringSpeed: {
+            const double power=snapshot.runUpgradePower[index]+previousPower;
+            projected.upgradeStats.toolAttackSpeed*=(1+.15*(power+gain))/(1+.15*power);
+            break;
+        }
+        case RunUpgradeEffect::ProjectileCount:
+            projected.upgradeStats.projectileCountBonus+=std::floor(previousPower+gain+1e-9)-std::floor(previousPower+1e-9); break;
+        case RunUpgradeEffect::Bounces:
+            projected.upgradeStats.bounces+=std::floor(previousPower+gain+1e-9)-std::floor(previousPower+1e-9); break;
+        case RunUpgradeEffect::Pierce:
+            projected.upgradeStats.pierce+=std::floor(previousPower+gain+1e-9)-std::floor(previousPower+1e-9); break;
+        case RunUpgradeEffect::ProjectileSpeed: projected.upgradeStats.projectileSpeed*=ratio; break;
+        case RunUpgradeEffect::AttackDuration: projected.upgradeStats.attackDuration*=ratio; break;
+        case RunUpgradeEffect::AttackSize: projected.upgradeStats.attackSize*=ratio; break;
+        case RunUpgradeEffect::CriticalChance: projected.upgradeStats.critChance=std::min(1.0,projected.upgradeStats.critChance+blessing->increment*gain); break;
+        case RunUpgradeEffect::CriticalDamage: projected.upgradeStats.critDamage*=ratio; break;
+        case RunUpgradeEffect::AttackKnockback: projected.upgradeStats.knockback*=ratio; break;
+        default: break;
+        }
+        return projected;
+    }
     const double current = snapshot.runUpgradePower[index];
+    const double passivePower=current+shrineBonusPower(snapshot.shrines,ShrineKind::Player,effect);
     const double gain = runUpgradeAppliedPowerGain(effect, snapshot.runUpgradeRarities[choiceIndex], current);
     if (gain <= 0.0) return projected;
     projected.runUpgradePower[index] += gain;
     ++projected.runUpgradeStacks[index];
+    if (const auto building = runUpgradeBuilding(effect);
+        building && runCombatBuilding(*building) && snapshot.runUpgradeStacks[index] > 0) {
+        applyBuildingStatUpgrade(projected.buildingUpgradePowers, *building,
+            rollBuildingStatUpgrade(*building, snapshot.runUpgradeRarities[choiceIndex],
+                snapshot.runUpgradeRollSeeds[choiceIndex]), snapshot.runUpgradeRarities[choiceIndex]);
+    }
     if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
         const auto defenseHalf = effect == RunUpgradeEffect::Damage ? RunUpgradeEffect::DefenseDamage : RunUpgradeEffect::DefenseFireRate;
         const double oldPower = snapshot.runUpgradePower[runUpgradeIndex(defenseHalf)];
@@ -745,29 +882,32 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     const auto ratio = [&](double base, double step) {
         return (base + step * (current + gain)) / (base + step * current);
     };
-    if (runDefenseCard(effect) && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0)
+    if (runDefenseCard(effect) && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0 &&
+        std::find(RunEconomyBuildingTypes.begin(), RunEconomyBuildingTypes.end(),
+            *runUpgradeBuilding(effect)) == RunEconomyBuildingTypes.end())
         ++projected.buildingArsenalCount;
     if (const auto weapon = runUpgradeWeapon(effect)) {
         const auto weaponIndex=static_cast<std::size_t>(*weapon);
         projected.weaponLevels[weaponIndex]=snapshot.unlockedWeapons[weaponIndex]
             ? std::min(MaximumPlayerWeaponLevel,std::max(1,snapshot.weaponLevels[weaponIndex])+1) : 1;
         projected.unlockedWeapons[weaponIndex] = true;
-        if (*weapon == PlayerWeapon::Bomb) projected.bombsRemaining += snapshot.bombPurchaseAmount;
     }
     if (const auto style = runUpgradeCannonStyle(effect)) projected.upgradeStats.cannonAttackStyle = *style;
     switch (effect) {
-    case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage *= (1.0 + 0.12 * (current + gain)) / (1.0 + 0.12 * current); break;
+    case RunUpgradeEffect::DefenseDamage:
+        projected.upgradeStats.defenseDamage *= (1.0 + 0.12 * (current + gain)) / (1.0 + 0.12 * current);
+        break;
     case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate *= (1.0 + 0.10 * (current + gain)) / (1.0 + 0.10 * current); break;
     case RunUpgradeEffect::BuildingHealth:
-        projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.12); break;
-    case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.15); break;
+        projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.15); break;
+    case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.12); break;
     case RunUpgradeEffect::ResourceCapacity:
-        projected.upgradeStats.resourceCapacity *= ratio(1.0, .20);
+        projected.upgradeStats.resourceCapacity += .20*gain;
         break;
     case RunUpgradeEffect::AttackSpeed: break;
     case RunUpgradeEffect::Damage: projected.playerDamageMultiplier *= ratio(1.0, 0.10); break;
     case RunUpgradeEffect::MoveSpeed:
-        projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.07); break;
+        projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.08); break;
     case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth += 12.0 * gain; break;
     case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
     case RunUpgradeEffect::BuildingCapacity:
@@ -777,506 +917,154 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
         projected.buildingLimitBonus += extra;
         break;
     }
-    case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::round(3.0 * gain)); break;
-    case RunUpgradeEffect::GatheringSpeed: projected.upgradeStats.toolAttackSpeed *= ratio(1.0, 0.15); break;
+    case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::floor(3.0 * (current + gain)) - std::floor(3.0 * current)); break;
+    case RunUpgradeEffect::GatheringSpeed: projected.upgradeStats.toolAttackSpeed *= (1+.15*(passivePower+gain))/(1+.15*passivePower); break;
     case RunUpgradeEffect::Luck: projected.upgradeStats.luck += 0.10 * gain; break;
     case RunUpgradeEffect::Regeneration: projected.upgradeStats.healthRegeneration += 0.5 * gain; break;
-    case RunUpgradeEffect::TwinBatteries:
-        projected.upgradeStats.sideShots = runUpgradeDiscreteAmount(effect, current + gain); break;
-    case RunUpgradeEffect::GunPiercing:
-        projected.upgradeStats.gunPiercing = runUpgradeDiscreteAmount(effect, current + gain); break;
-    case RunUpgradeEffect::Ricochet:
-        projected.upgradeStats.ricochets = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::ProjectileCount:
+        projected.upgradeStats.projectileCountBonus = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::Pierce:
+        projected.upgradeStats.pierce = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::Bounces:
+        projected.upgradeStats.bounces = runUpgradeDiscreteAmount(effect, current + gain); break;
     case RunUpgradeEffect::ClusterPayload:
-        projected.upgradeStats.clusterExplosions = runUpgradeDiscreteAmount(effect, current + gain); break;
+        projected.upgradeStats.clusterExplosions = 2.0 * (current + gain); break;
     default: break;
     }
+    const auto modifiers = shrineDefenseAttackModifiers(projected.runUpgradePower,projected.shrines);
+    projected.upgradeStats.projectileCountBonus=modifiers[AttackStat::Quantity].flat;
+    projected.upgradeStats.bounces=modifiers[AttackStat::Bounces].flat;
+    projected.upgradeStats.pierce=modifiers[AttackStat::Pierce].flat;
+    projected.upgradeStats.projectileSpeed = modifiers[AttackStat::ProjectileSpeed].multiplier;
+    projected.upgradeStats.attackDuration = modifiers[AttackStat::Duration].multiplier;
+    projected.upgradeStats.attackSize = modifiers[AttackStat::Size].multiplier;
+    projected.upgradeStats.critChance = std::clamp(modifiers[AttackStat::CritChance].flat, 0.0, 1.0);
+    projected.upgradeStats.critDamage = 2.0 * modifiers[AttackStat::CritDamage].multiplier;
+    projected.upgradeStats.knockback = modifiers[AttackStat::Knockback].multiplier;
     return projected;
 }
 
-void drawRunUpgradeOverlay(
-    GameUi& ui,
-    const SimulationSnapshot& snapshot,
-    double entranceSeconds,
-    double exitSeconds,
-    std::optional<std::size_t> selectedChoice,
-    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition, bool reduceFlashes) {
-    if (!snapshot.runUpgradeChoicePending ||
-        snapshot.runUpgradeChoiceCount == 0U) return;
-    const float exitProgress = std::clamp(static_cast<float>(
-        exitSeconds / RunUpgradeOverlayExitDuration), 0.0F, 1.0F);
-    const float exitEase = smoothUnit(exitProgress);
-    const float overlayFade = 1.0F - exitEase;
-    const float backgroundExitFade = 1.0F - smoothUnit(std::clamp(
-        (exitProgress - 0.72F) / 0.28F, 0.0F, 1.0F));
-    const float screenFade = smoothUnit(static_cast<float>(
-        entranceSeconds / 0.20)) * backgroundExitFade;
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                  {30, 30, 30, static_cast<unsigned char>(
-                      std::lround(170.0F * screenFade))});
+void drawRunUpgradeOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
+    double entranceSeconds, double exitSeconds, std::optional<std::size_t> selectedChoice,
+    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition,
+    std::optional<std::size_t> keyboardChoice, bool reduceFlashes) {
+    if (!snapshot.runUpgradeChoicePending || snapshot.runUpgradeChoiceCount == 0) return;
+    const ScopedUiCanvas canvas;
+    if (pointerPosition && canvas.owns()) pointerPosition = canvas.viewport().toUi(*pointerPosition);
+    const Vector2 pointer = pointerPosition.value_or(uiMousePosition());
+    const auto baseLayout = upgradeLayout(snapshot.runUpgradeChoiceCount);
+    const bool closing = selectedChoice.has_value() || exitSeconds > 0;
+    const auto transition = runUpgradeOverlayTransition(entranceSeconds, exitSeconds, closing);
+    const float fade = transition.opacity;
+    if (fade <= 0) return;
+    const auto layout = scaledUpgradeLayout(baseLayout, transition.scale);
+    const float s = layout.scale;
+    const bool interactive = !closing && entranceSeconds >= RunUpgradeOverlayEntranceDuration;
+    DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(), fadedColor({16, 23, 27, 100}, fade));
     reward_backdrop::draw(ui,reward_backdrop::Kind::Experience,entranceSeconds+exitSeconds,
-        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},screenFade,reduceFlashes);
-    const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
-    drawRunHammerInventory(ui, snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F}, overlayFade, mouse);
-    const auto hoveredChoice = exitSeconds > 0.0 ? std::nullopt : hoveredRunUpgradeChoice(snapshot, mouse);
-    drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade, hoveredChoice);
-    const float headingEntrance = std::clamp(static_cast<float>(
-        (entranceSeconds - 0.01) / 0.23), 0.0F, 1.0F);
-    const float headingMotion = popEntranceScale(headingEntrance);
-    const Rectangle firstCard = runUpgradeCardBounds(
-        0U, snapshot.runUpgradeChoiceCount);
-    const float cardTop = firstCard.y;
-    const Texture2D levelUpRays = ui.levelUpRaysTexture();
-    if (IsTextureValid(levelUpRays)) {
-        const Rectangle raysAnchorCard = runUpgradeCardBounds(
-            std::min<std::size_t>(
-                1U, snapshot.runUpgradeChoiceCount - 1U),
-            snapshot.runUpgradeChoiceCount);
-        const Vector2 raysCenter{
-            raysAnchorCard.x + raysAnchorCard.width * 0.5F,
-            raysAnchorCard.y + raysAnchorCard.height * 0.5F,
-        };
-        const float raysSize = std::max(
-            static_cast<float>(GetScreenWidth()),
-            static_cast<float>(GetScreenHeight())) * 0.90F;
-        DrawTexturePro(
-            levelUpRays,
-            {0.0F, 0.0F, static_cast<float>(levelUpRays.width),
-             static_cast<float>(levelUpRays.height)},
-            {raysCenter.x, raysCenter.y, raysSize, raysSize},
-            {raysSize * 0.5F, raysSize * 0.5F},
-            static_cast<float>(GetTime()) * 2.0F,
-            fadedColor(WHITE, screenFade * 0.10F));
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},fade,reduceFlashes);
+    drawUpgradeRays(baseLayout.offers, entranceSeconds + exitSeconds, fade, false, reduceFlashes);
+    const auto hovered = interactive ? hoveredRunUpgradeChoice(snapshot, pointer) : std::nullopt;
+    if (keyboardChoice && *keyboardChoice >= snapshot.runUpgradeChoiceCount) keyboardChoice.reset();
+    const auto preview = closing ? selectedChoice : interactive ? (keyboardChoice ? keyboardChoice : hovered) : std::nullopt;
+    drawUpgradeStats(snapshot, layout, fade, preview);
+    const auto inventoryHover = drawUpgradeInventory(ui, snapshot, layout.inventory, s, fade,
+        interactive ? pointer : Vector2{-10000, -10000});
+    plate(layout.offers, s, {18, 21, 19, 255}, fade);
+    const Rectangle header{layout.offers.x, layout.offers.y, layout.offers.width, 72 * s};
+    plate(header, s, menuStyle::Card, fade);
+    const bool shrineOffer=snapshot.shrines.offer!=ShrineKind::None;
+    label(shrineOffer ? snapshot.shrines.offer==ShrineKind::Player ? "PLAYER SHRINE" : "BUILDING SHRINE" : "UPGRADES", {header.x + 20 * s, header.y, header.width - 180 * s, 44 * s},
+        32 * s, menuStyle::Cream, fade, UiFontRole::Display);
+    label(shrineOffer ? localizeText("LASTS THIS RUN - NO SLOTS") : localizeText("TOMES") + " " + std::to_string(snapshot.tomeCount) + "/" + std::to_string(snapshot.tomeSlotLimit),
+        {header.x + 22 * s, header.y + 43 * s, header.width - 180 * s, 24 * s},
+        16 * s, menuStyle::Gold, fade, UiFontRole::BodyBold);
+    label("LVL " + std::to_string(snapshot.playerLevel),
+        {layout.offers.x + layout.offers.width - 145 * s, layout.offers.y, 122 * s, 72 * s},
+        24 * s, menuStyle::Gold, fade, UiFontRole::Display, 2);
+    for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount; ++index) {
+        const auto effect = snapshot.runUpgradeChoices[index];
+        const auto rarity = snapshot.runUpgradeRarities[index];
+        const Rectangle row = upgradeCardBounds(layout, index);
+        const float opacity = fade;
+        const bool active = preview == index || (selectedChoice && *selectedChoice == index);
+        const Color accent = rarityColor(rarity);
+        const float hover = interactive && index < hoverAmounts.size() ? std::clamp(hoverAmounts[index], 0.0F, 1.0F)
+            : active ? 1.0F : 0.0F;
+        const Color cardBase = rarityFill(rarity);
+        plate(row, s, tinted(cardBase, accent, hover * 0.08F), opacity);
+        const float iconSize = std::min(row.height - 44 * s, 132 * s);
+        const Rectangle icon{row.x + 16 * s, row.y + row.height - iconSize - 12 * s, iconSize, iconSize};
+        // Flat rarity colour, matching the reference; no glow or radial wash.
+        plate(icon, s * 0.55F, tinted(cardBase, accent, 0.36F + hover * 0.08F), opacity);
+        const auto* blessing=shrineBlessing(snapshot.shrines.offer,effect);
+        label(runUpgradeRarityName(rarity), {icon.x - 4 * s, row.y + 9 * s, icon.width + 8 * s, 23 * s},
+            15 * s, accent, opacity, UiFontRole::BodyBold, 1);
+        drawIcon(ui.runUpgradeTexture(blessing ? blessing->icon : effect), {icon.x + 4 * s, icon.y + 4 * s,
+            icon.width - 8 * s, icon.height - 8 * s}, opacity);
+        const float left = icon.x + icon.width + 20 * s;
+        const float width = row.x + row.width - left - 24 * s;
+        const float badgeWidth = std::min(118 * s, width * 0.25F);
+        const float top = row.y + 26 * s;
+        label(blessing ? blessing->name : runUpgradeDefinition(effect).name, {left, top, width - badgeWidth - 8 * s, 34 * s},
+            30 * s, menuStyle::Cream, opacity, UiFontRole::Display);
+        offerDescription(snapshot, index, {left, top + 36 * s, width, row.height - 99 * s}, s, opacity);
+        const auto weapon=runUpgradeWeapon(effect);
+        const int level=weapon && snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
+            ? std::max(1,snapshot.weaponLevels[static_cast<std::size_t>(*weapon)]) : runTomeLevel(effect,snapshot.runUpgradeStacks);
+        const std::string levelCopy = effect == RunUpgradeEffect::UpgradeCore ? "CORE"
+            : level == 0 ? "NEW" : "LVL " + std::to_string(level + 1);
+        label(shrineOffer && effect != RunUpgradeEffect::UpgradeCore ? "BLESSING" : levelCopy, {left + width - badgeWidth, row.y + 18 * s, badgeWidth, 26 * s},
+            17 * s, level == 0 && effect != RunUpgradeEffect::UpgradeCore ? menuStyle::Gold : accent,
+            opacity, UiFontRole::BodyBold, 2);
+        label(std::to_string(index + 1), {row.x + row.width - 42 * s,
+            row.y + row.height - 32 * s, 22 * s, 22 * s}, 17 * s,
+            active ? menuStyle::Gold : menuStyle::Muted, opacity, UiFontRole::BodyBold, 2);
     }
-    const Texture2D levelUpBanner = ui.levelUpBannerTexture();
-    if (IsTextureValid(levelUpBanner)) {
-        const float maximumBannerWidth = std::max(
-            180.0F, (cardTop - 64.0F) * 3.0F);
-        const float bannerWidth = UpgradeUiScale * 0.82F * std::min({
-            940.0F,
-            static_cast<float>(GetScreenWidth()) - 60.0F,
-            maximumBannerWidth,
-        });
-        const float bannerHeight = bannerWidth *
-            static_cast<float>(levelUpBanner.height) /
-            static_cast<float>(levelUpBanner.width);
-        const float bannerScale =
-            headingMotion * (1.0F - exitEase * 0.06F);
-        const Rectangle bannerBase{
-            (upgradeCardsAreaWidth() - bannerWidth) * 0.5F,
-            cardTop - bannerHeight - 64.0F -
-                (1.0F - smoothUnit(headingEntrance)) * 44.0F -
-                exitEase * 28.0F,
-            bannerWidth, bannerHeight,
-        };
-        const Rectangle banner = scaleRectangle(
-            bannerBase, bannerScale, 0.0F);
-        if (bannerScale > 0.001F) {
-            DrawTexturePro(
-                levelUpBanner,
-                {0.0F, 0.0F, static_cast<float>(levelUpBanner.width),
-                 static_cast<float>(levelUpBanner.height)},
-                banner, {0.0F, 0.0F}, 0.0F,
-                fadedColor(WHITE, overlayFade));
+    // One focus frame moves between rows instead of leaving four fading frames.
+    Rectangle focus{};
+    float weight = 0;
+    if (interactive) {
+        for (std::size_t index = 0; index < std::min(hoverAmounts.size(), snapshot.runUpgradeChoiceCount); ++index) {
+            const float amount = std::clamp(hoverAmounts[index], 0.0F, 1.0F);
+            const auto bounds = upgradeCardBounds(layout, index);
+            focus.x += bounds.x * amount;
+            focus.y += bounds.y * amount;
+            focus.width += bounds.width * amount;
+            focus.height += bounds.height * amount;
+            weight += amount;
         }
     }
-
-    for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
-        ++index) {
-        const RunUpgradeEffect effect = snapshot.runUpgradeChoices[index];
-        const RunUpgradeRarity rarity = snapshot.runUpgradeRarities[index];
-        const std::string_view title = runUpgradeDefinition(effect).name;
-        const std::string description = upgradeDescription(snapshot, effect, rarity);
-        const Rectangle baseBounds = runUpgradeCardBounds(
-            index, snapshot.runUpgradeChoiceCount);
-        const bool hovered = CheckCollisionPointRec(mouse, baseBounds);
-        const float rawHover = index < hoverAmounts.size()
-            ? std::clamp(hoverAmounts[index], 0.0F, 1.0F)
-            : hovered ? 1.0F : 0.0F;
-        const float hover = exitProgress > 0.0F ? 0.0F : rawHover;
-        const double cardDelay = 0.055 +
-            static_cast<double>(index) * 0.055;
-        const float entrance = std::clamp(static_cast<float>(
-            (entranceSeconds - cardDelay) / 0.26), 0.0F, 1.0F);
-        const float entranceScale = popEntranceScale(entrance);
-        if (entranceScale <= 0.001F) continue;
-        const float entranceFade = smoothUnit(entrance);
-        const bool selectedForExit = selectedChoice &&
-            *selectedChoice == index;
-        // Several opaque layers overlap inside each card. Fade them faster
-        // near the end so their combined opacity reaches zero smoothly.
-        const float cardExitFade = overlayFade * overlayFade;
-        const float cardFade =
-            smoothUnit(entrance * 2.5F) * cardExitFade;
-        const float exitScale = selectedForExit
-            ? 1.0F + exitEase * 0.13F
-            : 1.0F - exitEase * 0.10F;
-        const float animationScale = entranceScale *
-            (1.0F + hover * 0.045F) * exitScale;
-        const float layoutScale = baseBounds.height / CardHeight;
-        const float lift =
-            ((1.0F - entranceFade) * -55.0F + hover * 10.0F +
-             (selectedForExit ? exitEase * 30.0F
-                              : -exitEase * 24.0F)) *
-            layoutScale;
-        Rectangle bounds = scaleRectangle(
-            baseBounds, animationScale, lift);
-        const float slotFromCenter = static_cast<float>(index) -
-            static_cast<float>(snapshot.runUpgradeChoiceCount - 1U) * 0.5F;
-        bounds.x += slotFromCenter * 18.0F *
-            (1.0F - entranceFade) * layoutScale;
-        if (selectedChoice && !selectedForExit) {
-            const float exitDirection = index < *selectedChoice
-                ? -1.0F : 1.0F;
-            bounds.x += exitDirection * exitEase *
-                52.0F * layoutScale;
-        } else if (selectedForExit) {
-            const float selectedCenterX =
-                bounds.x + bounds.width * 0.5F;
-            bounds.x +=
-                (upgradeCardsAreaWidth() * 0.5F -
-                 selectedCenterX) * exitEase;
-        }
-        const float scale = layoutScale * animationScale;
-        const bool locked = snapshot.lockedRunUpgrade == effect;
-        const UpgradePalette palette = rarityPalette(rarity);
-        const Color accent = palette.accent;
-        const Rectangle colorBounds = expandedRectangle(
-            bounds, 10.0F * scale);
-        Rectangle colorShadowBounds = colorBounds;
-        colorShadowBounds.y += 4.0F * scale;
-        const Rectangle blackOutlineBounds = expandedRectangle(
-            colorBounds, 7.0F * scale);
-        Rectangle blackShadowOutlineBounds = blackOutlineBounds;
-        blackShadowOutlineBounds.y += 4.0F * scale;
-        Rectangle cardDropShadowBounds = blackShadowOutlineBounds;
-        cardDropShadowBounds.y += 6.0F * scale;
-
-        const float glowStrength = cardFade *
-            (0.50F + hover * 0.65F +
-             (selectedForExit ? exitEase * 0.35F : 0.0F));
-        const auto drawCardGlowLayer = [&](float expansion,
-                                           float opacity) {
-            const Rectangle glowBounds = expandedRectangle(
-                blackOutlineBounds, expansion * scale);
-            DrawRectangleRounded(
-                glowBounds,
-                roundedRectangleRoundness(
-                    glowBounds,
-                    (57.0F + expansion) * scale),
-                8,
-                fadedColor(
-                    palette.border,
-                    glowStrength * opacity));
-        };
-        drawCardGlowLayer(38.0F, 0.018F);
-        drawCardGlowLayer(30.0F, 0.026F);
-        drawCardGlowLayer(23.0F, 0.036F);
-        drawCardGlowLayer(16.0F, 0.050F);
-        drawCardGlowLayer(10.0F, 0.072F);
-
-        const Vector2 badgeGlowCenter{
-            bounds.x + bounds.width * 0.5F,
-            bounds.y - 20.0F * scale,
-        };
-        DrawCircleV(
-            badgeGlowCenter, 75.0F * scale,
-            fadedColor(palette.border, glowStrength * 0.022F));
-        DrawCircleV(
-            badgeGlowCenter, 68.0F * scale,
-            fadedColor(palette.border, glowStrength * 0.040F));
-        DrawCircleV(
-            badgeGlowCenter, 62.0F * scale,
-            fadedColor(palette.border, glowStrength * 0.070F));
-
-        DrawRectangleRounded(
-            cardDropShadowBounds,
-            roundedRectangleRoundness(
-                cardDropShadowBounds, 57.0F * scale),
-            8, fadedColor(CardShadowBlack, cardFade));
-        DrawRectangleRounded(
-            blackShadowOutlineBounds,
-            roundedRectangleRoundness(
-                blackShadowOutlineBounds, 57.0F * scale),
-            8, fadedColor(CardBlack, cardFade));
-        DrawRectangleRounded(
-            blackOutlineBounds,
-            roundedRectangleRoundness(
-                blackOutlineBounds, 57.0F * scale),
-            8, fadedColor(CardBlack, cardFade));
-        DrawRectangleRounded(
-            colorShadowBounds,
-            roundedRectangleRoundness(
-                colorShadowBounds, 50.0F * scale),
-            8, fadedColor(palette.borderShadow, cardFade));
-        DrawRectangleRounded(
-            colorBounds,
-            roundedRectangleRoundness(colorBounds, 50.0F * scale),
-            8, fadedColor(palette.border, cardFade));
-        DrawRectangleRounded(
-            bounds,
-            roundedRectangleRoundness(bounds, 40.0F * scale),
-            8, fadedColor(CardBrown, cardFade));
-
-        const float centerX = bounds.x + bounds.width * 0.5F;
-        const Vector2 emblemCenter{
-            centerX, bounds.y + 128.0F * scale};
-
-        const std::string_view mark = upgradeMark(effect);
-        const auto iconBuilding = runUpgradeBuilding(effect) ? runUpgradeBuilding(effect)
-            : runUpgradeProductionBuilding(effect);
-        const Texture2D cardIcon = iconBuilding ? ui.buildingTexture(*iconBuilding) : ui.runUpgradeTexture(effect);
-        const bool drawUpgradeIcon = IsTextureValid(cardIcon);
-        if (const auto* hammer = runHammerDefinition(effect)) {
-            const float iconSize = 235.0F * scale;
-            drawRunHammerIcon(ui, {centerX - iconSize * 0.5F, bounds.y + 16.0F * scale,
-                iconSize, iconSize}, *hammer, cardFade);
-        } else if (drawUpgradeIcon) {
-            const float iconSize = 256.0F * scale;
-            DrawTexturePro(
-                cardIcon,
-                {0.0F, 0.0F, static_cast<float>(cardIcon.width),
-                 static_cast<float>(cardIcon.height)},
-                {centerX - iconSize * 0.5F,
-                 bounds.y - 4.0F * scale,
-                 iconSize, iconSize},
-                {0.0F, 0.0F}, 0.0F,
-                fadedColor(WHITE, cardFade));
-        } else {
-            const float emblemRadius = 85.0F * scale;
-            DrawCircleV(
-                emblemCenter, emblemRadius + 8.0F * scale,
-                fadedColor(CardInk, cardFade));
-            DrawCircleV(
-                emblemCenter, emblemRadius,
-                fadedColor(upgradePalette(upgradeColorClass(effect)).accent, cardFade));
-            DrawCircleV(
-                {emblemCenter.x - 18.0F * scale,
-                 emblemCenter.y - 19.0F * scale},
-                74.0F * scale,
-                fadedColor({255, 255, 255, 34}, cardFade));
-            const float markFontSize = fitUiTextSize(
-                mark, 37.0F * scale, 18.0F * scale,
-                emblemRadius * 1.55F);
-            drawOutlinedCenteredText(
-                mark, centerX,
-                emblemCenter.y - measureUiText(mark, markFontSize).y * 0.5F,
-                markFontSize, UiWhite, cardFade, scale);
-        }
-
-        const Vector2 numberCenter{
-            centerX, bounds.y - 20.0F * scale};
-        DrawCircleV(
-            {numberCenter.x, numberCenter.y + 6.0F * scale},
-            55.0F * scale,
-            fadedColor(CardShadowBlack, cardFade));
-        DrawCircleV(
-            numberCenter, 55.0F * scale,
-            fadedColor(CardBlack, cardFade));
-        DrawCircleV(
-            numberCenter, 48.0F * scale,
-            fadedColor(palette.border, cardFade));
-        DrawCircleV(
-            numberCenter, 38.0F * scale,
-            fadedColor(palette.badge, cardFade));
-        const std::string key = std::to_string(index + 1U);
-        Vector2 keyCenter{
-            numberCenter.x,
-            numberCenter.y + 4.0F * scale,
-        };
-        if (key == "1") keyCenter.x -= 2.0F * scale;
-        drawRasterOutlinedCenteredText(
-            key, keyCenter, 64.0F * scale, 5.0F * scale,
-            WHITE, CardBlack, cardFade);
-
-        if (locked) {
-            const Rectangle lockBadge{
-                bounds.x + bounds.width - 72.0F * scale,
-                bounds.y + 20.0F * scale,
-                54.0F * scale, 26.0F * scale};
-            DrawRectangleRounded(
-                lockBadge, 0.30F, 6,
-                fadedColor({38, 24, 18, 235}, cardFade));
-            const Vector2 lockSize = measureUiText(
-                "LOCK", 11.0F * scale);
-            drawSdfUiText(
-                "LOCK",
-                {lockBadge.x + (lockBadge.width - lockSize.x) * 0.5F,
-                 lockBadge.y + 5.0F * scale},
-                11.0F * scale, fadedColor(accent, cardFade));
-        }
-
-        std::string_view displayTitle = title;
-        if (!runHammerDefinition(effect) &&
-            (effect == RunUpgradeEffect::MoveSpeed ||
-             effect == RunUpgradeEffect::MaximumHealth ||
-             effect == RunUpgradeEffect::RecoverableArmor)) {
-            displayTitle = mark;
-        }
-        const std::string displayTitleText{displayTitle};
-        const float titleSize = 50.0F * scale;
-        const float titleWidth = bounds.width - 40.0F * scale;
-        const auto rasterWidth = [&](std::string_view value) {
-            const std::string copy{value};
-            return MeasureTextEx(uiFont(), copy.c_str(), titleSize, titleSize * 0.02F).x;
-        };
-        std::size_t split = std::string::npos;
-        if (rasterWidth(displayTitleText) > titleWidth) {
-            float bestWidth = rasterWidth(displayTitleText);
-            for (auto space = displayTitleText.find(' '); space != std::string::npos;
-                 space = displayTitleText.find(' ', space + 1)) {
-                const float lineWidth = std::max(rasterWidth(displayTitle.substr(0, space)),
-                    rasterWidth(displayTitle.substr(space + 1)));
-                if (lineWidth < bestWidth) { bestWidth = lineWidth; split = space; }
-            }
-        }
-        if (split != std::string::npos) {
-            const std::string firstLine = displayTitleText.substr(0, split);
-            const std::string secondLine = displayTitleText.substr(split + 1);
-            const float commonSize = std::min(fitRasterTextSize(firstLine, titleSize, 38.0F * scale, titleWidth),
-                fitRasterTextSize(secondLine, titleSize, 38.0F * scale, titleWidth));
-            drawRasterOutlinedCenteredText(firstLine, {centerX, bounds.y + 258.0F * scale},
-                commonSize, 5.0F * scale, WHITE, CardBlack, cardFade);
-            drawRasterOutlinedCenteredText(secondLine, {centerX, bounds.y + 298.0F * scale},
-                commonSize, 5.0F * scale, WHITE, CardBlack, cardFade);
-        } else {
-            drawRasterOutlinedCenteredText(displayTitleText, {centerX, bounds.y + 278.0F * scale},
-                fitRasterTextSize(displayTitleText, titleSize, 38.0F * scale, titleWidth),
-                5.0F * scale, WHITE, CardBlack, cardFade);
-        }
-
-        const Rectangle valuePanel{
-            bounds.x + 20.0F * scale,
-            bounds.y + 340.0F * scale,
-            bounds.width - 40.0F * scale,
-            100.0F * scale};
-        DrawRectangleRounded(
-            valuePanel,
-            roundedRectangleRoundness(
-                valuePanel, 25.0F * scale),
-            8,
-            fadedColor(CardInset, cardFade));
-        const UpgradeValueCopy valueCopy =
-            runUpgradeWeapon(effect) ? UpgradeValueCopy{"NEW", "Player weapon"}
-                : runUpgradeBuilding(effect) ? UpgradeValueCopy{"NEW", "Building blueprint"}
-                : effect == RunUpgradeEffect::CannonHeavyShell ? UpgradeValueCopy{"x5 DAMAGE", "Cannon fires 3x slower"}
-                : effect == RunUpgradeEffect::CannonScattershot ? UpgradeValueCopy{"5 SHELLS", "40% damage each / smaller blasts"}
-                : effect == RunUpgradeEffect::CannonClusterShell ? UpgradeValueCopy{"+3 BLASTS", "80% main damage / 36% mini"}
-                : upgradeValueCopy(description, mark);
-        const float valueSize = fitUiTextSize(
-            valueCopy.value,
-            56.0F / UiTextRasterScale * scale,
-            32.0F / UiTextRasterScale * scale,
-            valuePanel.width - 28.0F * scale);
-        drawOutlinedCenteredText(
-            valueCopy.value, centerX, valuePanel.y + 5.0F * scale,
-            valueSize, accent, cardFade, scale,
-            CardInk, 4.0F, false);
-        {
-            const ScopedUiFontRole descriptionFont(UiFontRole::Body);
-            const float labelSize = fitUiTextSize(
-                valueCopy.label, 30.0F / UiTextRasterScale * scale,
-                18.0F / UiTextRasterScale * scale,
-                valuePanel.width - 24.0F * scale);
-            const Vector2 measured = measureUiText(valueCopy.label, labelSize);
-            const SdfUiTextStyle style{
-                .fillColor = fadedColor(CardValueCream, cardFade),
-                .outlineColor = BLANK,
-                .shadowColor = fadedColor({0, 0, 0, 140}, cardFade),
-                .shadowOffsetPixels = {0.0F, scale},
-                .outlinePixels = 0.0F,
-            };
-            drawStyledSdfUiText(valueCopy.label,
-                {centerX - measured.x * 0.5F, valuePanel.y + 63.0F * scale},
-                labelSize, style);
-        }
-        const auto weapon = runUpgradeWeapon(effect);
-        const int currentLevel = weapon && snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
-            ? std::max(1, snapshot.weaponLevels[static_cast<std::size_t>(*weapon)])
-            : runTomeLevel(effect, snapshot.runUpgradeStacks);
-        const int maximumLevel = runUpgradeMaximumLevel(effect);
-        const Rectangle levelBadge{
-            centerX - 100.0F * scale,
-            bounds.y + 462.0F * scale,
-            200.0F * scale,
-            34.0F * scale};
-        const float levelFontSize =
-            28.0F / UiTextRasterScale * scale;
-        const auto blueprint = runUpgradeBuilding(effect);
-        const bool economyBlueprint = blueprint && !runSlottedBuilding(*blueprint);
-        const bool oneTime = (fixedRunUpgradePower(effect) && !blueprint && !runWeaponLevelCard(effect)) || economyBlueprint;
-        if (oneTime) {
-            drawOutlinedCenteredText((economyBlueprint || runUpgradeWeapon(effect)) ? "UNLOCK" : "ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
-                levelFontSize, LevelText, cardFade, scale, LevelOutline, 2.0F, false);
-        } else {
-            const std::string currentLevelText =
-                (runDefenseCard(effect) || runWeaponLevelCard(effect)) && currentLevel == 0 ? "NEW"
-                    : runHammerDefinition(effect) && currentLevel == 0 ? "NEW" : "LVL " + std::to_string(currentLevel);
-            const std::string nextLevelText = std::to_string(std::min(currentLevel + 1, maximumLevel));
-            const Vector2 currentLevelSize = measureUiText(
-                currentLevelText, levelFontSize);
-            const Vector2 nextLevelSize = measureUiText(
-                nextLevelText, levelFontSize);
-            const float currentLevelY = levelBadge.y +
-                (levelBadge.height -
-                 currentLevelSize.y) * 0.5F;
-            const float nextLevelY = levelBadge.y +
-                (levelBadge.height - nextLevelSize.y) * 0.5F;
-            const float arrowWidth = 32.0F * scale;
-            const float contentGap = 12.0F * scale;
-            const float contentWidth = currentLevelSize.x +
-                contentGap + arrowWidth + contentGap + nextLevelSize.x;
-            const float contentX = centerX - contentWidth * 0.5F;
-            const float currentLevelCenterX =
-                contentX + currentLevelSize.x * 0.5F;
-            const float arrowCenterX = contentX + currentLevelSize.x +
-                contentGap + arrowWidth * 0.5F;
-            const float nextLevelCenterX =
-                contentX + currentLevelSize.x + contentGap +
-                arrowWidth + contentGap + nextLevelSize.x * 0.5F;
-            drawOutlinedCenteredText(
-                currentLevelText, currentLevelCenterX,
-                currentLevelY, levelFontSize,
-                LevelText, cardFade, scale,
-                LevelOutline, 3.0F, false);
-            drawLevelArrow(
-                {arrowCenterX,
-                 levelBadge.y + levelBadge.height * 0.5F},
-                scale, palette.accent, cardFade);
-            drawOutlinedCenteredText(
-                nextLevelText, nextLevelCenterX,
-                nextLevelY, levelFontSize,
-                palette.accent, cardFade, scale,
-                LevelOutline, 3.0F, false);
-        }
-        drawOutlinedCenteredText(
-            runUpgradeWeapon(effect) ? "NEW WEAPON"
-                : runUpgradeBuilding(effect) ? "NEW BUILDING" : runUpgradeRarityName(rarity), centerX,
-            bounds.y + 516.0F * scale,
-            22.0F / UiTextRasterScale * scale,
-            palette.accent, cardFade, scale,
-            CardInk, 2.0F, false);
+    if (weight > 0.01F) {
+        focus = {focus.x / weight, focus.y / weight, focus.width / weight, focus.height / weight};
+        drawSelectionCorners(focus, s, fade * std::min(weight, 1.0F));
+    } else if (preview) {
+        focus = upgradeCardBounds(layout, *preview);
+        drawSelectionCorners(focus, s, fade);
     }
-    std::string controls;
-    if (snapshot.runUpgradeRerollTokens > 0) {
-        controls += "R  REROLL (" +
-            std::to_string(snapshot.runUpgradeRerollTokens) + ")";
+    if (!shrineOffer && snapshot.runUpgradeRerollTokens > 0) {
+        const Rectangle footer{layout.offers.x, layout.offers.y + layout.offers.height - 56 * s,
+            layout.offers.width, 56 * s};
+        plate(footer, s, menuStyle::Frame, fade);
+        const auto button = upgradeRerollBounds(layout);
+        plate(button, s * 0.65F, interactive && CheckCollisionPointRec(pointer, button) ? menuStyle::Selected : menuStyle::Card, fade);
+        label("REROLL", {button.x + 12 * s, button.y, button.width - 62 * s, button.height},
+            19 * s, menuStyle::Cream, fade, UiFontRole::Display, 1);
+        label(std::to_string(snapshot.runUpgradeRerollTokens),
+            {button.x + button.width - 45 * s, button.y, 28 * s, button.height},
+            19 * s, menuStyle::Gold, fade, UiFontRole::BodyBold, 2);
     }
-    if (snapshot.runUpgradeLockUnlocked) {
-        if (!controls.empty()) controls += "     ";
-        controls += "RMB  LOCK CARD";
-    }
-    if (!controls.empty()) {
-        const float controlsFade = smoothUnit(static_cast<float>(
-            (entranceSeconds - 0.34) / 0.20)) * overlayFade;
-        drawCenteredUiText(
-            controls,
-            cardTop + firstCard.height + 30.0F,
-            15.0F,
-            fadedColor({229, 219, 185, 245}, controlsFade));
+    if (inventoryHover && interactive) {
+        std::string detail = localizeText(inventoryHover->description);
+        if (inventoryHover->buildingType) {
+            const auto bonus = buildingUpgradeSummary(*inventoryHover->buildingType,
+                snapshot.buildingUpgradePowers);
+            if (!bonus.empty()) detail += "  " + bonus;
+        }
+        drawItemTooltip(inventoryHover->title, detail, pointer,
+            {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())}, s);
     }
 }
-
 namespace {
 RunShopLayout shopLayout() {
     const float s = std::min(static_cast<float>(uiScreenWidth()) / 1920.0F, static_cast<float>(uiScreenHeight()) / 1080.0F);
@@ -1364,6 +1152,7 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
         preview.runUpgradeChoices[i] = snapshot.runShop.offers[i].effect;
         preview.runUpgradeRarities[i] = snapshot.runShop.offers[i].rarity;
+        preview.runUpgradeRollSeeds[i] = snapshot.runShop.offers[i].rollSeed;
         if (snapshot.runShopBuyable[i] && (CheckCollisionPointRec(pointer, l.cards[i]) ||
             (keyboardFocus && *keyboardFocus == static_cast<int>(i)))) hovered = i;
     }
@@ -1379,7 +1168,10 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     const auto button = [&](Rectangle r, std::string_view text, bool enabled, int focus, Color color) {
         const bool over = CheckCollisionPointRec(pointer,r) || (keyboardFocus && *keyboardFocus == focus);
         plate(r,s*.65F,enabled ? (over ? menuStyle::Selected : menuStyle::Card) : menuStyle::Inset,fade);
-        label(text,{r.x+8*s,r.y,r.width-16*s,r.height},23*s,(enabled || focus < 4) ? color : menuStyle::Muted,fade,UiFontRole::Display,1);
+        const bool iconButton=focus==8 || focus<4;
+        if(iconButton) drawIcon(ui.shopActionTexture(focus==8 ? ShopActionIcon::Reroll : ShopActionIcon::Purchase),
+            {r.x+12*s,r.y+(r.height-36*s)*.5F,36*s,36*s},fade);
+        label(text,{r.x+(iconButton ? 50*s : 8*s),r.y,r.width-(iconButton ? 58*s : 16*s),r.height},23*s,(enabled || focus < 4) ? color : menuStyle::Muted,fade,UiFontRole::Display,1);
         if (over) drawSelectionCorners(r,s*.65F,fade);
     };
     bool unlocked = false;
@@ -1400,15 +1192,13 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
         drawIcon(ui.runUpgradeTexture(offer.effect),{r.x+(r.width-116*s)*.5F,r.y+58*s,116*s,116*s},fade);
         shopText(localizeText(runUpgradeDefinition(offer.effect).name),
             {r.x+18*s,r.y+194*s,r.width-36*s,112*s},28*s,menuStyle::Cream,s,3,fade);
-        shopText(localizedUpgradeDescription(snapshot,offer.effect,offer.rarity),
+        shopText(localizedUpgradeDescription(snapshot,offer.effect,offer.rarity,offer.rollSeed),
             {r.x+18*s,r.y+322*s,r.width-36*s,194*s},22*s,menuStyle::Cream,s,6,fade);
         const bool buyable = snapshot.runShopBuyable[i];
         const bool affordable = snapshot.unlimitedResources || snapshot.coins >= offer.price;
         const std::string price = buyable ? std::to_string(snapshot.unlimitedResources ? 0 : offer.price) : localizeText("LIMIT REACHED");
         button(l.buy[i],price,buyable && affordable,static_cast<int>(i),
             affordable ? menuStyle::Cream : Color{255,100,95,255});
-        if (buyable) drawIcon(ui.resourceTexture(UiResourceIcon::Coin),
-            {l.buy[i].x+l.buy[i].width*.5F+36*s,l.buy[i].y+16*s,32*s,32*s},fade);
         button(l.locks[i],offer.locked ? "OFFER LOCKED" : "LOCK",buyable || offer.locked,
             static_cast<int>(i+4),offer.locked ? menuStyle::Gold : menuStyle::Cream);
         if (hovered == i) drawSelectionCorners(r,s,fade);
@@ -1418,7 +1208,15 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
         19*s,menuStyle::Muted,fade,UiFontRole::BodyBold);
     label("Locked offers carry over. Prices rise every wave.",
         {l.header.x,l.proceed.y+35*s,850*s,28*s},18*s,menuStyle::Muted,fade);
-    if (inventoryHover) drawItemTooltip(inventoryHover->title,inventoryHover->description,pointer,
-        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},s);
+    if (inventoryHover) {
+        std::string detail = localizeText(inventoryHover->description);
+        if (inventoryHover->buildingType) {
+            const auto bonus = buildingUpgradeSummary(*inventoryHover->buildingType,
+                snapshot.buildingUpgradePowers);
+            if (!bonus.empty()) detail += "  " + bonus;
+        }
+        drawItemTooltip(inventoryHover->title, detail, pointer,
+            {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())}, s);
+    }
 }
 } // namespace ian::app_detail

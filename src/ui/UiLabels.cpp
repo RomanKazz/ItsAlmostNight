@@ -5,6 +5,39 @@
 
 namespace ian {
 
+std::string_view placementErrorMessage(PlacementError error) {
+    switch (error) {
+    case PlacementError::None:
+        return "";
+    case PlacementError::CoreAlreadyPlaced:
+        return "Core already placed";
+    case PlacementError::CoreRequired:
+        return "Place Core first";
+    case PlacementError::InsufficientResources:
+        return "Not enough resources";
+    case PlacementError::Occupied:
+        return "Space occupied";
+    case PlacementError::OutsideCoreArea:
+        return "Outside Core area";
+    case PlacementError::PlayerOverlap:
+        return "Player blocks placement";
+    case PlacementError::WorldCollision:
+        return "Terrain or structure blocks placement";
+    case PlacementError::LimitReached:
+        return "Building limit reached";
+    case PlacementError::OutOfRange:
+        return "Placement is too far";
+    case PlacementError::BlueprintRequired:
+        return "Choose this building on level-up";
+    case PlacementError::CoreLevelRequired:
+        return "Upgrade Core to unlock";
+    case PlacementError::ResourceBlocked:
+        return "Clear tree or stone first";
+    }
+    return "";
+}
+
+
 std::string_view buildingDisplayName(BuildingType type) {
     switch (type) {
     case BuildingType::Core:

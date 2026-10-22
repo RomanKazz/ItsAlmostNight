@@ -101,7 +101,7 @@ MapDefinition MapDefinition::defaults() {
             {-24.0, 0.0, 0.0},
         },
         .resources = {
-            {ResourceType::Wood, {0.0, 1.0, 2.5}, 1.0, 3.0, 15, 12.0},
+            {ResourceType::Wood, {0.0, 1.0, 2.5}, 1.0, 3.0, 20, 12.0},
             {ResourceType::Wood, {-4.0, 1.0, -2.0}, 1.0, 3.0, 15, 12.0},
             {ResourceType::Wood, {5.0, 1.0, -5.0}, 1.0, 3.0, 15, 12.0},
             {ResourceType::Wood, {-8.0, 1.0, -9.0}, 1.0, 3.0, 15, 12.0},

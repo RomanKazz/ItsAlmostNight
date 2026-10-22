@@ -20,7 +20,8 @@ enum class PlayerWeapon {
     Club,
     IceWand,
     FireWand,
-    Hammer,
+    // Reserved save value 6; old hammer selections migrate to Axe.
+    LegacyHammer,
     Rifle,
     Bomb,
 };
@@ -50,8 +51,7 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount - 2U>
 [[nodiscard]] inline constexpr bool isPlayerTool(
     PlayerWeapon weapon) {
     return weapon == PlayerWeapon::Pickaxe ||
-           weapon == PlayerWeapon::Axe ||
-           weapon == PlayerWeapon::Hammer;
+           weapon == PlayerWeapon::Axe;
 }
 
 [[nodiscard]] inline constexpr bool isPlayerCombatWeapon(
@@ -122,7 +122,8 @@ class PlayerWeaponSystem {
     void selectWeapon(PlayerWeapon weapon);
     void restoreState(PlayerWeapon selectedWeapon, int rifleLevel);
     void setRifleLevel(int level);
-    void tick(double deltaSeconds);
+    void tick(double deltaSeconds, double reloadSpeed = 1.0);
+    void reloadImmediately();
     std::optional<WeaponFireResult> fireRifle(
         Vec3 origin, Vec3 direction, EnemySystem& enemies,
         double damageMultiplier = 1.0);

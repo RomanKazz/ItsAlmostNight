@@ -67,7 +67,7 @@ struct RifleBalanceDefinition {
 };
 
 struct BombBalanceDefinition {
-    int startingBombs;
+    double throwCooldown;
     double throwSpeed;
     double upwardSpeed;
     double gravity;

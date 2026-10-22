@@ -2,6 +2,8 @@
 #include "app/ActionModeEquipment.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingHotbarLayout.hpp"
+#include "ui/UiLabels.hpp"
+#include "ui/BuildingCardLayout.hpp"
 
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/RampPlacementDirection.hpp"
@@ -27,9 +29,6 @@ constexpr double MouseSensitivity = 0.002;
 bool keyPressed(const ControlSettings& settings,
                 ControlAction action) {
     const int key = controlKey(settings, action);
-    if (action == ControlAction::Dash && key == KEY_NULL) {
-        return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
-    }
     return key != KEY_NULL &&
            IsKeyPressed(static_cast<KeyboardKey>(key));
 }
@@ -152,28 +151,30 @@ void App::processGameplayInput(bool controlDown,
         }
         if (coreDefenseMenuVisible_ &&
             !coreDefenseMenuClosing_) {
-            const auto core = currentSnapshot.coreId
+            const auto target = coreDefenseMenuTarget_
                 ? std::ranges::find(
                       currentSnapshot.buildings,
-                      *currentSnapshot.coreId,
+                      *coreDefenseMenuTarget_,
                       &BuildingInstance::id)
                 : currentSnapshot.buildings.end();
             double distance =
                 std::numeric_limits<double>::infinity();
-            if (core != currentSnapshot.buildings.end()) {
-                const Vec3 center = buildingWorldPosition(*core);
+            if (target != currentSnapshot.buildings.end()) {
+                const Vec3 center = buildingWorldPosition(*target);
                 distance = std::hypot(
                     center.x - currentSnapshot.playerPosition.x,
+                    center.y - currentSnapshot.playerPosition.y,
                     center.z - currentSnapshot.playerPosition.z);
             }
-            if (currentSnapshot.aimedBuilding ==
-                currentSnapshot.coreId) {
+            if (coreMenuPointerActive_ ||
+                currentSnapshot.aimedBuilding ==
+                    coreDefenseMenuTarget_) {
                 coreMenuLostAimSeconds_ = 0.0;
             } else {
                 coreMenuLostAimSeconds_ +=
                     static_cast<double>(GetFrameTime());
             }
-            if (distance > 4.5 ||
+            if (distance > BuildingCardInteractionDistance ||
                 coreMenuLostAimSeconds_ > 0.18) {
                 coreDefenseMenuClosing_ = true;
             }
@@ -323,15 +324,6 @@ void App::processGameplayInput(bool controlDown,
                          sensitivity * pitchDirection;
         pendingJump_ = pendingJump_ || keyPressed(
             userSettings_.controls, ControlAction::Jump);
-        const bool placementConsumesRightClick =
-            foundationBuildMode_ ||
-            currentSnapshot.buildingPreview.has_value();
-        pendingDash_ = pendingDash_ ||
-            (!coreMenuPointerActive_ &&
-             !placementConsumesRightClick &&
-             keyPressed(
-                 userSettings_.controls,
-                 ControlAction::Dash));
         if (actionMode_ == ActionMode::Buildings) {
             constexpr std::array<int, MaximumBuildingHotbarSlots>
                 ConstructionKeys{
@@ -500,6 +492,8 @@ void App::processGameplayInput(bool controlDown,
                         invalidActionRemaining_ = 0.22;
                     } else {
                         selectBuildingMode(copied->type);
+                        pendingBuildingRotationOverride_ =
+                            copied->rotation;
                     }
                     copiedPlacement = true;
                 }
@@ -546,6 +540,8 @@ void App::processGameplayInput(bool controlDown,
                     wall !=
                     currentSnapshot.modularWalls.end()) {
                     selectBuildingMode(BuildingType::Wall);
+                    pendingBuildingRotationOverride_ =
+                        static_cast<std::uint8_t>(wall->rotation);
                 } else if (
                     ramp != currentSnapshot.ramps.end()) {
                     selectActionMode(
@@ -577,8 +573,7 @@ void App::processGameplayInput(bool controlDown,
         pendingToggleInvulnerability_ =
             pendingToggleInvulnerability_ || IsKeyPressed(KEY_I);
         pendingGrantInsight_ = pendingGrantInsight_ ||
-            (currentSnapshot.unlimitedResources &&
-             controlDown && IsKeyPressed(KEY_J));
+            (controlDown && IsKeyPressed(KEY_J));
         pendingDamageCore_ = pendingDamageCore_ ||
             (controlDown && IsKeyPressed(KEY_M));
         if (IsKeyPressed(KEY_Z)) {
@@ -628,7 +623,7 @@ void App::processGameplayInput(bool controlDown,
                         return value.id == *actionBuilding;
                     });
                 if (building != currentSnapshot.buildings.end() &&
-                    (building->type == BuildingType::Core || currentSnapshot.sandboxMode ||
+                    (currentSnapshot.sandboxMode ||
                      currentSnapshot.unlimitedResources)) {
                     pendingBuildingUpgrade_ =
                         UpgradeBuildingCommand{
@@ -638,12 +633,6 @@ void App::processGameplayInput(bool controlDown,
                         };
                 }
             }
-        }
-        if (aimingCore &&
-            currentSnapshot.unlockedWeapons[
-                static_cast<std::size_t>(PlayerWeapon::Bomb)] &&
-            keyPressed(userSettings_.controls, ControlAction::UpgradeWeapon)) {
-            pendingPurchaseBombBundle_ = true;
         }
         repairSweepActive_ =
             buildingManagementActive &&
@@ -700,10 +689,6 @@ void App::processGameplayInput(bool controlDown,
             }
         } else {
             repairSweepTarget_.reset();
-        }
-        if (pendingBuildingRepair_) {
-            contextualHammerRemaining_ = 1.15;
-            contextualHammerSwingPending_ = true;
         }
         const bool canSweepRemove =
             buildingManagementActive;
@@ -776,29 +761,21 @@ void App::processGameplayInput(bool controlDown,
                 currentSnapshot.aimedChallengeColumn ||
                 currentSnapshot.aimedWorldLandmark || aimedProp) {
                 pendingInteract_ = true;
-            } else if (!currentSnapshot.selectedBuilding &&
-                       actionBuilding) {
-                const auto gate = std::ranges::find(
-                    currentSnapshot.buildings, *actionBuilding,
-                    &BuildingInstance::id);
+            } else if (!currentSnapshot.selectedBuilding && actionBuilding) {
+                const auto gate = std::ranges::find(currentSnapshot.buildings,
+                    *actionBuilding, &BuildingInstance::id);
                 if (gate != currentSnapshot.buildings.end() &&
-                    gate->type == BuildingType::Gate) {
-                    pendingGateToggle_ =
-                        ToggleGateCommand{*actionBuilding};
-                }
+                    gate->type == BuildingType::Gate)
+                    pendingGateToggle_ = ToggleGateCommand{*actionBuilding};
             }
         }
-        if (IsKeyPressed(KEY_E) && buildingManagementActive &&
-            currentSnapshot.aimedBuilding) {
-            const auto producer = std::ranges::find(
-                currentSnapshot.buildings, *currentSnapshot.aimedBuilding,
-                &BuildingInstance::id);
-            if (producer != currentSnapshot.buildings.end() &&
-                (producer->type == BuildingType::CrystalMine ||
-                 producer->type == BuildingType::LumberMill ||
-                 producer->type == BuildingType::Quarry)) {
-                pendingCollectProducer_ = CollectProducerCommand{producer->type};
-            }
+        if (IsKeyPressed(KEY_F) && buildingManagementActive &&
+            actionBuilding && !currentSnapshot.selectedBuilding) {
+            const auto wall = std::ranges::find(currentSnapshot.buildings,
+                *actionBuilding, &BuildingInstance::id);
+            if (wall != currentSnapshot.buildings.end() &&
+                wall->type == BuildingType::Wall)
+                pendingGateToggle_ = ToggleGateCommand{*actionBuilding};
         }
         const bool rotateKeyPressed = IsKeyPressed(KEY_R);
         const bool reverseRotateKey =
@@ -1315,7 +1292,6 @@ void App::processGameplayInput(bool controlDown,
         input_.moveRight = 0.0;
         input_.sprint = false;
         input_.jumpHeld = false;
-        pendingDash_ = false;
         repairSweepActive_ = false;
         repairSweepTarget_.reset();
     }

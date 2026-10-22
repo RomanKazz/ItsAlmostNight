@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
+#include <utility>
 
 namespace ian {
 namespace {
@@ -125,6 +127,99 @@ void CoinPickupSystem::spawnHeart(
     });
 }
 
+bool CoinPickupSystem::spawnMetaSilver(
+    Vec3 position, std::uint64_t seed, const TerrainHeightfield& terrain) {
+    if (pickups_.size() >= MaximumPickups) return false;
+    spawnHeart(position, seed, terrain, .5);
+    CoinPickup& pickup = pickups_.back();
+    pickup.kind = PickupKind::MetaSilver;
+    pickup.type = CoinType::Silver;
+    pickup.value = 1;
+    return true;
+}
+
+std::vector<CoinPickup> CoinPickupSystem::metaSilverState() const {
+    std::vector<CoinPickup> saved;
+    for (const auto& pickup : pickups_)
+        if (pickup.kind == PickupKind::MetaSilver) saved.push_back(pickup);
+    return saved;
+}
+
+bool CoinPickupSystem::validMetaSilverState(std::span<const CoinPickup> pickups) {
+    if (pickups.size() > MaximumPickups) return false;
+    std::unordered_set<std::uint64_t> ids;
+    for (const auto& p : pickups) {
+        if (p.id == 0 || p.id == std::numeric_limits<std::uint64_t>::max() ||
+            !ids.insert(p.id).second || p.kind != PickupKind::MetaSilver ||
+            p.type != CoinType::Silver || p.value != 1 ||
+            !std::isfinite(p.age) || p.age < 0 ||
+            !std::isfinite(p.magnetTime) || p.magnetTime < 0 ||
+            !std::isfinite(p.spinPhase)) return false;
+        for (const double value : {p.position.x,p.position.y,p.position.z,
+                                  p.velocity.x,p.velocity.y,p.velocity.z})
+            if (!std::isfinite(value)) return false;
+    }
+    return true;
+}
+
+bool CoinPickupSystem::loadMetaSilverState(std::span<const CoinPickup> pickups) {
+    if (!validMetaSilverState(pickups)) return false;
+    std::vector<CoinPickup> restored(pickups.begin(),pickups.end());
+    reset();
+    pickups_=std::move(restored);
+    for (const auto& p : pickups_) nextId_ = std::max(nextId_,p.id+1U);
+    return true;
+}
+
+int CoinPickupSystem::spawnExperience(
+    Vec3 position, int amount, int orbCount,
+    std::uint64_t seed, const TerrainHeightfield& terrain,
+    double burstSpread) {
+    if (amount <= 0 || orbCount <= 0) return 0;
+    const std::size_t available = MaximumPickups - pickups_.size();
+    const int count = static_cast<int>(std::min<std::size_t>(
+        static_cast<std::size_t>(std::min(amount, orbCount)), available));
+    if (count == 0) {
+        const auto existing = std::find_if(
+            pickups_.rbegin(), pickups_.rend(),
+            [](const CoinPickup& pickup) {
+                return pickup.kind == PickupKind::Experience;
+            });
+        if (existing == pickups_.rend()) return 0;
+        existing->value += amount;
+        return amount;
+    }
+    const double ground = terrain.getHeight(position.x, position.z);
+    position.y = std::max(position.y + 0.48, ground + GroundOffset + 0.32);
+    const double burstAngle = unitRandom(seed ^ 0x72e7b50cULL) *
+        Pi * 2.0;
+    const double angleStep = Pi * 2.0 / static_cast<double>(count);
+    for (int index = 0; index < count; ++index) {
+        const std::uint64_t orbSeed = mixBits(
+            seed + static_cast<std::uint64_t>(index) *
+                0x9e3779b97f4a7c15ULL);
+        const double angle = burstAngle +
+            (static_cast<double>(index) +
+             (unitRandom(orbSeed) - 0.5) * 0.35) * angleStep;
+        const double horizontalSpeed =
+            (2.4 + unitRandom(orbSeed ^ 0x5f356495ULL) * 1.4) *
+            std::max(0.0, burstSpread);
+        pickups_.push_back({
+            .id = nextId_++,
+            .position = position,
+            .velocity = {
+                std::cos(angle) * horizontalSpeed,
+                1.8 + unitRandom(orbSeed ^ 0xa13fc965ULL) * 0.7,
+                std::sin(angle) * horizontalSpeed,
+            },
+            .spinPhase = unitRandom(orbSeed ^ 0xc2b2ae35ULL) * Pi * 2.0,
+            .kind = PickupKind::Experience,
+            .value = amount / count + (index < amount % count ? 1 : 0),
+        });
+    }
+    return amount;
+}
+
 CoinCollection CoinPickupSystem::tick(
     double deltaSeconds, Vec3 playerPosition,
     const TerrainHeightfield& terrain,
@@ -155,7 +250,7 @@ CoinCollection CoinPickupSystem::tick(
         const double distanceSquared =
             toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y +
             toPlayer.z * toPlayer.z;
-        const bool canMagnetize = coin.kind == PickupKind::Coin ||
+        const bool canMagnetize = coin.kind != PickupKind::Heart ||
             missingHealth > 0.0;
         if (!canMagnetize && coin.magnetized) {
             coin.magnetized = false;
@@ -170,7 +265,7 @@ CoinCollection CoinPickupSystem::tick(
         if (coin.magnetized) {
             coin.magnetTime += deltaSeconds;
             const double anticipationDuration =
-                coin.kind == PickupKind::Coin
+                coin.kind != PickupKind::Heart
                     ? MagnetAnticipationDuration
                     : 0.0;
             if (coin.magnetTime < anticipationDuration) {
@@ -271,7 +366,7 @@ CoinCollection CoinPickupSystem::tick(
         const double deltaY = target.y - coin.position.y;
         const double deltaZ = target.z - coin.position.z;
         const bool anticipationComplete =
-            coin.kind != PickupKind::Coin ||
+            coin.kind == PickupKind::Heart ||
             coin.magnetTime >= MagnetAnticipationDuration;
         bool reachedPlayer = coin.magnetized && anticipationComplete &&
             deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <=
@@ -290,13 +385,21 @@ CoinCollection CoinPickupSystem::tick(
                     missingHealth -= healing;
                     collected.position = coin.position;
                 }
+            } else if (coin.kind == PickupKind::Experience) {
+                collected.experience += coin.value;
+                ++collected.experienceCount;
+                collected.position = coin.position;
+            } else if (coin.kind == PickupKind::MetaSilver) {
+                collected.silver += coin.value;
+                ++collected.silverCount;
+                collected.position = coin.position;
             } else {
                 collected.value += coin.value;
                 ++collected.count;
                 collected.position = coin.position;
             }
         }
-        return reachedPlayer || coin.age >= MaximumLifetime;
+        return reachedPlayer || (coin.kind != PickupKind::MetaSilver && coin.age >= MaximumLifetime);
     });
     return collected;
 }

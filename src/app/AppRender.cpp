@@ -1,9 +1,11 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "graphics/WorldTransforms.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiHintStyle.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -27,13 +29,13 @@ void drawFpsCounter(float opacity = 1.0F) {
     const std::string_view label{TextFormat("%d FPS", GetFPS())};
     const Vector2 textSize = measureUiText(label, FontSize);
     const float screenMinimum = static_cast<float>(
-        std::min(GetScreenWidth(), GetScreenHeight()));
+        std::min(uiScreenWidth(), uiScreenHeight()));
     const float minimapSize = std::clamp(
         screenMinimum * 0.16F, 120.0F, 156.0F);
     constexpr float MinimapRightMargin = 12.0F;
     constexpr float CompassMargin = 32.0F;
     constexpr float Gap = 18.0F;
-    const float minimapOuterLeft = static_cast<float>(GetScreenWidth()) -
+    const float minimapOuterLeft = static_cast<float>(uiScreenWidth()) -
         MinimapRightMargin - CompassMargin * 2.0F - minimapSize;
     const Rectangle bounds{
         minimapOuterLeft - Gap - textSize.x -
@@ -259,7 +261,7 @@ void App::render() {
     if (snapshot.state == RunState::MainMenu) {
         interactionPromptRenderer_.reset();
         drawMainMenuWorld(snapshot);
-        drawMainMenu(snapshot);
+        drawMainMenu();
     } else {
         renderGameplayFrame(
             snapshot, presentationSnapshot, feedbackSnapshot,
@@ -267,50 +269,52 @@ void App::render() {
             renderPreparationStart, timings);
     }
 
-    const auto commonUiOverlaysStart = PerformanceClock::now();
-    if (renderer_->graphicsPanelVisible()) {
-        drawGraphicsPanel();
+    {
+        const ScopedUiCanvas canvas;
+        const auto commonUiOverlaysStart = PerformanceClock::now();
+        if (renderer_->graphicsPanelVisible()) {
+            drawGraphicsPanel();
+        }
+        drawEnemySpawnMenu();
+        drawItemGrantMenu();
+        drawSandboxCardMenu(snapshot);
+        drawCoreDefenseMenu();
+        drawObjectiveDebugMenu(snapshot);
+        const float restartProgress = static_cast<float>(restartHold_.progress());
+        if (restartProgress > 0.15F && snapshot.state != RunState::MainMenu) {
+            const float width = 220.0F;
+            const float left = (static_cast<float>(uiScreenWidth()) - width) * 0.5F;
+            const float top = static_cast<float>(uiScreenHeight()) * 0.12F;
+            const float opacity = std::clamp((restartProgress - 0.15F) * 10.0F, 0.0F, 1.0F);
+            hintStyle::panel({left-16,top-12,width+32,68},.8F,opacity);
+            hintStyle::text(userSettings_.language==Language::Russian ? "ПЕРЕЗАПУСК" : "RESTART",
+                {left,top,width,28},20,menuStyle::Cream,UiFontRole::Display,opacity,1);
+            DrawRectangleRec({left, top + 30, width, 6}, Fade({70, 80, 73, 255}, opacity));
+            DrawRectangleRec({left, top + 30, width * restartProgress, 6},
+                Fade({255, 204, 0, 255}, opacity));
+        }
+        if (!hudHidden_ && !playerArrival_.active() && performanceOverlayVisible_) {
+            drawPerformanceOverlay(snapshot);
+        }
+        if (!hudHidden_ && playerArrival_.hudOpacity() > 0.0F && userSettings_.accessibility.showFps) {
+            drawFpsCounter(playerArrival_.hudOpacity());
+        }
+        const bool uiCursorVisible =
+            (snapshot.state == RunState::MainMenu &&
+             !menuBackgroundEditing_) ||
+            snapshot.state == RunState::Paused ||
+            snapshot.state == RunState::StageClear ||
+            snapshot.state == RunState::Victory || snapshot.runShop.pending || snapshot.runUpgradeChoicePending ||
+            renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
+            itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
+            (coreDefenseMenuVisible_ && coreMenuPointerActive_);
+        if (uiCursorVisible) {
+            HideCursor();
+            ui_.drawCursor();
+        }
+        uiOverlaysMilliseconds +=
+            performanceMilliseconds(commonUiOverlaysStart);
     }
-    drawEnemySpawnMenu();
-    drawItemGrantMenu();
-    drawSandboxCardMenu(snapshot);
-    drawCoreDefenseMenu();
-    drawObjectiveDebugMenu(snapshot);
-    const float restartProgress = static_cast<float>(restartHold_.progress());
-    if (restartProgress > 0.15F && snapshot.state != RunState::MainMenu) {
-        const float width = 220.0F;
-        const float left = (static_cast<float>(GetScreenWidth()) - width) * 0.5F;
-        const float top = static_cast<float>(GetScreenHeight()) * 0.12F;
-        const float opacity = std::clamp((restartProgress - 0.15F) * 10.0F, 0.0F, 1.0F);
-        DrawRectangleRounded({left - 12, top - 8, width + 24, 54},
-            0.18F, 4, Fade({28, 35, 30, 240}, opacity));
-        drawCenteredUiText(
-            userSettings_.language == Language::Russian ? "ПЕРЕЗАПУСК" : "RESTART",
-            top, 20, Fade({254, 247, 229, 255}, opacity));
-        DrawRectangleRec({left, top + 30, width, 6}, Fade({70, 80, 73, 255}, opacity));
-        DrawRectangleRec({left, top + 30, width * restartProgress, 6},
-            Fade({255, 204, 0, 255}, opacity));
-    }
-    if (!hudHidden_ && !playerArrival_.active() && performanceOverlayVisible_) {
-        drawPerformanceOverlay(snapshot);
-    }
-    if (!hudHidden_ && playerArrival_.hudOpacity() > 0.0F && userSettings_.accessibility.showFps) {
-        drawFpsCounter(playerArrival_.hudOpacity());
-    }
-    const bool uiCursorVisible =
-        snapshot.state == RunState::MainMenu ||
-        snapshot.state == RunState::Paused ||
-        snapshot.state == RunState::StageClear ||
-        snapshot.state == RunState::Victory || snapshot.runShop.pending || snapshot.runUpgradeChoicePending ||
-        renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
-        itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
-        (coreDefenseMenuVisible_ && coreMenuPointerActive_);
-    if (uiCursorVisible) {
-        HideCursor();
-        ui_.drawCursor();
-    }
-    uiOverlaysMilliseconds +=
-        performanceMilliseconds(commonUiOverlaysStart);
     if (snapshot.state != RunState::MainMenu) {
         renderer_->endGpuTimer(RendererGpuStage::Ui);
         performanceStats_.viewModelRender.sample(

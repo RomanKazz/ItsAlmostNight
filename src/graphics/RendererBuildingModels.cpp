@@ -11,6 +11,7 @@
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
+#include "graphics/FlamethrowerModel.hpp"
 #include "graphics/CatapultModel.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/QuarryModel.hpp"
@@ -392,13 +393,36 @@ bool Renderer::drawMissileLauncher(Vector3 position, float yawRadians, Color tin
     return true;
 }
 
-bool Renderer::drawFlamethrower(Vector3 position, float yawRadians, Color tint, float scale) {
+bool Renderer::drawFlamethrower(Vector3 position, float yawRadians, Color tint,
+    float scale, float pitchRadians, std::optional<float> headYaw, int level) {
     auto& resource = resources_.flamethrowerModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
     prepareModelShader(model);
-    // The GLB already has its final metre scale and neutral rig pose.
-    DrawModelEx(model, position, {0, 1, 0}, yawRadians * RAD2DEG, {scale, scale, scale}, tint);
+    for (int index = 0; index < model.meshCount; ++index) {
+        Material& material = model.materials[model.meshMaterial[index]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        const Matrix pose = flamethrower_model::meshTransform(index, position,
+            yawRadians, headYaw.value_or(yawRadians), pitchRadians, scale);
+        DrawMesh(model.meshes[index], material, MatrixMultiply(model.transform, pose));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    auto& upgrades = resources_.flamethrowerUpgradeModel();
+    if (upgrades.valid()) {
+        Model& extra = upgrades.get();
+        prepareModelShader(extra);
+        flamethrower_model::forEachUpgradePart(level, [&](int mesh, int role) {
+            if (mesh >= extra.meshCount) return;
+            Material& material = extra.materials[extra.meshMaterial[mesh]];
+            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+            DrawMesh(extra.meshes[mesh], material, MatrixMultiply(extra.transform,
+                flamethrower_model::meshTransform(role, position, yawRadians,
+                    headYaw.value_or(yawRadians), pitchRadians, scale)));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        });
+    }
     return true;
 }
 
@@ -564,23 +588,7 @@ bool Renderer::drawCrossbow(Vector3 position, float yawRadians,
 
 Vec3 Renderer::crossbowMuzzlePosition(
     Vec3 position, float yawRadians, float pitchRadians) const {
-    constexpr double PivotY = 0.14931100606918335;
-    constexpr Vec3 AuthoredMuzzle{
-        0.0, 0.7464950680732727, -0.1994807869195938};
-    const double relativeY = AuthoredMuzzle.y - PivotY;
-    const double cosinePitch = std::cos(static_cast<double>(pitchRadians));
-    const double sinePitch = std::sin(static_cast<double>(pitchRadians));
-    const double pitchedY =
-        PivotY + relativeY * cosinePitch - AuthoredMuzzle.z * sinePitch;
-    const double pitchedZ =
-        relativeY * sinePitch + AuthoredMuzzle.z * cosinePitch;
-    const double cosineYaw = std::cos(static_cast<double>(yawRadians));
-    const double sineYaw = std::sin(static_cast<double>(yawRadians));
-    return {
-        position.x + pitchedZ * sineYaw,
-        position.y + pitchedY,
-        position.z + pitchedZ * cosineYaw,
-    };
+    return crossbowMuzzleWorldPosition(position, yawRadians, pitchRadians);
 }
 
 bool Renderer::drawGunTurret(Vector3 position, float baseYawRadians,
@@ -643,64 +651,6 @@ Vec3 Renderer::gunTurretMuzzlePosition(
     };
 }
 
-bool Renderer::drawTurretBullet(Vector3 position, Vector3 direction,
-                                Color tint, float scale) {
-    auto& resource = resources_.turretBulletModel();
-    if (!resource.valid() ||
-        Vector3LengthSqr(direction) <= 0.000001F) return false;
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    const WorldMaterialState previousMaterial = worldMaterial_;
-    if (worldShaderActive_) {
-        WorldMaterialState bulletMaterial{};
-        bulletMaterial.baseColor = {1.4F, 1.4F, 1.4F, 1.0F};
-        bulletMaterial.unlitAmount = 1.0F;
-        bulletMaterial.screenAoAmount = 0.0F;
-        bulletMaterial.inkOutlineEligible = false;
-        bulletMaterial.inkOccluder = true;
-        setWorldMaterial(bulletMaterial);
-    }
-    const Vector3 forward = Vector3Normalize(direction);
-    const float yaw = std::atan2(-forward.x, -forward.z);
-    const float horizontal = std::sqrt(
-        forward.x * forward.x + forward.z * forward.z);
-    const float pitch = std::atan2(forward.y, horizontal);
-    const Matrix transform = MatrixMultiply(
-        MatrixMultiply(MatrixScale(
-                           0.8F * scale,
-                           0.8F * scale,
-                           0.8F * scale),
-            MatrixMultiply(MatrixRotateX(pitch), MatrixRotateY(yaw))),
-        MatrixTranslate(position.x, position.y, position.z));
-    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-        const int materialIndex = model.meshMaterial[meshIndex];
-        Material& material = model.materials[materialIndex];
-        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
-        const Shader originalShader = material.shader;
-        const Texture2D originalTexture =
-            material.maps[MATERIAL_MAP_DIFFUSE].texture;
-        if (shader) material.shader = *shader;
-        if (resources_.fallbackTexture().valid()) {
-            material.maps[MATERIAL_MAP_DIFFUSE].texture =
-                resources_.fallbackTexture().get();
-        }
-        material.maps[MATERIAL_MAP_DIFFUSE].color =
-            ColorTint({255, 125, 35, 255}, tint);
-        DrawMesh(model.meshes[meshIndex], material,
-                 MatrixMultiply(model.transform, transform));
-        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        material.maps[MATERIAL_MAP_DIFFUSE].texture = originalTexture;
-        material.shader = originalShader;
-    }
-    if (worldShaderActive_) setWorldMaterial(previousMaterial);
-    return true;
-}
-
 float Renderer::buildingVisualHeight(BuildingType type, int level) {
     ModelResource* model = nullptr;
     float scale = 1.0F;
@@ -718,7 +668,9 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     case BuildingType::WindBlower: model = &resources_.windBlowerModel(level); break;
     case BuildingType::RepairStation: model = &resources_.repairStationModel(level); break;
     case BuildingType::MissileLauncher: return 1.54F;
-    case BuildingType::Flamethrower: return resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F;
+    case BuildingType::Flamethrower: return std::max(
+        resources_.flamethrowerModel().valid() ? resources_.flamethrowerModel().visualBounds().max.y : 1.14F,
+        flamethrower_model::UpgradeHeights[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)]);
     case BuildingType::Catapult: model = &resources_.catapultModel(); break;
     case BuildingType::CrystalMine: model = &resources_.mineModel(level); scale = 1.0F; break;
     case BuildingType::LumberMill: model = &resources_.lumberMillModel(level); scale = 1.0F; break;
@@ -784,7 +736,6 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
     }
     return type == BuildingType::Core ? 2.5F : 2.15F;
 }
-
 
 bool Renderer::drawCore(Vector3 position, float yawRadians,
                         Color tint, float scale, int level) {
@@ -955,7 +906,7 @@ bool Renderer::drawWorldLandmark(
     const BoundingBox bounds = resource.visualBounds();
     const float authoredHeight = std::max(
         0.001F, bounds.max.y - bounds.min.y);
-    constexpr float TargetHeight = 6.76F;
+    const float TargetHeight = variant >= 2 ? 2.8F : 6.76F;
     const float modelScale = TargetHeight / authoredHeight;
     position.y -= bounds.min.y * modelScale * scale;
     DrawModelEx(
@@ -979,7 +930,7 @@ BoundingBox Renderer::worldLandmarkWorldBounds(
     const BoundingBox localBounds = resource.visualBounds();
     const float authoredHeight = std::max(
         0.001F, localBounds.max.y - localBounds.min.y);
-    constexpr float TargetHeight = 6.76F;
+    const float TargetHeight = variant >= 2 ? 2.8F : 6.76F;
     const float modelScale = TargetHeight / authoredHeight * scale;
     position.y -= localBounds.min.y * modelScale;
     const Matrix transform = MatrixMultiply(
@@ -990,13 +941,6 @@ BoundingBox Renderer::worldLandmarkWorldBounds(
                 MatrixRotateY(yawRadians)),
             MatrixTranslate(position.x, position.y, position.z)));
     return world_transforms::transformBounds(localBounds, transform);
-}
-
-bool Renderer::drawMine(Vector3 position, float yawRadians,
-                        Color tint, float scale) {
-    return drawResourceProducer(
-        BuildingType::CrystalMine, position, yawRadians,
-        tint, scale);
 }
 
 } // namespace ian

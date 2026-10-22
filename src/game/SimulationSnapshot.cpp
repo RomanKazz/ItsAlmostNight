@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "combat/CombatDisplayUnits.hpp"
+#include "progression/DefenseAttackModifiers.hpp"
 
 #include "game/ChallengeArena.hpp"
 
@@ -17,13 +18,62 @@ const SimulationSnapshot& Simulation::snapshot() const {
     }
     const auto core = buildings_.core();
     std::optional<FinalAttackStats> aimedFinalStats;
-    std::optional<FinalAttackStats> previewFinalStats;
-    if (selectedBuilding_ == BuildingType::WindBlower) {
-        BuildingInstance preview;
-        preview.type = BuildingType::WindBlower;
-        preview.level = buildings_.blueprintLevels()[static_cast<std::size_t>(preview.type)];
-        previewFinalStats = towers_.finalStats(preview);
+    if (aimedBuilding_) {
+        const auto building = std::ranges::find(buildings_.buildings(), *aimedBuilding_, &BuildingInstance::id);
+        if (building != buildings_.buildings().end()) {
+            if (building->type == BuildingType::Turret || building->type == BuildingType::GunTurret ||
+                building->type == BuildingType::Flamethrower || building->type == BuildingType::MissileLauncher || building->type == BuildingType::TeslaTower || building->type == BuildingType::LaserTower || building->type == BuildingType::WindBlower)
+                aimedFinalStats = towers_.finalStats(*building);
+            else if (building->type == BuildingType::Cannon || building->type == BuildingType::Catapult || building->type == BuildingType::Mortar)
+                aimedFinalStats = cannons_.finalStats(*building);
+            else if (building->type == BuildingType::SpikeTrap || building->type == BuildingType::SlowTrap)
+                aimedFinalStats = traps_.finalStats(*building);
+        }
     }
+    std::optional<FinalAttackStats> previewFinalStats;
+    if (selectedBuilding_ == BuildingType::Flamethrower || selectedBuilding_ == BuildingType::MissileLauncher || selectedBuilding_ == BuildingType::TeslaTower || selectedBuilding_ == BuildingType::LaserTower || selectedBuilding_ == BuildingType::WindBlower) {
+        BuildingInstance previewBuilding;
+        previewBuilding.type = *selectedBuilding_;
+        previewBuilding.level = buildings_.blueprintLevels()[static_cast<std::size_t>(*selectedBuilding_)];
+        previewFinalStats = towers_.finalStats(previewBuilding);
+    }
+    if (selectedBuilding_ == BuildingType::Mortar) {
+        BuildingInstance preview;
+        preview.type = BuildingType::Mortar;
+        preview.level = buildings_.blueprintLevels()[static_cast<std::size_t>(BuildingType::Mortar)];
+        previewFinalStats = cannons_.finalStats(preview);
+    }
+    const auto defenseModifiers = shrineDefenseAttackModifiers(runUpgradePower_,shrines_);
+    const auto comparisonFor = [&](const BuildingInstance& source) {
+        auto comparison = compareBuildingStats(source, crystalMines_, buildingLevelLimit(source.type),
+            buildings_.baseMaxHealth(source.type));
+        const auto apply = [&](BuildingStats& view, std::uint8_t level) {
+            auto building = source; building.level = level;
+            std::optional<FinalAttackStats> stats;
+            if (source.type == BuildingType::Turret || source.type == BuildingType::GunTurret || source.type == BuildingType::Flamethrower || source.type == BuildingType::MissileLauncher || source.type == BuildingType::TeslaTower || source.type == BuildingType::LaserTower || source.type == BuildingType::WindBlower) stats = towers_.finalStats(building);
+            else if (source.type == BuildingType::Cannon || source.type == BuildingType::Catapult || source.type == BuildingType::Mortar) stats = cannons_.finalStats(building);
+            else if (source.type == BuildingType::SpikeTrap || source.type == BuildingType::SlowTrap) stats = traps_.finalStats(building);
+            if (!stats) return;
+            view.finalAttack = stats;
+            if (view.pushStrength) view.pushStrength = stats->knockback;
+            if (view.attackDamage) view.attackDamage = stats->damage * CombatDisplayScale;
+            if (view.attackRange) view.attackRange = stats->range *
+                ((source.type == BuildingType::Flamethrower || source.type == BuildingType::WindBlower) ? stats->size : 1.0);
+            if (view.attacksPerSecond) view.attacksPerSecond = 1.0 / stats->attackInterval;
+            if (supportsAttackStat(source.type, AttackStat::Pierce)) {
+                view.piercingCount = static_cast<double>(stats->pierce);
+            }
+            if (view.effectRadius) *view.effectRadius *= stats->size;
+            if (view.cooldown) view.cooldown = stats->attackInterval;
+            if (view.effectDuration) view.effectDuration = stats->duration;
+            if (view.slowPercent) *view.slowPercent = std::clamp(
+                *view.slowPercent * stats->slowStrength, 0.0, 95.0);
+        };
+        apply(comparison.current, source.level);
+        if (comparison.previous) apply(*comparison.previous, static_cast<std::uint8_t>(source.level - 1));
+        if (comparison.next) apply(*comparison.next, static_cast<std::uint8_t>(source.level + 1));
+        return comparison;
+    };
     std::optional<ResourceCost> aimedUpgradeCost;
     std::optional<BuildingStatComparison> aimedStats;
     if (aimedBuilding_) {
@@ -33,71 +83,60 @@ const SimulationSnapshot& Simulation::snapshot() const {
                              return building.id == *aimedBuilding_;
                          });
         if (aimed != buildings_.buildings().end() &&
-            !BuildingSystem::usesGlobalBlueprint(aimed->type) &&
-            aimed->level < MaxBuildingLevel &&
+            aimed->level < buildingLevelLimit(aimed->type) &&
             (sandboxMode_ || unlimitedResources_ || aimed->type == BuildingType::Core)) {
             aimedUpgradeCost = buildings_.upgradeCost(*aimed);
         }
         if (aimed != buildings_.buildings().end()) {
-            aimedStats = compareBuildingStats(
-                *aimed, crystalMines_, MaxBuildingLevel);
-            if (aimed->type == BuildingType::Core) {
-                const auto addBonus = [&](BuildingStats& stats) {
-                    if (stats.buildingLimit) *stats.buildingLimit += buildings_.buildingLimitBonus();
-                };
-                addBonus(aimedStats->current);
-                if (aimedStats->previous) addBonus(*aimedStats->previous);
-                if (aimedStats->next) addBonus(*aimedStats->next);
-            }
-            if (aimed->type == BuildingType::WindBlower) {
-                aimedFinalStats = towers_.finalStats(*aimed);
-                const auto updateWindStats = [&](BuildingStats& view, std::uint8_t level) {
-                    auto copy = *aimed; copy.level = level;
-                    const auto stats = towers_.finalStats(copy);
-                    view.attackRange = stats.range * stats.size;
-                    view.pushStrength = stats.knockback;
-                    view.cooldown = stats.attackInterval;
-                };
-                updateWindStats(aimedStats->current, aimed->level);
-                if (aimedStats->previous) updateWindStats(*aimedStats->previous, static_cast<std::uint8_t>(aimed->level - 1));
-                if (aimedStats->next) updateWindStats(*aimedStats->next, static_cast<std::uint8_t>(aimed->level + 1));
-            }
+            aimedStats = comparisonFor(*aimed);
         }
     }
-    constexpr std::array DefenseTypes{
-        BuildingType::GunTurret,
-        BuildingType::Turret,
-        BuildingType::Cannon,
-        BuildingType::Catapult,
-    };
-    std::array<DefenseBlueprintStatus, DefenseBlueprintCount>
-        defenseBlueprints{};
-    for (std::size_t index = 0; index < DefenseTypes.size(); ++index) {
-        const BuildingType type = DefenseTypes[index];
-        const bool unlocked = buildingUnlocked(type);
-        const int availableWood = unlimitedResources_
-            ? std::numeric_limits<int>::max() : wood_;
-        const int availableStone = unlimitedResources_
-            ? std::numeric_limits<int>::max() : stone_;
-        const int availableCrystals = unlimitedResources_
-            ? std::numeric_limits<int>::max() : crystals_;
-        UpgradeResult validation = buildings_.validateBlueprintUpgrade(
-            type, availableWood, availableStone, availableCrystals);
-        if (!unlocked) {
-            validation.error = UpgradeError::Unsupported;
+    const int availableWood = unlimitedResources_
+        ? std::numeric_limits<int>::max() : wood_;
+    const int availableStone = unlimitedResources_
+        ? std::numeric_limits<int>::max() : stone_;
+    const int availableCrystals = unlimitedResources_
+        ? std::numeric_limits<int>::max() : crystals_;
+    auto defenseCards = std::move(defenseCardBuffer_);
+    defenseCards.clear();
+    defenseCards.reserve(towers_.towers().size() + cannons_.cannons().size());
+    for (const BuildingInstance& building : buildings_.buildings()) {
+        const BuildingType type = building.type;
+        if (type != BuildingType::GunTurret &&
+            type != BuildingType::Turret &&
+            type != BuildingType::Cannon &&
+            type != BuildingType::Catapult && type != BuildingType::Mortar && type != BuildingType::Flamethrower && type != BuildingType::MissileLauncher && type != BuildingType::TeslaTower && type != BuildingType::LaserTower && type != BuildingType::WindBlower) {
+            continue;
         }
-        const BuildingInstance preview = buildings_.blueprintPreview(type);
-        defenseBlueprints[index] = {
-            .type = type,
-            .level = preview.level,
-            .existingBuildingCount =
-                buildings_.blueprintBuildingCount(type),
-            .unlocked = unlocked,
-            .upgradeError = validation.error,
-            .upgradeCost = buildings_.blueprintUpgradeCost(type),
+        const UpgradeError upgradeError = buildings_.validateUpgrade(
+            building.id, availableWood, availableStone,
+            availableCrystals).error;
+        defenseCards.push_back({
+            .buildingId = building.id,
+            .upgradeError = upgradeError,
+            .upgradeCost = buildings_.upgradeCost(building),
+            .stats = comparisonFor(building),
+        });
+    }
+    auto producerCards = std::move(producerCardBuffer_);
+    producerCards.clear();
+    producerCards.reserve(crystalMines_.mines().size());
+    for (const CrystalMineRuntime& runtime : crystalMines_.mines()) {
+        const auto building = std::ranges::find(
+            buildings_.buildings(), runtime.buildingId,
+            &BuildingInstance::id);
+        if (building == buildings_.buildings().end()) continue;
+        const UpgradeError upgradeError = buildings_.validateUpgrade(
+            building->id, availableWood, availableStone,
+            availableCrystals).error;
+        producerCards.push_back({
+            .buildingId = building->id,
             .stats = compareBuildingStats(
-                preview, crystalMines_, MaxBuildingLevel),
-        };
+                *building, crystalMines_, buildingLevelLimit(building->type),
+                buildings_.baseMaxHealth(building->type)),
+            .upgradeCost = buildings_.upgradeCost(*building),
+            .upgradeError = upgradeError,
+        });
     }
     const NightForecast upcomingNight =
         waveDirector_.forecast(saturatingAdd(wave_, 1), terrain_.seed());
@@ -126,11 +165,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
     }
     double heldDamage = gameplay_.pickaxeDamage;
     switch (playerWeapons_.selectedWeapon()) {
-    case PlayerWeapon::LegacyBareHands: heldDamage = 0.0; break;
+    case PlayerWeapon::LegacyBareHands:
+    case PlayerWeapon::LegacyHammer: heldDamage = 0.0; break;
     case PlayerWeapon::Club: heldDamage *= club_.damageMultiplier * playerWeaponLevelDamage(PlayerWeapon::Club,playerWeaponLevel(PlayerWeapon::Club)); break;
     case PlayerWeapon::IceWand: heldDamage = iceWand_.directDamage(); break;
     case PlayerWeapon::FireWand: heldDamage = fireWand_.directDamage(); break;
-    case PlayerWeapon::Hammer: heldDamage *= 0.75; break;
     case PlayerWeapon::Rifle: heldDamage = playerWeapons_.rifleDamage(); break;
     case PlayerWeapon::Bomb:
         heldDamage = 6.0;
@@ -141,19 +180,24 @@ const SimulationSnapshot& Simulation::snapshot() const {
             playerWeapons_.selectedWeapon()) * playerWeaponLevelDamage(playerWeapons_.selectedWeapon(),playerWeaponLevel(playerWeapons_.selectedWeapon()));
         break;
     }
-    heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+    heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::Damage) *
         playerClassDamageMultiplier();
     std::array<int, 3> recommendedObjectives{-1, -1, -1};
-    if (!sandboxMode_) {
-        const auto recommended = objectives_.recommended(
-            recommendedObjectives.size());
-        for (std::size_t index = 0; index < recommended.size(); ++index) {
-            recommendedObjectives[index] =
-                static_cast<int>(recommended[index]);
+    const auto producerRates = [this](int levelOffset) {
+        std::array<double, GameBalance::BuildingTypeCount> rates{};
+        for (const BuildingType type : RunEconomyBuildingTypes) {
+            const auto index = static_cast<std::size_t>(type);
+            const auto level = static_cast<std::uint8_t>(std::clamp(
+                static_cast<int>(buildings_.blueprintLevels()[index]) + levelOffset,
+                1, static_cast<int>(MaxStructureLevel)));
+            rates[index] = static_cast<double>(crystalMines_.productionAmount(level, type)) /
+                crystalMines_.productionInterval(type, level);
         }
-    }
+        return rates;
+    };
     snapshotCache_ = SimulationSnapshot{
         .state = state_,
+        .stateBeforePause = stateBeforePause_,
         .sandboxMode = sandboxMode_,
         .playerClass = playerClass_,
         .tick = tick_,
@@ -164,10 +208,6 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .playerGrounded = playerGrounded_,
         .playerHorizontalVelocity =
             playerHorizontalVelocity_,
-        .dashUnlocked = true,
-        .dashing = dashRemaining_ > 0.0,
-        .dashCooldownRemaining = dashCooldownRemaining_,
-        .dashCooldownDuration = 0.90,
         .playerVerticalVelocity = verticalVelocity_,
         .playerHealth = playerHealth_,
         .playerMaxHealth =
@@ -191,16 +231,19 @@ const SimulationSnapshot& Simulation::snapshot() const {
             crystals_ >= resourceCapacity(ResourceCapacityType::Crystal),
         .coins = coins_,
         .coinPickups = coinPickups_.pickups(),
+        .powerups = powerups_.state(),
         .aimedChest = aimedChest_,
         .aimedLoot = aimedLoot_,
         .lootChests =
             std::span<const LootChestInstance>{lootChests_.chests()},
+        .itemPoisonClouds = chestItems_.clouds(),
         .aimedChallengeColumn = aimedChallengeColumn_,
         .challengeColumns =
             std::span<const ChallengeColumnInstance>{challengeColumns_},
         .aimedWorldLandmark = aimedWorldLandmark_,
         .worldLandmarks =
             std::span<const WorldLandmarkInstance>{worldLandmarks_},
+        .worldScenery = std::span<const WorldSceneryInstance>{worldScenery_},
         .activeChallengeCenter = activeChallengeColumn_
             ? std::optional<Vec3>{
                   challengeColumns_[*activeChallengeColumn_].position}
@@ -214,14 +257,14 @@ const SimulationSnapshot& Simulation::snapshot() const {
             : 0.0,
         .lootStacks = lootStacks_,
         .playerDamageMultiplier =
-            playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::Damage) *
                 playerClassDamageMultiplier(),
         .playerMoveSpeedMultiplier =
-            playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_,
+            playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::MoveSpeed) * classLevelBonuses().moveSpeed,
         .playerArmorMultiplier = playerArmorMultiplier_,
         .playerTemporaryHealth = playerTemporaryHealth_,
         .playerRecoverableArmor = playerRecoverableArmor_,
-        .playerMaxRecoverableArmor = playerMaxRecoverableArmor_,
+        .playerMaxRecoverableArmor = playerArmorCapacity(),
         .playerArmorRechargeDelayRemaining = std::max(
             0.0, 5.0 - secondsSincePlayerDamage_),
         .battlePotionAvailable = battlePotionAvailable_,
@@ -242,9 +285,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             freeChestOpeningAvailable_,
         .freeChestRerollsRemaining =
             freeChestRerollsRemaining_,
-        .chestOpeningCostSurcharge =
-            saturatingMultiplyNonNegative(
-                economy_.chestOpeningCoinCostPerWave, wave_),
+        .chestOpeningCostSurcharge = 0,
+        .openedPaidChestCount = lootChests_.openedPaidChestCount(),
         .pickaxeCooldownRemaining = pickaxeCooldownRemaining_,
         .aimedResource = aimedResource_,
         .aimedResourceEfficiency = [this]() {
@@ -298,6 +340,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::DecoyBeacon),
             buildings_.configuredCost(BuildingType::WindBlower),
         },
+        .buildingBlueprintLevels = buildings_.blueprintLevels(),
+        .producerRatesPerSecond = producerRates(0),
+        .nextProducerRatesPerSecond = producerRates(1),
         .unlockedBuildings = {
             buildingUnlocked(BuildingType::Core),
             buildingUnlocked(BuildingType::Wall),
@@ -326,6 +371,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .coreBuildRadius = sandboxMode_
             ? 0
             : buildings_.coreBuildRadius(),
+        .coreCardPowers = coreCardPowers_,
+        .coreHealthBaseLevel = coreHealthBaseLevel_,
+        .coreBuildingBaseLevel = coreBuildingBaseLevel_,
+        .coreStorageBaseLevel = coreStorageBaseLevel_,
         .placedBuildingCount = buildings_.placedBuildingCount(),
         .totalBuildingLimit = buildings_.totalBuildingLimit(),
         .buildingLimitBonus = buildings_.buildingLimitBonus(),
@@ -351,10 +400,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
                         modularStoreyHeight(worldConfig_))),
         .aimedEnemy = aimedEnemy_,
         .aimedBuilding = aimedBuilding_,
-        .aimedFinalAttackStats = aimedFinalStats,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
         .aimedBuildingStats = aimedStats,
-        .defenseBlueprints = defenseBlueprints,
+        .defenseCards = std::move(defenseCards),
+        .producerCards = std::move(producerCards),
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .enemyProjectiles = enemies_.projectiles(),
         .decoyBeacons = enemies_.decoyBeacons(),
@@ -363,6 +412,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .towers = std::span<const TowerRuntime>{towers_.towers()},
         .laserBeams = towers_.laserBeams(),
         .defenseProjectiles = towers_.projectiles(),
+        .aimedFinalAttackStats = aimedFinalStats,
+        .droppedDefenseProjectiles = towers_.droppedProjectiles() + cannons_.droppedProjectiles(),
         .cannons = std::span<const CannonRuntime>{cannons_.cannons()},
         .traps = std::span<const TrapRuntime>{traps_.traps()},
         .cannonProjectiles =
@@ -389,7 +440,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .upcomingAttackDirections = upcomingAttackDirections_,
         .attackPortalPositions = wavePortalsActive_
             ? wavePortalPositions_
-            : std::array<std::optional<Vec3>, 4>{},
+            : std::array<std::optional<Vec3>, MaximumAttackPortals>{},
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .earlyWaveBonus = earlyWaveBonus(),
@@ -413,7 +464,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             playerWeaponUnlocked(PlayerWeapon::Club),
             playerWeaponUnlocked(PlayerWeapon::IceWand),
             playerWeaponUnlocked(PlayerWeapon::FireWand),
-            playerWeaponUnlocked(PlayerWeapon::Hammer),
+            playerWeaponUnlocked(PlayerWeapon::LegacyHammer),
             playerWeaponUnlocked(PlayerWeapon::Rifle),
             playerWeaponUnlocked(PlayerWeapon::Bomb),
         },
@@ -429,14 +480,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .rifleReloading = playerWeapons_.reloading(),
         .rifleReloadRemaining = playerWeapons_.reloadRemaining(),
         .rifleReloadDuration = playerWeapons_.reloadDuration(),
-        .bombsRemaining = unlimitedResources_
-            ? std::numeric_limits<int>::max()
-            : bombs_.remainingBombs(),
-        .bombPurchaseCoinCost = saturatingAdd(
-            economy_.bombPurchaseCoinCost,
-            saturatingMultiplyNonNegative(
-                economy_.bombPurchaseCoinCostPerWave, wave_)),
-        .bombPurchaseAmount = economy_.bombPurchaseAmount,
+        .bombsRemaining = std::numeric_limits<int>::max(),
+        .bombCooldownRemaining = bombs_.cooldownRemaining(),
+        .bombCooldownDuration = bombs_.cooldownDuration(),
+        .bombPurchaseCoinCost = 0,
+        .bombPurchaseAmount = 0,
         .chestRerollCoinCost = economy_.chestRerollCoinCosts.at(
             [&]() -> std::size_t {
                 if (!aimedLoot_) return 0U;
@@ -457,14 +505,12 @@ const SimulationSnapshot& Simulation::snapshot() const {
             saturatingMultiplyNonNegative(
                 economy_.waveRewardPerWave, wave_)),
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
-        .tutorialObjective = sandboxMode_
-            ? std::optional<TutorialObjective>{}
-            : tutorialObjective(),
+        .tutorialObjective = tutorialObjective(),
         .playerLevel = insight_.progress().totalLevelsEarned + 1,
         .currentInsight = insight_.progress().currentInsight,
         .requiredInsight = insight_.progress().requiredInsight,
         .totalInsightEarned = insight_.progress().totalInsightEarned,
-        .objectives = objectives_.statuses(),
+        .objectives = {},
         .recommendedObjectives = recommendedObjectives,
         .buildingArsenalCount = runBuildingArsenalCount(),
         .buildingSlotLimit = runBuildingSlotLimit(activeMetaBonuses_),
@@ -473,6 +519,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .weaponSlotLimit = runWeaponSlotLimit(activeMetaBonuses_),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runShop = runShop_,
+        .shrines = shrines_,
         .runShopBuyable = [this] {
             std::array<bool, RunShopSlotCount> buyable{};
             for (std::size_t i = 0; i < buyable.size(); ++i)
@@ -484,26 +531,35 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .runUpgradeStacks = runUpgradeStacks_,
         .runUpgradePower = runUpgradePower_,
         .runUpgradeRarities = runUpgradeRarities_,
+        .runUpgradeRollSeeds = runUpgradeRollSeeds_,
+        .buildingUpgradePowers = buildingUpgradePowers_,
         .upgradeStats = {
-            .defenseDamage = defenseDamageMultiplier_,
-            .defenseFireRate = defenseFireRateMultiplier_,
-            .buildingHealth = buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_,
-            .productionSpeed = productionSpeedMultiplier_ * runProductionSpeedMultiplier_,
-            .resourceYield = activeMetaBonuses_.resourceYield * (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0),
-            .resourceCapacity = 1.0 + .20 * runUpgradePower(RunUpgradeEffect::ResourceCapacity),
-            .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
+            .defenseDamage = defenseDamageMultiplier_ * classLevelBonuses().defenseDamage * powerups_.defenseDamageMultiplier(),
+            .defenseFireRate = defenseFireRateMultiplier_ * powerups_.defenseSpeedMultiplier(),
+            .buildingHealth = buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::BuildingHealth),
+            .productionSpeed = productionSpeedMultiplier_ * runProductionSpeedMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::ProductionSpeed),
+            .resourceYield = activeMetaBonuses_.resourceYield * classLevelBonuses().gatheringYield,
+            .resourceCapacity = 1.0 + .20 * playerPassivePower(RunUpgradeEffect::ResourceCapacity),
+            .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() * classLevelBonuses().meleeSpeed *
                 (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
             .toolAttackSpeed = toolAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() * classLevelBonuses().meleeSpeed *
-                (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::GatheringSpeed)) *
+                (1.0 + 0.15 * playerPassivePower(RunUpgradeEffect::GatheringSpeed)) *
                 (playerClass_ == PlayerClass::Berserker ? playerClassDamageMultiplier() : 1.0),
-            .luck = activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
-            .healthRegeneration = 0.5 * runUpgradePower(RunUpgradeEffect::Regeneration),
-            .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),
-            .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
-            .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),
-            .clusterExplosions = runUpgradeCount(RunUpgradeEffect::ClusterPayload),
+            .luck = activeMetaBonuses_.luck + 0.10 * playerPassivePower(RunUpgradeEffect::Luck),
+            .healthRegeneration = 0.5 * playerPassivePower(RunUpgradeEffect::Regeneration),
+            .projectileCountBonus = defenseModifiers[AttackStat::Quantity].flat,
+            .pierce = defenseModifiers[AttackStat::Pierce].flat,
+            .bounces = defenseModifiers[AttackStat::Bounces].flat,
+            .clusterExplosions = 2.0 * runUpgradePower(RunUpgradeEffect::ClusterPayload),
+            .projectileSpeed = defenseModifiers[AttackStat::ProjectileSpeed].multiplier,
+            .attackDuration = defenseModifiers[AttackStat::Duration].multiplier,
+            .attackSize = defenseModifiers[AttackStat::Size].multiplier,
+            .critChance = std::clamp(defenseModifiers[AttackStat::CritChance].flat, 0.0, 1.0),
+            .critDamage = 2.0 * defenseModifiers[AttackStat::CritDamage].multiplier,
+            .knockback = defenseModifiers[AttackStat::Knockback].multiplier,
             .cannonAttackStyle = runCannonAttackStyle(runUpgradeStacks_),
         },
+        .classAbilityState = classAbilityState_,
         .runUpgradeSelectionsRemaining =
             runUpgradeSelectionsRemaining_,
         .runUpgradeRerollTokens = runUpgradeRerollTokens_,
@@ -514,7 +570,12 @@ const SimulationSnapshot& Simulation::snapshot() const {
 }
 
 void Simulation::invalidateSnapshotCache() {
-    snapshotCache_.reset();
+    if (snapshotCache_) {
+        // Reclaim only the owned card arrays; snapshot spans still borrow world data.
+        defenseCardBuffer_ = std::move(snapshotCache_->defenseCards);
+        producerCardBuffer_ = std::move(snapshotCache_->producerCards);
+        snapshotCache_.reset();
+    }
 }
 
 } // namespace ian

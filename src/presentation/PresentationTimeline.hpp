@@ -15,6 +15,24 @@ namespace ian::presentation {
         0.0, 1.0);
 }
 
+[[nodiscard]] inline double insightFraction(double amount, double requirement) {
+    return std::clamp(amount / std::max(1.0, requirement), 0.0, 1.0);
+}
+
+// Animate in fractions: the old and new levels can require different XP.
+// The target comes from the latest snapshot, including grants during the roll-over.
+[[nodiscard]] inline double levelUpInsightFraction(
+    double progress, double startFraction, double targetFraction) {
+    progress = std::clamp(progress, 0.0, 1.0);
+    startFraction = std::clamp(startFraction, 0.0, 1.0);
+    targetFraction = std::clamp(targetFraction, 0.0, 1.0);
+    if (progress < 0.35) {
+        return startFraction + (1.0 - startFraction) * (progress / 0.35);
+    }
+    if (progress < 0.55) return 1.0;
+    return targetFraction * ((progress - 0.55) / 0.45);
+}
+
 inline void advanceTimeline(
     std::vector<PresentationEffect>& effects,
     double deltaSeconds) {

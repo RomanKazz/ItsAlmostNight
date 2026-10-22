@@ -12,7 +12,7 @@ class TerrainHeightfield;
 class CollisionWorld;
 
 enum class CoinType : std::uint8_t { Bronze, Silver, HighValue };
-enum class PickupKind : std::uint8_t { Coin, Heart };
+enum class PickupKind : std::uint8_t { Coin, Heart, Experience, MetaSilver };
 
 [[nodiscard]] constexpr int coinValue(CoinType type) {
     switch (type) {
@@ -39,6 +39,10 @@ struct CoinPickup {
 struct CoinCollection {
     int value{};
     int count{};
+    int experience{};
+    int experienceCount{};
+    int silver{};
+    int silverCount{};
     double healing{};
     int heartCount{};
     Vec3 position{};
@@ -49,9 +53,16 @@ class CoinPickupSystem {
     static constexpr double AttractionRadius = 5.0;
     static constexpr double CollectionRadius = 0.62;
     static constexpr double MagnetAnticipationDuration = 0.14;
-    static constexpr std::size_t MaximumPickups = 768;
+    static constexpr std::size_t MaximumPickups = 1536;
 
     void reset();
+    void magnetizeExperienceAndCoins() {
+        for (auto& pickup : pickups_) {
+            if (pickup.kind == PickupKind::Heart || pickup.magnetized) continue;
+            pickup.magnetized = true;
+            pickup.magnetTime = 0.0;
+        }
+    }
     void spawn(Vec3 position, int amount, std::uint64_t seed,
                const TerrainHeightfield& terrain);
     void spawnValue(Vec3 position, int value, std::uint64_t seed,
@@ -60,6 +71,15 @@ class CoinPickupSystem {
     void spawnHeart(Vec3 position, std::uint64_t seed,
                     const TerrainHeightfield& terrain,
                     double burstSpread = 1.0);
+    [[nodiscard]] bool spawnMetaSilver(Vec3 position, std::uint64_t seed,
+                                      const TerrainHeightfield& terrain);
+    [[nodiscard]] std::vector<CoinPickup> metaSilverState() const;
+    [[nodiscard]] static bool validMetaSilverState(std::span<const CoinPickup> pickups);
+    [[nodiscard]] bool loadMetaSilverState(std::span<const CoinPickup> pickups);
+    [[nodiscard]] int spawnExperience(
+        Vec3 position, int amount, int orbCount,
+        std::uint64_t seed, const TerrainHeightfield& terrain,
+        double burstSpread = 1.0);
     [[nodiscard]] CoinCollection tick(
         double deltaSeconds, Vec3 playerPosition,
         const TerrainHeightfield& terrain,

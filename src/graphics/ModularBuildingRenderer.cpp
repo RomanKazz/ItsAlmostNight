@@ -1,3 +1,4 @@
+#include "graphics/BuildingFoundationVisual.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "buildings/RampPlacementDirection.hpp"
 #include "graphics/Renderer.hpp"
@@ -14,6 +15,48 @@
 #include <unordered_set>
 
 namespace ian {
+namespace {
+
+struct GridCoordHash {
+    std::size_t operator()(const GridCoord& value) const {
+        std::size_t seed = std::hash<int>{}(value.x);
+        seed ^= std::hash<int>{}(value.yLevel) +
+            0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+        seed ^= std::hash<int>{}(value.z) +
+            0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+        return seed;
+    }
+};
+
+using PlatformCells = std::unordered_set<GridCoord, GridCoordHash>;
+
+PlatformCells occupiedPlatformCells(
+    std::span<const PlatformFrameInstance> frames) {
+    PlatformCells occupied;
+    occupied.reserve(frames.size() * PlatformFrameWidthCells * PlatformFrameWidthCells);
+    for (const auto& frame : frames) {
+        for (int z = 0; z < PlatformFrameWidthCells; ++z) {
+            for (int x = 0; x < PlatformFrameWidthCells; ++x) {
+                occupied.insert({frame.anchor.x + x, frame.anchor.yLevel, frame.anchor.z + z});
+            }
+        }
+    }
+    return occupied;
+}
+
+bool interiorPlatformCorner(
+    const PlatformCells& occupied, GridCoord corner) {
+    for (int z = -1; z <= 0; ++z) {
+        for (int x = -1; x <= 0; ++x) {
+            if (!occupied.contains({corner.x + x, corner.yLevel, corner.z + z})) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 std::vector<std::array<bool, 4>>
 platformSupportVisibilityMasks(
@@ -25,6 +68,7 @@ platformSupportVisibilityMasks(
     for (const SharedSupport& support : sharedSupports) {
         supportsById.emplace(support.id, &support);
     }
+    const auto occupied = occupiedPlatformCells(platformFrames);
 
     std::vector<std::array<bool, 4>> masks(
         platformFrames.size());
@@ -35,6 +79,16 @@ platformSupportVisibilityMasks(
         for (std::size_t supportIndex = 0;
              supportIndex < frame.supportIds.size();
              ++supportIndex) {
+            const GridCoord corner{
+                frame.anchor.x + static_cast<int>(supportIndex % 2U) * PlatformFrameWidthCells,
+                frame.anchor.yLevel,
+                frame.anchor.z + static_cast<int>(supportIndex / 2U) * PlatformFrameWidthCells,
+            };
+            // At a staggered T-junction only two corner IDs may meet, while
+            // the neighbouring frame covers both other quadrants of the floor.
+            if (interiorPlatformCorner(occupied, corner)) {
+                continue;
+            }
             const std::uint32_t id =
                 frame.supportIds[supportIndex];
             const auto found = supportsById.find(id);
@@ -113,43 +167,27 @@ platformSupportVisualLengths(
     return lengths;
 }
 
-std::vector<std::array<bool, 4>>
+std::vector<PlatformEdgeVisibilityMask>
 platformEdgeVisibilityMasks(
     std::span<const PlatformFrameInstance> platformFrames) {
-    struct GridCoordHash {
-        std::size_t operator()(const GridCoord& value) const {
-            std::size_t seed = std::hash<int>{}(value.x);
-            seed ^= std::hash<int>{}(value.yLevel) +
-                0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-            seed ^= std::hash<int>{}(value.z) +
-                0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-            return seed;
-        }
-    };
-    std::unordered_set<GridCoord, GridCoordHash> occupied;
-    occupied.reserve(platformFrames.size());
-    for (const PlatformFrameInstance& frame : platformFrames) {
-        occupied.insert(frame.anchor);
-    }
+    const auto occupied = occupiedPlatformCells(platformFrames);
 
-    std::vector<std::array<bool, 4>> masks(
+    std::vector<PlatformEdgeVisibilityMask> masks(
         platformFrames.size(), AllPlatformEdgesVisible);
     for (std::size_t frameIndex = 0;
          frameIndex < platformFrames.size(); ++frameIndex) {
         const GridCoord anchor = platformFrames[frameIndex].anchor;
-        const std::array<GridCoord, 4> neighbours{{
-            {anchor.x - PlatformFrameWidthCells,
-             anchor.yLevel, anchor.z},
-            {anchor.x + PlatformFrameWidthCells,
-             anchor.yLevel, anchor.z},
-            {anchor.x, anchor.yLevel,
-             anchor.z - PlatformFrameWidthCells},
-            {anchor.x, anchor.yLevel,
-             anchor.z + PlatformFrameWidthCells},
-        }};
-        for (std::size_t edge = 0; edge < neighbours.size(); ++edge) {
-            masks[frameIndex][edge] =
-                !occupied.contains(neighbours[edge]);
+        for (int offset = 0; offset < PlatformFrameWidthCells; ++offset) {
+            const std::array<GridCoord, 4> neighbours{{
+                {anchor.x - 1, anchor.yLevel, anchor.z + offset},
+                {anchor.x + PlatformFrameWidthCells, anchor.yLevel, anchor.z + offset},
+                {anchor.x + offset, anchor.yLevel, anchor.z - 1},
+                {anchor.x + offset, anchor.yLevel, anchor.z + PlatformFrameWidthCells},
+            }};
+            for (std::size_t edge = 0; edge < neighbours.size(); ++edge) {
+                masks[frameIndex][edge][static_cast<std::size_t>(offset)] =
+                    !occupied.contains(neighbours[edge]);
+            }
         }
     }
     return masks;
@@ -226,7 +264,7 @@ void drawPlatformFrame(
     const std::array<double, 4>& visualSupportLengths,
     Color color,
     const std::array<bool, 4>& supportVisibility,
-    const std::array<bool, 4>& edgeVisibility) {
+    const PlatformEdgeVisibilityMask& edgeVisibility) {
     const double minimumX = std::min(
         supports[0].top.x, supports[2].top.x);
     const double maximumX = std::max(
@@ -271,25 +309,22 @@ void drawPlatformFrame(
     const float beamY =
         static_cast<float>(floorHeight - 0.24);
     constexpr float BeamThickness = 0.14F;
-    if (edgeVisibility[2]) {
-        DrawCube(
-            {centerX, beamY, static_cast<float>(minimumZ)},
-            widthX, BeamThickness, BeamThickness, color);
-    }
-    if (edgeVisibility[3]) {
-        DrawCube(
-            {centerX, beamY, static_cast<float>(maximumZ)},
-            widthX, BeamThickness, BeamThickness, color);
-    }
-    if (edgeVisibility[0]) {
-        DrawCube(
-            {static_cast<float>(minimumX), beamY, centerZ},
-            BeamThickness, BeamThickness, widthZ, color);
-    }
-    if (edgeVisibility[1]) {
-        DrawCube(
-            {static_cast<float>(maximumX), beamY, centerZ},
-            BeamThickness, BeamThickness, widthZ, color);
+    for (std::size_t edge = 0; edge < edgeVisibility.size(); ++edge) {
+        const bool alongX = edge >= 2U;
+        const float fullLength = alongX ? widthX : widthZ;
+        for (std::size_t segment = 0; segment < edgeVisibility[edge].size(); ++segment) {
+            if (!edgeVisibility[edge][segment]) continue;
+            const float segmentLength = fullLength / PlatformFrameWidthCells;
+            const float offset = -fullLength * 0.5F +
+                (static_cast<float>(segment) + 0.5F) * segmentLength;
+            const Vector3 center = alongX
+                ? Vector3{centerX + offset, beamY,
+                    static_cast<float>(edge == 2U ? minimumZ : maximumZ)}
+                : Vector3{static_cast<float>(edge == 0U ? minimumX : maximumX),
+                    beamY, centerZ + offset};
+            DrawCube(center, alongX ? segmentLength : BeamThickness,
+                BeamThickness, alongX ? BeamThickness : segmentLength, color);
+        }
     }
 
     for (std::size_t index = 0; index < supports.size(); ++index) {
@@ -507,6 +542,12 @@ float animationScale(
                : scale->scale;
 }
 
+BuildingFeedbackHighlight buildingFeedback(
+    EntityId id, std::span<const ModularAnimationScale> scales) {
+    const auto entry = std::ranges::find(scales, id, &ModularAnimationScale::id);
+    return entry == scales.end() ? BuildingFeedbackHighlight{} : entry->feedback;
+}
+
 bool worldObjectVisible(
     const ModularBuildingView& view,
     Vec3 position, double radius) {
@@ -555,7 +596,11 @@ void drawScaled(
 
 [[nodiscard]] Vec3 platformScaleOrigin(
     const PlatformFrameInstance& frame,
-    double cellSize) {
+    std::span<const ModularAnimationScale> scales) {
+    const auto animation = std::ranges::find(scales, frame.id, &ModularAnimationScale::id);
+    if (animation != scales.end() && animation->scaleOrigin) {
+        return *animation->scaleOrigin;
+    }
     const double bottom = std::min({
         frame.supports[0].bottom.y,
         frame.supports[1].bottom.y,
@@ -565,11 +610,9 @@ void drawScaled(
     const double pivotHeight = frame.storey == 0
         ? bottom
         : (bottom + frame.floorHeight) * 0.5;
-    return {
-        (frame.anchor.x + 1.0) * cellSize,
-        pivotHeight,
-        (frame.anchor.z + 1.0) * cellSize,
-    };
+    Vec3 center = platformFrameVisualCenter(frame);
+    center.y = pivotHeight;
+    return center;
 }
 
 } // namespace
@@ -614,12 +657,13 @@ void ModularBuildingRenderer::drawWorld(
             visibilityIndex = static_cast<std::size_t>(
                 std::distance(visibilityFrames.begin(), found));
         }
-        const Vec3 origin = platformScaleOrigin(
-            frame, buildings.cellSize);
+        const Vec3 origin = platformScaleOrigin(frame, buildings.animationScales);
         if (!worldObjectVisible(
                 buildings, origin, buildings.cellSize * 1.5)) {
             continue;
         }
+        if (renderer_) renderer_->setBuildingFeedbackHighlight(
+            buildingFeedback(frame.id, buildings.animationScales));
         drawScaled(
             origin,
             animationScale(
@@ -652,6 +696,8 @@ void ModularBuildingRenderer::drawWorld(
                 buildings, origin, buildings.cellSize)) {
             continue;
         }
+        if (renderer_) renderer_->setBuildingFeedbackHighlight(
+            buildingFeedback(wall.id, buildings.animationScales));
         drawScaled(
             origin,
             animationScale(
@@ -692,6 +738,8 @@ void ModularBuildingRenderer::drawWorld(
                     std::hypot(widthCells, depthCells))) {
             continue;
         }
+        if (renderer_) renderer_->setBuildingFeedbackHighlight(
+            buildingFeedback(ramp.id, buildings.animationScales));
         drawScaled(
             origin,
             animationScale(
@@ -710,6 +758,8 @@ void ModularBuildingRenderer::drawWorld(
                         buildings.alpha));
             });
     }
+
+    if (renderer_) renderer_->setBuildingFeedbackHighlight({});
 
     const bool hasGhostPreview =
         preview.platformFrame != nullptr ||
@@ -962,8 +1012,7 @@ void ModularBuildingRenderer::drawShadow(
          ++frameIndex) {
         const PlatformFrameInstance& frame =
             buildings.platformFrames[frameIndex];
-        const Vec3 origin = platformScaleOrigin(
-            frame, buildings.cellSize);
+        const Vec3 origin = platformScaleOrigin(frame, buildings.animationScales);
         if (renderer_ != nullptr &&
             !renderer_->shadowCasterVisible(
                 {static_cast<float>(origin.x),

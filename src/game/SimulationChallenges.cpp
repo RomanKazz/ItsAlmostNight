@@ -234,9 +234,11 @@ void Simulation::activateChallengeColumn(EntityId id) {
             .type = type,
             .position = position,
             .healthMultiplier =
-                1.0 + static_cast<double>(challengeWave - 1) * 0.08,
+                0.92 * (1.0 +
+                    static_cast<double>(challengeWave - 1) * 0.08),
             .damageMultiplier =
-                1.0 + static_cast<double>(challengeWave - 1) * 0.04,
+                0.92 * (1.0 +
+                    static_cast<double>(challengeWave - 1) * 0.04),
             .eliteAffixes = elite
                 ? challengeEliteAffix(seed)
                 : EliteAffixMask{},

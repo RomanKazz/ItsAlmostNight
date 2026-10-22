@@ -59,14 +59,6 @@ const RenderTexture2D& GraphicsResources::selectionMask() const {
     return selectionMaskTarget_.get();
 }
 
-int GraphicsResources::selectionMaskWidth() const {
-    return requestedSelectionMaskWidth_;
-}
-
-int GraphicsResources::selectionMaskHeight() const {
-    return requestedSelectionMaskHeight_;
-}
-
 bool GraphicsResources::viewModelTargetValid() const {
     return viewModelTarget_.valid();
 }
@@ -195,14 +187,6 @@ const ShaderResource& GraphicsResources::grassShader() const {
     return grassShader_;
 }
 
-ShaderResource& GraphicsResources::upgradeEffectShader() {
-    return upgradeEffectShader_;
-}
-
-const ShaderResource& GraphicsResources::upgradeEffectShader() const {
-    return upgradeEffectShader_;
-}
-
 ShaderResource& GraphicsResources::shockwaveShader() {
     return shockwaveShader_;
 }
@@ -225,26 +209,6 @@ ShaderResource& GraphicsResources::portalMatterShader() {
 
 const ShaderResource& GraphicsResources::portalMatterShader() const {
     return portalMatterShader_;
-}
-
-ShaderResource& GraphicsResources::coinOutlineShader() {
-    return coinOutlineShader_;
-}
-
-const ShaderResource& GraphicsResources::coinOutlineShader() const {
-    return coinOutlineShader_;
-}
-
-ShaderResource& GraphicsResources::heartOutlineShader() {
-    return heartOutlineShader_;
-}
-
-const ShaderResource& GraphicsResources::heartOutlineShader() const {
-    return heartOutlineShader_;
-}
-
-TextureResource& GraphicsResources::fallbackTexture() {
-    return fallbackTexture_;
 }
 
 TextureResource& GraphicsResources::terrainTexture() {
@@ -270,10 +234,6 @@ TextureResource& GraphicsResources::skyboxTexture(std::size_t variant) {
 const TextureResource& GraphicsResources::skyboxTexture(
     std::size_t variant) const {
     return skyboxTextures_.at(variant);
-}
-
-ModelResource& GraphicsResources::placeholderModel() {
-    return placeholderModel_;
 }
 
 ModelResource& GraphicsResources::cannonModel() {
@@ -333,8 +293,8 @@ ModelResource& GraphicsResources::flamethrowerModel() {
     return flamethrowerModel_;
 }
 
-ModelResource& GraphicsResources::turretBulletModel() {
-    return turretBulletModel_;
+ModelResource& GraphicsResources::flamethrowerUpgradeModel() {
+    return flamethrowerUpgradeModel_;
 }
 
 ModelResource& GraphicsResources::coreModel() {
@@ -369,10 +329,6 @@ ModelResource& GraphicsResources::clubModel() {
     return clubModel_;
 }
 
-ModelResource& GraphicsResources::hammerModel() {
-    return hammerModel_;
-}
-
 ModelResource& GraphicsResources::iceWandModel() {
     return iceWandModel_;
 }
@@ -399,6 +355,10 @@ ModelResource& GraphicsResources::challengeArenaPegModel() {
 
 ModelResource& GraphicsResources::enemyPortalModel() {
     return enemyPortalModel_;
+}
+
+ModelResource& GraphicsResources::worldSceneryModel(std::size_t variant) {
+    return worldSceneryModels_[variant % WorldSceneryModelCount];
 }
 
 ModelResource& GraphicsResources::worldLandmarkModel(

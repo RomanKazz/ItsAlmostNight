@@ -51,6 +51,11 @@ void FlowField::reset() {
     ready_ = false;
 }
 
+void FlowField::setStaticObstacles(std::vector<CollisionBox> obstacles) {
+    staticObstacles_ = std::move(obstacles);
+    reset();
+}
+
 void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>& buildings) {
     reset();
     target_ = target;
