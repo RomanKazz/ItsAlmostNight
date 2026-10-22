@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.25)
 
 project(ItsAlmostNight VERSION 0.1.0 LANGUAGES CXX)
 
+if(MSVC)
+    # Portable Windows ZIP: link the Visual C++ runtime into every target,
+    # including FetchContent dependencies, so a fresh machine needs no VC++
+    # Redistributable installation to launch the game.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 option(IAN_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(IAN_ENABLE_PROFILING_SYMBOLS "Keep symbols in optimized profiling builds" OFF)
 
