@@ -252,6 +252,19 @@ float inkDifference(
             (1.0 - neighborSuppressesInk)*directionWeight;
     }
 
+    if (centerMaterialClass > 2.5 && centerMaterialClass < 3.5 &&
+        neighborMaterialClass > 2.5 && neighborMaterialClass < 3.5)
+    {
+        return 0.0;
+    }
+    float overlapInk = max(
+        1.0 - smoothstep(18.0, 42.0, length(centerPosition)),
+        step(3.5, centerMaterialClass));
+    if (overlapInk <= 0.001)
+    {
+        return 0.0;
+    }
+
     // Preserve separation between overlapping props of the same class. A
     // screen-space derivative of depth is unstable exactly on silhouettes:
     // neighboring 2x2 fragment groups can produce very different fwidth
@@ -306,7 +319,8 @@ float inkDifference(
         step(0.5, abs(centerMaterialClass - neighborMaterialClass));
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
-    return max(objectClassBoundary, objectDepthBoundary)*directionWeight;
+    return max(objectClassBoundary, objectDepthBoundary)*
+        directionWeight*overlapInk;
 }
 
 float bayer4(vec2 pixel)

@@ -282,6 +282,27 @@ float inkDifference(
             (1.0 - neighborSuppressesInk)*directionWeight;
     }
 
+    // Intersecting foliage shells are one visual object. Their shared
+    // vegetation pixels must not produce concentric internal contours.
+    // Exterior edges against sky, terrain and props were handled above.
+    if (centerMaterialClass > 2.5 && centerMaterialClass < 3.5 &&
+        neighborMaterialClass > 2.5 && neighborMaterialClass < 3.5)
+    {
+        return 0.0;
+    }
+
+    // There is no object ID in this screen-space pass. At distance, depth
+    // precision and small projected facets make overlaps between any two
+    // objects look like broad black seams on some OpenGL drivers. Fade only
+    // object-to-object ink; the exterior silhouette remains unchanged.
+    float overlapInk = max(
+        1.0 - smoothstep(18.0, 42.0, length(centerPosition)),
+        step(3.5, centerMaterialClass));
+    if (overlapInk <= 0.001)
+    {
+        return 0.0;
+    }
+
     // Preserve separation between overlapping props of the same class. A
     // screen-space derivative of depth is unstable exactly on silhouettes:
     // neighboring 2x2 fragment groups can produce very different fwidth
@@ -316,7 +337,7 @@ float inkDifference(
     // smoothstep(separateSurfaceDistance, ..., frontSurfaceGap) is zero.
     if (frontSurfaceGap <= separateSurfaceDistance)
     {
-        return objectClassBoundary*directionWeight;
+        return objectClassBoundary*directionWeight*overlapInk;
     }
     // Hardware depth is affine across a projected planar face. Compare the
     // candidate jump with the one-sided slopes INSIDE each surface. Unlike
@@ -343,7 +364,8 @@ float inkDifference(
         frontSurfaceGap)*depthDiscontinuity;
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
-    return max(objectClassBoundary, objectDepthBoundary)*directionWeight;
+    return max(objectClassBoundary, objectDepthBoundary)*
+        directionWeight*overlapInk;
 }
 
 float bayer4(vec2 pixel)
