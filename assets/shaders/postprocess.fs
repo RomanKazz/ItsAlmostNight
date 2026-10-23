@@ -282,27 +282,6 @@ float inkDifference(
             (1.0 - neighborSuppressesInk)*directionWeight;
     }
 
-    // Intersecting foliage shells are one visual object. Their shared
-    // vegetation pixels must not produce concentric internal contours.
-    // Exterior edges against sky, terrain and props were handled above.
-    if (centerMaterialClass > 2.5 && centerMaterialClass < 3.5 &&
-        neighborMaterialClass > 2.5 && neighborMaterialClass < 3.5)
-    {
-        return 0.0;
-    }
-
-    // There is no object ID in this screen-space pass. At distance, depth
-    // precision and small projected facets make overlaps between any two
-    // objects look like broad black seams on some OpenGL drivers. Fade only
-    // object-to-object ink; the exterior silhouette remains unchanged.
-    float overlapInk = max(
-        1.0 - smoothstep(18.0, 42.0, length(centerPosition)),
-        step(3.5, centerMaterialClass));
-    if (overlapInk <= 0.001)
-    {
-        return 0.0;
-    }
-
     // Preserve separation between overlapping props of the same class. A
     // screen-space derivative of depth is unstable exactly on silhouettes:
     // neighboring 2x2 fragment groups can produce very different fwidth
@@ -312,13 +291,15 @@ float inkDifference(
     float frontSurfaceGap = max(
         centerPosition.z - neighborPosition.z, 0.0);
     float viewDistance = length(centerPosition);
-    // Adjacent shells and inset faces inside low-poly props can be several
-    // centimetres apart even though they belong to one visual object. Treat
-    // only a clearly separated rear surface as an overlap silhouette; the
-    // old two-centimetre threshold produced short black scratches on rocks
-    // and tree crowns.
+    // At distance, stacked meshes of the same material class still belong to
+    // one visual object. Raise only their overlap threshold as projected
+    // depth precision falls. Keep cross-class edges and background silhouettes
+    // at their original thresholds so outlines do not become patchy.
+    float sameClass = 1.0 - step(
+        0.5, abs(centerMaterialClass - neighborMaterialClass));
     float separateSurfaceDistance =
-        0.080 + viewDistance*0.0015;
+        0.080 + viewDistance*0.0015 +
+        sameClass*2.5*smoothstep(20.0, 100.0, viewDistance);
     // Depth already assigns an overlapping-object edge to the front surface.
     // Drawing a plain class boundary on both surfaces doubles the visible
     // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
@@ -337,7 +318,7 @@ float inkDifference(
     // smoothstep(separateSurfaceDistance, ..., frontSurfaceGap) is zero.
     if (frontSurfaceGap <= separateSurfaceDistance)
     {
-        return objectClassBoundary*directionWeight*overlapInk;
+        return objectClassBoundary*directionWeight;
     }
     // Hardware depth is affine across a projected planar face. Compare the
     // candidate jump with the one-sided slopes INSIDE each surface. Unlike
@@ -364,8 +345,7 @@ float inkDifference(
         frontSurfaceGap)*depthDiscontinuity;
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
-    return max(objectClassBoundary, objectDepthBoundary)*
-        directionWeight*overlapInk;
+    return max(objectClassBoundary, objectDepthBoundary)*directionWeight;
 }
 
 float bayer4(vec2 pixel)
