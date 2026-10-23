@@ -28,6 +28,17 @@ int main(int argc, char** argv) {
         std::fputs("Failed to locate the game directory.\n", stderr);
         return 1;
     }
+#if defined(__APPLE__)
+    // The release places assets beside the .app, keeping save data outside
+    // the signed bundle. The development executable still uses its own dir.
+    if (!DirectoryExists("assets/data")) {
+        static_cast<void>(ChangeDirectory("../../.."));
+    }
+#endif
+    if (!DirectoryExists("assets/data")) {
+        std::fputs("Game assets are missing.\n", stderr);
+        return 1;
+    }
     ian::App app;
     return app.run();
 }

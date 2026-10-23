@@ -1,0 +1,38 @@
+{
+  "buildings": [
+    {
+      "baseHeight": 0.0,
+      "foundationBottomHeight": 0.0,
+      "level": 1,
+      "open": false,
+      "platformStorey": -1,
+      "rotation": 3,
+      "type": 13,
+      "x": 10,
+      "z": 2
+    },
+    {
+      "baseHeight": 0.007126263756718792,
+      "foundationBottomHeight": -0.00029090700748687,
+      "level": 1,
+      "open": false,
+      "platformStorey": -1,
+      "rotation": 0,
+      "type": 0,
+      "x": -67,
+      "z": 33
+    }
+  ],
+  "position": [
+    -65.80796813964844,
+    1.357985019683838,
+    28.107694625854492
+  ],
+  "target": [
+    -66.50667572021484,
+    1.353502869606018,
+    28.823089599609375
+  ],
+  "terrainSeed": 1490411267,
+  "version": 2
+}

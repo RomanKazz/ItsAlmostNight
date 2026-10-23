@@ -191,16 +191,19 @@ void drawOutlinedTitle(
 } // namespace
 
 bool App::loadMenuBackgroundView() {
-    try {
-        std::ifstream input(MenuBackgroundViewPath);
-        if (!input) return false;
+    for (const char* path : {
+             MenuBackgroundViewPath,
+             "assets/data/default_menu_background_view.json"}) {
+        try {
+        std::ifstream input(path);
+        if (!input) continue;
         const nlohmann::json document =
             nlohmann::json::parse(input);
         const auto& position = document.at("position");
         const auto& target = document.at("target");
         if (!position.is_array() || position.size() != 3 ||
             !target.is_array() || target.size() != 3) {
-            return false;
+            continue;
         }
         const std::uint32_t seed =
             document.at("terrainSeed").get<std::uint32_t>();
@@ -231,21 +234,22 @@ bool App::loadMenuBackgroundView() {
             !valid(camera.target) ||
             Vector3LengthSqr(Vector3Subtract(
                 camera.target, camera.position)) < 0.01F) {
-            return false;
+            continue;
         }
         std::optional<MenuBackgroundScene> scene;
         if (document.contains("buildings")) {
             scene.emplace();
             if (!scene->loadJson(document.at("buildings"),
-                    simulation_.snapshot().worldLimit)) return false;
+                    simulation_.snapshot().worldLimit)) continue;
         }
         menuBackgroundScene_ = std::move(scene);
         menuBackgroundCamera_ = camera;
         menuBackgroundTerrainSeed_ = seed;
         return true;
-    } catch (...) {
-        return false;
+        } catch (...) {
+        }
     }
+    return false;
 }
 
 bool App::saveMenuBackgroundView() {
