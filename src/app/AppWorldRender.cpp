@@ -284,6 +284,9 @@ void App::drawWorldEntities(
         boundaryForestMaterial.vegetationAmount = 1.0F;
         boundaryForestMaterial.treeAmount = 1.0F;
         boundaryForestMaterial.coniferAmount = 1.0F;
+        // The mountain forest is a dense, distant backdrop. Its overlapping
+        // crowns produce noisy concentric ink edges at small screen sizes.
+        boundaryForestMaterial.inkOutlineEligible = false;
         renderer_->setWorldMaterial(boundaryForestMaterial);
         renderer_->drawBoundaryForest(camera);
     }

@@ -366,9 +366,43 @@ bool loadUserSettings(
             return false;
         }
         UserSettings loaded = settings;
+        int savedVersion = 0;
+        readValue(document, "version", savedVersion);
         if (const auto value = document.find("graphics");
             value != document.end() && value->is_object()) {
             readGraphics(*value, loaded.graphics);
+            // Earlier releases saved their old factory palette. Detect that
+            // complete profile before replacing it; edited colors or style
+            // choices must survive an upgrade.
+            const auto near = [](float actual, float expected) {
+                return std::abs(actual - expected) < 0.0005F;
+            };
+            const GraphicsSettings& graphics = loaded.graphics;
+            if (savedVersion == 6 &&
+                near(graphics.postExposure, 0.0F) &&
+                near(graphics.brightness, 0.0F) &&
+                near(graphics.colorSaturation, 1.0F) &&
+                near(graphics.contrast, 1.0F) &&
+                near(graphics.hueDegrees, 0.0F) &&
+                near(graphics.temperature, 0.0F) &&
+                near(graphics.tint, 0.0F) &&
+                near(graphics.gamma, 1.0F) &&
+                near(graphics.blackPoint, 0.0F) &&
+                near(graphics.curveShadows, 0.0F) &&
+                near(graphics.curveMidtones, 0.0F) &&
+                near(graphics.curveHighlights, 0.0F) &&
+                near(graphics.sharpness, 0.0F) &&
+                near(graphics.vignette, 0.0F) &&
+                near(graphics.aoStrength, 0.30F) &&
+                near(graphics.lightingSteps, 5.0F) &&
+                near(graphics.outlineStrength, 0.68F) &&
+                near(graphics.outlineWidth, 1.5F) &&
+                !graphics.bloom && graphics.posterizedLighting) {
+                resetColorSettings(loaded.graphics);
+                resetStyleSettings(loaded.graphics);
+                loaded.graphics.aoStrength =
+                    GraphicsSettings{}.aoStrength;
+            }
         }
         if (const auto value = document.find("audio");
             value != document.end() && value->is_object()) {
@@ -407,7 +441,7 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 6},
+            {"version", 7},
             {"language", std::string(languageCode(settings.language))},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",

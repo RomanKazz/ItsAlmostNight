@@ -28,8 +28,9 @@ void settingsRoundTrip() {
     written.graphics.inkOutlines = true;
     written.graphics.outlineWidth = 3.0F;
     written.graphics.pixelSize = 6;
-    written.graphics.frameRateLimit = 144;
+    written.graphics.frameRateLimit = 90;
     written.graphics.performanceLogging = true;
+    written.graphics.enemyLod = true;
     written.graphics.quality = ian::GraphicsQuality::Medium;
     written.audio.masterVolume = 0.31F;
     written.audio.muted = true;
@@ -60,10 +61,12 @@ void settingsRoundTrip() {
                 "style slider survives settings round trip");
     require(loaded.graphics.pixelSize == 6,
             "display setting survives settings round trip");
-    require(loaded.graphics.frameRateLimit == 144,
+    require(loaded.graphics.frameRateLimit == 90,
             "frame rate limit survives settings round trip");
     require(loaded.graphics.performanceLogging,
             "performance logging toggle survives settings round trip");
+    require(loaded.graphics.enemyLod,
+            "enemy LOD toggle survives settings round trip");
     require(loaded.graphics.quality == ian::GraphicsQuality::Medium,
             "graphics quality survives settings round trip");
     requireNear(loaded.audio.masterVolume, 0.31, 1e-6,
@@ -89,6 +92,53 @@ void settingsRoundTrip() {
     std::filesystem::remove(path, error);
 }
 
+void legacyColorCalibrationMigratesOnlyUntouchedGrades() {
+    const auto path = settingsTestPath();
+    std::error_code error;
+    const auto loadGrade = [&](int version, float brightness,
+                               float outlineStrength) {
+        {
+            std::ofstream stream(path);
+            stream << "{\"version\":" << version
+                   << ",\"graphics\":{\"fullscreen\":true,"
+                      "\"frameRateLimit\":120,"
+                      "\"colorSaturation\":1,\"contrast\":1,"
+                      "\"hueDegrees\":0,\"temperature\":0,"
+                      "\"tint\":0,\"blackPoint\":0,"
+                      "\"curveShadows\":0,\"curveMidtones\":0,"
+                      "\"curveHighlights\":0,\"vignette\":0,"
+                      "\"aoStrength\":0.3,\"lightingSteps\":5,"
+                      "\"outlineStrength\":" << outlineStrength
+                   << ",\"outlineWidth\":1.5,\"bloom\":false,"
+                      "\"posterizedLighting\":true,\"brightness\":"
+                   << brightness << "}}";
+        }
+        ian::UserSettings loaded;
+        require(ian::loadUserSettings(path.string(), loaded),
+                "legacy color settings load");
+        return loaded.graphics;
+    };
+    const ian::GraphicsSettings defaults;
+    const auto migrated = loadGrade(6, 0.0F, 0.68F);
+    requireNear(migrated.colorSaturation, defaults.colorSaturation, 1e-5,
+                "old factory color grade migrates");
+    requireNear(migrated.outlineStrength, defaults.outlineStrength, 1e-5,
+                "old factory outline migrates");
+    requireNear(migrated.aoStrength, defaults.aoStrength, 1e-5,
+                "old factory AO migrates");
+    require(migrated.bloom && !migrated.posterizedLighting,
+            "old factory style migrates");
+    require(migrated.fullscreen && migrated.frameRateLimit == 120,
+            "migration preserves display preferences");
+    requireNear(loadGrade(6, 0.1F, 0.68F).brightness,
+                0.1, 1e-5, "edited colors survive migration");
+    requireNear(loadGrade(6, 0.0F, 0.9F).outlineStrength,
+                0.9, 1e-5, "edited style survives migration");
+    require(!loadGrade(7, 0.0F, 0.68F).bloom,
+            "new-version settings are not migrated");
+    std::filesystem::remove(path, error);
+}
+
 void metaProgressionRoundTripAndUnlocks() {
     const auto path = std::filesystem::temp_directory_path() /
         "ian_meta_progression_test.json";
@@ -96,6 +146,7 @@ void metaProgressionRoundTripAndUnlocks() {
     std::filesystem::remove(path, error);
 
     ian::MetaProgression written{
+        .silver = 137,
         .runsPlayed = 7,
         .stageClears = 1,
         .bestWave = 8,
@@ -109,6 +160,16 @@ void metaProgressionRoundTripAndUnlocks() {
     require(ian::loadMetaProgression(path.string(), loaded) &&
                 loaded == written,
             "meta progression survives a JSON round trip");
+    {
+        std::ofstream legacy{path};
+        legacy << R"({"version":1,"runsPlayed":4,"bestWave":6})";
+    }
+    ian::MetaProgression migrated;
+    require(ian::loadMetaProgression(path.string(), migrated) &&
+                migrated.silver == 0 &&
+                migrated.runsPlayed == 4 &&
+                migrated.bestWave == 6,
+            "existing profiles load with zero silver");
     require(
         ian::isPlayerClassUnlocked(
             ian::PlayerClass::Berserker, loaded) &&
@@ -151,6 +212,8 @@ void loadedValuesAreValidated() {
     ian::UserSettings loaded;
     require(ian::loadUserSettings(path.string(), loaded),
             "valid settings document loads");
+    require(!loaded.graphics.enemyLod,
+            "existing settings without an enemy LOD option keep it disabled");
     require(loaded.graphics.pixelSize == 4,
             "unsupported pixel size selects nearest valid size");
     require(loaded.graphics.frameRateLimit == 120,
@@ -173,8 +236,8 @@ void loadedValuesAreValidated() {
             "missing key bindings keep defaults");
     require(
         ian::controlKey(
-            loaded.controls, ian::ControlAction::Dash) == KEY_NULL,
-        "Dash defaults to the right mouse button sentinel");
+            loaded.controls, ian::ControlAction::UnusedLegacy) == KEY_NULL,
+        "the removed movement action keeps an unbound legacy slot");
     std::error_code error;
     std::filesystem::remove(path, error);
 }
@@ -189,6 +252,8 @@ void graphicsPresetsAreCompleteAndDetectable() {
     settings.performanceLogging = true;
 
     ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Low);
+    require(!settings.enemyLod,
+            "graphics presets keep enemy LOD disabled by default");
     require(ian::detectGraphicsPreset(settings) ==
                 ian::GraphicsQuality::Low,
             "low graphics preset is detectable");
@@ -209,7 +274,10 @@ void graphicsPresetsAreCompleteAndDetectable() {
     ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Medium);
     require(settings.ssao && settings.pixelSize == 1,
             "medium preset enables SSAO without pixelization");
+    settings.enemyLod = true;
     ian::applyGraphicsPreset(settings, ian::GraphicsQuality::High);
+    require(settings.enemyLod,
+            "graphics presets preserve an explicit enemy LOD choice");
     require(settings.ssao && settings.pixelSize == 1,
             "high preset enables SSAO without pixelization");
 }
@@ -220,6 +288,7 @@ void tabResetsPreserveOtherTabs() {
     settings.pixelSize = 8;
     settings.frameRateLimit = 144;
     settings.performanceLogging = true;
+    settings.enemyLod = true;
     settings.brightness = 0.4F;
     settings.inkOutlines = true;
 
@@ -228,7 +297,7 @@ void tabResetsPreserveOtherTabs() {
                 settings.frameRateLimit == 60 &&
                 settings.renderWidth == 1920 &&
                 settings.renderHeight == 1080 &&
-                !settings.performanceLogging,
+                !settings.performanceLogging && !settings.enemyLod,
             "display reset restores display defaults");
     requireNear(settings.brightness, 0.4, 1e-6,
                 "display reset preserves color tab");
@@ -242,9 +311,10 @@ void tabResetsPreserveOtherTabs() {
             "color reset preserves style tab");
 
     ian::resetStyleSettings(settings);
+    const ian::GraphicsSettings defaults;
     require(settings.inkOutlines &&
-                settings.outlineStrength == 0.68F &&
-                settings.outlineWidth == 1.5F,
+                settings.outlineStrength == defaults.outlineStrength &&
+                settings.outlineWidth == defaults.outlineWidth,
             "style reset restores style defaults");
 }
 
@@ -286,6 +356,7 @@ void localizationCatalogTranslatesFixedAndDynamicText() {
 
 void runUserSettingsTests() {
     settingsRoundTrip();
+    legacyColorCalibrationMigratesOnlyUntouchedGrades();
     metaProgressionRoundTripAndUnlocks();
     loadedValuesAreValidated();
     tabResetsPreserveOtherTabs();
