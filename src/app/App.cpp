@@ -12,6 +12,7 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <exception>
 #include <string>
@@ -234,11 +235,14 @@ int App::run() {
     } else if (const auto seed = suspendedRunTerrainSeed()) {
         simulation_.regenerateTerrain(*seed);
     }
-    // Render the final framebuffer (especially SDF UI text) at the native
-    // backing resolution on Retina/HiDPI displays. World resolution remains
-    // independently controlled by GraphicsSettings::renderWidth/Height.
-    unsigned int windowFlags =
-        FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI;
+    // Native HiDPI output multiplies the final framebuffer area on Retina
+    // displays even though the world target keeps its configured resolution.
+    // Keep standard-density presentation by default so final compositing
+    // does not consume several extra milliseconds every frame.
+    unsigned int windowFlags = FLAG_WINDOW_RESIZABLE;
+    if (std::getenv("IAN_HIDPI") != nullptr) {
+        windowFlags |= FLAG_WINDOW_HIGHDPI;
+    }
     // On macOS the multisampled default framebuffer also avoids a driver
     // presentation path that can throttle a single-sample fullscreen
     // drawable to the ProMotion refresh cadence even with swap interval 0.
