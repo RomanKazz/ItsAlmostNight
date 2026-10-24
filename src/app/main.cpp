@@ -3,6 +3,7 @@
 #include <raylib.h>
 
 #include <cstdio>
+#include <memory>
 
 #ifdef IAN_PRESENTATION_SMOKE_TEST
 #include <string_view>
@@ -39,6 +40,6 @@ int main(int argc, char** argv) {
         std::fputs("Game assets are missing.\n", stderr);
         return 1;
     }
-    ian::App app;
-    return app.run();
+    auto app = std::make_unique<ian::App>();
+    return app->run();
 }
