@@ -836,8 +836,11 @@ std::size_t currentSdfTextBatchHash() {
 }
 
 bool ensureHudTextBatchTarget() {
-    const int width = std::max(uiScreenWidth(), 1);
-    const int height = std::max(uiScreenHeight(), 1);
+    // Keep the cached HUD at framebuffer resolution. A UI-sized texture
+    // becomes visibly softer than directly rendered glyphs when composited
+    // onto HiDPI or scaled windows.
+    const int width = std::max(GetRenderWidth(), 1);
+    const int height = std::max(GetRenderHeight(), 1);
     if (IsRenderTextureValid(hudTextBatchTarget) &&
         hudTextBatchTarget.texture.width == width &&
         hudTextBatchTarget.texture.height == height) {
@@ -985,13 +988,18 @@ bool drawCachedHudTextBatch(
         suspendUiCanvas();
         BeginTextureMode(hudTextBatchTarget);
         ClearBackground(BLANK);
+        const float framebufferScale =
+            static_cast<float>(hudTextBatchTarget.texture.width) /
+            static_cast<float>(std::max(uiScreenWidth(), 1));
+        BeginMode2D(Camera2D{{}, {}, 0.0F, framebufferScale});
         rlSetBlendFactorsSeparate(
             RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
             RL_ONE, RL_ONE_MINUS_SRC_ALPHA,
             RL_FUNC_ADD, RL_FUNC_ADD);
         BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-        drawSdfTextItemsDirect(items, 1.0F);
+        drawSdfTextItemsDirect(items, framebufferScale);
         EndBlendMode();
+        EndMode2D();
         EndTextureMode();
         restoreUiRenderLayer();
         resumeUiCanvas();
@@ -1002,13 +1010,20 @@ bool drawCachedHudTextBatch(
     hudTextBatchCandidateHash = hash;
     hudTextBatchCandidateFrames = 2U;
     BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+    const float sourceScaleX =
+        static_cast<float>(hudTextBatchTarget.texture.width) /
+        static_cast<float>(std::max(uiScreenWidth(), 1));
+    const float sourceScaleY =
+        static_cast<float>(hudTextBatchTarget.texture.height) /
+        static_cast<float>(std::max(uiScreenHeight(), 1));
     for (const Rectangle& region : hudTextBatchRegions) {
         DrawTexturePro(
             hudTextBatchTarget.texture,
-            {region.x,
+            {region.x * sourceScaleX,
              static_cast<float>(hudTextBatchTarget.texture.height) -
-                 region.y - region.height,
-             region.width, -region.height},
+                 (region.y + region.height) * sourceScaleY,
+             region.width * sourceScaleX,
+             -region.height * sourceScaleY},
             region, {}, 0.0F, WHITE);
     }
     EndBlendMode();
@@ -1046,7 +1061,9 @@ void drawSdfTextBatch() {
     // On-demand cache rendering temporarily changes the framebuffer. Keep
     // nested render-texture users on the direct path so their target remains
     // untouched.
-    const bool mayBuildCache = rlGetActiveFramebuffer() == 0U;
+    const bool mayBuildCache = rlGetActiveFramebuffer() == 0U &&
+        GetRenderWidth() == uiScreenWidth() &&
+        GetRenderHeight() == uiScreenHeight();
     for (const QueuedSdfText& queued : sdfTextBatch) {
         // Rotated text uses a screen-space pivot, so caching it into a small
         // local texture would change the pivot and produce incorrect output.

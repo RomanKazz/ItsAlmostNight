@@ -42,8 +42,8 @@ def main() -> None:
                 "CFBundleInfoDictionaryVersion": "6.0",
                 "CFBundleName": "ItsAlmostNight",
                 "CFBundlePackageType": "APPL",
-                "CFBundleShortVersionString": "0.1.5",
-                "CFBundleVersion": "5",
+                "CFBundleShortVersionString": "0.1.6",
+                "CFBundleVersion": "6",
                 "NSHighResolutionCapable": True,
             }, stream)
         subprocess.run(
