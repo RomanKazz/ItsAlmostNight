@@ -644,13 +644,20 @@ std::optional<double> Renderer::worldLandmarkRaycastDistance(
         0.001F, bounds.max.y - bounds.min.y);
     constexpr float TargetHeight = 6.76F;
     const float modelScale = TargetHeight / authoredHeight;
-    position.y -= bounds.min.y * modelScale;
+    const Vector3 up = variant >= 2
+        ? terrainSurfaceNormal(position.x, position.z)
+        : Vector3{0.0F, 1.0F, 0.0F};
+    const Matrix rotation = variant >= 2
+        ? terrainAlignedRotation(position.x, position.z, yawRadians)
+        : MatrixRotateY(yawRadians);
+    position = Vector3Subtract(position,
+        Vector3Scale(up, bounds.min.y * modelScale));
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
             MatrixMultiply(
                 MatrixScale(modelScale, modelScale, modelScale),
-                MatrixRotateY(yawRadians)),
+                rotation),
             MatrixTranslate(position.x, position.y, position.z)));
     return modelColliderRaycastDistance(
         resource, transform, ray, maxDistance);

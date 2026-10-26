@@ -957,10 +957,23 @@ bool Renderer::drawWorldLandmark(
         0.001F, bounds.max.y - bounds.min.y);
     constexpr float TargetHeight = 6.76F;
     const float modelScale = TargetHeight / authoredHeight;
-    position.y -= bounds.min.y * modelScale * scale;
+    const Vector3 up = variant >= 2
+        ? terrainSurfaceNormal(position.x, position.z)
+        : Vector3{0.0F, 1.0F, 0.0F};
+    Vector3 axis{0.0F, 1.0F, 0.0F};
+    float angle = yawRadians;
+    if (variant >= 2) {
+        QuaternionToAxisAngle(QuaternionFromMatrix(
+            terrainAlignedRotation(position.x, position.z, yawRadians)), &axis, &angle);
+        if (Vector3LengthSqr(axis) <= 0.0001F) {
+            axis = {0.0F, 1.0F, 0.0F};
+            angle = 0.0F;
+        }
+    }
+    position = Vector3Subtract(position,
+        Vector3Scale(up, bounds.min.y * modelScale * scale));
     DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F},
-        yawRadians * RAD2DEG,
+        model, position, axis, angle * RAD2DEG,
         {modelScale * scale, modelScale * scale,
          modelScale * scale},
         tint);
@@ -981,13 +994,20 @@ BoundingBox Renderer::worldLandmarkWorldBounds(
         0.001F, localBounds.max.y - localBounds.min.y);
     constexpr float TargetHeight = 6.76F;
     const float modelScale = TargetHeight / authoredHeight * scale;
-    position.y -= localBounds.min.y * modelScale;
+    const Vector3 up = variant >= 2
+        ? terrainSurfaceNormal(position.x, position.z)
+        : Vector3{0.0F, 1.0F, 0.0F};
+    const Matrix rotation = variant >= 2
+        ? terrainAlignedRotation(position.x, position.z, yawRadians)
+        : MatrixRotateY(yawRadians);
+    position = Vector3Subtract(position,
+        Vector3Scale(up, localBounds.min.y * modelScale));
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
             MatrixMultiply(
                 MatrixScale(modelScale, modelScale, modelScale),
-                MatrixRotateY(yawRadians)),
+                rotation),
             MatrixTranslate(position.x, position.y, position.z)));
     return world_transforms::transformBounds(localBounds, transform);
 }
