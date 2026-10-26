@@ -140,7 +140,16 @@ float toonRamp(float value, float steps)
 
 float hash21(vec2 position)
 {
-    return fract(sin(dot(position, vec2(127.1, 311.7)))*43758.5453);
+    // Integer mixing is identical across GPU vendors. A sine hash amplifies
+    // allowed transcendental approximation errors into different bare patches.
+    uvec2 cell = uvec2(ivec2(floor(position)));
+    uint value = cell.x*0x8da6b343u ^ cell.y*0xd8163841u ^ 0xcb1ab31fu;
+    value ^= value >> 16u;
+    value *= 0x7feb352du;
+    value ^= value >> 15u;
+    value *= 0x846ca68bu;
+    value ^= value >> 16u;
+    return float(value & 0x00ffffffu)*(1.0/16777216.0);
 }
 
 float valueNoise(vec2 position)
