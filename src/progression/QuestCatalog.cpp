@@ -185,6 +185,7 @@ std::vector<QuestDefinition> loadQuestDefinitions(const std::filesystem::path& p
                 .playerClass = condition.value("playerClass", std::string()),
             });
         }
+        definition.notification = entry.value("notification", std::string());
         definition.prerequisites = entry.value("prerequisites", std::vector<std::string>());
         if (entry.contains("reward")) {
             const auto& reward = entry.at("reward");

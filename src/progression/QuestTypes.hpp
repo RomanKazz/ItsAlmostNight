@@ -44,6 +44,7 @@ struct QuestDefinition {
     std::vector<QuestCondition> conditions;
     std::vector<std::string> prerequisites;
     QuestReward reward;
+    std::string notification{}; // Short completion result; full objective remains in the quest menu.
     bool operator==(const QuestDefinition&) const = default;
 };
 
