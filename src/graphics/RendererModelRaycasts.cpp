@@ -652,6 +652,19 @@ std::optional<double> Renderer::worldLandmarkRaycastDistance(
         : MatrixRotateY(yawRadians);
     position = Vector3Subtract(position,
         Vector3Scale(up, bounds.min.y * modelScale));
+    if (variant >= 2) {
+        // Keep the collider in the shrine's frame. Rotating its world AABB
+        // enlarges the pick target on slopes and allows aiming beside it.
+        const Matrix inverseRotation = MatrixTranspose(rotation);
+        const Ray localRay{
+            Vector3Transform(Vector3Subtract(ray.position, position), inverseRotation),
+            Vector3Transform(ray.direction, inverseRotation),
+        };
+        return modelColliderRaycastDistance(resource,
+            MatrixMultiply(resource.get().transform,
+                MatrixScale(modelScale, modelScale, modelScale)),
+            localRay, maxDistance);
+    }
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
