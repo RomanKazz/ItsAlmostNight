@@ -865,6 +865,9 @@ void App::drawWorldEntities(
         const float fade =
             1.0F - smoothstep(0.2F, 1.0F, progress);
         WorldMaterialState material{};
+        // Fading geometry must not create world ink as it shrinks/disappears.
+        material.inkOutlineEligible = false;
+        material.inkOccluder = true;
         material.bakedAo = 0.78F;
         material.baseColor = {1.0F, 1.0F, 1.0F, fade};
         material.windAmount =

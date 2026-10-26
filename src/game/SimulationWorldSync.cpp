@@ -272,7 +272,8 @@ void Simulation::removeUnsupportedPlatformBuildings() {
                 : building.gridPosition.z;
         const auto surface =
             foundations_.buildingSurface(
-                minimumX, minimumZ, widthCells);
+                minimumX, minimumZ, widthCells,
+                building.baseHeight);
         if (!surface ||
             surface->storey !=
                 building.platformStorey ||

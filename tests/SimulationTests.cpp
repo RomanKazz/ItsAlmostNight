@@ -2576,6 +2576,25 @@ void runSimulationTests() {
                            building.platformStorey == 1;
                 }),
             "ordinary building is placed on upper platform");
+        const auto emptyRoof = elevatedBuilding.placeFloorPlatform(
+            ground->anchor, 2, upper->floorHeight + ian::modularStoreyHeight(world));
+        require(emptyRoof.has_value(), "collapse regression adds an empty roof above both defenses");
+        ian::PlayerCommand removeRoof;
+        removeRoof.removeModularBuilding = ian::RemoveModularBuildingCommand{emptyRoof->id};
+        elevatedBuilding.tick(1.0 / 60.0, removeRoof);
+        const auto hasDefense = [&](ian::BuildingType type, int storey) {
+            return std::ranges::any_of(elevatedBuilding.snapshot().buildings,
+                [=](const ian::BuildingInstance& b) {
+                    return b.type == type && b.platformStorey == storey;
+                });
+        };
+        require(hasDefense(ian::BuildingType::Cannon, 0) && hasDefense(ian::BuildingType::Turret, 1),
+            "removing an empty roof preserves defenses on every lower storey");
+        ian::PlayerCommand removeUpper;
+        removeUpper.removeModularBuilding = ian::RemoveModularBuildingCommand{upper->id};
+        elevatedBuilding.tick(1.0 / 60.0, removeUpper);
+        require(hasDefense(ian::BuildingType::Cannon, 0) && !hasDefense(ian::BuildingType::Turret, 1),
+            "removing the actual supporting floor collapses only its own defense");
     }
 
     {
