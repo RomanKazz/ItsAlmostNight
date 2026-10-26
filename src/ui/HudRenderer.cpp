@@ -9,7 +9,6 @@
 #include "ui/HudBuildingContextCard.hpp"
 #include "ui/HudFormatting.hpp"
 #include "ui/HudHotbar.hpp"
-#include "ui/RunWeaponInventory.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
 #include "ui/RunHammerUi.hpp"
@@ -670,8 +669,6 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     if (!snapshot.sandboxMode && !snapshot.unlimitedResources)
         drawRunDefenseInventory(ui, snapshot, {20.0F, 142.0F,
             std::min(600.0F, uiScreenWidth() * 0.4F), 52.8F});
-    drawRunWeaponInventory(ui, snapshot, {20.0F, 202.0F,
-        std::min(600.0F, uiScreenWidth() * 0.4F), 52.8F});
     hudPerformanceStats.resourcesMs =
         performanceMilliseconds(sectionStart);
     sectionStart = PerformanceClock::now();

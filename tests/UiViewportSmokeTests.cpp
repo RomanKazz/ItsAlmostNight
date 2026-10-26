@@ -305,6 +305,10 @@ int main(int argc, char** argv) {
             return GetImageColor(capture, static_cast<int>(x * static_cast<float>(capture.width) / resolution.x),
                 static_cast<int>(y * static_cast<float>(capture.height) / resolution.y));
         };
+        const Color formerWeaponRow=sample(25.0F*viewport.scale,210.0F*viewport.scale);
+        require(std::abs(int(formerWeaponRow.r)-40)<=2 &&
+            std::abs(int(formerWeaponRow.g)-60)<=2 && std::abs(int(formerWeaponRow.b)-50)<=2,
+            "game HUD does not draw the removed upper-left equipment row at any resolution");
         const Rectangle physicalButton = viewport.toScreen(button);
         const Color center = sample(physicalButton.x + physicalButton.width * 0.5F,
             physicalButton.y + physicalButton.height * 0.5F);

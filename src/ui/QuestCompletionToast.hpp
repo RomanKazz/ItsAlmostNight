@@ -33,11 +33,11 @@ inline void drawQuestCompletionToast(const GameUi& ui,const QuestCompletionNotic
     const float exit=std::clamp(static_cast<float>(remaining)/.35F,0.0F,1.0F);
     const float opacity=std::min(entrance,exit);
     if(opacity<=0) return;
-    // Match the fixed UI canvas used by the three inventory rows at the left.
-    // The last row ends at y=254.8; keep the notice directly underneath it.
+    // Match the fixed UI canvas used by the two inventory rows at the left.
+    // The defense row ends at y=194.8; keep the notice directly underneath it.
     const float width=std::min(390.0F,screen.x-40);
     const Rectangle bounds{20,
-        272+(1-entrance)*(1-entrance)*18+(1-exit)*12,
+        212+(1-entrance)*(1-entrance)*18+(1-exit)*12,
         width,72};
     drawSolidRoundedRect(bounds,.3F,Fade({22,33,28,235},opacity));
     const auto icon=questCompletionIcon(ui,notice.reward);
