@@ -11,6 +11,7 @@ namespace ian {
 struct MetaProgression {
     int silver{};
     int runsPlayed{};
+    int placementControlHintsUsed{};
     int stageClears{};
     int bestWave{};
     int enemiesDefeated{};

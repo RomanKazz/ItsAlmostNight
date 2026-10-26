@@ -11,6 +11,26 @@
 
 int main() {
     using namespace ian;
+    {
+        const auto hintsPath=std::filesystem::temp_directory_path()/"ian-placement-hint-progress.json";
+        MetaProgression firstRun; firstRun.runsPlayed=1; firstRun.placementControlHintsUsed=1;
+        require(saveMetaProgression(hintsPath.string(),firstRun),"first placement hint progress saves");
+        MetaProgression resumed;
+        require(loadMetaProgression(hintsPath.string(),resumed) && resumed==firstRun,
+            "resuming the first run preserves one remaining placement hint");
+        resumed.runsPlayed=2;resumed.placementControlHintsUsed=2;
+        require(saveMetaProgression(hintsPath.string(),resumed),"completed placement introduction saves");
+        MetaProgression veteran;
+        require(loadMetaProgression(hintsPath.string(),veteran) && veteran.placementControlHintsUsed==2,
+            "placement hints stay consumed across later runs and app launches");
+        { std::ofstream file(hintsPath);file<<R"({"version":1,"runsPlayed":4})"; }
+        require(loadMetaProgression(hintsPath.string(),veteran) && veteran.placementControlHintsUsed==2,
+            "existing players do not receive placement hints again after migration");
+        { std::ofstream file(hintsPath);file<<R"({"version":1,"runsPlayed":0})"; }
+        require(loadMetaProgression(hintsPath.string(),veteran) && veteran.placementControlHintsUsed==0,
+            "unused profiles retain both placement hints");
+        std::filesystem::remove(hintsPath);
+    }
     MetaProgression profile;
     profile.silver=100;
     require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::Count)==MetaShopPurchaseResult::InvalidUpgrade,"unknown upgrade cannot spend silver");

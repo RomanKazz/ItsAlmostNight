@@ -122,6 +122,11 @@ static bool readMetaProgressionFile(
         MetaProgression loaded;
         loaded.silver = nonNegative(root, "silver");
         loaded.runsPlayed = nonNegative(root, "runsPlayed");
+        // Existing players already know the placement controls. Fresh profiles
+        // keep their first two successful placements across runs and reloads.
+        loaded.placementControlHintsUsed = root.contains("placementControlHintsUsed")
+            ? std::clamp(nonNegative(root, "placementControlHintsUsed"), 0, 2)
+            : (loaded.runsPlayed > 0 ? 2 : 0);
         loaded.stageClears = nonNegative(root, "stageClears");
         loaded.bestWave = nonNegative(root, "bestWave");
         loaded.enemiesDefeated = nonNegative(root, "enemiesDefeated");
@@ -207,6 +212,7 @@ bool saveMetaProgression(
             {"shop", {{"version", 1}, {"levels", levels}, {"silverRemainder", progression.silverRewardRemainder}}},
             {"silver", std::max(0, progression.silver)},
             {"runsPlayed", std::max(0, progression.runsPlayed)},
+            {"placementControlHintsUsed", std::clamp(progression.placementControlHintsUsed, 0, 2)},
             {"stageClears", std::max(0, progression.stageClears)},
             {"bestWave", std::max(0, progression.bestWave)},
             {"enemiesDefeated", std::max(0, progression.enemiesDefeated)},
