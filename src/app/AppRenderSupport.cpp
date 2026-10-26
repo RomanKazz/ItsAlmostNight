@@ -681,7 +681,7 @@ std::optional<ResourceAimHit> preciseResourceAim(
             node.type, position, ray, isDestructibleProp(node.type)
                 ? MaximumDistance*DestructiblePropInteractionRangeMultiplier : MaximumDistance,
             node.visualVariant,
-            static_cast<float>(node.visualScale),
+            static_cast<float>(node.visualScale) * resourceRegrowthScale(node),
             static_cast<float>(node.visualYaw));
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;

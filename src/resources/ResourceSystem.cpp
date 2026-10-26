@@ -174,6 +174,14 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
     return nodes;
 }
 
+bool ResourceSystem::scheduleRegrowth(EntityId id, double delaySeconds) {
+    const auto it = std::ranges::find(nodes_, id, &ResourceNode::id);
+    if (it == nodes_.end() || it->active || it->type != ResourceType::Wood || !std::isfinite(delaySeconds) || delaySeconds <= 0) return false;
+    it->respawnRemaining = delaySeconds;
+    it->regrowInPlace = true;
+    return true;
+}
+
 void ResourceSystem::reset() {
     ++runGeneration_;
     if (runGeneration_ == 0U) {
@@ -226,6 +234,9 @@ bool ResourceSystem::restoreNodes(
             !std::isfinite(node.respawnRemaining) ||
             node.respawnRemaining < 0.0 ||
             node.respawnRemaining > 1'000'000.0 ||
+            !std::isfinite(node.regrowthRemaining) ||
+            node.regrowthRemaining < 0.0 ||
+            node.regrowthRemaining > ResourceRegrowthDuration ||
             !std::isfinite(node.visualYaw) ||
             !std::isfinite(node.visualScale) ||
             node.visualScale <= 0.0 || node.visualScale > 10.0 ||
@@ -335,17 +346,24 @@ void ResourceSystem::tick(
             collisionGeometryDirty_ = true;
         }
         if (node.active) {
+            if (node.regrowthRemaining > 0.0)
+                node.regrowthRemaining = std::max(0.0,
+                    node.regrowthRemaining - std::max(0.0, deltaSeconds));
             continue;
         }
 
         node.respawnRemaining = std::max(0.0, node.respawnRemaining - deltaSeconds);
         if (node.respawnRemaining <= 0.0) {
-            const auto position = findSafePosition(
-                node, buildings, worldLimit, playerPosition);
+            const auto position = node.regrowInPlace
+                ? (positionIsSafe(node,node.position,buildings,worldLimit,playerPosition,BuildingClearance,false)
+                    ? std::optional<Vec3>{node.position} : std::nullopt)
+                : findSafePosition(node, buildings, worldLimit, playerPosition);
             if (!position) {
                 continue;
             }
             node.position = *position;
+            node.regrowthRemaining = node.regrowInPlace ? ResourceRegrowthDuration : 0.0;
+            node.regrowInPlace = false;
             const auto [visualYaw, visualScale] =
                 resourceVisualTransform(
                     node.id, node.type,
@@ -437,14 +455,14 @@ bool ResourceSystem::positionIsSafe(
     std::span<const BuildingInstance> buildings,
     double worldLimit,
     std::optional<Vec3> playerPosition,
-    double buildingClearance) const {
+    double buildingClearance, bool validateGround) const {
     const double boundary =
         worldLimit - node.radius - 1.0;
     if (std::abs(position.x) > boundary ||
         std::abs(position.z) > boundary) {
         return false;
     }
-    if (groundSafety_ &&
+    if (validateGround && groundSafety_ &&
         !groundSafety_(position.x, position.z, node.radius)) {
         return false;
     }
@@ -556,6 +574,7 @@ std::optional<ResourceHit> ResourceSystem::damage(EntityId id, double amount) {
     iterator->yieldRemaining -= grantedAmount;
     if (collected) {
         iterator->active = false;
+        iterator->regrowthRemaining = 0.0;
         iterator->respawnRemaining = iterator->respawnSeconds;
         ++iterator->respawnGeneration;
         collisionGeometryDirty_ = true;

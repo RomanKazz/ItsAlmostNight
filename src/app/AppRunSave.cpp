@@ -230,6 +230,8 @@ Json resourceNodeJson(const ResourceNode& node) {
         {"visualScale", node.visualScale},
         {"visualVariant", node.visualVariant},
         {"active", node.active},
+        {"regrowInPlace", node.regrowInPlace},
+        {"regrowthRemaining", node.regrowthRemaining},
     };
 }
 
@@ -252,6 +254,8 @@ ResourceNode readResourceNode(const Json& value) {
         .visualScale = value.at("visualScale").get<double>(),
         .visualVariant = value.at("visualVariant").get<std::size_t>(),
         .active = value.at("active").get<bool>(),
+        .regrowInPlace = value.value("regrowInPlace",false),
+        .regrowthRemaining = value.value("regrowthRemaining",0.0),
     };
 }
 

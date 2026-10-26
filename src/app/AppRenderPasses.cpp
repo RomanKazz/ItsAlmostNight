@@ -156,7 +156,7 @@ void App::drawShadowPass(
                 .yawRadians = static_cast<float>(node.visualYaw),
                 .scale = presentation::resourceHitScale(
                              effects_, node.id) *
-                    static_cast<float>(node.visualScale),
+                    static_cast<float>(node.visualScale) * resourceRegrowthScale(node),
                 .visualVariant = node.visualVariant,
             });
         }
@@ -902,7 +902,7 @@ void App::drawSelectionPass(
                         effects_, resource->id);
                 const float visualScale =
                     hitScale * static_cast<float>(
-                        resource->visualScale);
+                        resource->visualScale) * resourceRegrowthScale(*resource);
                 if (resource->type == ResourceType::Wood) {
                     const BoundingBox bounds = renderer_->treeWorldBounds(
                         resourcePosition, visualScale,
@@ -935,8 +935,7 @@ void App::drawSelectionPass(
                     if (!renderer_->drawTree(
                             resourcePosition,
                             WHITE,
-                            hitScale * static_cast<float>(
-                                resource->visualScale),
+                            visualScale,
                             resource->visualVariant,
                             static_cast<float>(
                                 resource->visualYaw))) {

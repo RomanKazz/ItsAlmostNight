@@ -3,6 +3,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "core/Types.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <array>
 #include <optional>
@@ -59,6 +60,8 @@ enum class ResourceType {
            type == ResourceType::ItemCrate;
 }
 
+inline constexpr double ResourceRegrowthDuration = 0.42;
+
 struct ResourceNode {
     EntityId id;
     ResourceType type;
@@ -76,7 +79,23 @@ struct ResourceNode {
     double visualScale{1.0};
     std::size_t visualVariant{};
     bool active;
+    bool regrowInPlace{};
+    double regrowthRemaining{};
 };
+
+// Reverse of the resource destruction scale/fade, with the same easing.
+[[nodiscard]] inline float resourceRegrowthScale(const ResourceNode& node) {
+    if (node.regrowthRemaining <= 0.0) return 1.0F;
+    const float t = static_cast<float>(std::clamp(
+        node.regrowthRemaining / ResourceRegrowthDuration, 0.0, 1.0));
+    return 1.0F - 0.82F * t * t * (3.0F - 2.0F * t);
+}
+[[nodiscard]] inline float resourceRegrowthOpacity(const ResourceNode& node) {
+    if (node.regrowthRemaining <= 0.0) return 1.0F;
+    const float t = static_cast<float>(std::clamp(
+        (node.regrowthRemaining / ResourceRegrowthDuration - 0.2) / 0.8, 0.0, 1.0));
+    return 1.0F - t * t * (3.0F - 2.0F * t);
+}
 
 struct ResourceNodeDefinition {
     ResourceType type;
@@ -119,6 +138,7 @@ class ResourceSystem {
     void setGatheringYieldMultiplier(double multiplier);
     // More harvestable stock and durability; preserve resources already extracted.
     void setNodeCapacityMultiplier(double multiplier);
+    bool scheduleRegrowth(EntityId id, double delaySeconds);
     void tick(
         double deltaSeconds,
         std::span<const BuildingInstance> buildings = {},
@@ -150,7 +170,7 @@ class ResourceSystem {
         std::span<const BuildingInstance> buildings,
         double worldLimit,
         std::optional<Vec3> playerPosition,
-        double buildingClearance) const;
+        double buildingClearance, bool validateGround = true) const;
 
     std::vector<ResourceNodeDefinition> definitions_;
     GroundHeightProvider groundHeight_;

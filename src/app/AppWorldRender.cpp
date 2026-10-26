@@ -471,8 +471,15 @@ void App::drawWorldEntities(
             presentation::resourceHitScale(
                 effects_, node.id);
         if (node.type == ResourceType::Wood) {
+            const float growthScale = resourceRegrowthScale(node);
+            const bool growing = node.regrowthRemaining > 0.0;
+            if (growing) {
+                material.baseColor.w *= resourceRegrowthOpacity(node);
+                material.inkOutlineEligible = false;
+                material.inkOccluder = true;
+            }
             const bool displaced = std::abs(hitOffset.x) + std::abs(hitOffset.z) > 1e-6;
-            if (material.hitFlashAmount <= 0.001F && !displaced) {
+            if (material.hitFlashAmount <= 0.001F && !displaced && !growing) {
                 resourceTreeDrawInstances_.push_back({
                     .position = nodePosition,
                     .yawRadians =
@@ -489,7 +496,7 @@ void App::drawWorldEntities(
             if (!renderer_->drawTree(
                     nodePosition,
                     WHITE,
-                    hitScale * static_cast<float>(node.visualScale),
+                    hitScale * growthScale * static_cast<float>(node.visualScale),
                     node.visualVariant,
                     static_cast<float>(node.visualYaw))) {
                 DrawCylinder(

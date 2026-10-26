@@ -3,9 +3,25 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 void runResourceSystemTests() {
+    {
+        ian::ResourceSystem regrowth({{ian::ResourceType::Wood,{},.3,10,10,1}});
+        const auto id=regrowth.nodes()[0].id;
+        static_cast<void>(regrowth.damage(id,100000));
+        regrowth.tick(1,{},48);
+        require(regrowth.nodes()[0].active && regrowth.nodes()[0].regrowthRemaining==0,
+            "normal resource relocation does not trigger the acorn animation");
+        auto nodes=std::vector<ian::ResourceNode>(regrowth.nodes().begin(),regrowth.nodes().end());
+        nodes[0].regrowthRemaining=ian::ResourceRegrowthDuration+1;
+        require(!regrowth.restoreNodes(nodes,1.0),"invalid growth duration cannot enter a restored resource system");
+        nodes[0].regrowthRemaining=std::numeric_limits<double>::quiet_NaN();
+        require(!regrowth.restoreNodes(nodes,1.0),"nonfinite growth progress is rejected during restore");
+        regrowth.reset();
+        require(regrowth.nodes()[0].regrowthRemaining==0,"new runs start with fully grown resources");
+    }
     {
         ian::ResourceSystem props({
             {ian::ResourceType::Barrel,{0,0,0},.6,1000,0,30},
