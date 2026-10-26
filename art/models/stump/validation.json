@@ -1,0 +1,19 @@
+{
+  "one_mesh": true,
+  "one_material": true,
+  "single_uv": true,
+  "unit_finite_normals": true,
+  "clean_import": true,
+  "five_view_review": true,
+  "references": [
+    "tree",
+    "club",
+    "acorn"
+  ],
+  "runtime_usage": "Portrait source; no external player body in this first-person game.",
+  "runtime_model_resource": true,
+  "runtime_app_effect": true,
+  "world_depth_occlusion": true,
+  "terrain_slopes": true,
+  "debug_and_sanitizers": true
+}

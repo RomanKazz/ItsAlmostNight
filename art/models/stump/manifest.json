@@ -1,0 +1,10 @@
+{
+  "license": "Original game art",
+  "height_m": 1.8,
+  "runtime": "assets/models/characters/stump.glb",
+  "triangles": 3926,
+  "parts": 64,
+  "palette": "chest relics crafted palette, embedded PNG",
+  "front": "Blender -Y / glTF +Z",
+  "integration": "3D source for the character portrait; first-person game does not render an external player body."
+}
