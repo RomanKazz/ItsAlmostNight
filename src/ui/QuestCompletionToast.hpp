@@ -33,11 +33,12 @@ inline void drawQuestCompletionToast(const GameUi& ui,const QuestCompletionNotic
     const float exit=std::clamp(static_cast<float>(remaining)/.35F,0.0F,1.0F);
     const float opacity=std::min(entrance,exit);
     if(opacity<=0) return;
-    const float s=std::min(screen.x/1920,screen.y/1080);
-    const float width=std::min(650*s,screen.x-32);
-    const Rectangle bounds{(screen.x-width)*.5F,
-        screen.y-std::max(138*s,138.0F)-156*s+
-            (1-entrance)*(1-entrance)*38*s+(1-exit)*20*s,
+    // Match the fixed UI canvas used by the three inventory rows at the left.
+    // The last row ends at y=254.8; keep the notice directly underneath it.
+    constexpr float s=.60F;
+    const float width=std::min(650*s,screen.x-40);
+    const Rectangle bounds{20,
+        272+(1-entrance)*(1-entrance)*18+(1-exit)*12,
         width,156*s};
     menuStyle::panel({bounds.x-3*s,bounds.y-3*s,bounds.width+6*s,bounds.height+6*s},s,
         {139,205,79,255},opacity);
