@@ -8,6 +8,7 @@
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
 #include "ui/DebugUpgradeMenu.hpp"
+#include "progression/Shrine.hpp"
 #include "localization/Localization.hpp"
 
 #include <array>
@@ -31,6 +32,52 @@ int main(int argc, char** argv) {
     }
     require(ian::debugUpgradeUnique(ian::RunUpgradeEffect::UnlockBomb),
         "bomb acquisition remains unique in the debug catalog");
+    // Compare the displayed distances against the real combat-system resolvers,
+    // including native level growth, prior range cards and size-linked reach.
+    for(const auto type:{ian::BuildingType::Turret,ian::BuildingType::Catapult,ian::BuildingType::Mortar,
+            ian::BuildingType::Flamethrower,ian::BuildingType::TeslaTower,ian::BuildingType::WindBlower,
+            ian::BuildingType::SlowTrap}) {
+        for(const int level:{1,4,20}) for(const auto rarity:{ian::RunUpgradeRarity::Common,ian::RunUpgradeRarity::Legendary}) {
+            ian::SimulationSnapshot snapshot{};
+            const auto effect=*ian::buildingRunUpgrade(type);const auto index=static_cast<std::size_t>(type);
+            snapshot.runUpgradeStacks[ian::runUpgradeIndex(effect)]=level;
+            snapshot.buildingBlueprintLevels[index]=static_cast<std::uint8_t>(level);
+            snapshot.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::AttackSize)]=2;
+            snapshot.shrines.buildingPowers[ian::runUpgradeIndex(ian::RunUpgradeEffect::AttackSize)]=1;
+            snapshot.buildingUpgradePowers[index][static_cast<std::size_t>(ian::AttackStat::Range)]=level==1?0:2;
+            snapshot.buildingUpgradePowers[index][static_cast<std::size_t>(ian::AttackStat::Size)]=level==1?0:1;
+            std::uint64_t seed=0;ian::BuildingStatRoll roll;
+            for(;seed<1000;++seed) {
+                roll=ian::rollBuildingStatUpgrade(type,rarity,seed);
+                if(std::find(roll.stats.begin(),roll.stats.begin()+roll.count,ian::AttackStat::Range)!=roll.stats.begin()+roll.count) break;
+            }
+            require(seed<1000,"range preview fixture obtains a real range card");
+            const auto preview=ian::app_detail::buildingRangeUpgradePreview(snapshot,type,rarity,seed);
+            const auto actual=[&](const ian::BuildingUpgradePowers& powers,int tier) {
+                const auto global=ian::shrineDefenseAttackModifiers(snapshot.runUpgradePower,snapshot.shrines);
+                std::array<ian::AttackModifiers,ian::GameBalance::BuildingTypeCount> local{};
+                local[index]=ian::buildingStatUpgradeModifiers(type,powers);
+                const ian::BuildingInstance building{.type=type,.level=static_cast<std::uint8_t>(tier)};
+                ian::FinalAttackStats stats;
+                if(type==ian::BuildingType::SlowTrap) {
+                    auto system=std::make_unique<ian::TrapSystem>();
+                    system->setAttackModifiers(global);system->setBuildingUpgradeModifiers(local);stats=system->finalStats(building);
+                } else if(type==ian::BuildingType::Catapult || type==ian::BuildingType::Mortar) {
+                    auto system=std::make_unique<ian::CannonSystem>();
+                    system->setAttackModifiers(global);system->setBuildingUpgradeModifiers(local);stats=system->finalStats(building);
+                } else {
+                    auto system=std::make_unique<ian::TowerSystem>();
+                    system->setAttackModifiers(global);system->setBuildingUpgradeModifiers(local);stats=system->finalStats(building);
+                }
+                return stats.range*((type==ian::BuildingType::Flamethrower || type==ian::BuildingType::WindBlower ||
+                    type==ian::BuildingType::SlowTrap)?stats.size:1);
+            };
+            auto upgraded=snapshot.buildingUpgradePowers;ian::applyBuildingStatUpgrade(upgraded,type,roll,rarity);
+            require(preview.first>0 && preview.second>preview.first,"range cards show real positive distances from the first upgrade");
+            requireNear(preview.first,actual(snapshot.buildingUpgradePowers,level),1e-9,"current card range matches actual combat reach");
+            requireNear(preview.second,actual(upgraded,level+1),1e-9,"upgraded card range matches the complete offered roll in combat");
+        }
+    }
     using ian::app_detail::advanceRunUpgradeInputDelay;
     constexpr double quietDuration = ian::app_detail::RunUpgradeChoiceInputQuietDuration;
     double inputDelay = quietDuration;

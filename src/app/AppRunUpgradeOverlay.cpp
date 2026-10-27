@@ -719,6 +719,38 @@ std::optional<std::size_t> hoveredRunUpgradeChoice(
     return std::nullopt;
 }
 
+std::pair<double,double> buildingRangeUpgradePreview(
+    const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t rollSeed) {
+    const auto index = static_cast<std::size_t>(type);
+    const auto effect = buildingRunUpgrade(type);
+    if (!effect || index >= snapshot.buildingBlueprintLevels.size()) return {};
+    const int level = std::clamp(snapshot.buildingBlueprintLevels[index] > 0
+        ? static_cast<int>(snapshot.buildingBlueprintLevels[index])
+        : snapshot.runUpgradeStacks[runUpgradeIndex(*effect)], 1, static_cast<int>(MaxStructureLevel));
+    const auto base = [type](int tier) {
+        const auto storedLevel = static_cast<std::uint8_t>(tier);
+        if (type == BuildingType::Cannon || type == BuildingType::Catapult || type == BuildingType::Mortar)
+            return CannonSystem::baseStats(type, storedLevel);
+        if (type == BuildingType::SpikeTrap || type == BuildingType::SlowTrap)
+            return TrapSystem::baseStats(type, storedLevel);
+        return TowerSystem::baseStats(type, storedLevel);
+    };
+    auto upgraded = snapshot.buildingUpgradePowers;
+    applyBuildingStatUpgrade(upgraded, type, rollBuildingStatUpgrade(type, rarity, rollSeed), rarity);
+    const auto run = compatibleAttackModifiers(type,
+        shrineDefenseAttackModifiers(snapshot.runUpgradePower, snapshot.shrines));
+    const auto distance = [&](int tier, const BuildingUpgradePowers& powers) {
+        const std::array sources{run, buildingStatUpgradeModifiers(type, powers)};
+        const auto stats = resolveAttackStats(base(tier), sources);
+        const bool scalesWithSize = type == BuildingType::Flamethrower || type == BuildingType::WindBlower ||
+            type == BuildingType::SlowTrap || type == BuildingType::SpikeTrap;
+        return stats.range * (scalesWithSize ? stats.size : 1.0);
+    };
+    return {distance(level, snapshot.buildingUpgradePowers),
+        distance(std::min(level + 1, static_cast<int>(MaxStructureLevel)), upgraded)};
+}
+
 SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::size_t choiceIndex) {
     SimulationSnapshot projected = snapshot;
     if (choiceIndex >= snapshot.runUpgradeChoiceCount || choiceIndex >= MaximumRunUpgradeChoices) return projected;

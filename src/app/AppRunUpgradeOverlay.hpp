@@ -28,6 +28,11 @@ inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
 [[nodiscard]] Rectangle runUpgradeStatsPanelBounds(std::size_t count);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
     const SimulationSnapshot& snapshot, Vector2 mousePosition);
+// Effective attack/trigger distance, including base levels and the offered roll.
+[[nodiscard]] std::pair<double,double> buildingRangeUpgradePreview(
+    const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t rollSeed);
+
 // Projects only HUD values; the simulation and its world views are unchanged.
 [[nodiscard]] SimulationSnapshot previewRunUpgrade(
     const SimulationSnapshot& snapshot, std::size_t choiceIndex);
