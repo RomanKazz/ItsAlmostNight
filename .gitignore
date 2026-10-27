@@ -9,3 +9,6 @@ compile_commands.json
 /user_settings/
 /performance_logs/
 /output/balance_lab/
+
+# Local tester screenshots and comments
+/feedback/
