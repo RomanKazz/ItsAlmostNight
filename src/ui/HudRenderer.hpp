@@ -40,6 +40,7 @@ struct HudViewState {
     bool mapOverlayOpen{};
     bool minimapHidden{};
     bool showFps{};
+    bool debugHotkeysEnabled{};
     bool showCoreHealth{};
     double playerHealthTrail{};
     float playerDamagePulse{};

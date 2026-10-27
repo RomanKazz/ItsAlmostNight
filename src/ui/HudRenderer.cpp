@@ -1160,7 +1160,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             phaseText = "SANDBOX  •  BUILD MODE";
             phaseSubtext = actionKeyLabel(
                 controls, ControlAction::StartWave) +
-                "  START NIGHT  •  F5  CARDS";
+                "  START NIGHT" + (view.debugHotkeysEnabled ? std::string("  •  F5  CARDS") : std::string());
             phaseColor = {111, 220, 151, 255};
         } else {
             phaseText = "SUNSET  " +

@@ -531,6 +531,7 @@ if (showGameplayHud) {
             .minimapHidden = false,
             .showFps =
                 userSettings_.accessibility.showFps,
+            .debugHotkeysEnabled = userSettings_.debugHotkeysEnabled,
             .showCoreHealth =
                 presentationSnapshot.state == RunState::Wave ||
                 presentationSnapshot.state == RunState::Sunset ||

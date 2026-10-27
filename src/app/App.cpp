@@ -549,6 +549,7 @@ void App::persistUserSettings(bool force) {
         .controls = userSettings_.controls,
         .accessibility = userSettings_.accessibility,
         .language = userSettings_.language,
+        .debugHotkeysEnabled = userSettings_.debugHotkeysEnabled,
     };
     if (current == persistedUserSettings_ ||
         (!force && IsMouseButtonDown(MOUSE_BUTTON_LEFT))) {

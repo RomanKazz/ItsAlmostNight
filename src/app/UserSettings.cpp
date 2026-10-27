@@ -387,6 +387,8 @@ bool loadUserSettings(
             loaded.language = code == "ru"
                 ? Language::Russian : Language::English;
         }
+        loaded.debugHotkeysEnabled = false;
+        readValue(document, "debugHotkeysEnabled", loaded.debugHotkeysEnabled);
         settings = loaded;
         return true;
     } catch (...) {
@@ -404,6 +406,7 @@ bool saveUserSettings(
         const Json document{
             {"version", 6},
             {"language", std::string(languageCode(settings.language))},
+            {"debugHotkeysEnabled", settings.debugHotkeysEnabled},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",
              {{"masterVolume", settings.audio.masterVolume},

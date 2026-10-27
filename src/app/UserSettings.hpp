@@ -88,6 +88,7 @@ struct UserSettings {
     ControlSettings controls;
     AccessibilitySettings accessibility;
     Language language{Language::English};
+    bool debugHotkeysEnabled{};
 
     bool operator==(const UserSettings&) const = default;
 };

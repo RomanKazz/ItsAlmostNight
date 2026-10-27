@@ -22,6 +22,8 @@ void settingsRoundTrip() {
     require(std::string(ian::controlActionName(ian::ControlAction::Sprint)) == "FLY DOWN (SANDBOX)",
             "settings no longer advertises a ground sprint action");
     ian::UserSettings written;
+    require(!written.debugHotkeysEnabled, "debug shortcuts are disabled for a fresh player");
+    written.debugHotkeysEnabled = true;
     written.graphics.fullscreen = true;
     written.graphics.renderWidth = 2560;
     written.graphics.renderHeight = 1440;
@@ -84,6 +86,20 @@ void settingsRoundTrip() {
     require(loaded.accessibility.showFps &&
                 loaded.accessibility.reduceFlashes,
             "accessibility settings survive round trip");
+    require(loaded.debugHotkeysEnabled, "explicitly enabled debug shortcuts survive restart");
+    loaded.debugHotkeysEnabled=false;
+    require(ian::saveUserSettings(path.string(),loaded), "disabled debug shortcuts save");
+    written.debugHotkeysEnabled=true;
+    require(ian::loadUserSettings(path.string(),written) && !written.debugHotkeysEnabled,
+        "saved disabled state replaces a previously enabled runtime setting");
+    { std::ofstream legacy(path);legacy<<R"({"version":7,"debugHotkeysEnabled":"invalid"})"; }
+    written.debugHotkeysEnabled=true;
+    require(ian::loadUserSettings(path.string(),written) && !written.debugHotkeysEnabled,
+        "malformed debug settings fail closed");
+    { std::ofstream legacy(path);legacy<<R"({"version":7})"; }
+    written.debugHotkeysEnabled=true;
+    require(ian::loadUserSettings(path.string(),written) && !written.debugHotkeysEnabled,
+        "profiles from before this setting default to disabled shortcuts");
     require(loaded.language == ian::Language::Russian,
             "language survives settings round trip");
     std::filesystem::remove(path, error);
