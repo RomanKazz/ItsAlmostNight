@@ -246,6 +246,7 @@ void App::update() {
     updateHudResourceCounter(
         coinHudCounter_, progressionSnapshot.coins);
     const auto& hotbarSnapshot = simulation_.snapshot();
+    nightForecast_.update(hotbarSnapshot, frameSeconds);
     const bool resetPlayerHealthTrail =
         displayedPlayerHealthTrail_ < 0.0 ||
         std::abs(displayedPlayerHealthMaximum_ -

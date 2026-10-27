@@ -532,6 +532,8 @@ if (showGameplayHud) {
             .showFps =
                 userSettings_.accessibility.showFps,
             .debugHotkeysEnabled = userSettings_.debugHotkeysEnabled,
+            .nightForecast = nightForecast_.forecast,
+            .nightForecastOpacity = nightForecast_.opacity(),
             .showCoreHealth =
                 presentationSnapshot.state == RunState::Wave ||
                 presentationSnapshot.state == RunState::Sunset ||

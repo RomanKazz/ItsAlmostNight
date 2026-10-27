@@ -7,6 +7,43 @@
 
 inline void checkNightForecast(ian::GameUi& ui, const char* captureDirectory) {
     using namespace ian;
+    {
+        NightForecastPresentation presentation;
+        SimulationSnapshot snapshot{};snapshot.coreMaxHealth=500;snapshot.state=RunState::BuildPhase;
+        snapshot.upcomingEnemyCounts[static_cast<std::size_t>(EnemyType::Basic)]=8;
+        presentation.update(snapshot,5);
+        require(presentation.opacity()==0,"enemy forecast stays hidden throughout the day");
+        snapshot.state=RunState::Sunset;
+        presentation.update(snapshot,0);
+        require(presentation.opacity()==0,"sunset forecast starts fully transparent");
+        presentation.update(snapshot,.14);
+        requireNear(presentation.opacity(),.5,1e-6,"sunset forecast fades in smoothly");
+        snapshot.state=RunState::Paused;snapshot.stateBeforePause=RunState::Sunset;
+        presentation.update(snapshot,5);
+        requireNear(presentation.opacity(),.5,1e-6,"pause holds the current forecast animation");
+        snapshot.state=RunState::Sunset;snapshot.runUpgradeChoicePending=true;
+        presentation.update(snapshot,5);
+        requireNear(presentation.opacity(),.5,1e-6,"an upgrade overlay does not consume the forecast transition");
+        snapshot.runUpgradeChoicePending=false;presentation.update(snapshot,.14);
+        requireNear(presentation.opacity(),1,1e-6,"forecast reaches full opacity during evening");
+        const auto advertised=presentation.forecast.enemies;
+        snapshot.state=RunState::Wave;snapshot.upcomingEnemyCounts.fill(0);
+        snapshot.upcomingEnemyCounts[static_cast<std::size_t>(EnemyType::Heavy)]=40;
+        presentation.update(snapshot,.11);
+        requireNear(presentation.opacity(),.5,1e-6,"night starts by fading the current forecast out");
+        require(presentation.forecast.enemies==advertised,
+            "night fade-out preserves tonight's roster instead of showing the next night's forecast");
+        presentation.update(snapshot,.12);
+        require(presentation.opacity()==0,"the forecast is absent after its night fade-out");
+        snapshot.state=RunState::Sunset;presentation.update(snapshot,.3);
+        require(presentation.forecast.enemies==snapshot.upcomingEnemyCounts,
+            "the following evening picks up the newly advertised roster");
+        snapshot.sandboxMode=true;presentation.update(snapshot,.1);
+        require(presentation.opacity()==0,"sandbox does not show a forecast");
+        snapshot.sandboxMode=false;presentation.update(snapshot,.3);snapshot.coreMaxHealth=0;
+        presentation.update(snapshot,.1);
+        require(presentation.opacity()==0,"losing the core removes the forecast");
+    }
     for (int role = 0; role < static_cast<int>(GameBalance::EnemyTypeCount); ++role) {
         const auto texture = ui.enemyTexture(static_cast<EnemyType>(role));
         require(IsTextureValid(texture) && texture.width == 256 && texture.height == 256,
@@ -58,6 +95,16 @@ inline void checkNightForecast(ian::GameUi& ui, const char* captureDirectory) {
         }
         UnloadImage(image);
     }
+    const auto opacitySample=[&](float opacity) {
+        BeginTextureMode(target);ClearBackground({45,75,85,255});
+        const auto forecast=director.forecast(1,73);
+        drawNightForecast(ui,forecast,{438,55,84,48},opacity);
+        EndTextureMode();auto image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+        const auto color=GetImageColor(image,455,79);UnloadImage(image);return color;
+    };
+    const auto hidden=opacitySample(0),half=opacitySample(.5),full=opacitySample(1);
+    require(hidden.r==45 && hidden.g==75 && half.r>full.r && half.r<hidden.r,
+        "forecast background and portraits use the requested fade opacity");
     setLanguage(Language::English);
     UnloadRenderTexture(target);
 }

@@ -2,6 +2,7 @@
 
 #include "buildings/BuildingHotbarLayout.hpp"
 #include "enemies/EnemySystem.hpp"
+#include "waves/NightEncounter.hpp"
 #include "presentation/PresentationTypes.hpp"
 
 #include <raylib.h>
@@ -41,6 +42,8 @@ struct HudViewState {
     bool minimapHidden{};
     bool showFps{};
     bool debugHotkeysEnabled{};
+    NightForecast nightForecast{};
+    float nightForecastOpacity{};
     bool showCoreHealth{};
     double playerHealthTrail{};
     float playerDamagePulse{};

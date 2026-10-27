@@ -1313,12 +1313,12 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
 
     const bool forecastVisible = !snapshot.sandboxMode && snapshot.coreMaxHealth > 0 &&
-        (phaseState == RunState::BuildPhase || phaseState == RunState::Sunset);
+        view.nightForecastOpacity > 0.001F;
     if (forecastVisible) {
-        const NightForecast forecast{snapshot.upcomingNightPattern, snapshot.upcomingEnemyCounts};
-        const float width = nightForecastWidth(forecast);
-        drawNightForecast(ui, forecast,
-            {static_cast<float>(uiScreenWidth()) * .5F - width * .5F, 96, width, 48});
+        const float width = nightForecastWidth(view.nightForecast);
+        drawNightForecast(ui, view.nightForecast,
+            {static_cast<float>(uiScreenWidth()) * .5F - width * .5F,
+             96 - 6 * (1 - view.nightForecastOpacity), width, 48}, view.nightForecastOpacity);
     }
 
     const bool attackWarningVisible =

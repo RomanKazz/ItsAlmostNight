@@ -19,6 +19,7 @@ void App::resetRunClientState(
     resourceGainVisuals_.clear();
     productionVisuals_.clear();
     destroyedResourceVisuals_.clear();
+    nightForecast_ = {};
     soldBuildingVisuals_.clear();
     destroyedEnemyVisuals_.clear();
     enemyDrawInstances_.clear();

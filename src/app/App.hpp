@@ -22,6 +22,7 @@
 #include "ui/UnlockMenu.hpp"
 #include "ui/ShopMenu.hpp"
 #include "ui/HudRenderer.hpp"
+#include "ui/NightForecastHud.hpp"
 #include "ui/InteractionPrompt.hpp"
 #include "ui/TargetHealthBar.hpp"
 
@@ -777,6 +778,7 @@ class App {
     float weaponHotbarSelectionPosition_{};
     float weaponHotbarSelectionAlpha_{1.0F};
     float minimapExpansion_{};
+    NightForecastPresentation nightForecast_;
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};
