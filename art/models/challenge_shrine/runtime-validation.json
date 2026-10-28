@@ -1,0 +1,13 @@
+{
+  "active_tint": true,
+  "completion_shrink": true,
+  "embedded_texture": true,
+  "floor_and_height": true,
+  "front_back_render": true,
+  "gameplay_code_changed": false,
+  "manual_gameplay_playtest": false,
+  "model_resource_load": true,
+  "platform": "macOS arm64",
+  "selection_bounds": true,
+  "world_shader_render": true
+}

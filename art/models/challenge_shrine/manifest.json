@@ -1,0 +1,40 @@
+{
+  "runtime_glb": "assets/models/challenges/skull_column.glb",
+  "height_m": 3.25,
+  "bounds_glb": {
+    "min": [
+      -0.7200000286102295,
+      0.0,
+      -0.7400000095367432
+    ],
+    "max": [
+      0.7200000286102295,
+      3.25,
+      0.7400000095367432
+    ]
+  },
+  "pivot_glb": [
+    0,
+    0,
+    0
+  ],
+  "symmetry_planes_glb": [
+    "X = 0",
+    "Z = 0"
+  ],
+  "meshes": {
+    "challenge_shrine_body": {
+      "triangles": 2592,
+      "vertex_groups": 52
+    },
+    "challenge_shrine_blessing": {
+      "triangles": 1232,
+      "vertex_groups": 20
+    }
+  },
+  "materials": 1,
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "collision": "Existing challenge arena and interaction sphere unchanged; within selection bounds +/-0.75m and 3.35m high",
+  "integration": "Existing challengeColumnModel path replaced; height remains 3.25m; active tint and completion shrink use existing renderer",
+  "license": "Original geometry with existing Kenney CC0 palette; no old skull geometry reused"
+}

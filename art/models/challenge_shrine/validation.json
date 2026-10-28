@@ -1,0 +1,31 @@
+{
+  "challenge": {
+    "meshes": [
+      {
+        "name": "challenge_shrine_blessing",
+        "triangles": 1232,
+        "closed_outward_solids": 20,
+        "uvs_valid": true
+      },
+      {
+        "name": "challenge_shrine_body",
+        "triangles": 2592,
+        "closed_outward_solids": 52,
+        "uvs_valid": true
+      }
+    ],
+    "palette_byte_identical": true,
+    "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+    "unit_normals": true,
+    "emblem_clearance": true,
+    "floor_zero": true,
+    "height": 3.25,
+    "within_existing_selection_bounds": true,
+    "self_contained_glb": true,
+    "native_manual_playtest": false,
+    "mirrored_vertex_max_error_m": {
+      "left_right": 1.8002307541861885e-16,
+      "front_back": 2.9802322387695312e-08
+    }
+  }
+}
