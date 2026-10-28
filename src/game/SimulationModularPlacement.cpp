@@ -13,6 +13,18 @@ namespace {
 
 constexpr double ResourcePlacementClearance = 0.08;
 
+void reuseFoundation(const FoundationSystem& foundations, PlatformFramePlacement& preview) {
+    const auto frame = std::ranges::find_if(foundations.platformFrames(), [&](const auto& value) {
+        return value.storey == 0 && value.anchor.x == preview.anchor.x && value.anchor.z == preview.anchor.z &&
+            std::abs(value.floorHeight - preview.floorHeight) < 1e-5 &&
+            value.supportState == StructuralSupportState::Supported;
+    });
+    if (frame == foundations.platformFrames().end()) return;
+    preview = {.anchor = frame->anchor, .floorHeight = frame->floorHeight,
+        .storey = frame->storey, .supports = frame->supports, .existingFrame = frame->id};
+}
+
+
 bool modularBuildingUnlocked(
     const BuildingSystem& buildings, bool unlimitedResources,
     ModularBuildPiece piece) {
@@ -439,6 +451,7 @@ Simulation::previewFloorPlatformWithFoundation(
                   terrainHit, *foundationHeight)
             : previewFoundation(terrainHit),
     };
+    reuseFoundation(foundations_, result.foundation);
     const ModularPlacementError foundationError =
         result.foundation.error;
 
@@ -447,10 +460,9 @@ Simulation::previewFloorPlatformWithFoundation(
     prospectivePlacement.error =
         ModularPlacementError::None;
     FoundationSystem prospectiveFoundations{foundations_};
-    const auto prospectiveFoundation =
-        prospectiveFoundations.placePlatformFrame(
-            prospectivePlacement);
-    if (!prospectiveFoundation) {
+    const bool hasFoundation = result.foundation.existingFrame.has_value() ||
+        prospectiveFoundations.placePlatformFrame(prospectivePlacement).has_value();
+    if (!hasFoundation) {
         result.floor = {
             .error = foundationError ==
                              ModularPlacementError::None
@@ -477,7 +489,7 @@ Simulation::previewFloorPlatformWithFoundation(
         result.floor.error = foundationError;
     }
     const ResourceCost combinedCost = addResourceCosts(
-        modularBuildingCosts_[static_cast<std::size_t>(
+        result.foundation.existingFrame ? ResourceCost{} : modularBuildingCosts_[static_cast<std::size_t>(
             ModularBuildPiece::Foundation)],
         modularBuildingCosts_[static_cast<std::size_t>(
             ModularBuildPiece::FloorPlatform)]);
@@ -508,22 +520,26 @@ Simulation::placeFloorPlatformWithFoundation(
         return std::nullopt;
     }
 
-    const auto foundation = foundations_.placePlatformFrame(
-        placement.foundation);
+    std::optional<PlatformFrameInstance> foundation;
+    if (placement.foundation.existingFrame) {
+        const auto existing = std::ranges::find(foundations_.platformFrames(),
+            *placement.foundation.existingFrame, &PlatformFrameInstance::id);
+        if (existing != foundations_.platformFrames().end()) foundation = *existing;
+    } else foundation = foundations_.placePlatformFrame(placement.foundation);
     if (!foundation) {
         return std::nullopt;
     }
     const auto floor = foundations_.placePlatformFrame(
         placement.floor);
     if (!floor) {
-        static_cast<void>(foundations_.remove(foundation->id));
+        if (!placement.foundation.existingFrame) static_cast<void>(foundations_.remove(foundation->id));
         syncModularStructures();
         return std::nullopt;
     }
 
     if (!unlimitedResources_) {
         const ResourceCost combinedCost = addResourceCosts(
-            modularBuildingCosts_[static_cast<std::size_t>(
+            placement.foundation.existingFrame ? ResourceCost{} : modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Foundation)],
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::FloorPlatform)]);
@@ -532,6 +548,7 @@ Simulation::placeFloorPlatformWithFoundation(
         crystals_ -= combinedCost.crystals;
     }
     syncModularStructures();
+    if (!placement.foundation.existingFrame) {
     raisePlayerOntoGroundFrame(*foundation);
     events_.push_back({
         .type = GameEventType::ModularBuildingPlaced,
@@ -541,6 +558,7 @@ Simulation::placeFloorPlatformWithFoundation(
             ModularBuildPiece::Foundation),
     });
     processInsightEvent(events_.back());
+    }
     events_.push_back({
         .type = GameEventType::ModularBuildingPlaced,
         .entityId = floor->id,

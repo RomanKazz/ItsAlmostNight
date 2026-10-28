@@ -17,6 +17,26 @@ struct AppPresentationTestAccess {
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
         {
+            auto map = MapDefinition::defaults(); map.resources.clear(); map.obstacles.clear();
+            auto world = WorldConfig::defaults(); world.terrainAmplitude = 0;
+            auto supportRun = std::make_unique<Simulation>(GameBalance::defaults(), map, world);
+            supportRun->startRun(); PlayerCommand god;
+            god.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+            supportRun->tick(0, god);
+            const Vec3 hit{.2, 0, 4.2};
+            const auto initial = supportRun->previewFloorPlatformWithFoundation(hit);
+            const auto foundation = supportRun->placeFoundationAtHeight(hit, initial.foundation.floorHeight);
+            if (!foundation) { std::cerr << "Automatic floor fixture needs a lower support\n"; return 1; }
+            const auto preview = supportRun->previewFloorPlatformWithFoundation(hit, foundation->floorHeight);
+            const auto built = supportRun->placeFloorPlatformWithFoundation(hit, foundation->floorHeight);
+            if (!preview.valid() || preview.foundation.existingFrame != foundation->id || !built ||
+                supportRun->snapshot().platformFrames.size() != 2) {
+                std::cerr << "Automatic floor must reuse the existing lower support without duplication\n";
+                return 1;
+            }
+        }
+
+        {
             const float previousIntensity = app->motionSwayIntensity_;
             app->motionSwayIntensity_ = 1.0F;
             std::array<double, 4> atStop{};

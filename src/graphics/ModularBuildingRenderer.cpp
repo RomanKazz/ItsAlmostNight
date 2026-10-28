@@ -868,7 +868,7 @@ void ModularBuildingRenderer::drawWorld(
                 buildings.cellSize,
                 previewColor(placement.valid()));
         }
-    } else if (preview.platformFrame) {
+    } else if (preview.platformFrame && !preview.platformFrame->existingFrame) {
         if (previewOccupiesExistingBuilding(
                 preview.platformFrame->error)) {
             drawOccupiedFootprint(
@@ -921,16 +921,6 @@ void ModularBuildingRenderer::drawWorld(
                           -*preview.rotationYaw}
                     : std::nullopt);
         }
-    } else if (preview.terrainHit) {
-        DrawCylinder(
-            {
-                static_cast<float>(preview.terrainHit->x),
-                static_cast<float>(
-                    preview.terrainHit->y + 0.03),
-                static_cast<float>(preview.terrainHit->z),
-            },
-            0.34F, 0.34F, 0.06F, 16,
-            {231, 82, 76, 178});
     }
     if (translatedPreview) {
         rlPopMatrix();

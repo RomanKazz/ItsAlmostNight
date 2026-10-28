@@ -52,6 +52,8 @@ bool App::finishModularPlacementDrag() {
             [this, cellSize, &bounceDelayFor,
              &placedOrdinal](
                 const PlatformFrameInstance& foundation) {
+                if (std::ranges::any_of(modularAutomaticFoundationPreviews_,
+                        [&](const auto& preview) { return preview.existingFrame == foundation.id; })) return;
                 const Vec3 center = platformFrameCenter(
                     foundation, cellSize);
                 addEffect(

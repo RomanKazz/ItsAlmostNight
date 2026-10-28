@@ -255,41 +255,13 @@ Vector2 minimapPoint(
     };
 }
 
-constexpr int CompassFrameSegments = 64;
-
-float roundedCardinalSpike(float angle, float halfAngle) {
-    const float quarterTurn = PI * 0.5F;
-    const float distanceToAxis = std::abs(std::remainder(
-        angle, quarterTurn));
-    const float amount = std::clamp(
-        1.0F - distanceToAxis / std::max(halfAngle, 0.001F),
-        0.0F, 1.0F);
-    const float smoothAmount =
-        amount * amount * (3.0F - 2.0F * amount);
-    return std::pow(smoothAmount, 1.35F);
-}
+constexpr int CompassFrameSegments = 192;
 
 void drawRoundedCompassPlate(
-    Vector2 center, float radius, float spikeLength,
-    float spikeHalfAngle, float rotation, Color color) {
-    std::array<Vector2, CompassFrameSegments + 2> points{};
-    points[0] = center;
-    for (int segment = 0; segment <= CompassFrameSegments;
-         ++segment) {
-        const float angle = -PI * 0.5F -
-            static_cast<float>(segment) * 2.0F * PI /
-                static_cast<float>(CompassFrameSegments);
-        const float contourRadius = radius + radius * .006F *
-            (std::sin((angle + rotation) * 7 + .8F) + .45F * std::sin((angle + rotation) * 13)) + spikeLength *
-            roundedCardinalSpike(
-                angle + rotation, spikeHalfAngle);
-        points[static_cast<std::size_t>(segment + 1)] = {
-            center.x + std::cos(angle) * contourRadius,
-            center.y + std::sin(angle) * contourRadius,
-        };
-    }
-    DrawTriangleFan(
-        points.data(), static_cast<int>(points.size()), color);
+    Vector2 center, float radius, float, float, float, Color color) {
+    // The frame is a circle, independent of heading. Only the map, labels
+    // and warning markers rotate; the old hand-drawn waviness has no place here.
+    DrawCircleSector(center, radius, 0, 360, CompassFrameSegments, color);
 }
 
 void drawRoundedPlayerMarker(
@@ -428,7 +400,7 @@ void ensureMinimapFrameTarget(GameUi& ui) {
         center,
         mapRadius - borderThickness,
         mapRadius,
-        0.0F, 360.0F, 64,
+        0.0F, 360.0F, CompassFrameSegments,
         {255, 230, 175, 255});
     ui.endMinimapFrameTarget();
 }
@@ -1037,10 +1009,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         Rectangle shadowBounds = frameBounds;
         shadowBounds.y += shadowOffset;
         ui.drawMinimapFrameTarget(
-            shadowBounds, mapRotationDegrees,
+            shadowBounds, 0.0F,
             {82, 82, 82, 140});
         ui.drawMinimapFrameTarget(
-            frameBounds, mapRotationDegrees);
+            frameBounds, 0.0F);
     } else {
         drawRoundedCompassPlate(
             {displayMapCenter.x,
@@ -1104,7 +1076,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         DrawRing(
             displayMapCenter,
             displayMapSize * 0.5F - borderThickness,
-            displayMapSize * 0.5F, 0.0F, 360.0F, 64,
+            displayMapSize * 0.5F, 0.0F, 360.0F, CompassFrameSegments,
             {255, 230, 175, 255});
     }
     for (std::size_t index = 0;

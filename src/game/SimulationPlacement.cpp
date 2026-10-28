@@ -369,7 +369,7 @@ BuildingPreview Simulation::previewBuildingPlacement(
     const auto foundation = surface.storey < 0
         ? automaticFoundationPlacement(type, position, preferredHeight, &foundations, foundationAnchor)
         : std::nullopt;
-    if (foundation && foundation->valid()) {
+    if (foundation && foundation->hasGeometry()) {
         surface.height = foundation->floorHeight;
         surface.foundationBottomHeight = std::ranges::min_element(foundation->supports,
             {}, [](const FoundationSupport& support) { return support.bottom.y; })->bottom.y;

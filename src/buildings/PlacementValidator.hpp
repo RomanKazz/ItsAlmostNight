@@ -5,6 +5,8 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <array>
+#include <cmath>
+#include <optional>
 
 namespace ian {
 
@@ -37,6 +39,22 @@ struct PlatformFramePlacement {
     double floorHeight{};
     int storey{};
     std::array<FoundationSupport, 4> supports{};
+    std::optional<EntityId> existingFrame;
+
+    // Geometry remains useful for an invalid (red) preview. Validation may
+    // reject range/cost/overlap after all four supports have been computed.
+    [[nodiscard]] bool hasGeometry() const {
+        if (!std::isfinite(floorHeight) ||
+            supports[3].top.x <= supports[0].top.x ||
+            supports[3].top.z <= supports[0].top.z) return false;
+        for (const auto& support : supports) {
+            if (!std::isfinite(support.top.x) || !std::isfinite(support.top.y) ||
+                !std::isfinite(support.top.z) || !std::isfinite(support.bottom.y) ||
+                !std::isfinite(support.length) || std::abs(support.top.y - floorHeight) > 1e-5)
+                return false;
+        }
+        return true;
+    }
 
     [[nodiscard]] bool valid() const {
         return error == ModularPlacementError::None;

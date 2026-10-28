@@ -242,6 +242,7 @@ void App::drawWorldOverlays(
         }
         for (const PlatformFramePlacement& foundation :
              modularAutomaticFoundationPreviews_) {
+            if (foundation.existingFrame) continue;
             modularBuildingRenderer_.drawWorld(
                 {
                     {}, {}, {}, {},

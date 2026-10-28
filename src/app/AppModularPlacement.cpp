@@ -809,6 +809,7 @@ void App::updateModularPlacementPreview(
         rampPreview_ = simulation_.previewRamp(
             edgeTarget->supportHit,
             edgeTarget->rotation);
+
         if (rampPreview_ &&
             std::any_of(
                 snapshot.ramps.begin(),
@@ -1146,6 +1147,18 @@ void App::updateModularPlacementPreview(
         !modularDragPiece_ && platformPlacementTarget) {
         modularBuildPiece_ = ModularBuildPiece::FloorPlatform;
     }
+    if (rawHit && modularBuildPiece_ == ModularBuildPiece::FloorPlatform &&
+        !modularDragPiece_ && !platformPlacementTarget) {
+        const auto composite = simulation_.previewFloorPlatformWithFoundation(*rawHit);
+        modularAutomaticFoundationPreviews_ = {composite.foundation};
+        platformFramePreview_ = composite.floor;
+        wallPreview_.reset(); rampPreview_.reset();
+        foundationTerrainHit_ = *rawHit;
+        modularSnapHit_ = *rawHit;
+        modularSnapMarker_.reset();
+        modularPreviewAnchor_ = composite.foundation.anchor;
+        return;
+    }
     if (modularBuildPiece_ ==
             ModularBuildPiece::FloorPlatform &&
         !modularDragPiece_ &&
@@ -1212,12 +1225,22 @@ void App::updateModularPlacementPreview(
                 platformFramePreview_ = simulation_.previewFloorPlatform(
                     *targetAnchor, targetStorey, targetFloorHeight);
             }
+            if (platformFramePreview_->error == ModularPlacementError::NoSupport && targetStorey == 1) {
+                const Vec3 supportHit{(targetAnchor->x + .5) * cellSize,
+                    targetFloorHeight - modularStoreyHeight(terrain.config()),
+                    (targetAnchor->z + .5) * cellSize};
+                const auto composite = simulation_.previewFloorPlatformWithFoundation(supportHit, supportHit.y);
+                modularAutomaticFoundationPreviews_ = {composite.foundation};
+                platformFramePreview_ = composite.floor;
+                // Commit uses the support plane, matching the ground-preview path.
+                foundationTerrainHit_ = supportHit;
+            }
             const Vec3 targetHit{
                 (targetAnchor->x + 1.0) * cellSize,
                 targetFloorHeight,
                 (targetAnchor->z + 1.0) * cellSize,
             };
-            foundationTerrainHit_ = targetHit;
+            if (modularAutomaticFoundationPreviews_.empty()) foundationTerrainHit_ = targetHit;
             modularSnapHit_ = targetHit;
             modularSnapMarker_ = edge
                 ? std::optional<Vec3>{edge->marker}

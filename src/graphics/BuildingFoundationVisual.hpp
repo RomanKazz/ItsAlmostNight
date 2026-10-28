@@ -43,7 +43,7 @@ namespace ian {
     const BuildingPreview& preview, double cellSize) {
     if (preview.foundationPreview) {
         const auto& placement = *preview.foundationPreview;
-        if (!placement.valid()) return std::nullopt;
+        if (!placement.hasGeometry() || placement.existingFrame) return std::nullopt;
         return PlatformFrameInstance{
             .id = {}, .anchor = placement.anchor, .floorHeight = placement.floorHeight,
             .storey = placement.storey, .supports = placement.supports,

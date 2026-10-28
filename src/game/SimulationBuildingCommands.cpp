@@ -143,7 +143,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                       preferredSurfaceHeight)
                 : std::nullopt;
         if (automaticFoundation &&
-            automaticFoundation->valid()) {
+            automaticFoundation->hasGeometry()) {
             surface.height =
                 automaticFoundation->floorHeight;
             surface.foundationBottomHeight =
