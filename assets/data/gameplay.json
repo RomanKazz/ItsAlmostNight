@@ -33,9 +33,10 @@
     "afterWave": 10,
     "healthDoublingSeconds": 60.0,
     "damageDoublingSeconds": 120.0,
-    "speedGainPerMinute": 0.12,
-    "maximumSpeed": 1.75,
-    "spawnGainPerMinute": 0.20,
-    "maximumSpawnRate": 2.0
+    "speedGainPerMinute": 0.04,
+    "maximumSpeed": 1.50,
+    "spawnGainPerMinute": 0.50,
+    "maximumSpawnRate": 4.0,
+    "damageGainPerMinute": 0.03
   }
 }

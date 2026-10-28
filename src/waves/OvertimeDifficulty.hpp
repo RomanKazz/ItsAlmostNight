@@ -15,18 +15,20 @@ struct OvertimeDifficulty {
 
 // Cumulative combat time, starting with wave eleven. Ordinary wave growth
 // remains independent and multiplicative. Density/speed have gameplay caps;
-// health/damage are bounded only to keep very long/debug runs numerically safe.
+// health grows exponentially; damage grows by a small linear amount per minute.
 struct OvertimeConfig {
     int afterWave{10};
     double healthDoublingSeconds{60.0};
-    double damageDoublingSeconds{120.0};
-    double speedGainPerMinute{0.12};
-    double maximumSpeed{1.75};
-    double spawnGainPerMinute{0.20};
-    double maximumSpawnRate{2.0};
+    double damageDoublingSeconds{120.0}; // Legacy config key, retained for old data files.
+    double speedGainPerMinute{0.04};
+    double maximumSpeed{1.50};
+    double spawnGainPerMinute{0.50};
+    double maximumSpawnRate{4.0};
+    double damageGainPerMinute{0.03};
 
     [[nodiscard]] bool valid() const {
-        return afterWave >= 1 && afterWave <= 1000 &&
+        return std::isfinite(damageGainPerMinute) && damageGainPerMinute >= 0 && damageGainPerMinute <= 1 &&
+            afterWave >= 1 && afterWave <= 1000 &&
             std::isfinite(healthDoublingSeconds) && healthDoublingSeconds >= 1.0 &&
             std::isfinite(damageDoublingSeconds) && damageDoublingSeconds >= 1.0 &&
             std::isfinite(speedGainPerMinute) && speedGainPerMinute >= 0.0 &&
@@ -44,7 +46,7 @@ struct OvertimeConfig {
     const double minutes = seconds / 60.0;
     return {
         std::exp2(std::min(40.0, seconds / safe.healthDoublingSeconds)),
-        std::exp2(std::min(40.0, seconds / safe.damageDoublingSeconds)),
+        1.0 + safe.damageGainPerMinute * minutes,
         std::min(safe.maximumSpeed, 1.0 + safe.speedGainPerMinute * minutes),
         std::min(safe.maximumSpawnRate, 1.0 + safe.spawnGainPerMinute * minutes),
     };

@@ -16,5 +16,9 @@
   "sellRefundFraction": 0.5,
   "buildingUpgradeCostMultiplier": [0.5, 1.0],
   "buildingUpgradeCrystalBonus": [5, 10, 15, 20, 30, 40, 55],
-  "coreUpgradeCrystals": [30, 50, 75, 110, 150, 200, 260]
+  "coreUpgradeCrystals": [30, 50, 75, 110, 150, 200, 260],
+  "worldProducerRestoreCoins": [80, 60],
+  "worldProducerBatch": [8, 10],
+  "worldProducerInterval": [12.0, 10.0],
+  "worldProducerUpgradeCoins": [50, 75, 110, 165]
 }

@@ -311,7 +311,16 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         .buildingUpgradeCrystalBonus =
             crystalCurve(value.at("buildingUpgradeCrystalBonus"), false),
         .coreUpgradeCrystals = crystalCurve(value.at("coreUpgradeCrystals"), true),
+        .worldProducerRestoreCoins = value.value("worldProducerRestoreCoins", std::array<int,2>{80,60}),
+        .worldProducerBatch = value.value("worldProducerBatch", std::array<int,2>{8,10}),
+        .worldProducerInterval = value.value("worldProducerInterval", std::array<double,2>{12,10}),
+        .worldProducerUpgradeCoins = value.value("worldProducerUpgradeCoins", std::array<int,4>{50,75,110,165}),
     };
+    if (std::ranges::any_of(definition.worldProducerRestoreCoins, [](int v){return v<0;}) ||
+        std::ranges::any_of(definition.worldProducerUpgradeCoins, [](int v){return v<0;}) ||
+        std::ranges::any_of(definition.worldProducerBatch, [](int v){return v<=0 || v>10000;}) ||
+        std::ranges::any_of(definition.worldProducerInterval, [](double v){return !std::isfinite(v) || v<.25 || v>1000;}))
+        throw std::runtime_error("invalid world producer economy");
     if (definition.crystalMineInterval <= 0.0 || definition.crystalMineAmount <= 0 ||
         definition.waveRewardBase < 0 || definition.waveRewardPerWave < 0 ||
         definition.bombPurchaseCoinCost < 0 ||
@@ -398,10 +407,11 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .afterWave = overtime.value("afterWave", 10),
         .healthDoublingSeconds = overtime.value("healthDoublingSeconds", 60.0),
         .damageDoublingSeconds = overtime.value("damageDoublingSeconds", 120.0),
-        .speedGainPerMinute = overtime.value("speedGainPerMinute", 0.12),
-        .maximumSpeed = overtime.value("maximumSpeed", 1.75),
-        .spawnGainPerMinute = overtime.value("spawnGainPerMinute", 0.20),
-        .maximumSpawnRate = overtime.value("maximumSpawnRate", 2.0),
+        .speedGainPerMinute = overtime.value("speedGainPerMinute", 0.04),
+        .maximumSpeed = overtime.value("maximumSpeed", 1.50),
+        .spawnGainPerMinute = overtime.value("spawnGainPerMinute", 0.50),
+        .maximumSpawnRate = overtime.value("maximumSpawnRate", 4.0),
+        .damageGainPerMinute = overtime.value("damageGainPerMinute", 0.03),
     };
     if (!definition.overtime.valid() || definition.eyeHeight <= 0.0 || definition.walkSpeed <= 0.0 ||
         definition.sprintSpeed <= 0.0 ||

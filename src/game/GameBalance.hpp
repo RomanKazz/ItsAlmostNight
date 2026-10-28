@@ -141,6 +141,11 @@ struct EconomyBalanceDefinition {
     // One price per transition: level 1 -> 2 through level 7 -> 8.
     std::array<int, 7> buildingUpgradeCrystalBonus;
     std::array<int, 7> coreUpgradeCrystals;
+    // Mine, lumber mill. Unique world producers do not consume building slots.
+    std::array<int, 2> worldProducerRestoreCoins{80,60};
+    std::array<int, 2> worldProducerBatch{8,10};
+    std::array<double, 2> worldProducerInterval{12,10};
+    std::array<int, 4> worldProducerUpgradeCoins{50,75,110,165};
 };
 
 struct GameplayBalanceDefinition {
