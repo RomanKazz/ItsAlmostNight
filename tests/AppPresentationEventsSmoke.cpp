@@ -17,6 +17,55 @@ struct AppPresentationTestAccess {
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
         {
+            const float previousIntensity = app->motionSwayIntensity_;
+            app->motionSwayIntensity_ = 1.0F;
+            std::array<double, 4> atStop{};
+            const std::array rates{30, 60, 144, 240};
+            for (std::size_t rate = 0; rate < rates.size(); ++rate) {
+                app->suspendGameplayInput();
+                const double dt = 1.0 / rates[rate];
+                for (int frame = 0; frame < rates[rate] / 2; ++frame)
+                    app->updateWeaponLookSway(2.5 * dt, -1.5 * dt, dt);
+                atStop[rate] = app->weaponLookYawOffset_;
+                if (atStop[rate] >= -.01 || app->weaponLookPitchOffset_ <= .005) {
+                    std::cerr << "Weapon must lag behind the turn without changing camera aim\n";
+                    return 1;
+                }
+                bool softReturn = false;
+                for (int frame = 0; frame < rates[rate]; ++frame) {
+                    app->updateWeaponLookSway(0, 0, dt);
+                    softReturn |= app->weaponLookYawOffset_ > 0;
+                }
+                if (!softReturn || std::abs(app->weaponLookYawOffset_) > 1e-5 ||
+                    std::abs(app->weaponLookPitchOffset_) > 1e-5) {
+                    std::cerr << "Weapon sway must spring back once and settle\n";
+                    return 1;
+                }
+            }
+            for (const auto value : atStop) if (std::abs(value - atStop[0]) > 1e-8) {
+                std::cerr << "Weapon weight must stay consistent across frame rates\n";
+                return 1;
+            }
+            for (int frame = 0; frame < 240; ++frame) {
+                app->updateWeaponLookSway(frame % 2 ? -2 : 2, .8, 1.0 / 240);
+                if (!std::isfinite(app->weaponLookYawOffset_) || std::abs(app->weaponLookYawOffset_) > .038 ||
+                    std::abs(app->weaponLookPitchOffset_) > .027) {
+                    std::cerr << "Rapid turns must keep weapon sway bounded\n";
+                    return 1;
+                }
+            }
+            app->motionSwayIntensity_ = 0;
+            app->updateWeaponLookSway(1, 1, 1.0 / 60);
+            if (app->weaponLookYawOffset_ != 0 || app->weaponLookPitchOffset_ != 0 ||
+                app->weaponLookYawVelocity_ != 0 || app->weaponLookPitchVelocity_ != 0) {
+                std::cerr << "Zero motion intensity must fully disable look sway\n";
+                return 1;
+            }
+            app->motionSwayIntensity_ = previousIntensity;
+            app->suspendGameplayInput();
+        }
+
+        {
             std::array<BuildingInstance, 1> structures{{{
                 .id = {4321, 1}, .type = BuildingType::GunTurret,
                 .gridPosition = {0, 0}, .health = 90, .maxHealth = 100,

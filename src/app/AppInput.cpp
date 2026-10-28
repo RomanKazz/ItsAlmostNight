@@ -210,8 +210,10 @@ void App::processInput() {
             coreDefenseMenuEntranceSeconds_ = 0.0;
             cameraBobSpeed_ = 0.0;
             cameraBobAmount_ = 0.0;
-            cameraLookYawLag_ = 0.0;
-            cameraLookPitchLag_ = 0.0;
+            weaponLookYawOffset_ = 0.0;
+            weaponLookPitchOffset_ = 0.0;
+            weaponLookYawVelocity_ = 0.0;
+            weaponLookPitchVelocity_ = 0.0;
             cameraStrafeLean_ = 0.0;
             cameraImpulseOffset_ = {};
             cameraShakeRemaining_ = 0.0;

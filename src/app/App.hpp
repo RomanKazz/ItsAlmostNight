@@ -173,6 +173,7 @@ class App {
                               bool primaryMouseDown);
     void processRemovalInput(const SimulationSnapshot& snapshot,
         std::optional<EntityId> aimedTarget, bool allowed, double frameSeconds);
+    void updateWeaponLookSway(double yawDelta, double pitchDelta, double seconds);
     void rebuildTerrainGraphics();
     void refreshDecorationExclusions(
         const SimulationSnapshot& snapshot);
@@ -550,8 +551,10 @@ class App {
     double cameraBobSpeed_{};
     Vec3 cameraBobPreviousPosition_{};
     bool cameraBobPositionInitialized_{};
-    double cameraLookYawLag_{};
-    double cameraLookPitchLag_{};
+    double weaponLookYawOffset_{};
+    double weaponLookPitchOffset_{};
+    double weaponLookYawVelocity_{};
+    double weaponLookPitchVelocity_{};
     double cameraStrafeLean_{};
     double previousVisualYaw_{};
     double previousVisualPitch_{};

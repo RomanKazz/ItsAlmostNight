@@ -70,15 +70,6 @@ void App::renderGameplayFrame(
     };
     position = Vector3Add(
         position,
-        Vector3Scale(
-            bobRight,
-            static_cast<float>(cameraLookYawLag_ * 0.42) *
-                motionSwayIntensity_ * cameraMotionScale));
-    position.y += static_cast<float>(
-        cameraLookPitchLag_ * 0.32) *
-        motionSwayIntensity_ * cameraMotionScale;
-    position = Vector3Add(
-        position,
         Vector3Scale(bobRight, bobSide));
     position.y += bobVertical;
     Vector3 bobCameraUp = Vector3Normalize(

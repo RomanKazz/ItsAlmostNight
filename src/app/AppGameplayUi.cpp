@@ -230,6 +230,20 @@ if (showFirstPersonTool) {
         viewModelCamera.fovy = 25.4F;
     }
     FirstPersonToolTuning renderTuning = activeToolTuning();
+    // Apply only to the viewmodel pose (including its swing ribbon), never
+    // world camera/aim. Existing motion settings can disable the effect.
+    if (!tuningPreview && !snapshot.runUpgradeChoicePending) {
+        const float intensity = motionSwayIntensity_;
+        const float yaw = static_cast<float>(weaponLookYawOffset_) * intensity;
+        const float pitch = static_cast<float>(weaponLookPitchOffset_) * intensity;
+        renderTuning.position.x += yaw * .85F;
+        renderTuning.position.y += pitch * .75F;
+        renderTuning.rotation.y += yaw * RAD2DEG * .8F;
+        renderTuning.rotation.x += pitch * RAD2DEG * .75F;
+        renderTuning.rotation.z -= yaw * RAD2DEG * .45F;
+    }
+
+
     renderTuning.position.y -= activeToolTuning().swapDrop *
         (1.0F - arrivalHudOpacity);
     if (toolSwapRemaining_ > 0.0 &&

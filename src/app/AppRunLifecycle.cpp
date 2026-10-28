@@ -40,8 +40,10 @@ void App::resetRunClientState(
     cameraShakeRemaining_ = 0.0;
     cameraShakeStrength_ = 0.0;
     explosionShakeCooldownRemaining_ = 0.0;
-    cameraLookYawLag_ = 0.0;
-    cameraLookPitchLag_ = 0.0;
+    weaponLookYawOffset_ = 0.0;
+    weaponLookPitchOffset_ = 0.0;
+    weaponLookYawVelocity_ = 0.0;
+    weaponLookPitchVelocity_ = 0.0;
     cameraStrafeLean_ = 0.0;
     cameraImpulseOffset_ = {};
     landingResponseRemaining_ = 0.0;

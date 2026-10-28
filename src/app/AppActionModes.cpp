@@ -9,6 +9,9 @@ namespace ian {
 using namespace app_detail;
 
 void App::suspendGameplayInput() {
+    weaponLookYawOffset_ = weaponLookPitchOffset_ = 0.0;
+    weaponLookYawVelocity_ = weaponLookPitchVelocity_ = 0.0;
+    cameraInertiaInitialized_ = false;
     input_.moveForward = 0.0;
     input_.moveRight = 0.0;
     input_.sprint = false;

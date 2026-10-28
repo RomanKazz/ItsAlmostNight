@@ -25,6 +25,36 @@
 namespace ian {
 using namespace app_detail;
 
+void App::updateWeaponLookSway(double yawDelta, double pitchDelta, double seconds) {
+    if (!std::isfinite(seconds) || seconds <= 0.0) return;
+    if (motionSwayIntensity_ <= 0.0F || !std::isfinite(yawDelta) || !std::isfinite(pitchDelta)) {
+        weaponLookYawOffset_ = weaponLookPitchOffset_ = 0.0;
+        weaponLookYawVelocity_ = weaponLookPitchVelocity_ = 0.0;
+        return;
+    }
+    // Exact damped-spring solution for a constant target over this frame.
+    // Drive by angular speed, so the weight is consistent at different FPS.
+    constexpr double Frequency = 22.0, Damping = .70;
+    constexpr double DampRate = Frequency * Damping;
+    const double oscillation = Frequency * std::sqrt(1.0 - Damping * Damping);
+    const double dt = std::min(seconds, .10);
+    const auto advance = [&](double& value, double& velocity, double target, double limit) {
+        const double offset = value - target;
+        const double sine = std::sin(oscillation * dt), cosine = std::cos(oscillation * dt);
+        const double decay = std::exp(-DampRate * dt);
+        const double next = target + decay * (offset * cosine +
+            (velocity + DampRate * offset) * sine / oscillation);
+        velocity = decay * (velocity * cosine -
+            (DampRate * velocity + Frequency * Frequency * offset) * sine / oscillation);
+        value = std::clamp(next, -limit, limit);
+        if (value != next) velocity = 0.0;
+    };
+    advance(weaponLookYawOffset_, weaponLookYawVelocity_,
+        std::clamp(-yawDelta / seconds * .010, -.033, .033), .038);
+    advance(weaponLookPitchOffset_, weaponLookPitchVelocity_,
+        std::clamp(-pitchDelta / seconds * .009, -.023, .023), .027);
+}
+
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
     const RunState currentRunState = simulation_.snapshot().state;
@@ -1047,15 +1077,7 @@ void App::update() {
         eventSnapshot.playerPitch - previousVisualPitch_;
     previousVisualYaw_ = eventSnapshot.playerYaw;
     previousVisualPitch_ = eventSnapshot.playerPitch;
-    cameraLookYawLag_ = std::clamp(
-        cameraLookYawLag_ - yawDelta * 0.22,
-        -0.032, 0.032);
-    cameraLookPitchLag_ = std::clamp(
-        cameraLookPitchLag_ - pitchDelta * 0.18,
-        -0.024, 0.024);
-    const double lookLagDecay = std::exp(-17.0 * frameSeconds);
-    cameraLookYawLag_ *= lookLagDecay;
-    cameraLookPitchLag_ *= lookLagDecay;
+    updateWeaponLookSway(yawDelta, pitchDelta, frameSeconds);
 
     const double yawSin = std::sin(eventSnapshot.playerYaw);
     const double yawCos = std::cos(eventSnapshot.playerYaw);
