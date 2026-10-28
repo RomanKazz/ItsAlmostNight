@@ -20,7 +20,7 @@ struct EnemySpawnMenuInput {
     float wheel{};
 };
 
-struct EnemySpawnMenuResult { bool summon{}; bool close{}; };
+struct EnemySpawnMenuResult { bool summon{}; bool close{}; bool startNight{}; };
 
 namespace enemy_spawn_menu {
 
@@ -50,7 +50,7 @@ inline constexpr std::array<Color, 4> VariantColors{
 inline constexpr std::array<int, 6> Presets{1, 10, 50, 100, 500, 1000};
 
 struct Layout {
-    Rectangle panel{}, catalog{}, details{}, close{}, minus{}, plus{}, count{}, slider{}, summon{};
+    Rectangle panel{}, catalog{}, details{}, close{}, minus{}, plus{}, count{}, slider{}, summon{}, startNight{};
     std::array<Rectangle, Enemies.size()> cards{};
     std::array<Rectangle, 4> variants{};
     std::array<Rectangle, 6> presets{};
@@ -62,7 +62,7 @@ inline Layout layout(Vector2 screen) {
     Layout l;
     l.portrait = screen.x / std::max(1.0F, screen.y) < 1.15F;
     const float width = l.portrait ? 760.0F : 1240.0F;
-    const float height = l.portrait ? 1190.0F : 792.0F;
+    const float height = l.portrait ? 1258.0F : 860.0F;
     l.scale = std::max(.05F, std::min({l.portrait ? 2.0F : 1.0F,
         (screen.x - 40) / width, (screen.y - 40) / height}));
     const float s = l.scale;
@@ -103,6 +103,7 @@ inline Layout layout(Vector2 screen) {
             countY + 98 + static_cast<float>(l.portrait ? 0 : i / 3) * 44, pw, 36);
     }
     l.summon = d(20, l.details.height / s - 80, dw - 40, 58);
+    l.startNight = r(28, height - 70, width - 56, 42);
     return l;
 }
 
@@ -123,7 +124,7 @@ inline void portrait(const GameUi& ui, EnemyType type, Rectangle bounds) {
 } // namespace enemy_spawn_menu
 
 inline EnemySpawnMenuResult drawEnemySpawnCatalog(const GameUi& ui, EnemyType& selected, EliteAffix& variant, int& count,
-    int activeEnemies, Vector2 screen, const EnemySpawnMenuInput& input = {}) {
+    int activeEnemies, Vector2 screen, const EnemySpawnMenuInput& input = {}, bool canStartNight = true) {
     namespace es = enemy_spawn_menu;
     namespace ms = menuStyle;
     if (std::none_of(es::Enemies.begin(), es::Enemies.end(),
@@ -201,10 +202,13 @@ inline EnemySpawnMenuResult drawEnemySpawnCatalog(const GameUi& ui, EnemyType& s
         input.pointer, input.click, available) || (input.enter && available));
     if (!l.portrait) {
         label(localizeText("ACTIVE") + ": " + std::to_string(activeEnemies) + " / " + std::to_string(Maximum),
-            {l.catalog.x, l.panel.y + l.panel.height - 64 * s, l.catalog.width, 26 * s}, 16, ms::Muted, UiFontRole::Body);
+            {l.catalog.x, l.panel.y + l.panel.height - 132 * s, l.catalog.width, 26 * s}, 16, ms::Muted, UiFontRole::Body);
         label("Enter: summon  ·  Esc / B: close  ·  Shift: +/- 10",
-            {l.catalog.x, l.panel.y + l.panel.height - 34 * s, l.catalog.width, 20 * s}, 13, ms::Muted, UiFontRole::Body);
+            {l.catalog.x, l.panel.y + l.panel.height - 102 * s, l.catalog.width, 20 * s}, 13, ms::Muted, UiFontRole::Body);
     }
+    result.startNight = !result.close && ms::button(l.startNight,s,
+        localizeText(canStartNight ? "START NIGHT 11" : "NIGHT 11: PLACE CORE / FINISH CHALLENGE"),
+        22,input.pointer,input.click,canStartNight);
     return result;
 }
 

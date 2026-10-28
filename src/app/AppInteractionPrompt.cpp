@@ -113,7 +113,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetId = landmark->id,
                 .worldAnchor = {
                     static_cast<float>(landmark->position.x),
-                    static_cast<float>(landmark->position.y + 6.7),
+                    static_cast<float>(landmark->position.y + 2.8),
                     static_cast<float>(landmark->position.z),
                 },
                 .objectName = mine ? "Abandoned Mine"

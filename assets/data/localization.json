@@ -3,6 +3,8 @@
   "languages": {
     "en": {},
     "ru": {
+      "START NIGHT 11": "НАЧАТЬ НОЧЬ 11",
+      "NIGHT 11: PLACE CORE / FINISH CHALLENGE": "НОЧЬ 11: ПОСТАВЬ ЯДРО / ЗАВЕРШИ ИСПЫТАНИЕ",
       "Building capacity": "к лимиту построек",
       "Building capacity. No slot required.": "к лимиту построек. Не занимает слот.",
       "EXPANSION TOME": "ТОМ РАСШИРЕНИЯ",

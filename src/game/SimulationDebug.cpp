@@ -48,6 +48,30 @@ double horizontalDistanceSquared(Vec3 a, Vec3 b) {
 
 } // namespace
 
+bool Simulation::startDebugEndlessNight() {
+    if (state_ == RunState::MainMenu || state_ == RunState::Defeat ||
+        state_ == RunState::Victory || !buildings_.hasCore() || challengeActive()) return false;
+
+    invalidateSnapshotCache();
+    enemies_.reset();
+    waveStartCheckpoint_.reset();
+    runUpgradeChoicePending_ = false;
+    runUpgradeChoiceCount_ = 0;
+    runUpgradeSelectionsRemaining_ = 0;
+    runUpgradePaidChoicePrice_ = 0;
+    runShop_ = {};
+    shrines_.offer = ShrineKind::None;
+    shrines_.source.reset();
+    overtimeSeconds_ = 0;
+    wave_ = gameplay_.overtime.afterWave;
+    stageCleared_ = true;
+    finalNight_ = true;
+    phaseTimeRemaining_ = phaseDuration_ = 0;
+    state_ = stateBeforePause_ = RunState::Wave;
+    events_.push_back({.type=GameEventType::FinalNightStarted,.amount=wave_+1,.critical=true});
+    return beginNextFinalNightWave();
+}
+
 void Simulation::castChainLightning(
     const CastChainLightningCommand& command) {
     const int maximumTargets =

@@ -681,6 +681,7 @@ class Simulation {
     [[nodiscard]] std::size_t clearModularBuildings();
     void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
+    [[nodiscard]] bool startDebugEndlessNight();
     [[nodiscard]] bool grantDebugRunUpgrade(
         RunUpgradeEffect effect, RunUpgradeRarity rarity = RunUpgradeRarity::Common);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);

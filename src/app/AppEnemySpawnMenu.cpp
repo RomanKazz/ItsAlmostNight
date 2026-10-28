@@ -23,7 +23,18 @@ void App::drawEnemySpawnMenu() {
     };
     const auto result = drawEnemySpawnCatalog(ui_, debugSpawnType_, debugSpawnEliteAffix_,
         debugSpawnCount_, active,
-        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
+        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input,
+        snapshot.coreId.has_value() && !snapshot.activeChallengeCenter);
+    if (result.startNight && userSettings_.debugHotkeysEnabled) {
+        if (simulation_.startDebugEndlessNight()) {
+            enemySpawnMenuVisible_ = false;
+            suspendGameplayInput();
+            fixedStep_.reset();
+            DisableCursor();
+            audio_.playUiConfirm();
+        } else audio_.playUiError();
+        return;
+    }
     if (result.summon) {
         pendingSpawnEnemy_ = true;
         audio_.playUiConfirm();
