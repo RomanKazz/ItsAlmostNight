@@ -256,6 +256,58 @@ void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
     }
 }
 
+void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera,
+    const ControlSettings& controls, float opacity) {
+    const auto projection = worldPromptProjection(prompt.worldAnchor, camera);
+    if (!projection) return;
+    const ScopedUiFontRole font(UiFontRole::Display);
+    const float size = 48.0F * std::clamp(static_cast<float>(uiScreenHeight()) / 1200.0F, .7F, 1.25F);
+    const float fontSize = size * .48F;
+    const float keyHeight = size * 1.36F;
+    const float keyGap = size * .12F, actionGap = size * .35F, padding = size * .28F;
+    struct Action { std::string text, key; bool held; float keyWidth, textWidth; };
+    std::array<Action, 3> actions{};
+    std::size_t count = 0;
+    float width = 0;
+    const auto add = [&](std::string text, std::string key, bool held) {
+        const float keyWidth = std::max(keyHeight,
+            measureUiText(key, keyHeight * .40F).x + keyHeight * .22F);
+        const float textWidth = measureUiText(text, fontSize).x;
+        if (count > 0) width += actionGap;
+        width += keyWidth + keyGap + textWidth + padding * 2;
+        actions[count++] = {std::move(text), std::move(key), held, keyWidth, textWidth};
+    };
+    if (!prompt.actionText.empty()) {
+        const bool door = prompt.actionText == "DOOR";
+        add(prompt.actionText, door ? "F" : InputKeycap::label(controls, prompt.input),
+            door ? IsKeyDown(KEY_F) : InputKeycap::held(controls, prompt.input));
+    }
+    if (prompt.showRepair) add("REPAIR", InputKeycap::label(controls, ControlAction::Repair),
+        InputKeycap::held(controls, ControlAction::Repair));
+    if (prompt.showRemove) add("REMOVE", InputKeycap::label(controls, ControlAction::Sell),
+        InputKeycap::held(controls, ControlAction::Sell));
+    float cursor = std::clamp(projection->anchor.x - width * .5F, 12.0F,
+        std::max(12.0F, static_cast<float>(uiScreenWidth()) - width - 12));
+    const float y = projection->anchor.y;
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& action = actions[i];
+        drawPromptKeycap({cursor, y - keyHeight * .5F, action.keyWidth, keyHeight},
+            action.key, action.held, opacity);
+        cursor += action.keyWidth + keyGap;
+        const Rectangle pill{cursor, y - size * .65F, action.textWidth + padding * 2, size * 1.3F};
+        DrawRectangleRounded(pill, 1, 16, hintStyle::fade({0, 0, 0, 102}, opacity));
+        SdfUiTextStyle style{};
+        style.fillColor = hintStyle::fade(UiWhite, opacity);
+        style.outlineColor = hintStyle::fade({20, 24, 20, 255}, opacity);
+        style.outlinePixels = size * .065F;
+        style.shadowColor = hintStyle::fade({0, 0, 0, 140}, opacity);
+        style.shadowOffsetPixels = {0, size * .055F};
+        const auto measured = measureUiText(action.text, fontSize);
+        drawStyledSdfUiText(action.text, {pill.x + padding, y - measured.y * .5F}, fontSize, style);
+        cursor += pill.width + actionGap;
+    }
+}
+
 void drawWorldLoot(const InteractionPrompt& prompt,const Camera3D& camera,
     const ControlSettings& controls,float opacity) {
     const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
@@ -443,6 +495,10 @@ void InteractionPromptRenderer::draw(
 void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt,const Camera3D& camera,const GameUi& ui,
     const ControlSettings& controls,float opacity) {
+    if (prompt.showRepair || prompt.showRemove) {
+        if (projectable(prompt, camera)) drawBuildingActions(prompt, camera, controls, opacity);
+        return;
+    }
     if(prompt.targetKind==InteractionPromptTargetKind::Building &&
         prompt.input==ControlAction::Upgrade && prompt.cost) {
         // MissingGrace/fade can retain the previous target after a fast turn.

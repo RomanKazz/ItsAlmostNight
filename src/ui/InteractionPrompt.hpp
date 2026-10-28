@@ -62,6 +62,8 @@ struct InteractionPrompt {
     bool recentSuccess{};
     Color accentColor{245, 231, 198, 255};
     bool occluded{};
+    bool showRepair{};
+    bool showRemove{};
 };
 
 [[nodiscard]] Rectangle interactionPromptPanelBounds(const InteractionPrompt& prompt,Vector2 anchor,

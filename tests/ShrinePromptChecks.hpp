@@ -261,7 +261,7 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
     for(const auto language:{Language::English,Language::Russian}) {
         setLanguage(language);
         const std::string suffix=language==Language::Russian ? "-ru.png" : ".png";
-        for(int kind=0;kind<6;++kind) {
+        for(int kind=0;kind<7;++kind) {
             auto sample=prompt;sample.cost.reset();sample.objectName.clear();sample.showResourceCost=false;
             std::string name;
             switch(kind) {
@@ -271,8 +271,13 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
                 sample.cost=ResourceCost{0,0,120};sample.availableCurrency=0;name="prompt-mine";break;
             case 3: sample.targetKind=InteractionPromptTargetKind::Chest;sample.actionText="Open";
                 sample.cost=ResourceCost{0,0,30};sample.availableCurrency=99;name="prompt-chest";break;
-            case 4: sample.targetKind=InteractionPromptTargetKind::ModularBuilding;sample.actionText="Repair Wall";
-                sample.showProgress=true;sample.progress=.65F;name="prompt-repair";break;
+            case 4: sample.targetKind=InteractionPromptTargetKind::ModularBuilding;sample.actionText.clear();
+                sample.showRepair=true;sample.showRemove=true;
+                controls.keys[static_cast<std::size_t>(ControlAction::Repair)]=KEY_F;
+                controls.keys[static_cast<std::size_t>(ControlAction::Sell)]=KEY_X;
+                name="prompt-repair-remove";break;
+            case 6: sample.targetKind=InteractionPromptTargetKind::Building;sample.actionText.clear();
+                sample.showRemove=true;name="prompt-remove-healthy";break;
             default: sample=prompt;name="prompt-shrine";break;
             }
             Image image=render(sample,(name+suffix).c_str());UnloadImage(image);
