@@ -297,7 +297,8 @@ Vec3 App::buildingImpactOffsetAt(EntityId id) const {
         const double displacement =
             static_cast<double>(
                 std::sin(progress * 2.0F * PI) *
-                std::exp(-3.2F * progress) * 0.15F);
+                std::exp(-4.5F * progress) * 0.11F *
+                impact.strength * (userSettings_.accessibility.reduceFlashes ? .4 : 1.0));
         offset.x += impact.direction.x * displacement;
         offset.z += impact.direction.z * displacement;
     }

@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "ui/UiTomeIcon.hpp"
+#include "ui/HudHotbar.hpp"
 #include "RewardBackdropChecks.hpp"
 #include "ShrinePromptChecks.hpp"
 #include "BuildingHoverChecks.hpp"
@@ -114,6 +115,27 @@ int main(int argc, char** argv) {
     checkNightForecast(ui,argc>1 ? argv[1] : nullptr);
     checkWeaponInventory(ui,argc>1 ? argv[1] : nullptr);
     checkShrineResourcePrompt(ui,argc>1 ? argv[1] : nullptr);
+    if (argc > 1) {
+        ian::SimulationSnapshot items{};
+        items.playerMaxRecoverableArmor = 25;
+        const std::array effects{ian::LootUpgradeEffect::Acorn, ian::LootUpgradeEffect::CrystalPan,
+            ian::LootUpgradeEffect::RepairNail, ian::LootUpgradeEffect::LumberBoot,
+            ian::LootUpgradeEffect::Abacus, ian::LootUpgradeEffect::WeaponToken,
+            ian::LootUpgradeEffect::GhostCandle, ian::LootUpgradeEffect::CrystalSafe};
+        int stacks = 1;
+        for (const auto effect : effects) items.lootStacks[ian::lootUpgradeIndex(effect)] = stacks++;
+        SetWindowSize(1280, 720);
+        const auto target = LoadRenderTexture(1280, 720);
+        BeginTextureMode(target);
+        ClearBackground({91, 132, 70, 255});
+        ian::hud_detail::drawLootInventory(ui, items, false, false);
+        EndTextureMode();
+        auto capture = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&capture);
+        ExportImage(capture, (std::string(argv[1]) + "/collected-items.png").c_str());
+        UnloadImage(capture); UnloadRenderTexture(target);
+    }
+
     checkBuildingHoverUi(ui,argc>1 ? argv[1] : nullptr);
     const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");

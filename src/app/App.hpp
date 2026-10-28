@@ -625,6 +625,7 @@ class App {
     struct BuildingImpactVisual {
         EntityId id;
         Vec3 direction;
+        double strength{1.0};
         double remaining;
         double duration;
     };

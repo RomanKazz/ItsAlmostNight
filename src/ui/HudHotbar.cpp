@@ -462,27 +462,11 @@ void drawBuildHotbar(
 void drawLootInventory(
     GameUi& ui, const SimulationSnapshot& snapshot,
     bool expanded, bool coreVisible) {
-    constexpr std::array<LootUpgradeEffect, LootUpgradeEffectCount> Effects{
-        LootUpgradeEffect::Damage,
-        LootUpgradeEffect::MoveSpeed,
-        LootUpgradeEffect::MaximumHealth,
-        LootUpgradeEffect::Apple,
-        LootUpgradeEffect::Bread,
-        LootUpgradeEffect::IronBar,
-        LootUpgradeEffect::FuelJerrycan,
-        LootUpgradeEffect::Compass,
-        LootUpgradeEffect::Nail,
-        LootUpgradeEffect::Key,
-        LootUpgradeEffect::Map,
-        LootUpgradeEffect::Anvil,
-        LootUpgradeEffect::Saw,
-        LootUpgradeEffect::Potion,
-        LootUpgradeEffect::Blueprint,
-        LootUpgradeEffect::Hourglass,
-        LootUpgradeEffect::Rope,
-        LootUpgradeEffect::Magnet,
-        LootUpgradeEffect::HealthAid,
-    };
+    constexpr auto Effects = [] {
+        std::array<LootUpgradeEffect,LootUpgradeEffectCount> values{};
+        for (std::size_t i=0;i<values.size();++i) values[i]=static_cast<LootUpgradeEffect>(i);
+        return values;
+    }();
     int activeCount = 0;
     for (const LootUpgradeEffect effect : Effects) {
         if (snapshot.lootStacks[lootUpgradeIndex(effect)] > 0) {
@@ -491,30 +475,20 @@ void drawLootInventory(
     }
     if (activeCount == 0) return;
 
-    constexpr float PanelX = 12.0F;
-    constexpr float SlotSize = 46.0F;
-    constexpr float Gap = 6.0F;
-    constexpr int Columns = 7;
-    const int shownCount = expanded
-        ? activeCount
-        : std::min(activeCount, 6);
-    const int visibleColumns = std::min(shownCount, Columns);
+    constexpr float PanelX = 20.0F;
+    constexpr float Pitch = 52.8F;
+    constexpr float SlotSize = Pitch - 3.0F;
+    constexpr int Columns = 6;
+    const int shownCount = activeCount;
     const int rows = (shownCount + Columns - 1) / Columns;
-    const float PanelY = expanded
-        ? 548.0F
-        : static_cast<float>(GetScreenHeight()) -
-              (coreVisible ? 204.0F : 148.0F);
-    const float panelWidth = 20.0F +
-        static_cast<float>(visibleColumns) * (SlotSize + Gap);
-    const float panelHeight = (expanded ? 36.0F : 20.0F) +
-        static_cast<float>(rows) * (SlotSize + Gap);
-    if (expanded) {
-        ui.drawPanel({PanelX, PanelY, panelWidth, panelHeight}, 210);
-        drawSdfUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
-                   10.0F, {218, 203, 173, 235});
-    }
+    // Match the 20px screen margin and 52.8px pitch of tomes/defenses.
+    // Grow upward from the actual topmost vital bar instead of overlapping it.
+    const float vitalTop = static_cast<float>(uiScreenHeight()) - 56.0F -
+        (coreVisible ? 44.0F : 0.0F) - (snapshot.playerMaxRecoverableArmor > 0 ? 44.0F : 0.0F);
+    const float PanelY = expanded ? std::max(220.0F, vitalTop - static_cast<float>(rows) * Pitch - 12.0F)
+        : vitalTop - static_cast<float>(rows) * Pitch - 12.0F;
 
-    const Vector2 mouse = GetMousePosition();
+    const Vector2 mouse = uiMousePosition();
     std::optional<LootUpgradeEffect> hovered;
     int hoveredStacks = 0;
     int slotIndex = 0;
@@ -525,186 +499,33 @@ void drawLootInventory(
         const int column = slotIndex % Columns;
         const int row = slotIndex / Columns;
         const Rectangle slot{
-            PanelX + 10.0F +
-                static_cast<float>(column) * (SlotSize + Gap),
-            PanelY + (expanded ? 27.0F : 5.0F) +
-                static_cast<float>(row) * (SlotSize + Gap),
+            PanelX + static_cast<float>(column) * Pitch,
+            PanelY + static_cast<float>(row) * Pitch,
             SlotSize, SlotSize};
         ++slotIndex;
-        DrawRectangleRounded(slot, 0.22F, 5, {24, 32, 35, 235});
-        DrawRectangleLinesEx(slot, 2.0F, {75, 184, 225, 245});
-        const Vector2 center{slot.x + slot.width * 0.5F,
-                             slot.y + slot.height * 0.5F};
-        if (effect == LootUpgradeEffect::Apple) {
-            DrawCircleV({center.x, center.y + 3.0F}, 12.0F,
-                        {219, 65, 58, 255});
-            DrawRectangleRec({center.x - 1.5F, center.y - 14.0F,
-                              3.0F, 7.0F}, {85, 58, 35, 255});
-            DrawEllipse(static_cast<int>(center.x + 5.0F),
-                        static_cast<int>(center.y - 11.0F),
-                        6.0F, 3.5F, {91, 188, 82, 255});
-        } else if (effect == LootUpgradeEffect::Bread) {
-            const Rectangle loaf{center.x - 15.0F, center.y - 9.0F,
-                                 30.0F, 21.0F};
-            DrawRectangleRounded(loaf, 0.42F, 6,
-                                 {226, 165, 73, 255});
-            for (int cut = 0; cut < 3; ++cut) {
-                const float x = loaf.x + 8.0F +
-                    static_cast<float>(cut) * 7.0F;
-                DrawLineEx({x, loaf.y + 3.0F},
-                           {x - 3.0F, loaf.y + 9.0F},
-                           2.0F, {151, 94, 44, 220});
-            }
-        } else if (effect == LootUpgradeEffect::IronBar) {
-            DrawRectangleRounded(
-                {center.x - 14.0F, center.y - 7.0F,
-                 28.0F, 14.0F}, 0.2F, 5,
-                {172, 187, 196, 255});
-            DrawLineEx(
-                {center.x - 8.0F, center.y - 2.0F},
-                {center.x + 8.0F, center.y + 2.0F},
-                2.0F, {93, 108, 117, 255});
-        } else if (effect == LootUpgradeEffect::FuelJerrycan) {
-            DrawRectangleRounded(
-                {center.x - 10.0F, center.y - 13.0F,
-                 20.0F, 25.0F}, 0.2F, 5,
-                {209, 151, 66, 255});
-            DrawRectangleLinesEx(
-                {center.x - 5.0F, center.y - 16.0F,
-                 10.0F, 6.0F}, 2.0F, {104, 75, 40, 255});
-        } else if (effect == LootUpgradeEffect::Compass) {
-            DrawCircleV(center, 13.0F, {171, 129, 75, 255});
-            DrawCircleLinesV(center, 13.0F, {240, 218, 155, 255});
-            DrawTriangle(
-                {center.x, center.y - 10.0F},
-                {center.x - 4.0F, center.y + 7.0F},
-                {center.x + 4.0F, center.y + 7.0F},
-                {219, 80, 62, 255});
-        } else if (effect == LootUpgradeEffect::Nail) {
-            DrawLineEx(
-                {center.x - 10.0F, center.y + 9.0F},
-                {center.x + 8.0F, center.y - 9.0F},
-                4.0F, {205, 211, 212, 255});
-            DrawCircleV(
-                {center.x - 10.0F, center.y + 9.0F},
-                4.0F, {117, 127, 132, 255});
-        } else if (effect == LootUpgradeEffect::Key) {
-            DrawCircleLinesV(
-                {center.x - 7.0F, center.y - 4.0F},
-                6.0F, {235, 198, 83, 255});
-            DrawLineEx(
-                {center.x - 1.0F, center.y + 1.0F},
-                {center.x + 12.0F, center.y + 12.0F},
-                4.0F, {235, 198, 83, 255});
-        } else if (effect == LootUpgradeEffect::Map) {
-            DrawRectangleRec(
-                {center.x - 14.0F, center.y - 10.0F,
-                 28.0F, 20.0F}, {190, 157, 101, 255});
-            DrawLineEx(
-                {center.x - 3.0F, center.y - 10.0F},
-                {center.x - 3.0F, center.y + 10.0F},
-                2.0F, {111, 83, 54, 255});
-            DrawLineEx(
-                {center.x + 5.0F, center.y - 10.0F},
-                {center.x + 5.0F, center.y + 10.0F},
-                2.0F, {111, 83, 54, 255});
-        } else if (effect == LootUpgradeEffect::Anvil) {
-            DrawRectangleRec(
-                {center.x - 14.0F, center.y - 8.0F,
-                 28.0F, 10.0F}, {159, 169, 177, 255});
-            DrawRectangleRec(
-                {center.x - 6.0F, center.y + 2.0F,
-                 12.0F, 10.0F}, {116, 126, 134, 255});
-        } else if (effect == LootUpgradeEffect::Saw) {
-            DrawLineEx(
-                {center.x - 14.0F, center.y + 7.0F},
-                {center.x + 12.0F, center.y - 7.0F},
-                4.0F, {209, 214, 215, 255});
-            for (int tooth = 0; tooth < 4; ++tooth) {
-                const float x = center.x - 8.0F +
-                    static_cast<float>(tooth) * 6.0F;
-                DrawLineEx(
-                    {x, center.y + 4.0F},
-                    {x + 3.0F, center.y + 9.0F},
-                    1.5F, {122, 130, 133, 255});
-            }
-        } else if (effect == LootUpgradeEffect::Potion) {
-            DrawRectangleRounded(
-                {center.x - 9.0F, center.y - 8.0F,
-                 18.0F, 19.0F}, 0.3F, 5,
-                {190, 70, 102, 255});
-            DrawRectangleRec(
-                {center.x - 5.0F, center.y - 14.0F,
-                 10.0F, 7.0F}, {207, 202, 185, 255});
-        } else {
-            const std::string initial(1, lootUpgradeName(effect)[0]);
-            const Vector2 size = measureUiText(initial, 20.0F);
-            drawSdfUiText(initial,
-                       {center.x - size.x * 0.5F,
-                        center.y - size.y * 0.5F},
-                       20.0F, {236, 226, 196, 255});
+        DrawRectangleRounded(slot, .18F, 4, {24, 29, 27, 160});
+        const Texture2D texture = ui.lootTexture(effect);
+        if (IsTextureValid(texture)) {
+            DrawTexturePro(texture,
+                {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {slot.x + 2, slot.y + 1, slot.width - 4, slot.height - 6}, {}, 0, WHITE);
         }
-        const std::string badge = "x" + std::to_string(stacks);
-        const Vector2 badgeSize = measureUiText(badge, 9.0F);
-        const Rectangle badgeBounds{
-            slot.x + slot.width - badgeSize.x - 8.0F,
-            slot.y + slot.height - 17.0F,
-            badgeSize.x + 7.0F, 15.0F};
-        DrawRectangleRounded(badgeBounds, 0.45F, 5,
-                             {13, 18, 20, 245});
-        drawSdfUiText(badge, {badgeBounds.x + 3.0F, badgeBounds.y - 1.0F},
-                   9.0F, UiWhite);
-        if (CheckCollisionPointRec(mouse, slot)) {
+        const std::string badge = std::to_string(stacks);
+        const float badgeFont = Pitch * .19F;
+        const Vector2 badgeSize = measureUiText(badge, badgeFont);
+        drawStyledSdfUiText(badge, {slot.x + slot.width - badgeSize.x - 2,
+            slot.y + slot.height - badgeSize.y - 1}, badgeFont,
+            {.fillColor = UiWhite, .outlineColor = {20, 22, 20, 255}, .outlinePixels = 1.5F});
+        if (!IsCursorHidden() && CheckCollisionPointRec(mouse, slot)) {
             hovered = effect;
             hoveredStacks = stacks;
-            DrawRectangleLinesEx(slot, 3.0F, {213, 246, 255, 255});
         }
     }
 
-    if (!expanded && activeCount > shownCount) {
-        drawSdfUiText(
-            "+" + std::to_string(activeCount - shownCount),
-            {PanelX + panelWidth + 2.0F, PanelY + 18.0F},
-            12.0F, {218, 203, 173, 235});
-    }
-
-    if (hovered) {
-        const std::string tooltipTitle =
-            lootUpgradeName(*hovered) +
-            std::string("  x") +
-            std::to_string(hoveredStacks);
-        const std::string tooltipDescription =
-            lootUpgradeDescription(*hovered);
-        const float tooltipX = PanelX + panelWidth + 8.0F;
-        const float availableTooltipWidth = std::max(
-            180.0F,
-            static_cast<float>(GetScreenWidth()) -
-                tooltipX - 12.0F);
-        const float maximumTooltipWidth =
-            std::min(520.0F, availableTooltipWidth);
-        const float tooltipWidth = std::clamp(
-            std::max(
-                measureUiText(tooltipTitle, 13.0F).x,
-                measureUiText(tooltipDescription, 10.0F).x) +
-                24.0F,
-            std::min(260.0F, maximumTooltipWidth),
-            maximumTooltipWidth);
-        const Rectangle tooltip{
-            tooltipX, PanelY, tooltipWidth, 66.0F};
-        ui.drawPanel(tooltip, 238);
-        drawSdfUiText(tooltipTitle,
-                   {tooltip.x + 12.0F, tooltip.y + 9.0F},
-                   fitUiTextSize(
-                       tooltipTitle, 13.0F, 9.0F,
-                       tooltip.width - 24.0F),
-                   {122, 218, 255, 255});
-        drawSdfUiText(tooltipDescription,
-                   {tooltip.x + 12.0F, tooltip.y + 36.0F},
-                   fitUiTextSize(
-                       tooltipDescription, 10.0F, 7.0F,
-                       tooltip.width - 24.0F),
-                   {230, 224, 207, 245});
-    }
+    if (hovered && !IsCursorHidden()) drawItemTooltip(
+        localizeText(lootUpgradeName(*hovered))+" x"+std::to_string(hoveredStacks),
+        lootUpgradeDescription(*hovered),mouse,
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())});
 }
 
 const char* weaponLabel(PlayerWeapon weapon) {

@@ -995,50 +995,50 @@ void App::processPresentationEvents(
              event.type ==
                  GameEventType::ModularBuildingDamaged) &&
                    event.entityId) {
-            addEffect(
-                PresentationEffectType::BuildingDamaged,
-                event.position, 0.3, 1.0F,
-                event.entityId);
             recentlyDamagedBuilding_ = *event.entityId;
             damagedBuildingHealthBarRemaining_ = 1.6;
-            const auto building = std::find_if(
-                eventSnapshot.buildings.begin(),
-                eventSnapshot.buildings.end(),
-                [&event](const BuildingInstance& candidate) {
-                    return candidate.id == *event.entityId;
-                });
-            const auto attacker =
-                event.sourceId
-                    ? std::find_if(
-                          eventSnapshot.enemies.begin(),
-                          eventSnapshot.enemies.end(),
-                          [&event](const EnemyInstance& enemy) {
-                              return enemy.id ==
-                                     *event.sourceId;
-                          })
-                    : eventSnapshot.enemies.end();
-            if (building != eventSnapshot.buildings.end() &&
-                attacker != eventSnapshot.enemies.end()) {
-                const Vec3 center =
-                    buildingWorldPosition(*building);
-                const double deltaX =
-                    center.x - attacker->position.x;
-                const double deltaZ =
-                    center.z - attacker->position.z;
-                const double length = std::sqrt(
-                    deltaX * deltaX + deltaZ * deltaZ);
-                if (length > 1e-6) {
-                    constexpr double Duration = 0.28;
-                    buildingImpactVisuals_.push_back({
-                        .id = *event.entityId,
-                        .direction = {
-                            deltaX / length, 0.0,
-                            deltaZ / length,
-                        },
-                        .remaining = Duration,
-                        .duration = Duration,
-                    });
-                }
+            const auto building = std::ranges::find(eventSnapshot.buildings, *event.entityId, &BuildingInstance::id);
+            const auto attacker = event.sourceId
+                ? std::ranges::find(eventSnapshot.enemies, *event.sourceId, &EnemyInstance::id)
+                : eventSnapshot.enemies.end();
+            const Vec3 center = building != eventSnapshot.buildings.end()
+                ? buildingWorldPosition(*building) : event.position;
+            Vec3 outward{0, 0, 1};
+            if (attacker != eventSnapshot.enemies.end()) {
+                const double dx = attacker->position.x - center.x, dz = attacker->position.z - center.z;
+                const double length = std::hypot(dx, dz);
+                if (length > 1e-6) outward = {dx / length, 0, dz / length};
+            }
+            const double maxHealth = building != eventSnapshot.buildings.end() ? building->maxHealth
+                : event.platformFrame ? event.platformFrame->maxHealth
+                : event.modularWall ? event.modularWall->maxHealth
+                : event.ramp ? event.ramp->maxHealth : 100.0;
+            const float strength = static_cast<float>(std::clamp(
+                .65 + 3.0 * std::max(0, event.amount) / std::max(1.0, maxHealth), .65, 1.45));
+            const double radius = building != eventSnapshot.buildings.end()
+                ? buildingFootprintHalfExtent(building->type) : .55;
+            const double height = building != eventSnapshot.buildings.end()
+                ? std::min(1.1, static_cast<double>(renderer_->buildingVisualHeight(building->type, building->level)) * .6)
+                : .55;
+            const Vec3 contact{center.x + outward.x * radius, center.y + height,
+                center.z + outward.z * radius};
+            // One short response per building; a crowd cannot accumulate
+            // unbounded shakes or a stack of full-building flashes.
+            const auto existing = std::ranges::find_if(effects_, [&](const PresentationEffect& effect) {
+                return effect.type == PresentationEffectType::BuildingDamaged && effect.entityId == event.entityId;
+            });
+            if (existing == effects_.end() || existing->duration - existing->remaining > .07) {
+                if (existing != effects_.end()) effects_.erase(existing);
+                addEffect(PresentationEffectType::BuildingDamaged, center, .38, strength, event.entityId);
+                effects_.back().targetPosition = contact;
+                effects_.back().variant = event.buildingType &&
+                    (*event.buildingType == BuildingType::Wall || *event.buildingType == BuildingType::Gate) ? 1 : 0;
+                auto impact = std::ranges::find(buildingImpactVisuals_, *event.entityId, &BuildingImpactVisual::id);
+                const BuildingImpactVisual response{.id = *event.entityId,
+                    .direction = {-outward.x, 0, -outward.z}, .strength = strength,
+                    .remaining = .24, .duration = .24};
+                if (impact != buildingImpactVisuals_.end()) *impact = response;
+                else buildingImpactVisuals_.push_back(response);
             }
         } else if (event.type == GameEventType::BossRamImpact) {
             addEffect(PresentationEffectType::RamImpact, event.position, 0.7);
