@@ -68,7 +68,6 @@ GOLD = (.65625, .28, .46)
 PURPLE = (.46875, .535, .705)
 BLUE = (.03125, .535, .705)
 RED = (.96875, .28, .46)
-MOSS = (.59375, .285, .44)
 
 
 class Geo:
@@ -181,7 +180,7 @@ class Geo:
 
 
 def bolt(g,name,x,y,z,r=.055):
-    rotation=Matrix.Rotation(math.pi*.5,3,'X')
+    rotation=Matrix.Rotation(math.pi*.5 * (-1 if y>0 else 1),3,'X')
     g.lathe(name,[(r*.8,0),(r,.015),(r,.045),(r*.75,.058)],LIGHT_STONE,
             (x,y,z),6,False,rotation)
 
@@ -192,8 +191,9 @@ def base(g,kind):
             STONE,sides=8,smooth=False)
     g.lathe('upper_stone_lip',[(.77,.29),(.84,.34),(.84,.42),(.77,.47)],LIGHT_STONE,
             sides=8,smooth=False)
-    g.box('offering_step_front',(0,-.67,.21),(.84,.60,.26),STONE,.045)
-    g.box('offering_step_top',(0,-.78,.36),(.69,.42,.10),LIGHT_STONE,.025)
+    for side in (-1,1):
+        g.box('offering_step_'+str(side),(0,side*.67,.21),(.84,.60,.26),STONE,.045)
+        g.box('offering_step_top_'+str(side),(0,side*.78,.36),(.69,.42,.10),LIGHT_STONE,.025)
     g.lathe('altar_wood_body',[(.49,.43),(.55,.51),(.45,.61),(.43,1.10),(.51,1.16)],
             WOOD,sides=8,smooth=False)
     g.lathe('lower_iron_band',[(.50,.49),(.55,.52),(.55,.63),(.49,.66)],IRON,sides=8,smooth=False)
@@ -202,29 +202,27 @@ def base(g,kind):
     g.lathe('offering_recess',[(.40,1.311),(.40,1.325)],IRON,sides=10,smooth=False)
     g.lathe('magic_pool',[(.33,1.326),(.33,1.345)],accent,sides=10,smooth=False)
     # Wide metal straps, not thin ornamental lines, remain legible from the path.
-    for sign in (-1,1):
-        g.box('altar_strap_'+str(sign),(sign*.28,-.383,.86),(.11,.075,.49),IRON,.018,
-              (0,0,sign*-.13))
-        bolt(g,'altar_rivet_'+str(sign),sign*.27,-.438,.90,.045)
     diamond=[(0,.20),(.17,0),(0,-.20),(-.17,0)]
-    g.prism('offering_badge_rim',diamond,(0,-.455,.86),.065,GOLD)
-    g.prism('offering_badge_crystal',[(x*.72,z*.72) for x,z in diamond],
-            (0,-.506,.86),.075,accent)
-    for i,(x,y,z,r,h) in enumerate([(-.70,-.28,.40,.14,.48),(-.53,-.42,.42,.09,.28),
-                                   (.70,.30,.40,.13,.41)]):
-        g.gem('ground_crystal_'+str(i),(x,y,z),r,h,accent,(0,-.15 if x<0 else .18,0))
-    for i,(x,y) in enumerate([(-.62,.48),(.65,-.36),(-.40,-.66)]):
-        g.box('moss_pad_'+str(i),(x,y,.43),(.24,.16,.065),MOSS,.028,(0,0,i*.72))
+    for side in (-1,1):
+        for sign in (-1,1):
+            suffix=str(sign)+'_'+str(side)
+            g.box('altar_strap_'+suffix,(sign*.28,side*.383,.86),(.11,.075,.49),IRON,.018,
+                  (0,0,sign*side*.13))
+            bolt(g,'altar_rivet_'+suffix,sign*.27,side*.438,.90,.045)
+            g.gem('ground_crystal_'+suffix,(sign*.70,side*.37,.40),.13,.42,accent)
+        g.prism('offering_badge_rim_'+str(side),diamond,(0,side*.455,.86),.065,GOLD)
+        g.prism('offering_badge_crystal_'+str(side),[(x*.72,z*.72) for x,z in diamond],
+                (0,side*.506,.86),.075,accent)
 
 
 def player_body(g):
     base(g,'player')
-    # The two shoulders are deliberately offset; it is an old woodland altar.
+    # Both axes are mirrored. There is no exposed back or off-centre support.
     for sign in (-1,1):
-        g.box('arch_stone_foot_'+str(sign),(sign*.65,.13,.62),(.42,.52,.48),STONE,.065)
-        g.box('arch_upright_'+str(sign),(sign*.67,.15,1.39),(.33,.39,1.36),LIGHT_STONE,.05,
+        g.box('arch_stone_foot_'+str(sign),(sign*.65,0,.62),(.42,.52,.48),STONE,.065)
+        g.box('arch_upright_'+str(sign),(sign*.67,0,1.39),(.33,.39,1.36),LIGHT_STONE,.05,
               (0,sign*-.075,0))
-        g.box('arch_bronze_collar_'+str(sign),(sign*.68,.15,1.18),(.39,.44,.14),GOLD,.025)
+        g.box('arch_bronze_collar_'+str(sign),(sign*.68,0,1.18),(.39,.44,.14),GOLD,.025)
         # True wedge-shaped voussoirs: separated joints avoid overlapping,
         # coplanar cube faces and their flickering checkerboard at the crown.
         for i in range(4):
@@ -235,70 +233,65 @@ def player_body(g):
             cx=sum(p[0] for p in outline)/4
             cz=sum(p[1] for p in outline)/4
             g.prism('arch_crown_'+str(sign)+'_'+str(i),
-                    [(x-cx,z-cz) for x,z in outline],(cx,.15,1.92+cz),.40,LIGHT_STONE,.10)
+                    [(x-cx,z-cz) for x,z in outline],(cx,0,1.92+cz),.40,LIGHT_STONE,.10)
         # Purple hanging tabs make the shrine readable from behind as well.
         outline=[(-.11,.24),(.11,.24),(.11,-.19),(0,-.12),(-.11,-.19)]
-        g.prism('votive_tab_'+str(sign),outline,(sign*.71,-.095,1.60),.042,PURPLE)
-        bolt(g,'tab_pin_'+str(sign),sign*.71,-.135,1.76,.045)
-    g.gem('crown_amethyst',(0,.15,2.59),.115,.21,PURPLE)
+        for side in (-1,1):
+            g.prism('votive_tab_'+str(sign)+'_'+str(side),outline,(sign*.71,side*.217,1.60),.042,PURPLE)
+            bolt(g,'tab_pin_'+str(sign)+'_'+str(side),sign*.71,side*.239,1.76,.045)
+    g.gem('crown_amethyst',(0,0,2.59),.115,.21,PURPLE)
 
 
 def heart(g):
     outline=[]
     for i in range(24):
         t=math.tau*i/24
-        outline.append((.029*16*math.sin(t)**3,
-                        .029*(13*math.cos(t)-5*math.cos(2*t)-2*math.cos(3*t)-math.cos(4*t))))
+        outline.append((.025*16*math.sin(t)**3,
+                        .025*(13*math.cos(t)-5*math.cos(2*t)-2*math.cos(3*t)-math.cos(4*t))))
     outline.reverse()
-    g.prism('heart_bronze_setting',[(x*1.09,z*1.09) for x,z in outline],(0,-.30,2.07),.20,GOLD,.09)
-    g.prism('heart_faceted_ruby',outline,(0,-.30,2.07),.31,RED,.16)
+    g.prism('heart_bronze_setting',[(x*1.09,z*1.09) for x,z in outline],(0,0,2.02),.20,GOLD,.09)
+    g.prism('heart_faceted_ruby',outline,(0,0,2.02),.31,RED,.16)
     # Small diamond below the heart reinforces the magical suspended centerpiece.
-    g.gem('heart_spark',(0,-.30,1.43),.085,.19,PURPLE)
+    g.gem('heart_spark',(0,0,1.40),.075,.14,PURPLE)
 
 
 def building_body(g):
     base(g,'building')
     for sign in (-1,1):
-        g.box('timber_stone_boot_'+str(sign),(sign*.65,.14,.62),(.43,.50,.41),STONE,.05)
-        g.box('timber_arch_post_'+str(sign),(sign*.67,.14,1.51),(.34,.38,1.98),WOOD,.045,
+        g.box('timber_stone_boot_'+str(sign),(sign*.65,0,.62),(.43,.50,.41),STONE,.05)
+        g.box('timber_arch_post_'+str(sign),(sign*.67,0,1.56),(.34,.38,2.12),WOOD,.045,
               (0,sign*-.045,0))
-        for z in (.76,1.45,2.33):
-            g.box('post_iron_wrap_'+str(sign)+'_'+str(z),(sign*.67,.14,z),(.40,.44,.14),IRON,.02)
-            bolt(g,'post_bolt_'+str(sign)+'_'+str(z),sign*.67,-.111,z,.058)
-        g.box('oak_top_cap_'+str(sign),(sign*.69,.14,2.56),(.43,.45,.14),ENDGRAIN,.035)
-    g.box('timber_crossbeam',(0,.14,2.55),(1.68,.39,.26),OAK,.05)
-    g.box('crossbeam_iron_center',(0,.14,2.55),(.25,.43,.28),IRON,.025)
-    bolt(g,'crossbeam_rivet',0,-.11,2.55,.06)
-    g.gem('crossbeam_sapphire',(0,.14,2.67),.13,.13,BLUE)
-    # Diagonal shoulders make a silhouette distinct from the player's stone arch.
-    for sign in (-1,1):
-        g.box('timber_diagonal_'+str(sign),(sign*.47,.25,2.25),(.15,.18,.57),OAK,.022,
-              (0,sign*.67,0))
-    # A little forged anvil lives in the offering dish; no detached tiny tools.
-    anvil=[(-.27,.07),(-.22,.12),(.18,.12),(.31,.04),(.15,.01),(.11,-.10),
-           (.18,-.15),(-.18,-.15),(-.12,-.09),(-.14,.01),(-.27,.01)]
-    g.prism('anvil_offering',anvil,(0,-.05,1.50),.25,IRON,.055)
-    g.box('anvil_top_edge',(-.025,-.05,1.616),(.39,.26,.055),LIGHT_STONE,.016)
+        for z in (.76,1.45,2.40):
+            g.box('post_iron_wrap_'+str(sign)+'_'+str(z),(sign*.67,0,z),(.40,.44,.14),IRON,.02)
+            for side in (-1,1):
+                bolt(g,'post_bolt_'+str(sign)+'_'+str(z)+'_'+str(side),sign*.67,side*.221,z,.058)
+        g.box('oak_top_cap_'+str(sign),(sign*.69,0,2.64),(.43,.45,.14),ENDGRAIN,.035)
+    g.box('timber_crossbeam',(0,0,2.64),(1.68,.39,.22),OAK,.04)
+    g.box('crossbeam_iron_center',(0,0,2.64),(.25,.43,.24),IRON,.025)
+    for side in (-1,1):
+        bolt(g,'crossbeam_rivet_'+str(side),0,side*.216,2.64,.06)
+    g.gem('crossbeam_sapphire',(0,0,2.72),.11,.08,BLUE)
 
 
 def gear(g):
     outline=[]
     for i in range(40):
         angle=math.tau*i/40
-        radius=.47 if i%5 in (1,2,3) else .385
+        radius=.47 if i%5 in (4,0,1) else .385
         outline.append((radius*math.cos(angle),radius*math.sin(angle)))
-    g.ring('eight_tooth_bronze_gear',outline,.23,(0,-.31,2.04),.24,GOLD)
+    g.ring('eight_tooth_bronze_gear',outline,.23,(0,0,2.04),.24,GOLD)
     ring=[(.275*math.cos(math.tau*i/16),.275*math.sin(math.tau*i/16)) for i in range(16)]
-    g.ring('gear_steel_hub',ring,.20,(0,-.31,2.04),.285,LIGHT_STONE)
+    g.ring('gear_steel_hub',ring,.20,(0,0,2.04),.285,LIGHT_STONE)
     # A real double-pyramid gem, visible and faceted from both sides.
-    vertices=[(0,-.535,2.04),(0,-.085,2.04),(-.183,-.31,2.04),
-              (0,-.31,2.235),(.183,-.31,2.04),(0,-.31,1.845)]
+    vertices=[(0,-.225,2.04),(0,.225,2.04),(-.183,0,2.04),
+              (0,0,2.235),(.183,0,2.04),(0,0,1.845)]
     faces=[]
     for i,k in [(2,3),(3,4),(4,5),(5,2)]:faces.extend([(0,i,k),(1,k,i)])
     g.component('gear_sapphire',vertices,faces,BLUE)
 
 
-manifest={'version':2,'style':'hewn stone / banded oak / bronze / faceted crystals',
+manifest={'version':3,'style':'hewn stone / banded oak / bronze / faceted crystals',
+          'symmetry_planes_glb':['X = 0 (left/right)','Z = 0 (front/back)'],
           'palette_sha256':hashlib.sha256(palette_path.read_bytes()).hexdigest(),
           'license':'Original geometry; existing Kenney CC0 colormap', 'models':{}}
 roots=[]

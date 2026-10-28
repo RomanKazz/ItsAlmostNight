@@ -9,8 +9,8 @@
       },
       {
         "name": "woodland_player_shrine_body",
-        "triangles": 1904,
-        "closed_outward_solids": 40,
+        "triangles": 2312,
+        "closed_outward_solids": 50,
         "uvs_valid": true
       }
     ],
@@ -22,7 +22,11 @@
     "height": 2.799999952316284,
     "within_2x2_footprint": true,
     "self_contained_glb": true,
-    "native_manual_playtest": false
+    "native_manual_playtest": false,
+    "mirrored_vertex_max_error_m": {
+      "left_right": 2.3145823793324e-16,
+      "front_back": 5.960464477539063e-08
+    }
   },
   "building": {
     "meshes": [
@@ -34,8 +38,8 @@
       },
       {
         "name": "woodland_building_shrine_body",
-        "triangles": 2572,
-        "closed_outward_solids": 47,
+        "triangles": 2864,
+        "closed_outward_solids": 56,
         "uvs_valid": true
       }
     ],
@@ -47,6 +51,10 @@
     "height": 2.799999952316284,
     "within_2x2_footprint": true,
     "self_contained_glb": true,
-    "native_manual_playtest": false
+    "native_manual_playtest": false,
+    "mirrored_vertex_max_error_m": {
+      "left_right": 2.3145823793324e-16,
+      "front_back": 5.960464477539063e-08
+    }
   }
 }

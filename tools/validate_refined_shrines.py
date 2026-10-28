@@ -8,6 +8,7 @@ import struct
 import bpy
 import bmesh
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / 'art/models/shrines/rework'
@@ -91,10 +92,28 @@ for kind in ('player', 'building'):
     hi = [max(v[i] for v in coords) for i in range(3)]
     assert abs(lo[2]) < 1e-6 and abs(hi[2] - 2.8) < 1e-5
     assert all(abs(v[i]) <= 1.0001 for v in coords for i in (0, 1))
+    symmetry_errors = {}
+    for label, axis in [('left_right', 0), ('front_back', 1)]:
+        worst = 0
+        # Check each material mesh separately; a mirrored point on a different
+        # object must not hide asymmetry in the emblem or its architecture.
+        for obj in objects:
+            points = [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+            tree = KDTree(len(points))
+            for i, point in enumerate(points):
+                tree.insert(point, i)
+            tree.balance()
+            for point in points:
+                reflected = point.copy()
+                reflected[axis] *= -1
+                worst = max(worst, tree.find(reflected)[2])
+        assert worst < 1e-5, (kind, label, worst)
+        symmetry_errors[label] = worst
     report[kind] = {'meshes': meshes, 'palette_byte_identical': True,
                     'palette_sha256': hashlib.sha256(embedded).hexdigest(),
                     'unit_normals': True, 'emblem_clearance': True,
                     'floor_zero': True, 'height': hi[2], 'within_2x2_footprint': True,
                     'self_contained_glb': True, 'native_manual_playtest': False}
+    report[kind]['mirrored_vertex_max_error_m'] = symmetry_errors
 (ART / 'validation.json').write_text(json.dumps(report, indent=2) + '\n')
 print(json.dumps(report, indent=2))

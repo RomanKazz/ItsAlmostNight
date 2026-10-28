@@ -10,5 +10,8 @@
   "source_fixture": "tests/ShrineGraphicsChecks.hpp",
   "geometry_report": "validation.json",
   "manual_gameplay_playtest": false,
-  "windows_build": false
+  "windows_build": false,
+  "front_back_world_shader_renders": true,
+  "front_back_raycast_distances_match": true,
+  "left_right_and_front_back_export_symmetry": true
 }
