@@ -16,6 +16,53 @@ struct AppPresentationTestAccess {
         if(!IsWindowReady()) return 77;
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
+        {
+            std::array<BuildingInstance, 1> structures{{{
+                .id = {4321, 1}, .type = BuildingType::GunTurret,
+                .gridPosition = {0, 0}, .health = 90, .maxHealth = 100,
+            }}};
+            auto hitSnapshot = snapshot;
+            hitSnapshot.buildings = structures;
+            const std::array hits{GameEvent{.type = GameEventType::BuildingDamaged,
+                .entityId = structures[0].id, .buildingType = BuildingType::GunTurret,
+                .position = {}, .amount = 10}};
+            for (int i = 0; i < 30; ++i) app->processPresentationEvents(hits, hitSnapshot);
+            const auto impacts = std::ranges::count(app->effects_, PresentationEffectType::BuildingDamaged, &PresentationEffect::type);
+            if (impacts != 1 || app->buildingImpactVisuals_.size() != 1 || !app->effects_.back().targetPosition) {
+                std::cerr << "Building hits must coalesce into one contact burst and recoil per target\n";
+                return 1;
+            }
+            app->buildingImpactVisuals_.front().remaining = .18;
+            const auto displacement = app->buildingImpactOffsetAt(structures[0].id);
+            if (std::hypot(displacement.x, displacement.z) < .01 || std::hypot(displacement.x, displacement.z) > .16) {
+                std::cerr << "Building impact recoil must be visible and bounded\n";
+                return 1;
+            }
+            const Camera3D hitCamera{{3, 2, 5}, {0, .75F, 0}, {0, 1, 0}, 48, CAMERA_PERSPECTIVE};
+            const auto target = LoadRenderTexture(640, 400);
+            WorldLighting light{}; light.cameraPosition = hitCamera.position;
+            for (const bool reduced : {false, true}) {
+                app->userSettings_.accessibility.reduceFlashes = reduced;
+                for (auto& effect : app->effects_) effect.remaining = effect.duration - .07;
+                app->renderer_->beginFrame();
+                BeginTextureMode(target); ClearBackground({29, 47, 57, 255}); BeginMode3D(hitCamera);
+                app->renderer_->beginWorldShader(light);
+                static_cast<void>(app->renderer_->drawGunTurret({}, 0, 0));
+                app->renderer_->endWorldShader();
+                app->drawPresentationEffects(hitCamera, light);
+                EndMode3D(); EndTextureMode();
+                if (const char* directory = std::getenv("IAN_HIT_CAPTURE")) {
+                    std::filesystem::create_directories(directory);
+                    auto image = LoadImageFromTexture(target.texture); ImageFlipVertical(&image);
+                    ExportImage(image, (std::string(directory) + (reduced ? "/building-hit-reduced.png" : "/building-hit.png")).c_str());
+                    UnloadImage(image);
+                }
+            }
+            UnloadRenderTexture(target);
+            app->userSettings_.accessibility.reduceFlashes = false;
+            app->effects_.clear(); app->buildingImpactVisuals_.clear();
+        }
+
         const std::array events{
             GameEvent{.type=GameEventType::ChainLightningHit,.entityId=EntityId{810,1},.sourceId=EntityId{990,1},
                 .buildingType=BuildingType::TeslaTower,.position={0,1.26,0},.targetPosition=Vec3{1.4,.7,-2},.secondaryImpact=true},

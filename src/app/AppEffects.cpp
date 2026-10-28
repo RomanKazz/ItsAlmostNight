@@ -96,6 +96,47 @@ void emitImpactStreak(
     }
 }
 
+void emitGunBulletImpactRing(
+    Vector3 center, Vector3 right, Vector3 up,
+    float radius, float width, Color color) {
+    constexpr std::array<Vector2, 13> Circle{{
+        {1.0F, 0.0F}, {0.8660254F, 0.5F},
+        {0.5F, 0.8660254F}, {0.0F, 1.0F},
+        {-0.5F, 0.8660254F}, {-0.8660254F, 0.5F},
+        {-1.0F, 0.0F}, {-0.8660254F, -0.5F},
+        {-0.5F, -0.8660254F}, {0.0F, -1.0F},
+        {0.5F, -0.8660254F}, {0.8660254F, -0.5F},
+        {1.0F, 0.0F},
+    }};
+    const auto ringPoint = [center, right, up](
+                               Vector2 unit, float distance) {
+        return Vector3Add(center, Vector3Add(
+            Vector3Scale(right, unit.x * distance),
+            Vector3Scale(up, unit.y * distance)));
+    };
+    Color transparent = color;
+    transparent.a = 0;
+    const float innerRadius = std::max(0.0F, radius - width);
+    for (std::size_t index = 1; index < Circle.size(); ++index) {
+        const Vector3 innerA = ringPoint(Circle[index - 1], innerRadius);
+        const Vector3 outerA = ringPoint(Circle[index - 1], radius);
+        const Vector3 innerB = ringPoint(Circle[index], innerRadius);
+        const Vector3 outerB = ringPoint(Circle[index], radius);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(innerA.x, innerA.y, innerA.z);
+        rlColor4ub(transparent.r, transparent.g,
+                   transparent.b, transparent.a);
+        rlVertex3f(outerA.x, outerA.y, outerA.z);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(innerB.x, innerB.y, innerB.z);
+        rlVertex3f(innerB.x, innerB.y, innerB.z);
+        rlColor4ub(transparent.r, transparent.g,
+                   transparent.b, transparent.a);
+        rlVertex3f(outerA.x, outerA.y, outerA.z);
+        rlVertex3f(outerB.x, outerB.y, outerB.z);
+    }
+}
+
 struct ExplosionSphereVertex {
     Vector3 unit;
     int shade;
@@ -487,6 +528,62 @@ void App::drawPresentationEffects(
         renderer_->endWorldShader();
     }
 
+    // Small authored-looking chips share one depth-tested color batch.
+    // No per-chip models, render textures or gameplay particles are created.
+    const bool buildingHits = renderer_->settings().particles && std::ranges::any_of(effects_,
+        [](const PresentationEffect& effect) { return effect.type == PresentationEffectType::BuildingDamaged; });
+    if (buildingHits) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState material{};
+        material.unlitAmount = .35F;
+        material.inkOutlineEligible = false;
+        renderer_->setWorldMaterial(material);
+        renderer_->beginColorOnlyWorldEffects();
+        BeginBlendMode(BLEND_ALPHA);
+        rlDisableDepthMask();
+        rlDisableBackfaceCulling();
+        rlSetTexture(0);
+        rlBegin(RL_TRIANGLES);
+        for (const auto& effect : effects_) {
+            if (effect.type != PresentationEffectType::BuildingDamaged || !effect.targetPosition) continue;
+            const Vector3 origin{static_cast<float>(effect.targetPosition->x),
+                static_cast<float>(effect.targetPosition->y), static_cast<float>(effect.targetPosition->z)};
+            const Vector3 delta = Vector3Subtract(origin, camera.position);
+            if (Vector3LengthSqr(delta) > 45 * 45 || Vector3DotProduct(delta, cameraForward) < 0) continue;
+            const float age = static_cast<float>(effect.duration - effect.remaining);
+            const float progress = std::clamp(age / static_cast<float>(effect.duration), 0.0F, 1.0F);
+            const auto seed = effect.entityId ? effect.entityId->index : 0U;
+            const int count = userSettings_.accessibility.reduceFlashes ? 4 : 8;
+            for (int i = 0; i < count; ++i) {
+                const float angle = (static_cast<float>(i) + effectUnit(static_cast<int>(seed), i + 61)) * 2.39996F;
+                const float speed = (.9F + effectUnit(static_cast<int>(seed), i + 91) * 1.5F) * effect.scale;
+                Vector3 position = Vector3Add(origin, Vector3Scale(cameraRight, std::cos(angle) * speed * age));
+                position.y += (.7F + std::sin(angle) * .6F) * speed * age - 3.5F * age * age;
+                position = Vector3Add(position, Vector3Scale(cameraForward, -.3F * age));
+                const float radius = (.025F + effectUnit(static_cast<int>(seed), i + 11) * .035F) *
+                    effect.scale * (1 - progress * progress);
+                Color color = effect.variant == 1 ? Color{207, 135, 65, 255} : Color{176, 196, 207, 255};
+                if (i % 3 == 0) color = {255, 216, 142, 255};
+                color.a = atmosphereAlpha(1 - progress);
+                rlColor4ub(color.r, color.g, color.b, color.a);
+                for (int corner = 0; corner < 3; ++corner) {
+                    const float rotation = angle + age * 11 + static_cast<float>(corner) * 2.094395F;
+                    const Vector3 point = Vector3Add(position, Vector3Add(
+                        Vector3Scale(cameraRight, std::cos(rotation) * radius),
+                        Vector3Scale(billboardUp, std::sin(rotation) * radius * .65F)));
+                    rlVertex3f(point.x, point.y, point.z);
+                }
+            }
+        }
+        rlEnd();
+        rlEnableBackfaceCulling();
+        rlEnableDepthMask();
+        EndBlendMode();
+        renderer_->endColorOnlyWorldEffects();
+        renderer_->setWorldMaterial({});
+        renderer_->endWorldShader();
+    }
+
     // Hits are the highest-volume effect during tower-heavy nights. Submit
     // every flash and spark as one camera-facing triangle batch rather than
     // issuing spheres and lines per hit.
@@ -497,7 +594,8 @@ void App::drawPresentationEffects(
     for (const PresentationEffect& effect : effects_) {
         if (effect.startDelayRemaining > 0.0 ||
             (effect.type != PresentationEffectType::Hit &&
-             effect.type != PresentationEffectType::EnemyHitImpact)) {
+             effect.type != PresentationEffectType::EnemyHitImpact &&
+             effect.type != PresentationEffectType::BuildingDamaged)) {
             continue;
         }
         const float progress = std::clamp(static_cast<float>(
@@ -507,6 +605,33 @@ void App::drawPresentationEffects(
             static_cast<float>(effect.position.y),
             static_cast<float>(effect.position.z),
         };
+        if (effect.type == PresentationEffectType::BuildingDamaged) {
+            if (!effect.targetPosition) continue;
+            const Vector3 contact{static_cast<float>(effect.targetPosition->x),
+                static_cast<float>(effect.targetPosition->y), static_cast<float>(effect.targetPosition->z)};
+            const Vector3 delta = Vector3Subtract(contact, camera.position);
+            if (Vector3LengthSqr(delta) > 45 * 45 || Vector3DotProduct(delta, cameraForward) < 0) continue;
+            const float fade = 1 - smoothstep(.05F, .48F, progress);
+            const float reduced = userSettings_.accessibility.reduceFlashes ? .24F : 1.0F;
+            emitSoftBillboardDisc(contact, cameraRight, billboardUp,
+                (.07F + progress * .32F) * effect.scale,
+                {255, 204, 113, atmosphereAlpha(fade * .55F * reduced)});
+            if (!userSettings_.accessibility.reduceFlashes) {
+                emitGunBulletImpactRing(contact, cameraRight, billboardUp,
+                    (.035F + progress * .45F) * effect.scale, .016F * fade,
+                    {255, 230, 171, atmosphereAlpha(fade * .65F)});
+                for (int i = 0; i < 5; ++i) {
+                    const float angle = static_cast<float>(i) * 2.39996F;
+                    const Vector3 direction = Vector3Add(Vector3Scale(cameraRight, std::cos(angle)),
+                        Vector3Scale(billboardUp, std::sin(angle)));
+                    emitImpactStreak(Vector3Add(contact, Vector3Scale(direction, (.05F + progress * .24F) * effect.scale)),
+                        cameraRight, billboardUp, angle,
+                        .13F * fade * effect.scale, .018F * fade,
+                        {255, 225, 157, atmosphereAlpha(fade)});
+                }
+            }
+            continue;
+        }
         const bool enemyImpact =
             effect.type == PresentationEffectType::EnemyHitImpact;
         const bool critical = enemyImpact && (effect.variant & 8) != 0;
