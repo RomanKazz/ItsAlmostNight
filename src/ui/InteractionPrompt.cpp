@@ -261,10 +261,10 @@ void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera
     const auto projection = worldPromptProjection(prompt.worldAnchor, camera);
     if (!projection) return;
     const ScopedUiFontRole font(UiFontRole::Display);
-    const float size = projection->size;
+    const float size = projection->size * .75F;
     const float fontSize = size * .48F;
     const float keyHeight = size * 1.36F;
-    const float keyGap = size * .12F, actionGap = size * .35F, padding = size * .28F;
+    const float keyGap = size * .12F, actionGap = size * .55F, padding = size * .28F;
     struct Action { std::string text, key; bool held; float keyWidth, textWidth; };
     std::array<Action, 4> actions{};
     std::size_t count = 0;
