@@ -64,6 +64,7 @@ struct InteractionPrompt {
     bool occluded{};
     bool showRepair{};
     bool showRemove{};
+    bool showRotate{};
 };
 
 [[nodiscard]] Rectangle interactionPromptPanelBounds(const InteractionPrompt& prompt,Vector2 anchor,

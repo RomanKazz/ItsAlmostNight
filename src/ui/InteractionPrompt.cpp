@@ -266,7 +266,7 @@ void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera
     const float keyHeight = size * 1.36F;
     const float keyGap = size * .12F, actionGap = size * .35F, padding = size * .28F;
     struct Action { std::string text, key; bool held; float keyWidth, textWidth; };
-    std::array<Action, 3> actions{};
+    std::array<Action, 4> actions{};
     std::size_t count = 0;
     float width = 0;
     const auto add = [&](std::string text, std::string key, bool held) {
@@ -282,6 +282,7 @@ void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera
         add(prompt.actionText, door ? "F" : InputKeycap::label(controls, prompt.input),
             door ? IsKeyDown(KEY_F) : InputKeycap::held(controls, prompt.input));
     }
+    if (prompt.showRotate) add("ROTATE", "R", IsKeyDown(KEY_R));
     if (prompt.showRepair) add("REPAIR", InputKeycap::label(controls, ControlAction::Repair),
         InputKeycap::held(controls, ControlAction::Repair));
     if (prompt.showRemove) add("REMOVE", InputKeycap::label(controls, ControlAction::Sell),
@@ -495,7 +496,7 @@ void InteractionPromptRenderer::draw(
 void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt,const Camera3D& camera,const GameUi& ui,
     const ControlSettings& controls,float opacity) {
-    if (prompt.showRepair || prompt.showRemove) {
+    if (prompt.showRepair || prompt.showRemove || prompt.showRotate) {
         if (projectable(prompt, camera)) drawBuildingActions(prompt, camera, controls, opacity);
         return;
     }
