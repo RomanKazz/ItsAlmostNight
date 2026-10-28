@@ -478,7 +478,6 @@ void drawTutorialCard(
     std::string action;
     switch (*visual.objective) {
     case TutorialObjective::MineWood:
-        key = "LMB";
         action = "CHOP A TREE";
         break;
     case TutorialObjective::OpenBuildMode:
@@ -487,24 +486,22 @@ void drawTutorialCard(
         action = "BUILD MODE";
         break;
     case TutorialObjective::PlaceCore:
-        key = "LMB";
         action = "PLACE CORE";
         break;
     case TutorialObjective::PrepareForNight:
-        key = "LMB";
-        action = "BUILD DEFENSE";
+        action = "PLACE DEFENSE";
         break;
     case TutorialObjective::SurviveFirstWave:
-        key = "!";
         action = "SURVIVE NIGHT";
         break;
     }
 
     const ScopedUiFontRole displayFont(UiFontRole::Display);
     constexpr float ActionFontSize = 22.0F;
-    const float keyWidth = std::max(62.0F, measureUiText(key, 19.0F).x + 22.0F);
+    const float keyWidth = key.empty() ? 0.0F : std::max(62.0F, measureUiText(key, 19.0F).x + 22.0F);
+    const float keySpace = key.empty() ? 0.0F : keyWidth + 15.0F;
     constexpr float CheckSlotWidth = 40.0F;
-    const float contentWidth = 14.0F + CheckSlotWidth + keyWidth + 15.0F +
+    const float contentWidth = 14.0F + CheckSlotWidth + keySpace +
         measureUiText(action, ActionFontSize).x + 18.0F;
     const float width = std::min(
         std::max(285.0F, contentWidth),
@@ -542,9 +539,9 @@ void drawTutorialCard(
 
     const Rectangle keycap{panel.x + 14.0F + CheckSlotWidth, panel.y + 10.0F,
                            keyWidth, 50.0F};
-    drawPromptKeycap(keycap, key, false, opacity);
+    if (!key.empty()) drawPromptKeycap(keycap, key, false, opacity);
 
-    const float textX = keycap.x + keycap.width + 15.0F;
+    const float textX = keycap.x + keySpace;
     const float availableWidth = std::max(
         20.0F, panel.x + panel.width - textX - 14.0F);
     const float actionSize = fitUiTextSize(
