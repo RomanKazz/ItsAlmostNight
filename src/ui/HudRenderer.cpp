@@ -1,3 +1,6 @@
+#include "ui/UiViewport.hpp"
+#include "ui/UiRoundedRect.hpp"
+#include "ui/UiPromptKeycap.hpp"
 #include "ui/HudRenderer.hpp"
 
 #include "app/UserSettings.hpp"
@@ -458,6 +461,103 @@ std::string phaseClock(double seconds) {
     std::snprintf(buffer, sizeof(buffer), "%02d:%02d", total / 60,
                   total % 60);
     return buffer;
+}
+
+void drawTutorialCard(
+    const SimulationSnapshot& snapshot,
+    const ControlSettings& controls, const HudViewState& view) {
+    const auto visual = view.tutorialHint.value_or(TutorialHintVisual{
+        .objective = snapshot.tutorialObjective, .opacity = 1.0F});
+    if (!visual.objective || visual.opacity <= .001F) return;
+    const float opacity = visual.opacity;
+    const auto fade = [opacity](Color color) {
+        color.a = static_cast<unsigned char>(std::lround(color.a * opacity));
+        return color;
+    };
+    std::string key;
+    std::string action;
+    switch (*visual.objective) {
+    case TutorialObjective::MineWood:
+        key = "LMB";
+        action = "CHOP A TREE";
+        break;
+    case TutorialObjective::OpenBuildMode:
+        key = keyboardKeyName(
+            controlKey(controls, ControlAction::BuildMode));
+        action = "BUILD MODE";
+        break;
+    case TutorialObjective::PlaceCore:
+        key = "LMB";
+        action = "PLACE CORE";
+        break;
+    case TutorialObjective::PrepareForNight:
+        key = "LMB";
+        action = "BUILD DEFENSE";
+        break;
+    case TutorialObjective::SurviveFirstWave:
+        key = "!";
+        action = "SURVIVE NIGHT";
+        break;
+    }
+
+    const ScopedUiFontRole displayFont(UiFontRole::Display);
+    constexpr float ActionFontSize = 22.0F;
+    const float keyWidth = std::max(62.0F, measureUiText(key, 19.0F).x + 22.0F);
+    constexpr float CheckSlotWidth = 40.0F;
+    const float contentWidth = 14.0F + CheckSlotWidth + keyWidth + 15.0F +
+        measureUiText(action, ActionFontSize).x + 18.0F;
+    const float width = std::min(
+        std::max(285.0F, contentWidth),
+        static_cast<float>(uiScreenWidth()) - 32.0F);
+    // Match the collapsed minimap position in HudMinimap.cpp. The extra gap
+    // clears the south compass label before the prompt begins.
+    const float mapSize = std::clamp(
+        static_cast<float>(std::min(uiScreenWidth(), uiScreenHeight())) *
+            0.185F, 130.0F, 168.0F);
+    const float top = 78.0F + mapSize;
+    const Rectangle panel{
+        std::max(16.0F, static_cast<float>(uiScreenWidth()) - width - 28.0F) + visual.slideX,
+        top + visual.slideY, width, 70.0F};
+    const float check = visual.checkProgress;
+    drawSolidRoundedRect(panel, 0.55F, fade(ColorLerp(
+        {17, 31, 37, 132}, {28, 58, 39, 165}, check * .8F)));
+    if (visual.completionPulse > 0) drawSolidRoundedRect(panel, .55F,
+        fade({147, 237, 139, static_cast<unsigned char>(visual.completionPulse * 19)}));
+
+    const float boxSize = 24 + visual.completionPulse * 3;
+    const Rectangle box{panel.x + 14 + (24 - boxSize) * .5F,
+        panel.y + (panel.height - boxSize) * .5F, boxSize, boxSize};
+    drawSolidRoundedRect(box, .24F, fade(ColorLerp({236, 229, 207, 235}, {110, 231, 132, 255}, check)));
+    drawSolidRoundedRect({box.x + 2.5F, box.y + 2.5F, box.width - 5, box.height - 5}, .18F,
+        fade(ColorLerp({27, 41, 43, 255}, {29, 75, 40, 255}, check)));
+    if (check > 0) {
+        const Vector2 start{box.x + box.width * .20F, box.y + box.height * .51F};
+        const Vector2 elbow{box.x + box.width * .43F, box.y + box.height * .73F};
+        const Vector2 end{box.x + box.width * .83F, box.y + box.height * .27F};
+        const float first = std::min(1.0F, check / .4F);
+        DrawLineEx(start, Vector2Lerp(start, elbow, first), 3.5F, fade({174, 255, 175, 255}));
+        if (check > .4F) DrawLineEx(elbow, Vector2Lerp(elbow, end, (check - .4F) / .6F),
+            3.5F, fade({174, 255, 175, 255}));
+    }
+
+    const Rectangle keycap{panel.x + 14.0F + CheckSlotWidth, panel.y + 10.0F,
+                           keyWidth, 50.0F};
+    drawPromptKeycap(keycap, key, false, opacity);
+
+    const float textX = keycap.x + keycap.width + 15.0F;
+    const float availableWidth = std::max(
+        20.0F, panel.x + panel.width - textX - 14.0F);
+    const float actionSize = fitUiTextSize(
+        action, ActionFontSize, 15.0F, availableWidth);
+    SdfUiTextStyle actionStyle{};
+    actionStyle.fillColor = fade(ColorLerp({255, 247, 227, 255}, {204, 255, 194, 255}, check));
+    actionStyle.outlineColor = fade({23, 22, 18, 255});
+    actionStyle.outlinePixels = 2.4F;
+    actionStyle.shadowColor = fade({0, 0, 0, 125});
+    actionStyle.shadowOffsetPixels = {0, 1.8F};
+    drawStyledSdfUiText(action,
+        {textX, panel.y + (panel.height - measureUiText(action, actionSize).y) * 0.5F},
+        actionSize, actionStyle);
 }
 
 } // namespace
@@ -1104,6 +1204,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     hudPerformanceStats.objectivesMs =
         performanceMilliseconds(sectionStart);
     sectionStart = PerformanceClock::now();
+
+    if (!view.mapOverlayOpen) drawTutorialCard(snapshot, controls, view);
 
     if (!view.mapOverlayOpen) {
         drawLootInventory(
