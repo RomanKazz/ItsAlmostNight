@@ -8,6 +8,7 @@
 #include "graphics/CameraCulling.hpp"
 #include "graphics/ExperienceCrystalStyle.hpp"
 #include "graphics/FireWandEffect.hpp"
+#include "graphics/EnemyMagicEffect.hpp"
 #include "graphics/BombDrawing.hpp"
 #include "graphics/IceWandEffect.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
@@ -1397,13 +1398,42 @@ void App::drawWorldLootItems(
 void App::drawWorldProjectiles(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
     const WorldLighting& lighting, float interpolationAlpha) {
+    interpolationAlpha = worldInterpolationAlpha(snapshot, interpolationAlpha);
     WorldObjectProfiler objectProfiler(
         performanceStats_.worldObjectTimings,
         renderer_->settings().performanceLogging);
     objectProfiler.next(WorldObjectStage::ProjectilesPortals);
     renderer_->beginWorldShader(lighting);
     renderer_->setWorldMaterial({});
-    const double fireTime = GetTime();
+    const double fireTime = snapshot.elapsedSeconds;
+    // Every hostile projectile shares the same pause-safe interpolation and
+    // simulation clock as player and defense shots, including its tail.
+    if (!snapshot.enemyProjectiles.empty()) {
+        WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        const auto view = camera_culling::horizontalView(camera);
+        const float maximumDistance = static_cast<float>(
+            simulation_.terrain().config().terrainRenderDistance + 24.0);
+        for (const bool headPass : {false, true}) {
+            material.inkOccluder = headPass;
+            renderer_->setWorldMaterial(material);
+            renderer_->beginColorOnlyWorldEffects();
+            fire_wand_effect::beginBatch(headPass);
+            for (const auto& shot : snapshot.enemyProjectiles) {
+                if (!shot.active || !camera_culling::visibleInHorizontalRange(
+                        static_cast<float>(shot.position.x) - camera.position.x,
+                        static_cast<float>(shot.position.z) - camera.position.z,
+                        view, maximumDistance + 2, 2)) continue;
+                enemy_magic_effect::projectile(shot, camera.position, snapshot.elapsedSeconds,
+                    interpolationAlpha, headPass, renderer_->settings().particles);
+            }
+            fire_wand_effect::endBatch();
+            renderer_->endColorOnlyWorldEffects();
+        }
+        renderer_->setWorldMaterial({});
+    }
     WorldMaterialState fireShotMaterial{};
     fireShotMaterial.unlitAmount = 1;
     fireShotMaterial.screenAoAmount = 0;

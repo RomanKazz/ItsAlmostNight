@@ -427,12 +427,11 @@ void App::drawWorldEnemies(
     EndBlendMode();
     const bool beeCharging=std::ranges::any_of(snapshot.enemies,[](const auto& enemy){
         return enemy.active && enemy.type==EnemyType::Bee && enemy.beeWindupRemaining>0;});
-    if (!snapshot.enemyProjectiles.empty() || beeCharging) {
+    if (beeCharging) {
         WorldMaterialState magicMaterial{};
         magicMaterial.unlitAmount = 1;
         magicMaterial.screenAoAmount = 0;
         magicMaterial.inkOutlineEligible = false;
-        const float interpolation = static_cast<float>(fixedStep_.interpolationAlpha());
         for (const bool headPass : {false, true}) {
             magicMaterial.inkOccluder = headPass;
             renderer_->setWorldMaterial(magicMaterial);
@@ -447,11 +446,6 @@ void App::drawWorldEnemies(
                 if(!enemyVisible(center,1))continue;
                 const auto basis=enemy_magic_effect::basis(center,camera.position);
                 enemy_magic_effect::star(center,basis,.06F+.15F*progress,static_cast<float>(snapshot.elapsedSeconds)*7,{255,231,91,255});
-            }
-            for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
-                if (!projectile.active || !enemyVisible(enemy_magic_effect::point(projectile.position), 2)) continue;
-                enemy_magic_effect::projectile(projectile, camera.position, snapshot.elapsedSeconds,
-                    interpolation, headPass, renderer_->settings().particles);
             }
             fire_wand_effect::endBatch();
             renderer_->endColorOnlyWorldEffects();

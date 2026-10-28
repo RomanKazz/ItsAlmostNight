@@ -388,6 +388,12 @@ bool acceptsGameplayInput(RunState state) {
            state == RunState::WaveComplete;
 }
 
+float worldInterpolationAlpha(const SimulationSnapshot& snapshot, double interpolationAlpha) {
+    if (!acceptsGameplayInput(snapshot.state) || snapshot.runUpgradeChoicePending || snapshot.runShop.pending)
+        return 1.0F;
+    return static_cast<float>(std::clamp(interpolationAlpha, 0.0, 1.0));
+}
+
 std::vector<GridPosition> placementLine(
     BuildingType type, GridPosition start, GridPosition end,
     std::optional<PlacementLineAxis> axis) {

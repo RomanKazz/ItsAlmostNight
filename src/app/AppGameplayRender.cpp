@@ -286,7 +286,7 @@ void App::renderGameplayFrame(
     const auto worldEntitiesStart = PerformanceClock::now();
     drawWorldEntities(presentationSnapshot, camera, nightAmount,
                       lighting,
-                      static_cast<float>(fixedStep_.interpolationAlpha()));
+                      worldInterpolationAlpha(presentationSnapshot, fixedStep_.interpolationAlpha()));
     performanceStats_.worldEntitiesRender.sample(
         performanceMilliseconds(worldEntitiesStart));
 

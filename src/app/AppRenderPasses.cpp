@@ -60,7 +60,7 @@ PropShadowBudget propShadowBudget(GraphicsQuality quality) {
 void App::drawShadowPass(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
-    const float interpolationAlpha = static_cast<float>(fixedStep_.interpolationAlpha());
+    const float interpolationAlpha = worldInterpolationAlpha(snapshot, fixedStep_.interpolationAlpha());
     const Vector3 shadowFocus{
         static_cast<float>(snapshot.playerPosition.x),
         0.0F,
@@ -598,7 +598,7 @@ void App::drawShadowPass(
 
 void App::drawSelectionPass(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
-    const float interpolationAlpha = static_cast<float>(fixedStep_.interpolationAlpha());
+    const float interpolationAlpha = worldInterpolationAlpha(snapshot, fixedStep_.interpolationAlpha());
     renderer_->clearSelectionOutline();
     const bool hasVisibleLoot = std::any_of(
         snapshot.lootChests.begin(), snapshot.lootChests.end(),

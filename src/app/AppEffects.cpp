@@ -896,7 +896,7 @@ void App::drawPresentationEffects(
             const auto seed=static_cast<std::uint64_t>(effect.variant)*37U + (effect.entityId?effect.entityId->index:0U);
             chain_lightning_effect::emit(chain_lightning_effect::point(effect.position),
                 chain_lightning_effect::point(*effect.targetPosition),camera.position,
-                static_cast<float>(effect.duration-effect.remaining),static_cast<float>(effect.duration),seed,effect.scale,static_cast<float>(GetTime()));
+                static_cast<float>(effect.duration-effect.remaining),static_cast<float>(effect.duration),seed,effect.scale,static_cast<float>(itemSnapshot.elapsedSeconds));
         }
         fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->endWorldShader();
     }
@@ -906,7 +906,7 @@ void App::drawPresentationEffects(
         material.inkOutlineEligible=false;material.inkOccluder=true;renderer_->setWorldMaterial(material);
         renderer_->beginColorOnlyWorldEffects();fire_wand_effect::beginBatch();
         int budget=laser_beam_effect::MaximumVisibleBeams;
-        const float interpolation=static_cast<float>(fixedStep_.interpolationAlpha());
+        const float interpolation=worldInterpolationAlpha(itemSnapshot, fixedStep_.interpolationAlpha());
         const auto targetPoint=[&](EntityId id,Vec3 fallback) {
             const auto enemy=std::ranges::find(itemSnapshot.enemies,id,&EnemyInstance::id);
             return enemy!=itemSnapshot.enemies.end() && enemy->active ? attackTargetPosition(*enemy) : fallback;

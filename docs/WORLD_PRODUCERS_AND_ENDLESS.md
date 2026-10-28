@@ -29,6 +29,6 @@ The debug enemy menu (B) also offers **Start night 11**. It needs a placed Core 
 
 ## Rendering and validation
 
-Paused and upgrade-choice projectiles use the final simulation position rather than the continually changing render interpolation fraction. Fire projectile effects use simulation time. Flamethrower direction interpolation also freezes. Full-rate enemy animation now extends to 40 metres instead of 20.
+Paused and upgrade-choice projectiles use the final simulation position rather than the continually changing render interpolation fraction. Fire projectile effects use simulation time. All hostile projectiles (stingers, ranged magic and royal volleys) now use the same shared projectile pass, with frozen tails and effect clocks. A common pause-aware interpolation helper also freezes laser origins, flamethrower directions, turret models and their shadow/selection passes. Chain lightning uses simulation time instead of the wall clock. Full-rate enemy animation now extends to 40 metres instead of 20.
 
 Focused regression target: `ian_economy_endless_tests` covers prices, output, partial progress, max level, insufficient funds, save round-trip, night speed, the automatic 10→11 transition, uninterrupted tiers, pause and overtime persistence. `IAN_ECONOMY_ENDLESS_CAPTURE=<directory> its_almost_night --test-presentation-events` checks pixel-identical paused projectiles at different interpolation fractions and captures the endless HUD and a held world-producer prompt.

@@ -59,6 +59,8 @@ void drawCentered(
 [[nodiscard]] const char* weaponUpgradeErrorMessage(
     WeaponUpgradeError error);
 [[nodiscard]] bool acceptsGameplayInput(RunState state);
+[[nodiscard]] float worldInterpolationAlpha(
+    const SimulationSnapshot& snapshot, double interpolationAlpha);
 
 [[nodiscard]] std::vector<GridPosition> placementLine(
     BuildingType type, GridPosition start,
