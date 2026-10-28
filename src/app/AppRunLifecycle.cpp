@@ -30,6 +30,7 @@ void App::resetRunClientState(
     queuedBuildingSales_.clear();
     queuedModularBuildingRemovals_.clear();
     removalDragActive_ = false;
+    removalLookAwaySeconds_ = 0.0;
     removalDragTargets_.clear();
     persistentDecorationClearAreaBuffer_.clear();
     activeDecorationClearAreaBuffer_.clear();

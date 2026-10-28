@@ -331,7 +331,9 @@ void App::renderGameplayUi(
 uiStart = PerformanceClock::now();
 const float arrivalHudOpacity = playerArrival_.hudOpacity();
 const bool showGameplayHud = !hudHidden_ && arrivalHudOpacity > 0.0F;
-const bool showWorldHud = showGameplayHud && arrivalHudOpacity >= 1.0F;
+const int removalKey = controlKey(userSettings_.controls, ControlAction::Sell);
+const bool removalHeld = removalKey != KEY_NULL && IsKeyDown(removalKey);
+const bool showWorldHud = showGameplayHud && arrivalHudOpacity >= 1.0F && !removalHeld;
 
 renderGameplayViewModel(snapshot, camera, lighting, timings, false);
 renderer_->beginGpuTimer(RendererGpuStage::Ui);
@@ -345,7 +347,7 @@ if (pinnedModularBuilding) {
     interactionSnapshot.aimedResource.reset();
     interactionSnapshot.aimedModularBuilding = pinnedModularBuilding;
 }
-const auto interactionPrompt = showGameplayHud
+const auto interactionPrompt = showGameplayHud && !removalHeld
     ? buildInteractionPrompt(interactionSnapshot, camera) : std::nullopt;
 const auto upgradePromptTarget = interactionPrompt && !interactionPrompt->occluded &&
     interactionPrompt->targetKind == InteractionPromptTargetKind::Building
@@ -470,7 +472,8 @@ if (showColliders_) {
 // Interaction prompts use a world anchor but are composited in
 // screen space after the 3D/post-process passes.
 const auto interactionPromptStart = PerformanceClock::now();
-if (showGameplayHud) {
+if (removalHeld) interactionPromptRenderer_.reset();
+else if (showGameplayHud) {
     interactionPromptRenderer_.draw(
         interactionPrompt, camera,
         ui_, userSettings_.controls);
@@ -551,7 +554,7 @@ if (showGameplayHud) {
                     playerDamageFlashRemaining_ / 0.18,
                     0.0, 1.0)),
             .showBuildingContextCard =
-                showBuildingContextCard,
+                !removalHeld && showBuildingContextCard,
             .buildingContextCardEntranceSeconds =
                 static_cast<float>(buildingContextCardEntranceSeconds_),
             .repairSweepActive =
@@ -893,30 +896,6 @@ if (showGameplayHud && wallDragStart_ && wallDragEnd_ &&
             (snapshot.wood >= totalCost.wood &&
              snapshot.stone >= totalCost.stone &&
              snapshot.crystals >= totalCost.crystals));
-}
-if (showGameplayHud && removalDragActive_) {
-    const std::string removalHint =
-        "REMOVE x" +
-        std::to_string(
-            removalDragTargets_.size()) +
-        "   RELEASE X TO CONFIRM";
-    drawCenteredUiText(
-        removalHint,
-        static_cast<float>(
-            GetScreenHeight() / 2 + 76),
-        20.0F, {255, 104, 91, 255});
-}
-if (showGameplayHud && removalDragActive_ &&
-    !structuralRiskIds_.empty()) {
-    drawCenteredUiText(
-        "COLLAPSE RISK: " +
-            std::to_string(
-                structuralRiskIds_.size()) +
-            " DEPENDENT PARTS",
-        static_cast<float>(
-            GetScreenHeight() / 2 +
-            (removalDragActive_ ? 106 : 132)),
-        17.0F, {255, 197, 82, 255});
 }
 const auto resourceGainStart = PerformanceClock::now();
 if (showGameplayHud) drawResourceGainVisuals(camera);

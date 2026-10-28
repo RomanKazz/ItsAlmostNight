@@ -171,6 +171,8 @@ class App {
     void processInput();
     void processGameplayInput(bool controlDown,
                               bool primaryMouseDown);
+    void processRemovalInput(const SimulationSnapshot& snapshot,
+        std::optional<EntityId> aimedTarget, bool allowed, double frameSeconds);
     void rebuildTerrainGraphics();
     void refreshDecorationExclusions(
         const SimulationSnapshot& snapshot);
@@ -471,6 +473,7 @@ class App {
     std::deque<RemoveModularBuildingCommand>
         queuedModularBuildingRemovals_;
     bool removalDragActive_{};
+    double removalLookAwaySeconds_{};
     std::vector<EntityId> removalDragTargets_;
     std::vector<EntityId> structuralRiskIds_;
     std::vector<EntityId> structuralRiskCacheRoots_;

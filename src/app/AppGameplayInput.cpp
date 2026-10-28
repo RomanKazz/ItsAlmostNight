@@ -50,6 +50,60 @@ bool keyReleased(const ControlSettings& settings,
 
 } // namespace
 
+void App::processRemovalInput(const SimulationSnapshot& snapshot,
+    std::optional<EntityId> aimedTarget, bool allowed, double frameSeconds) {
+    const auto cancel = [this] {
+        if (removalDragActive_) {
+            buildingContextCardTarget_.reset();
+            buildingContextCardUpgradeCost_.reset();
+            buildingContextCardStats_.reset();
+        }
+        removalDragActive_ = false;
+        removalDragTargets_.clear();
+        removalLookAwaySeconds_ = 0.0;
+        structuralRiskIds_.clear();
+    };
+    if (!allowed || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        cancel();
+        return;
+    }
+    const bool held = keyDown(userSettings_.controls, ControlAction::Sell);
+    const bool released = keyReleased(userSettings_.controls, ControlAction::Sell);
+    if (keyPressed(userSettings_.controls, ControlAction::Sell)) {
+        cancel();
+        removalDragActive_ = aimedTarget.has_value();
+        if (removalDragActive_) {
+            buildingContextCardTarget_.reset();
+            buildingContextCardUpgradeCost_.reset();
+            buildingContextCardStats_.reset();
+        }
+    }
+    if (!removalDragActive_) return;
+    if (!held && !released) {
+        cancel(); // A focus/menu transition can swallow the key-release event.
+        return;
+    }
+    if (!aimedTarget) {
+        removalLookAwaySeconds_ += std::clamp(frameSeconds, 0.0, 0.1);
+        if (released || removalLookAwaySeconds_ >= 0.18) cancel();
+        return;
+    }
+    removalLookAwaySeconds_ = 0.0;
+    if (held && std::ranges::find(removalDragTargets_, *aimedTarget) == removalDragTargets_.end())
+        removalDragTargets_.push_back(*aimedTarget);
+    if (!released) return;
+    // Only a deliberate release while still aiming at the selected group
+    // commits it. After cancellation, holding X cannot start another group.
+    if (std::ranges::find(removalDragTargets_, *aimedTarget) != removalDragTargets_.end()) {
+        for (const EntityId target : removalDragTargets_) {
+            if (std::ranges::find(snapshot.buildings, target, &BuildingInstance::id) != snapshot.buildings.end())
+                queuedBuildingSales_.push_back(SellBuildingCommand{target});
+            else queuedModularBuildingRemovals_.push_back(RemoveModularBuildingCommand{target});
+        }
+    }
+    cancel();
+}
+
 void App::processGameplayInput(bool controlDown,
                                bool primaryMouseDown) {
     if (playerArrival_.active() &&
@@ -705,65 +759,13 @@ void App::processGameplayInput(bool controlDown,
             contextualHammerRemaining_ = 1.15;
             contextualHammerSwingPending_ = true;
         }
-        const bool canSweepRemove =
-            buildingManagementActive;
-        const auto aimedRemovalTarget =
-            [&]() -> std::optional<EntityId> {
-                if (actionBuilding) {
-                    return actionBuilding;
-                }
-                return actionModularBuilding;
-            };
-        if (canSweepRemove &&
-            keyPressed(userSettings_.controls, ControlAction::Sell) &&
-            aimedRemovalTarget()) {
-            removalDragActive_ = true;
-            removalDragTargets_.clear();
-        }
-        if (removalDragActive_ &&
-            keyDown(userSettings_.controls, ControlAction::Sell)) {
-            if (const auto target =
-                    aimedRemovalTarget();
-                target &&
-                std::find(
-                    removalDragTargets_.begin(),
-                    removalDragTargets_.end(),
-                    *target) ==
-                    removalDragTargets_.end()) {
-                removalDragTargets_.push_back(
-                    *target);
-            }
-        }
-        if (removalDragActive_ &&
-            keyReleased(userSettings_.controls,
-                        ControlAction::Sell)) {
-            for (const EntityId target :
-                 removalDragTargets_) {
-                const bool ordinary =
-                    std::any_of(
-                        currentSnapshot.buildings.begin(),
-                        currentSnapshot.buildings.end(),
-                        [target](
-                            const BuildingInstance&
-                                building) {
-                            return building.id == target;
-                        });
-                if (ordinary) {
-                    queuedBuildingSales_.push_back(
-                        SellBuildingCommand{target});
-                } else {
-                    queuedModularBuildingRemovals_
-                        .push_back(
-                            RemoveModularBuildingCommand{
-                                target});
-                }
-            }
-            removalDragActive_ = false;
-            removalDragTargets_.clear();
-            buildingContextCardTarget_.reset();
-            buildingContextCardUpgradeCost_.reset();
-            buildingContextCardStats_.reset();
-        }
+        // Removal follows exact aim, never the pinned/sticky context card:
+        // looking away must always offer a reliable way to cancel.
+        auto removalTarget = currentSnapshot.aimedBuilding
+            ? currentSnapshot.aimedBuilding : currentSnapshot.aimedModularBuilding;
+        if (removalTarget == currentSnapshot.coreId) removalTarget.reset();
+        processRemovalInput(currentSnapshot, removalTarget, buildingManagementActive,
+            static_cast<double>(GetFrameTime()));
         if (keyPressed(userSettings_.controls,
                        ControlAction::Interact)) {
             const auto prop = currentSnapshot.aimedResource
