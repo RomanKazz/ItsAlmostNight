@@ -187,7 +187,7 @@ App::App()
         MetaProgressionPath, metaProgression_));
     persistedUserSettings_ = userSettings_;
     persistedMetaProgression_ = metaProgression_;
-    questSystem_.initialize(metaProgression_);
+    static_cast<void>(questSystem_.refresh(metaProgression_));
     persistMetaProgression();
     initializeLocalization();
     setLanguage(userSettings_.language);

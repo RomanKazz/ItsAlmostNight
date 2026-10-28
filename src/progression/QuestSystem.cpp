@@ -1,5 +1,6 @@
 #include "progression/QuestSystem.hpp"
 #include "progression/MetaProgression.hpp"
+#include "progression/ContentUnlocks.hpp"
 #include "core/SaturatingArithmetic.hpp"
 
 #include <algorithm>
@@ -240,6 +241,7 @@ QuestClaimResult QuestSystem::claimReward(MetaProgression& progression, std::str
 QuestPurchaseResult QuestSystem::purchaseUnlock(MetaProgression& progression, std::string_view unlockId) const {
     if (unlockId.empty()) return QuestPurchaseResult::UnknownUnlock;
     initialize(progression);
+    if (isStarterContentUnlock(unlockId)) return QuestPurchaseResult::AlreadyOwned;
     const auto found = std::ranges::find_if(definitions_, [unlockId](const auto& definition) {
         return definition.reward.unlockId == unlockId;
     });
@@ -255,7 +257,7 @@ QuestPurchaseResult QuestSystem::purchaseUnlock(MetaProgression& progression, st
 }
 
 bool QuestSystem::ownsUnlock(const MetaProgression& progression, std::string_view unlockId) const {
-    return progression.quests.ownedUnlocks.contains(unlockId);
+    return isStarterContentUnlock(unlockId) || progression.quests.ownedUnlocks.contains(unlockId);
 }
 
 std::span<const QuestDefinition> QuestSystem::definitions() const { return definitions_; }

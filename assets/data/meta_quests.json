@@ -1,154 +1,89 @@
 {
   "version": 1,
+  "progressionRevision": 4,
   "quests": [
     {
       "id": "class_berserker",
-      "title": "Reach wave 6",
-      "description": "Reach wave 6",
-      "category": "characters",
+      "title": "Reach night 6",
+      "description": "Reach night 6",
+      "category": "general",
       "conditions": [
         {
           "metric": "wave_reached",
           "scope": "lifetime",
-          "target": 6
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "class.berserker",
+        "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "Night 6 reached"
     },
     {
       "id": "class_vampire",
       "title": "Defeat 250 enemies",
       "description": "Defeat 250 enemies",
-      "category": "characters",
+      "category": "general",
       "conditions": [
         {
           "metric": "enemies_defeated",
           "scope": "lifetime",
-          "target": 250
+          "target": 250,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "class.vampire",
+        "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "250 enemies defeated"
     },
     {
       "id": "class_alchemist",
-      "title": "Collect 20 items",
-      "description": "Collect 20 items",
-      "category": "characters",
+      "title": "Collect 20 chest items",
+      "description": "Collect 20 chest items",
+      "category": "general",
       "conditions": [
         {
           "metric": "items_collected",
           "scope": "lifetime",
-          "target": 20
+          "target": 20,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "class.alchemist",
+        "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "20 items collected"
     },
     {
       "id": "class_chronomancer",
       "title": "Clear the stage",
       "description": "Clear the stage",
-      "category": "characters",
+      "category": "general",
       "conditions": [
         {
           "metric": "stage_clears",
           "scope": "lifetime",
-          "target": 1
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "class.chronomancer",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "kills_100",
-      "title": "Defeat 100 enemies",
-      "description": "Defeat 100 enemies",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 100
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 1,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "kills_1000",
-      "title": "Defeat 1000 enemies",
-      "description": "Defeat 1000 enemies",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 1000
-        }
-      ],
-      "prerequisites": [
-        "kills_100"
-      ],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "kills_5000",
-      "title": "Defeat 5000 enemies",
-      "description": "Defeat 5000 enemies",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 5000
-        }
-      ],
-      "prerequisites": [
-        "kills_1000"
-      ],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "gun_turret_kills",
-      "title": "Defeat 250 enemies with gun turret",
-      "description": "Defeat 250 enemies with gun turret",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 250,
-          "subject": "gun_turret"
+          "target": 1,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -156,218 +91,68 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "Stage cleared"
     },
     {
-      "id": "cannon_kills",
-      "title": "Defeat 150 enemies with cannon",
-      "description": "Defeat 150 enemies with cannon",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 150,
-          "subject": "cannon"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "turret_kills",
-      "title": "Defeat 250 enemies with turret",
-      "description": "Defeat 250 enemies with turret",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 250,
-          "subject": "turret"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "trap_kills",
-      "title": "Defeat 100 enemies with trap",
-      "description": "Defeat 100 enemies with trap",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "lifetime",
-          "target": 100,
-          "subject": "spike_trap"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "build_25",
-      "title": "Place 25 buildings",
-      "description": "Place 25 buildings",
+      "id": "unlock_building_spike_trap",
+      "title": "Place 30 walls",
+      "description": "Place 30 walls",
       "category": "buildings",
       "conditions": [
         {
           "metric": "buildings_placed",
           "scope": "lifetime",
-          "target": 25
+          "target": 30,
+          "comparison": "at_least",
+          "subject": "wall",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
+        "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "30 structures built"
     },
     {
-      "id": "build_100",
-      "title": "Place 100 buildings",
-      "description": "Place 100 buildings",
+      "id": "unlock_building_slow_trap",
+      "title": "Defeat 25 fast enemies",
+      "description": "Defeat 25 fast enemies",
       "category": "buildings",
       "conditions": [
         {
-          "metric": "buildings_placed",
+          "metric": "enemy_type_defeated",
           "scope": "lifetime",
-          "target": 100
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "fast",
+          "playerClass": ""
         }
       ],
-      "prerequisites": [
-        "build_25"
-      ],
+      "prerequisites": [],
       "reward": {
-        "silver": 1,
+        "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "25 fast enemies defeated"
     },
     {
-      "id": "gun_run",
-      "title": "Defeat 100 enemies with gun turrets in one run",
-      "description": "Defeat 100 enemies with gun turrets in one run",
+      "id": "unlock_building_catapult",
+      "title": "Get Cannon to level 3 in one run",
+      "description": "Get Cannon to level 3 in one run",
       "category": "buildings",
-      "conditions": [
-        {
-          "metric": "enemies_defeated",
-          "scope": "run",
-          "target": 100,
-          "subject": "gun_turret"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "engineer_run",
-      "title": "Repair 15 structures as Engineer in one run",
-      "description": "Repair 15 structures as Engineer in one run",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "structures_repaired",
-          "scope": "run",
-          "target": 15,
-          "playerClass": "engineer"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "upgrade_buildings",
-      "title": "Upgrade 20 buildings",
-      "description": "Upgrade 20 buildings",
-      "category": "buildings",
-      "conditions": [
-        {
-          "metric": "buildings_upgraded",
-          "scope": "lifetime",
-          "target": 20
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "upgrade_tower_power",
-      "title": "Get Tower Power to level 5",
-      "description": "Get Tower Power to level 5",
-      "category": "upgrades",
-      "conditions": [
-        {
-          "metric": "upgrade_level",
-          "scope": "run",
-          "target": 5,
-          "subject": "defense_damage"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "upgrade_rapid_fire",
-      "title": "Get Rapid Fire to level 5",
-      "description": "Get Rapid Fire to level 5",
-      "category": "upgrades",
-      "conditions": [
-        {
-          "metric": "upgrade_level",
-          "scope": "run",
-          "target": 5,
-          "subject": "defense_fire_rate"
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "upgrade_ricochet",
-      "title": "Get Ricochet to level 3",
-      "description": "Get Ricochet to level 3",
-      "category": "upgrades",
       "conditions": [
         {
           "metric": "upgrade_level",
           "scope": "run",
           "target": 3,
-          "subject": "ricochet"
+          "comparison": "at_least",
+          "subject": "unlock_cannon",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -375,18 +160,22 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "Cannon level 3"
     },
     {
-      "id": "defense_double",
-      "title": "Reach 2x defense damage in one run",
-      "description": "Reach 2x defense damage in one run",
-      "category": "upgrades",
+      "id": "unlock_building_flamethrower",
+      "title": "Defeat 150 enemies with gun turrets in one run",
+      "description": "Defeat 150 enemies with gun turrets in one run",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "defense_damage",
+          "metric": "enemies_defeated",
           "scope": "run",
-          "target": 2
+          "target": 150,
+          "comparison": "at_least",
+          "subject": "gun_turret",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -394,75 +183,91 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "150 enemies defeated"
     },
     {
-      "id": "hp_200",
-      "title": "Reach 200 maximum HP in one run",
-      "description": "Reach 200 maximum HP in one run",
-      "category": "general",
+      "id": "unlock_building_tesla_tower",
+      "title": "Defeat 50 flying enemies",
+      "description": "Defeat 50 flying enemies",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "maximum_health",
-          "scope": "run",
-          "target": 200
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "level_20",
-      "title": "Reach player level 20",
-      "description": "Reach player level 20",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "player_level",
-          "scope": "run",
-          "target": 20
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "chests_10",
-      "title": "Open 10 chests",
-      "description": "Open 10 chests",
-      "category": "items",
-      "conditions": [
-        {
-          "metric": "chests_opened",
+          "metric": "enemy_type_defeated",
           "scope": "lifetime",
-          "target": 10
+          "target": 50,
+          "comparison": "at_least",
+          "subject": "flying",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
+        "silver": 2,
+        "unlockId": "building.tesla_tower",
+        "purchaseCost": 7
+      },
+      "notification": "50 flying enemies defeated"
     },
     {
-      "id": "items_50",
-      "title": "Collect 50 items",
-      "description": "Collect 50 items",
-      "category": "items",
+      "id": "unlock_building_missile_launcher",
+      "title": "Get Cannon to level 6 in one run",
+      "description": "Get Cannon to level 6 in one run",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "items_collected",
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "unlock_cannon",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "building.missile_launcher",
+        "purchaseCost": 9
+      },
+      "notification": "Cannon level 6"
+    },
+    {
+      "id": "unlock_building_laser",
+      "title": "Get Precision Tome to level 5 in one run",
+      "description": "Get Precision Tome to level 5 in one run",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "critical_chance",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "building.laser",
+        "purchaseCost": 8
+      },
+      "notification": "Precision Tome level 5"
+    },
+    {
+      "id": "unlock_building_mortar",
+      "title": "Defeat 200 enemies with cannons",
+      "description": "Defeat 200 enemies with cannons",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
           "scope": "lifetime",
-          "target": 50
+          "target": 200,
+          "comparison": "at_least",
+          "subject": "cannon",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -470,18 +275,22 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "200 enemies defeated"
     },
     {
-      "id": "items_run",
-      "title": "Collect 10 items in one run",
-      "description": "Collect 10 items in one run",
-      "category": "items",
+      "id": "unlock_building_repair_station",
+      "title": "Repair 40 damaged structures",
+      "description": "Repair 40 damaged structures",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "items_collected",
-          "scope": "run",
-          "target": 10
+          "metric": "structures_repaired",
+          "scope": "lifetime",
+          "target": 40,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -489,62 +298,99 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "40 repairs completed"
     },
     {
-      "id": "resources_1000",
-      "title": "Gather 1000 resources",
-      "description": "Gather 1000 resources",
-      "category": "general",
+      "id": "unlock_building_decoy_beacon",
+      "title": "Defeat 25 ranged enemies",
+      "description": "Defeat 25 ranged enemies",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "resources_gathered",
+          "metric": "enemy_type_defeated",
           "scope": "lifetime",
-          "target": 1000
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "ranged",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
+        "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "25 ranged enemies defeated"
     },
     {
-      "id": "coins_500",
-      "title": "Pick up 500 gold",
-      "description": "Pick up 500 gold",
-      "category": "general",
+      "id": "unlock_building_wind_blower",
+      "title": "Survive night 4 without losing a structure",
+      "description": "Survive night 4 without losing a structure",
+      "category": "buildings",
       "conditions": [
         {
-          "metric": "coins_collected",
-          "scope": "lifetime",
-          "target": 500
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 1,
-        "unlockId": "",
-        "purchaseCost": 0
-      }
-    },
-    {
-      "id": "clear_without_chests",
-      "title": "Clear a stage without opening chests",
-      "description": "Clear a stage without opening chests",
-      "category": "challenges",
-      "conditions": [
-        {
-          "metric": "stage_clears",
+          "metric": "waves_completed",
           "scope": "run",
-          "target": 1
+          "target": 4,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         },
         {
-          "metric": "chests_opened",
+          "metric": "structures_lost",
           "scope": "run",
           "target": 0,
-          "comparison": "at_most"
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "building.wind_blower",
+        "purchaseCost": 5
+      },
+      "notification": "4 nights survived"
+    },
+    {
+      "id": "unlock_building_turret",
+      "title": "Defeat 200 enemies with crossbows",
+      "description": "Defeat 200 enemies with crossbows",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 200,
+          "comparison": "at_least",
+          "subject": "turret",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "200 enemies defeated"
+    },
+    {
+      "id": "unlock_building_cannon",
+      "title": "Defeat 300 enemies with cannons",
+      "description": "Defeat 300 enemies with cannons",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 300,
+          "comparison": "at_least",
+          "subject": "cannon",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -552,71 +398,726 @@
         "silver": 4,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "300 enemies defeated"
     },
     {
-      "id": "challenges_1",
-      "title": "Complete a portal challenge",
-      "description": "Complete a portal challenge",
-      "category": "challenges",
+      "id": "unlock_weapon_rifle",
+      "title": "Defeat 50 enemies yourself in one run",
+      "description": "Defeat 50 enemies yourself in one run",
+      "category": "weapons",
       "conditions": [
         {
-          "metric": "challenges_completed",
-          "scope": "lifetime",
-          "target": 1
+          "metric": "enemies_defeated",
+          "scope": "run",
+          "target": 50,
+          "comparison": "at_least",
+          "subject": "player",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
+        "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "50 enemies defeated"
     },
     {
-      "id": "challenges_5",
-      "title": "Complete 5 portal challenges",
-      "description": "Complete 5 portal challenges",
-      "category": "challenges",
+      "id": "unlock_weapon_bomb",
+      "title": "Defeat 10 heavy enemies",
+      "description": "Defeat 10 heavy enemies",
+      "category": "weapons",
       "conditions": [
         {
-          "metric": "challenges_completed",
+          "metric": "enemy_type_defeated",
           "scope": "lifetime",
-          "target": 5
+          "target": 10,
+          "comparison": "at_least",
+          "subject": "heavy",
+          "playerClass": ""
         }
       ],
-      "prerequisites": [
-        "challenges_1"
-      ],
+      "prerequisites": [],
       "reward": {
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "10 heavy enemies defeated"
     },
     {
-      "id": "challenges_20",
-      "title": "Complete 20 portal challenges",
-      "description": "Complete 20 portal challenges",
-      "category": "challenges",
+      "id": "unlock_weapon_ice_wand",
+      "title": "Activate 3 shrines",
+      "description": "Activate 3 shrines",
+      "category": "weapons",
       "conditions": [
         {
-          "metric": "challenges_completed",
+          "metric": "shrines_activated",
           "scope": "lifetime",
-          "target": 20
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
-      "prerequisites": [
-        "challenges_5"
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "weapon.ice_wand",
+        "purchaseCost": 5
+      },
+      "notification": "3 shrines activated"
+    },
+    {
+      "id": "unlock_weapon_fire_wand",
+      "title": "Get Might Tome to level 5 in one run",
+      "description": "Get Might Tome to level 5 in one run",
+      "category": "weapons",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "damage",
+          "playerClass": ""
+        }
       ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "weapon.fire_wand",
+        "purchaseCost": 5
+      },
+      "notification": "Might Tome level 5"
+    },
+    {
+      "id": "unlock_tome_building_health",
+      "title": "Repair 12 damaged structures",
+      "description": "Repair 12 damaged structures",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "structures_repaired",
+          "scope": "lifetime",
+          "target": 12,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
       "reward": {
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "12 repairs completed"
     },
     {
-      "id": "quests_10",
+      "id": "unlock_tome_production_speed",
+      "title": "Build 6 resource producers in one run",
+      "description": "Build 6 resource producers in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "producers_built",
+          "scope": "run",
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "6 producers built"
+    },
+    {
+      "id": "unlock_tome_resource_capacity",
+      "title": "Fully harvest 40 resource nodes",
+      "description": "Fully harvest 40 resource nodes",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 40,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "40 nodes harvested"
+    },
+    {
+      "id": "unlock_tome_luck",
+      "title": "Open 12 chests",
+      "description": "Open 12 chests",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 12,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "12 chests opened"
+    },
+    {
+      "id": "unlock_tome_projectile_count",
+      "title": "Fire 500 defense shots",
+      "description": "Fire 500 defense shots",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "defense_shots",
+          "scope": "lifetime",
+          "target": 500,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "500 defense shots"
+    },
+    {
+      "id": "unlock_tome_projectile_speed",
+      "title": "Get Crossbow to level 3 in one run",
+      "description": "Get Crossbow to level 3 in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "unlock_turret",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Crossbow level 3"
+    },
+    {
+      "id": "unlock_tome_attack_duration",
+      "title": "Get Ice Wand to level 3 in one run",
+      "description": "Get Ice Wand to level 3 in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "unlock_ice_wand",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "tome.attack_duration",
+        "purchaseCost": 4
+      },
+      "notification": "Ice Wand level 3"
+    },
+    {
+      "id": "unlock_tome_attack_size",
+      "title": "Get Bombs to level 3 in one run",
+      "description": "Get Bombs to level 3 in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "unlock_bomb",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Bombs level 3"
+    },
+    {
+      "id": "unlock_tome_critical_chance",
+      "title": "Defeat 100 enemies yourself",
+      "description": "Defeat 100 enemies yourself",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 100,
+          "comparison": "at_least",
+          "subject": "player",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "100 enemies defeated"
+    },
+    {
+      "id": "unlock_tome_attack_knockback",
+      "title": "Defeat 25 heavy enemies",
+      "description": "Defeat 25 heavy enemies",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "enemy_type_defeated",
+          "scope": "lifetime",
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "heavy",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "25 heavy enemies defeated"
+    },
+    {
+      "id": "unlock_tome_experience_gain",
+      "title": "Reach player level 10 in one run",
+      "description": "Reach player level 10 in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "player_level",
+          "scope": "run",
+          "target": 10,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Player level 10"
+    },
+    {
+      "id": "unlock_item_abacus",
+      "title": "Fully harvest 75 resource nodes",
+      "description": "Fully harvest 75 resource nodes",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 75,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "75 nodes harvested"
+    },
+    {
+      "id": "unlock_item_weapon_token",
+      "title": "Get Club to level 5 in one run",
+      "description": "Get Club to level 5 in one run",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "unlock_club",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Club level 5"
+    },
+    {
+      "id": "unlock_item_idle_spring",
+      "title": "Get Gun Turret to level 5 in one run",
+      "description": "Get Gun Turret to level 5 in one run",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "unlock_gun_turret",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Gun Turret level 5"
+    },
+    {
+      "id": "unlock_item_repair_magnet",
+      "title": "Repair 10 damaged structures in one run",
+      "description": "Repair 10 damaged structures in one run",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "structures_repaired",
+          "scope": "run",
+          "target": 10,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "10 repairs completed"
+    },
+    {
+      "id": "unlock_item_siren",
+      "title": "Survive night 3 without losing a structure",
+      "description": "Survive night 3 without losing a structure",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "structures_lost",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "3 nights survived"
+    },
+    {
+      "id": "unlock_item_clover",
+      "title": "Open 30 chests",
+      "description": "Open 30 chests",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 30,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "30 chests opened"
+    },
+    {
+      "id": "unlock_item_mining_hammer",
+      "title": "Fully mine 50 stone deposits",
+      "description": "Fully mine 50 stone deposits",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 50,
+          "comparison": "at_least",
+          "subject": "stone",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "50 nodes harvested"
+    },
+    {
+      "id": "unlock_item_dawn_coin",
+      "title": "Survive 5 nights and bank 50 crystals at dawn",
+      "description": "Survive 5 nights and bank 50 crystals at dawn",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "dawn_reserve",
+          "scope": "run",
+          "target": 50,
+          "comparison": "at_least",
+          "subject": "crystal",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "5 nights survived"
+    },
+    {
+      "id": "unlock_item_ghost_candle",
+      "title": "Lose 5 defenses in combat",
+      "description": "Lose 5 defenses in combat",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "structures_lost",
+          "scope": "lifetime",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "defense",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "item.ghost_candle",
+        "purchaseCost": 6
+      },
+      "notification": "5 defenses lost"
+    },
+    {
+      "id": "unlock_item_core_fuse",
+      "title": "Survive night 8 without dying",
+      "description": "Survive night 8 without dying",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 8,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "player_deaths",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "item.core_fuse",
+        "purchaseCost": 10
+      },
+      "notification": "8 nights survived"
+    },
+    {
+      "id": "unlock_item_crystal_safe",
+      "title": "Survive a night with 75 crystals in reserve",
+      "description": "Survive a night with 75 crystals in reserve",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "dawn_reserve",
+          "scope": "run",
+          "target": 75,
+          "comparison": "at_least",
+          "subject": "crystal",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "75 crystals at dawn"
+    },
+    {
+      "id": "unlock_item_rebuild_blueprint",
+      "title": "Survive night 6 as Mechanic without losing a structure",
+      "description": "Survive night 6 as Mechanic without losing a structure",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "structures_lost",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": "engineer"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "6 nights survived"
+    },
+    {
+      "id": "unlock_item_lucky_die",
+      "title": "Get Fortune Tome to level 8 in one run",
+      "description": "Get Fortune Tome to level 8 in one run",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 8,
+          "comparison": "at_least",
+          "subject": "luck",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "item.lucky_die",
+        "purchaseCost": 10
+      },
+      "notification": "Fortune Tome level 8"
+    },
+    {
+      "id": "unlock_item_upgrade_mirror",
+      "title": "Reach player level 25 without opening a chest",
+      "description": "Reach player level 25 without opening a chest",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "player_level",
+          "scope": "run",
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "chests_opened",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "item.upgrade_mirror",
+        "purchaseCost": 10
+      },
+      "notification": "Player level 25"
+    },
+    {
+      "id": "unlock_meta_refresh",
       "title": "Complete 10 quests",
       "description": "Complete 10 quests",
       "category": "general",
@@ -624,18 +1125,45 @@
         {
           "metric": "quests_completed",
           "scope": "lifetime",
-          "target": 10
+          "target": 10,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
+        "silver": 2,
         "unlockId": "meta.refresh",
-        "purchaseCost": 10
-      }
+        "purchaseCost": 5
+      },
+      "notification": "10 quests completed"
     },
     {
-      "id": "quests_20",
+      "id": "unlock_meta_weapon_slots",
+      "title": "Complete 15 quests",
+      "description": "Complete 15 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 15,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.weapon_slots",
+        "purchaseCost": 0
+      },
+      "notification": "15 quests completed"
+    },
+    {
+      "id": "unlock_meta_tome_slots",
       "title": "Complete 20 quests",
       "description": "Complete 20 quests",
       "category": "general",
@@ -643,45 +1171,217 @@
         {
           "metric": "quests_completed",
           "scope": "lifetime",
-          "target": 20
+          "target": 20,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
-        "unlockId": "meta.skip",
-        "purchaseCost": 15
-      }
+        "silver": 2,
+        "unlockId": "meta.tome_slots",
+        "purchaseCost": 0
+      },
+      "notification": "20 quests completed"
     },
     {
-      "id": "quests_30",
-      "title": "Complete 30 quests",
-      "description": "Complete 30 quests",
+      "id": "unlock_meta_building_slots",
+      "title": "Complete 25 quests",
+      "description": "Complete 25 quests",
       "category": "general",
       "conditions": [
         {
           "metric": "quests_completed",
           "scope": "lifetime",
-          "target": 30
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
       "reward": {
-        "silver": 1,
-        "unlockId": "meta.banish",
-        "purchaseCost": 20
-      }
+        "silver": 2,
+        "unlockId": "meta.building_slots",
+        "purchaseCost": 0
+      },
+      "notification": "25 quests completed"
     },
     {
-      "id": "purchases_3",
-      "title": "Purchase 3 permanent unlocks",
-      "description": "Purchase 3 permanent unlocks",
+      "id": "unlock_meta_luck",
+      "title": "Open 45 chests",
+      "description": "Open 45 chests",
       "category": "general",
       "conditions": [
         {
-          "metric": "unlocks_purchased",
+          "metric": "chests_opened",
           "scope": "lifetime",
-          "target": 3
+          "target": 45,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.luck",
+        "purchaseCost": 0
+      },
+      "notification": "45 chests opened"
+    },
+    {
+      "id": "unlock_meta_defense_damage",
+      "title": "Defeat 250 enemies in one run",
+      "description": "Defeat 250 enemies in one run",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "run",
+          "target": 250,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.defense_damage",
+        "purchaseCost": 0
+      },
+      "notification": "250 enemies defeated"
+    },
+    {
+      "id": "unlock_meta_defense_fire_rate",
+      "title": "Get Rapid Tome to level 5 in one run",
+      "description": "Get Rapid Tome to level 5 in one run",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "attack_speed",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.defense_fire_rate",
+        "purchaseCost": 0
+      },
+      "notification": "Rapid Tome level 5"
+    },
+    {
+      "id": "unlock_meta_building_health",
+      "title": "Repair 75 damaged structures",
+      "description": "Repair 75 damaged structures",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "structures_repaired",
+          "scope": "lifetime",
+          "target": 75,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.building_health",
+        "purchaseCost": 0
+      },
+      "notification": "75 repairs completed"
+    },
+    {
+      "id": "unlock_meta_production_speed",
+      "title": "Gather 5000 resources",
+      "description": "Gather 5000 resources",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "resources_gathered",
+          "scope": "lifetime",
+          "target": 5000,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.production_speed",
+        "purchaseCost": 0
+      },
+      "notification": "5000 resources gathered"
+    },
+    {
+      "id": "unlock_meta_resource_yield",
+      "title": "Fully harvest 100 resource nodes",
+      "description": "Fully harvest 100 resource nodes",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 100,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.resource_yield",
+        "purchaseCost": 0
+      },
+      "notification": "100 nodes harvested"
+    },
+    {
+      "id": "unlock_meta_silver_gain",
+      "title": "Survive night 5",
+      "description": "Survive night 5",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.silver_gain",
+        "purchaseCost": 0
+      },
+      "notification": "5 nights survived"
+    },
+    {
+      "id": "milestone_nodes_depleted_1",
+      "title": "Fully harvest 20 resource nodes",
+      "description": "Fully harvest 20 resource nodes",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 20,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
         }
       ],
       "prerequisites": [],
@@ -689,7 +1389,700 @@
         "silver": 2,
         "unlockId": "",
         "purchaseCost": 0
-      }
+      },
+      "notification": "20 nodes harvested"
+    },
+    {
+      "id": "milestone_nodes_depleted_10",
+      "title": "Fully harvest 60 resource nodes",
+      "description": "Fully harvest 60 resource nodes",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 60,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "60 nodes harvested"
+    },
+    {
+      "id": "milestone_nodes_depleted_50",
+      "title": "Fully harvest 150 resource nodes",
+      "description": "Fully harvest 150 resource nodes",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 150,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "150 nodes harvested"
+    },
+    {
+      "id": "milestone_nodes_depleted_200",
+      "title": "Fully harvest 400 resource nodes",
+      "description": "Fully harvest 400 resource nodes",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "nodes_depleted",
+          "scope": "lifetime",
+          "target": 400,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "400 nodes harvested"
+    },
+    {
+      "id": "milestone_enemies_defeated_10",
+      "title": "Defeat 75 enemies",
+      "description": "Defeat 75 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 75,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "75 enemies defeated"
+    },
+    {
+      "id": "milestone_enemies_defeated_100",
+      "title": "Defeat 200 enemies",
+      "description": "Defeat 200 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 200,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "200 enemies defeated"
+    },
+    {
+      "id": "milestone_enemies_defeated_500",
+      "title": "Defeat 750 enemies",
+      "description": "Defeat 750 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 750,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "750 enemies defeated"
+    },
+    {
+      "id": "milestone_enemies_defeated_2000",
+      "title": "Defeat 2500 enemies",
+      "description": "Defeat 2500 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 2500,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "2500 enemies defeated"
+    },
+    {
+      "id": "milestone_buildings_placed_1",
+      "title": "Place 15 structures",
+      "description": "Place 15 structures",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "buildings_placed",
+          "scope": "lifetime",
+          "target": 15,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "15 structures built"
+    },
+    {
+      "id": "milestone_buildings_placed_10",
+      "title": "Place 50 structures",
+      "description": "Place 50 structures",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "buildings_placed",
+          "scope": "lifetime",
+          "target": 50,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "50 structures built"
+    },
+    {
+      "id": "milestone_buildings_placed_50",
+      "title": "Place 150 structures",
+      "description": "Place 150 structures",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "buildings_placed",
+          "scope": "lifetime",
+          "target": 150,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "150 structures built"
+    },
+    {
+      "id": "milestone_waves_completed_1",
+      "title": "Survive 3 nights in total",
+      "description": "Survive 3 nights in total",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "lifetime",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "3 nights survived"
+    },
+    {
+      "id": "milestone_waves_completed_5",
+      "title": "Survive 10 nights in total",
+      "description": "Survive 10 nights in total",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "lifetime",
+          "target": 10,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "10 nights survived"
+    },
+    {
+      "id": "milestone_waves_completed_20",
+      "title": "Survive 30 nights in total",
+      "description": "Survive 30 nights in total",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "lifetime",
+          "target": 30,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "30 nights survived"
+    },
+    {
+      "id": "milestone_chests_opened_1",
+      "title": "Open 8 chests",
+      "description": "Open 8 chests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 8,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "8 chests opened"
+    },
+    {
+      "id": "milestone_chests_opened_25",
+      "title": "Open 25 chests",
+      "description": "Open 25 chests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "25 chests opened"
+    },
+    {
+      "id": "milestone_chests_opened_50",
+      "title": "Open 60 chests",
+      "description": "Open 60 chests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 60,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "60 chests opened"
+    },
+    {
+      "id": "milestone_unlocks_purchased_5",
+      "title": "Purchase 3 permanent unlocks",
+      "description": "Purchase 3 permanent unlocks",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "unlocks_purchased",
+          "scope": "lifetime",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "3 unlocks purchased"
+    },
+    {
+      "id": "milestone_unlocks_purchased_15",
+      "title": "Purchase 7 permanent unlocks",
+      "description": "Purchase 7 permanent unlocks",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "unlocks_purchased",
+          "scope": "lifetime",
+          "target": 7,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "7 unlocks purchased"
+    },
+    {
+      "id": "milestone_unlocks_purchased_30",
+      "title": "Purchase 12 permanent unlocks",
+      "description": "Purchase 12 permanent unlocks",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "unlocks_purchased",
+          "scope": "lifetime",
+          "target": 12,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "12 unlocks purchased"
+    },
+    {
+      "id": "milestone_challenges_completed_1",
+      "title": "Complete 3 portal challenges",
+      "description": "Complete 3 portal challenges",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "3 challenges cleared"
+    },
+    {
+      "id": "milestone_challenges_completed_5",
+      "title": "Complete 8 portal challenges",
+      "description": "Complete 8 portal challenges",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 8,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 3,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "8 challenges cleared"
+    },
+    {
+      "id": "milestone_challenges_completed_15",
+      "title": "Complete 20 portal challenges",
+      "description": "Complete 20 portal challenges",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 20,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "20 challenges cleared"
+    },
+    {
+      "id": "challenge_clean_night",
+      "title": "Survive 3 nights without taking damage",
+      "description": "Survive 3 nights without taking damage",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 3,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "damage_taken",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "3 nights survived"
+    },
+    {
+      "id": "challenge_sealed_chests",
+      "title": "Survive 5 nights without opening chests",
+      "description": "Survive 5 nights without opening chests",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "chests_opened",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "5 nights survived"
+    },
+    {
+      "id": "challenge_perfect_core",
+      "title": "Survive 6 nights without damage to the Core",
+      "description": "Survive 6 nights without damage to the Core",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 6,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "core_damage_taken",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "6 nights survived"
+    },
+    {
+      "id": "challenge_builder",
+      "title": "Survive 5 nights with 15 structures placed",
+      "description": "Survive 5 nights with 15 structures placed",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "waves_completed",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "buildings_placed",
+          "scope": "run",
+          "target": 15,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "5 nights survived"
+    },
+    {
+      "id": "challenge_mastery",
+      "title": "Get Might and Rapid Tomes to level 5 in one run",
+      "description": "Get Might and Rapid Tomes to level 5 in one run",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "damage",
+          "playerClass": ""
+        },
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "comparison": "at_least",
+          "subject": "attack_speed",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Might Tome level 5"
+    },
+    {
+      "id": "challenge_stage_no_chests",
+      "title": "Clear the stage without opening chests",
+      "description": "Clear the stage without opening chests",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "stage_clears",
+          "scope": "run",
+          "target": 1,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        },
+        {
+          "metric": "chests_opened",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 5,
+        "unlockId": "",
+        "purchaseCost": 0
+      },
+      "notification": "Stage cleared"
     }
   ]
 }

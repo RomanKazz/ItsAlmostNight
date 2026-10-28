@@ -1076,7 +1076,7 @@
       "Pick up 500 gold": "Подобрать 500 золота",
       "Place 100 buildings": "Построить 100 сооружений",
       "Place 25 buildings": "Построить 25 сооружений",
-      "Purchase 3 permanent unlocks": "Купить 3 постоянных улучшения",
+      "Purchase 3 permanent unlocks": "Купите 3 постоянных открытия",
       "QUESTS": "ЗАДАНИЯ",
       "REQUIRES": "ТРЕБУЕТСЯ",
       "REWARD": "НАГРАДА",
@@ -1089,7 +1089,12 @@
       "SCROLL  LIST     ARROWS  SELECT     TAB  CATEGORY     ESC  BACK": "КОЛЕСО  СПИСОК     СТРЕЛКИ  ВЫБОР     TAB  КАТЕГОРИЯ     ESC  НАЗАД",
       "UNLOCK AVAILABLE": "ДОСТУПНО ДЛЯ ПОКУПКИ",
       "UPGRADES": "УЛУЧШЕНИЯ",
-      "Upgrade 20 buildings": "Улучшить сооружения 20 раз"
+      "Upgrade 20 buildings": "Улучшить сооружения 20 раз",
+      "3 unlocks purchased": "Открытий куплено: 3",
+      "Purchase 7 permanent unlocks": "Купите 7 постоянных открытий",
+      "7 unlocks purchased": "Открытий куплено: 7",
+      "Purchase 12 permanent unlocks": "Купите 12 постоянных открытий",
+      "12 unlocks purchased": "Открытий куплено: 12"
     }
   }
 }
