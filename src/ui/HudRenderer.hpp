@@ -4,6 +4,7 @@
 #include "enemies/EnemySystem.hpp"
 #include "waves/NightEncounter.hpp"
 #include "presentation/PresentationTypes.hpp"
+#include "presentation/TutorialHint.hpp"
 
 #include <raylib.h>
 
@@ -45,6 +46,7 @@ struct HudViewState {
     NightForecast nightForecast{};
     float nightForecastOpacity{};
     bool showCoreHealth{};
+    std::optional<TutorialHintVisual> tutorialHint;
     double playerHealthTrail{};
     float playerDamagePulse{};
     bool showBuildingContextCard{};

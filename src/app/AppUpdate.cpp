@@ -277,6 +277,15 @@ void App::update() {
         coinHudCounter_, progressionSnapshot.coins);
     const auto& hotbarSnapshot = simulation_.snapshot();
     nightForecast_.update(hotbarSnapshot, frameSeconds);
+    if (metaProgression_.runsPlayed > 1 || hotbarSnapshot.state == RunState::MainMenu ||
+        hotbarSnapshot.state == RunState::Defeat || hotbarSnapshot.state == RunState::Victory) {
+        tutorialHint_ = {};
+    } else if (hotbarSnapshot.state != RunState::Paused && !hotbarSnapshot.runUpgradeChoicePending) {
+        const auto wanted = presentedTutorialObjective(hotbarSnapshot.tutorialObjective,
+            actionMode_, metaProgression_.runsPlayed);
+        tutorialHint_.update(wanted, tutorialHintCompleted(tutorialHint_.displayed,
+            hotbarSnapshot, actionMode_), frameSeconds);
+    }
     const bool resetPlayerHealthTrail =
         displayedPlayerHealthTrail_ < 0.0 ||
         std::abs(displayedPlayerHealthMaximum_ -

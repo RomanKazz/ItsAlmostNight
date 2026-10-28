@@ -116,6 +116,35 @@ int main(int argc, char** argv) {
     checkWeaponInventory(ui,argc>1 ? argv[1] : nullptr);
     checkShrineResourcePrompt(ui,argc>1 ? argv[1] : nullptr);
     if (argc > 1) {
+        SetWindowSize(1280, 800);
+        auto hintSnapshot = ian::SimulationSnapshot{};
+        hintSnapshot.state = ian::RunState::Gathering;
+        hintSnapshot.tutorialObjective = ian::TutorialObjective::MineWood;
+        hintSnapshot.playerMaxHealth = hintSnapshot.playerHealth = 100;
+        const Camera3D camera{{0, 2, 5}, {0, 1, 0}, {0, 1, 0}, 60, CAMERA_PERSPECTIVE};
+        const auto target = LoadRenderTexture(1280, 800);
+        for (int stage = 0; stage < 3; ++stage) {
+            ian::HudViewState view{};
+            view.minimapHidden = true;
+            view.tutorialHint = ian::TutorialHintVisual{
+                .objective = stage == 2 ? ian::TutorialObjective::OpenBuildMode : ian::TutorialObjective::MineWood,
+                .opacity = stage == 2 ? .65F : 1.0F,
+                .slideX = stage == 2 ? 8.0F : 0.0F,
+                .slideY = stage == 2 ? 2.0F : 0.0F,
+                .checkProgress = stage == 1 ? 1.0F : 0.0F,
+                .completionPulse = stage == 1 ? .5F : 0.0F,
+            };
+            BeginTextureMode(target); ClearBackground({91, 132, 70, 255});
+            ian::drawHud(ui, hintSnapshot, view, camera, {});
+            EndTextureMode();
+            auto capture = LoadImageFromTexture(target.texture); ImageFlipVertical(&capture);
+            ExportImage(capture, (std::string(argv[1]) + "/tutorial-hint-" + std::to_string(stage) + ".png").c_str());
+            UnloadImage(capture);
+        }
+        UnloadRenderTexture(target);
+    }
+
+    if (argc > 1) {
         ian::SimulationSnapshot items{};
         items.playerMaxRecoverableArmor = 25;
         const std::array effects{ian::LootUpgradeEffect::Acorn, ian::LootUpgradeEffect::CrystalPan,

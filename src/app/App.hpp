@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/UserSettings.hpp"
+#include "app/TutorialPresentation.hpp"
 #include "app/RestartHold.hpp"
 #include "audio/AudioSystem.hpp"
 #include "buildings/PlacementLine.hpp"
@@ -786,6 +787,7 @@ class App {
     float weaponHotbarSelectionAlpha_{1.0F};
     float minimapExpansion_{};
     NightForecastPresentation nightForecast_;
+    TutorialHintPresentation tutorialHint_;
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};

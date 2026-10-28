@@ -17,6 +17,41 @@ struct AppPresentationTestAccess {
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
         {
+            TutorialHintPresentation hint;
+            for (int i = 0; i < 20; ++i) hint.update(TutorialObjective::MineWood, false, .016);
+            if (hint.visual().opacity < .99F || hint.visual().checkProgress != 0) {
+                std::cerr << "Current tutorial step starts with an empty checkbox\n"; return 1;
+            }
+            auto tutorial = snapshot; tutorial.tutorialWoodTarget = 20; tutorial.wood = 0;
+            if (tutorialHintCompleted(TutorialObjective::MineWood, tutorial, ActionMode::Equipment)) {
+                std::cerr << "Unfinished tutorial steps cannot get check marks\n"; return 1;
+            }
+            tutorial.wood = 20;
+            const bool completed = tutorialHintCompleted(hint.displayed, tutorial, ActionMode::Equipment);
+            hint.update(TutorialObjective::OpenBuildMode, completed, .016);
+            for (int i = 0; i < 15; ++i) hint.update(TutorialObjective::OpenBuildMode, false, .016);
+            if (hint.displayed != TutorialObjective::MineWood || hint.visual().checkProgress < .99F) {
+                std::cerr << "Completed instruction must remain visible long enough to read the tick\n"; return 1;
+            }
+            const auto frozen = hint.visual(); hint.update(TutorialObjective::OpenBuildMode, false, 0);
+            if (hint.visual().opacity != frozen.opacity || hint.visual().checkProgress != frozen.checkProgress) {
+                std::cerr << "Paused tutorial transitions must freeze\n"; return 1;
+            }
+            for (int i = 0; i < 55; ++i) hint.update(TutorialObjective::OpenBuildMode, false, .016);
+            if (hint.displayed != TutorialObjective::OpenBuildMode || hint.visual().checkProgress != 0) {
+                std::cerr << "Next instruction must replace the finished one with an empty checkbox\n"; return 1;
+            }
+            hint.update(TutorialObjective::PlaceCore, false, .016);
+            for (int i = 0; i < 30; ++i) hint.update(TutorialObjective::PlaceCore, false, .016);
+            if (hint.displayed != TutorialObjective::PlaceCore || hint.visual().checkProgress != 0) {
+                std::cerr << "Changing instruction without completion must not award a tick\n"; return 1;
+            }
+            hint.update(std::nullopt, true, .016);
+            for (int i = 0; i < 70; ++i) hint.update(std::nullopt, false, .016);
+            if (hint.displayed) { std::cerr << "Final tutorial check must fade out cleanly\n"; return 1; }
+        }
+
+        {
             auto map = MapDefinition::defaults(); map.resources.clear(); map.obstacles.clear();
             auto world = WorldConfig::defaults(); world.terrainAmplitude = 0;
             auto supportRun = std::make_unique<Simulation>(GameBalance::defaults(), map, world);

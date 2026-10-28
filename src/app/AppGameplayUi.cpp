@@ -561,6 +561,7 @@ if (showGameplayHud) {
                  recentlyDamagedBuilding_ ==
                      presentationSnapshot.coreId &&
                  damagedBuildingHealthBarRemaining_ > 0.0),
+            .tutorialHint = tutorialHint_.visual(),
             .playerHealthTrail =
                 displayedPlayerHealthTrail_,
             .playerDamagePulse = static_cast<float>(
