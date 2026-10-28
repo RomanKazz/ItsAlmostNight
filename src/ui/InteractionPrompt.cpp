@@ -261,7 +261,7 @@ void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera
     const auto projection = worldPromptProjection(prompt.worldAnchor, camera);
     if (!projection) return;
     const ScopedUiFontRole font(UiFontRole::Display);
-    const float size = 48.0F * std::clamp(static_cast<float>(uiScreenHeight()) / 1200.0F, .7F, 1.25F);
+    const float size = projection->size;
     const float fontSize = size * .48F;
     const float keyHeight = size * 1.36F;
     const float keyGap = size * .12F, actionGap = size * .35F, padding = size * .28F;
