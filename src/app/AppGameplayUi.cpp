@@ -781,8 +781,8 @@ if (showGameplayHud && foundationBuildMode_) {
                 static_cast<std::size_t>(
                     modularBuildPiece_)];
         const int automaticFoundationCount =
-            static_cast<int>(
-                modularAutomaticFoundationPreviews_.size());
+            static_cast<int>(std::ranges::count_if(modularAutomaticFoundationPreviews_,
+                [](const auto& foundation) { return !foundation.existingFrame; }));
         const ResourceCost foundationCost =
             snapshot.modularBuildingCosts[
                 static_cast<std::size_t>(
@@ -828,31 +828,17 @@ if (showGameplayHud && foundationBuildMode_) {
                 static_cast<std::size_t>(
                     *modularDragPiece_)];
         int automaticFoundationCount = 0;
+        const int count = static_cast<int>(plannedCount);
+        ResourceCost totalCost{cost.wood * count, cost.stone * count, cost.crystals * count};
         if (modularDragUsesAutomaticFoundation_) {
-            const int foundationCount =
-                *modularDragPiece_ ==
-                        ModularBuildPiece::Ramp
-                    ? 2
-                    : 1;
-            for (int index = 0;
-                 index < foundationCount; ++index) {
-                cost = addResourceCosts(
-                    cost,
-                    snapshot.modularBuildingCosts[
-                        static_cast<std::size_t>(
-                            ModularBuildPiece::Foundation)]);
-            }
-            automaticFoundationCount =
-                foundationCount *
-                static_cast<int>(plannedCount);
+            const std::size_t supportsPerPiece = *modularDragPiece_ == ModularBuildPiece::Ramp ? 2U : 1U;
+            const auto end = std::min(modularAutomaticFoundationPreviews_.size(), plannedCount * supportsPerPiece);
+            for (std::size_t index = 0; index < end; ++index)
+                if (!modularAutomaticFoundationPreviews_[index].existingFrame) ++automaticFoundationCount;
+            const auto foundationCost = snapshot.modularBuildingCosts[static_cast<std::size_t>(ModularBuildPiece::Foundation)];
+            for (int index = 0; index < automaticFoundationCount; ++index)
+                totalCost = addResourceCosts(totalCost, foundationCost);
         }
-        const int count =
-            static_cast<int>(plannedCount);
-        const ResourceCost totalCost{
-            cost.wood * count,
-            cost.stone * count,
-            cost.crystals * count,
-        };
         const Texture2D pieceIcon =
             *modularDragPiece_ == ModularBuildPiece::Wall
                 ? ui_.buildingTexture(BuildingType::Wall)
