@@ -11,7 +11,7 @@ namespace ian {
 
 inline constexpr Color UiWhite{244, 240, 223, 255};
 
-enum class UiFontRole { Display, Body, BodyBold };
+enum class UiFontRole { Display, Body, BodyBold, MenuBodyBold };
 
 // Measurements and draws use the same face. Queued SDF draws retain this role.
 class ScopedUiFontRole {
@@ -68,7 +68,10 @@ void flushSdfUiTextBatch();
 
 void initializeUiText();
 void shutdownUiText();
+// Original Latin/numeric face for the active role, independent of UI language.
 [[nodiscard]] Font uiFont();
+// Raw glyph users (world billboards) share the same per-character fallback.
+[[nodiscard]] Font uiFontForCodepoint(int codepoint);
 [[nodiscard]] Vector2 measureUiText(std::string_view text,
                                     float fontSize);
 [[nodiscard]] float fitUiTextSize(

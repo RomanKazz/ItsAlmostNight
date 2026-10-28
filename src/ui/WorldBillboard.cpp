@@ -90,14 +90,13 @@ void drawWorldBillboardRoundedRectangle(
 
 float measureWorldBillboardText(
     std::string_view text, float worldSize) {
-    const Font font = uiFont();
-    const float scale =
-        worldSize / static_cast<float>(font.baseSize);
     float totalWidth = 0.0F;
     for (std::size_t offset = 0; offset < text.size();) {
         int byteCount = 0;
         const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
         offset += static_cast<std::size_t>(std::max(byteCount, 1));
+        const Font font = uiFontForCodepoint(codepoint);
+        const float scale = worldSize / static_cast<float>(font.baseSize);
         const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
         const Rectangle source =
             GetGlyphAtlasRec(font, codepoint);
@@ -117,15 +116,14 @@ void drawWorldBillboardText(
     std::string_view text, Vector3 center, float worldSize,
     const Camera3D& camera, Vector3 cameraRight,
     Vector3 cameraUp, Color color, Color shadowColor) {
-    const Font font = uiFont();
-    const float scale =
-        worldSize / static_cast<float>(font.baseSize);
     float cursor =
         -measureWorldBillboardText(text, worldSize) * 0.5F;
     for (std::size_t offset = 0; offset < text.size();) {
         int byteCount = 0;
         const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
         offset += static_cast<std::size_t>(std::max(byteCount, 1));
+        const Font font = uiFontForCodepoint(codepoint);
+        const float scale = worldSize / static_cast<float>(font.baseSize);
         const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
         const Rectangle source =
             GetGlyphAtlasRec(font, codepoint);
@@ -173,9 +171,6 @@ void drawWorldBillboardOutlinedText(
     const Camera3D& camera, Vector3 cameraRight,
     Vector3 cameraUp, Color color, Color outlineColor,
     Color shadowColor, float rotationDegrees) {
-    const Font font = uiFont();
-    const float scale =
-        worldSize / static_cast<float>(font.baseSize);
     // Rotate the text's entire camera-facing plane around the word center.
     // Rotating each glyph in place leaves the baseline horizontal.
     const float rotation = rotationDegrees * DEG2RAD;
@@ -201,6 +196,8 @@ void drawWorldBillboardOutlinedText(
         int byteCount = 0;
         const int codepoint = GetCodepointNext(text.data() + offset, &byteCount);
         offset += static_cast<std::size_t>(std::max(byteCount, 1));
+        const Font font = uiFontForCodepoint(codepoint);
+        const float scale = worldSize / static_cast<float>(font.baseSize);
         const GlyphInfo glyph = GetGlyphInfo(font, codepoint);
         const Rectangle source =
             GetGlyphAtlasRec(font, codepoint);

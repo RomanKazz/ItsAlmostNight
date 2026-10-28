@@ -1,4 +1,5 @@
 #include "ui/UiRenderLayer.hpp"
+#include "ui/UiViewport.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiCString.hpp"
 #include "core/PerformanceStats.hpp"
@@ -24,11 +25,31 @@ namespace ian {
 namespace {
 
 UiFontRole currentFontRole{UiFontRole::Display};
-std::array<Font, 2> bodyFonts{};
-std::array<Font, 2> bodySdfFonts{};
-std::array<Font, 2> bodySmallSdfFonts{};
+bool currentFontFallback{};
+class ScopedFontFallback {
+public:
+    explicit ScopedFontFallback(bool fallback)
+        : previous_(currentFontFallback) {
+        currentFontFallback = fallback;
+    }
+    ~ScopedFontFallback() { currentFontFallback = previous_; }
+private:
+    bool previous_;
+};
+std::array<Font, 3> bodyFonts{};
+std::array<Font, 3> bodySdfFonts{};
+std::array<Font, 3> bodySmallSdfFonts{};
 constexpr std::array BodyFontPaths{
-    "assets/ui/BalsamiqSans-Regular.ttf", "assets/ui/BalsamiqSans-Bold.ttf"};
+    "assets/ui/BalsamiqSans-Regular.ttf", "assets/ui/BalsamiqSans-Bold.ttf",
+    "assets/ui/main_menu/DicoSansSoft-ExtraBold.otf"};
+
+std::size_t bodyFontIndex(UiFontRole role, bool fallback = currentFontFallback) {
+    // Dico has no Cyrillic face; retain the existing Cyrillic body fallback.
+    if (role == UiFontRole::MenuBodyBold) {
+        return fallback ? 1U : 2U;
+    }
+    return role == UiFontRole::BodyBold ? 1U : 0U;
+}
 
 Font primaryFont{};
 Font cyrillicFallbackFont{};
@@ -46,6 +67,7 @@ struct QueuedSdfText {
     float scaledSize{};
     SdfUiTextStyle style{};
     UiFontRole fontRole{UiFontRole::Display};
+    bool fallback{};
     float rotationRadians{};
     Vector2 rotationCenter{};
     bool cacheable{true};
@@ -102,19 +124,53 @@ struct GlyphLayoutKey {
     bool operator==(const GlyphLayoutKey&) const = default;
 };
 
+struct GlyphLayoutLookupKey {
+    std::string_view text;
+    unsigned int textureId{};
+    std::uint32_t scaledSizeBits{};
+};
+
 struct GlyphLayoutKeyHash {
-    std::size_t operator()(const GlyphLayoutKey& key) const noexcept {
-        std::size_t hash = std::hash<std::string>{}(key.text);
+    using is_transparent = void;
+
+    std::size_t operator()(GlyphLayoutLookupKey key) const noexcept {
+        std::size_t hash = std::hash<std::string_view>{}(key.text);
         hash ^= std::hash<unsigned int>{}(key.textureId) +
             0x9e3779b9U + (hash << 6U) + (hash >> 2U);
         hash ^= std::hash<std::uint32_t>{}(key.scaledSizeBits) +
             0x9e3779b9U + (hash << 6U) + (hash >> 2U);
         return hash;
     }
+
+    std::size_t operator()(const GlyphLayoutKey& key) const noexcept {
+        return (*this)(GlyphLayoutLookupKey{
+            key.text, key.textureId, key.scaledSizeBits});
+    }
+};
+
+struct GlyphLayoutKeyEqual {
+    using is_transparent = void;
+
+    bool operator()(const GlyphLayoutKey& left,
+                    const GlyphLayoutKey& right) const noexcept {
+        return left == right;
+    }
+
+    bool operator()(GlyphLayoutLookupKey left,
+                    const GlyphLayoutKey& right) const noexcept {
+        return left.text == right.text &&
+            left.textureId == right.textureId &&
+            left.scaledSizeBits == right.scaledSizeBits;
+    }
+
+    bool operator()(const GlyphLayoutKey& left,
+                    GlyphLayoutLookupKey right) const noexcept {
+        return (*this)(right, left);
+    }
 };
 
 std::unordered_map<GlyphLayoutKey, CachedGlyphLayout,
-                   GlyphLayoutKeyHash> glyphLayoutCache;
+                   GlyphLayoutKeyHash, GlyphLayoutKeyEqual> glyphLayoutCache;
 std::unordered_map<SdfTextTextureKey, CachedSdfTextTexture,
                    SdfTextTextureKeyHash> sdfTextTextureCache;
 std::unordered_map<SdfTextTextureKey, SdfTextObservation,
@@ -250,16 +306,20 @@ Font loadSdfFont(const char* path, const int* codepoints,
     return font;
 }
 
-Font activeSdfFont(float scaledSize, UiFontRole role) {
+Font activeSdfFont(float scaledSize, UiFontRole role, bool fallback = currentFontFallback) {
+    // stb_truetype's SDF generator does not support Dico's cubic CFF
+    // outlines. Use styled bitmap text for both menu body faces, keeping
+    // the Cyrillic fallback's small punctuation readable too.
+    if (role == UiFontRole::MenuBodyBold) return {};
     const bool preferSmall = scaledSize <= SmallSdfMaximumDrawSize;
     if (role != UiFontRole::Display) {
-        const std::size_t index = role == UiFontRole::BodyBold ? 1U : 0U;
+        const std::size_t index = bodyFontIndex(role, fallback);
         if (preferSmall && isDrawableFont(bodySmallSdfFonts[index])) {
             return bodySmallSdfFonts[index];
         }
         if (isDrawableFont(bodySdfFonts[index])) return bodySdfFonts[index];
     }
-    if (currentLanguage() == Language::English) {
+    if (!fallback) {
         if (preferSmall && isDrawableFont(primarySmallSdfFont)) {
             return primarySmallSdfFont;
         }
@@ -290,6 +350,59 @@ bool isSdfTextReady(float scaledSize) {
     return IsShaderValid(sdfTextShader) &&
         isDrawableFont(activeSdfFont(scaledSize, currentFontRole)) &&
         sdfFramebufferScaleLocation >= 0;
+}
+
+bool needsFallback(int codepoint) {
+    if (codepoint < 128) return false;
+    // Body faces already contain Cyrillic. Display and Dico use a fallback
+    // for Cyrillic letters only; digits, punctuation and keycaps stay original.
+    if (codepoint >= 0x0400 && codepoint <= 0x052f)
+        return currentFontRole == UiFontRole::Display || currentFontRole == UiFontRole::MenuBodyBold;
+    const ScopedFontFallback primary(false);
+    const Font font = uiFont();
+    const int index = GetGlyphIndex(font, codepoint);
+    return index < 0 || index >= font.glyphCount || font.glyphs[index].value != codepoint;
+}
+
+// Runs are views into the caller's localized text. ASCII counters take one
+// run and allocate nothing here. Shared advances keep mixed-font centering,
+// hit bounds, cache textures and rotation pivots consistent.
+template <typename Draw>
+Vector2 visitFontRuns(std::string_view text, float scaledSize, Draw&& draw) {
+    if (text.empty()) return {};
+    Vector2 position{};
+    float maximumWidth = 0.0F;
+    const float spacing = scaledSize * .02F;
+    for (std::size_t begin = 0; begin < text.size();) {
+        if (text[begin] == '\n') {
+            maximumWidth = std::max(maximumWidth, std::max(0.0F, position.x-spacing));
+            position.x = 0.0F; position.y += scaledSize + 15.0F; ++begin;
+            continue;
+        }
+        int bytes = 1;
+        const auto codepointAt = [&](std::size_t offset, int& count) {
+            const auto byte = static_cast<unsigned char>(text[offset]);
+            if (byte < 128) { count = 1; return static_cast<int>(byte); }
+            return GetCodepointNext(text.data()+offset, &count);
+        };
+        const bool fallback = needsFallback(codepointAt(begin, bytes));
+        std::size_t end = begin + static_cast<std::size_t>(std::max(1,bytes));
+        while (end < text.size() && text[end] != '\n') {
+            if (needsFallback(codepointAt(end,bytes)) != fallback) break;
+            end += static_cast<std::size_t>(std::max(1,bytes));
+        }
+        end = std::min(end,text.size());
+        const auto run = text.substr(begin,end-begin);
+        const ScopedFontFallback scope(fallback);
+        const Vector2 measured = withNullTerminatedUiText(run, [&](const char* value) {
+            return MeasureTextEx(uiFont(),value,scaledSize,spacing);
+        });
+        draw(run,position,fallback);
+        position.x += measured.x + spacing;
+        begin = end;
+    }
+    maximumWidth = std::max(maximumWidth,std::max(0.0F,position.x-spacing));
+    return {maximumWidth,position.y+scaledSize};
 }
 
 float defaultOutlinePixels(float fontSize) {
@@ -386,16 +499,21 @@ CachedGlyphLayout buildGlyphLayout(
 
 const CachedGlyphLayout& cachedGlyphLayout(
     std::string_view text, Font font, float scaledSize) {
+    const GlyphLayoutLookupKey lookup{
+        .text = text,
+        .textureId = font.texture.id,
+        .scaledSizeBits = std::bit_cast<std::uint32_t>(scaledSize),
+    };
+    auto found = glyphLayoutCache.find(lookup);
+    if (found != glyphLayoutCache.end()) return found->second;
     if (glyphLayoutCache.size() >= MaximumCachedGlyphLayouts) {
         glyphLayoutCache.clear();
     }
     GlyphLayoutKey key{
         .text = std::string{text},
-        .textureId = font.texture.id,
-        .scaledSizeBits = std::bit_cast<std::uint32_t>(scaledSize),
+        .textureId = lookup.textureId,
+        .scaledSizeBits = lookup.scaledSizeBits,
     };
-    auto found = glyphLayoutCache.find(key);
-    if (found != glyphLayoutCache.end()) return found->second;
     auto [inserted, unused] = glyphLayoutCache.emplace(
         std::move(key), buildGlyphLayout(text, font, scaledSize));
     static_cast<void>(unused);
@@ -469,27 +587,37 @@ bool queueSdfText(std::string_view text, Vector2 position,
                   Vector2 rotationCenter = {},
                   bool cacheable = true) {
     if (!sdfTextBatchActive || !isSdfTextReady(scaledSize) ||
-        isStandaloneInfinity(text) || isStandaloneCheck(text)) {
-        return false;
-    }
+        isStandaloneInfinity(text) || isStandaloneCheck(text)) return false;
     std::string renderedText = currentLanguage() == Language::English
-        ? std::string{text}
-        : localizeText(text);
-    if (isStandaloneInfinity(renderedText) ||
-        isStandaloneCheck(renderedText)) {
-        return false;
+        ? std::string(text) : localizeText(text);
+    if (isStandaloneInfinity(renderedText) || isStandaloneCheck(renderedText)) return false;
+    if (std::all_of(renderedText.begin(),renderedText.end(),[](char value) {
+            return static_cast<unsigned char>(value) < 128 && value != '\n';
+        })) {
+        // Resource/HP counters, damage numbers and keycaps keep the original
+        // single-atlas path without an extra layout pass or string copy.
+        sdfTextBatch.push_back({
+            .text = std::move(renderedText), .position = position,
+            .scaledSize = scaledSize, .style = style, .fontRole = currentFontRole,
+            .fallback = false, .rotationRadians = rotationRadians,
+            .rotationCenter = rotationCenter, .cacheable = cacheable && sdfTextCacheEnabled,
+        });
+        return true;
     }
-    sdfTextBatch.push_back({
-        .text = std::move(renderedText),
-        .position = position,
-        .scaledSize = scaledSize,
-        .style = style,
-        .fontRole = currentFontRole,
-        .rotationRadians = rotationRadians,
-        .rotationCenter = rotationCenter,
-        .cacheable = cacheable && sdfTextCacheEnabled,
+    const auto begin = sdfTextBatch.size();
+    bool ready = true;
+    visitFontRuns(renderedText,scaledSize,[&](std::string_view run,Vector2 offset,bool fallback) {
+        if (!isSdfTextReady(scaledSize)) { ready = false; return; }
+        sdfTextBatch.push_back({
+            .text = std::string(run),
+            .position = {position.x+offset.x,position.y+offset.y},
+            .scaledSize = scaledSize, .style = style, .fontRole = currentFontRole,
+            .fallback = fallback, .rotationRadians = rotationRadians,
+            .rotationCenter = rotationCenter, .cacheable = cacheable && sdfTextCacheEnabled,
+        });
     });
-    return true;
+    if (!ready) sdfTextBatch.resize(begin);
+    return ready;
 }
 
 bool textLayerVisible(const SdfUiTextStyle& style,
@@ -508,23 +636,35 @@ bool textLayerVisible(const SdfUiTextStyle& style,
     return false;
 }
 
+// A text batch can visit each item several times for shadow, outline and
+// fill. Resolve its atlas once so those passes use the same font and avoid
+// repeating the language/font selection for every glyph layer.
+std::vector<Font> sdfTextFontScratch;
+
 void drawSdfTextItemsDirect(
     std::span<const QueuedSdfText* const> items,
     std::optional<float> forcedFramebufferScale = std::nullopt) {
     if (items.empty()) return;
+    sdfTextFontScratch.clear();
+    sdfTextFontScratch.reserve(items.size());
+    for (const QueuedSdfText* queued : items) {
+        sdfTextFontScratch.push_back(activeSdfFont(queued->scaledSize, queued->fontRole, queued->fallback));
+    }
     configureSdfTextShader(forcedFramebufferScale);
     BeginShaderMode(sdfTextShader);
     for (const SdfTextLayer layer : {
              SdfTextLayer::Shadow,
              SdfTextLayer::Outline,
              SdfTextLayer::Fill}) {
-        std::array<unsigned int, 4> submittedTextures{};
+        std::array<unsigned int, 8> submittedTextures{};
         std::size_t submittedTextureCount = 0U;
-        for (const QueuedSdfText* queued : items) {
+        for (std::size_t itemIndex = 0;
+             itemIndex < items.size(); ++itemIndex) {
+            const QueuedSdfText* queued = items[itemIndex];
             if (!textLayerVisible(queued->style, layer)) {
                 continue;
             }
-            const Font font = activeSdfFont(queued->scaledSize, queued->fontRole);
+            const Font font = sdfTextFontScratch[itemIndex];
             const auto submittedEnd = submittedTextures.begin() +
                 static_cast<std::ptrdiff_t>(submittedTextureCount);
             if (std::find(
@@ -535,12 +675,14 @@ void drawSdfTextItemsDirect(
             submittedTextures[submittedTextureCount++] = font.texture.id;
             rlSetTexture(font.texture.id);
             rlBegin(RL_QUADS);
-            for (const QueuedSdfText* candidate : items) {
+            for (std::size_t candidateIndex = 0;
+                 candidateIndex < items.size(); ++candidateIndex) {
+                const QueuedSdfText* candidate = items[candidateIndex];
                 if (!textLayerVisible(candidate->style, layer)) {
                     continue;
                 }
-                const Font candidateFont = activeSdfFont(
-                    candidate->scaledSize, candidate->fontRole);
+                const Font candidateFont =
+                    sdfTextFontScratch[candidateIndex];
                 if (candidateFont.texture.id != font.texture.id) {
                     continue;
                 }
@@ -683,6 +825,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
     QueuedSdfText local = queued;
     local.position = {-drawOffsetX, -drawOffsetY};
     const QueuedSdfText* localPointer = &local;
+    suspendUiCanvas();
     BeginTextureMode(target);
     ClearBackground(BLANK);
     rlSetBlendFactorsSeparate(
@@ -696,6 +839,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
     EndBlendMode();
     EndTextureMode();
     restoreUiRenderLayer();
+    resumeUiCanvas();
     return CachedSdfTextTexture{
         .target = target,
         .drawOffset = {drawOffsetX, drawOffsetY},
@@ -706,7 +850,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
 
 CachedSdfTextTexture* cachedSdfTextTexture(
     const QueuedSdfText& queued) {
-    const Font font = activeSdfFont(queued.scaledSize, queued.fontRole);
+    const Font font = activeSdfFont(queued.scaledSize, queued.fontRole, queued.fallback);
     SdfTextTextureKey key = sdfTextTextureKey(queued, font);
     auto found = sdfTextTextureCache.find(key);
     if (found != sdfTextTextureCache.end()) {
@@ -737,11 +881,12 @@ std::vector<CachedSdfTextDraw> sdfTextCachedDrawScratch;
 
 std::size_t currentSdfTextBatchHash() {
     std::size_t hash = sdfTextBatch.size();
-    hashCombine(hash, static_cast<std::size_t>(GetScreenWidth()));
-    hashCombine(hash, static_cast<std::size_t>(GetScreenHeight()));
+    hashCombine(hash, static_cast<std::size_t>(uiScreenWidth()));
+    hashCombine(hash, static_cast<std::size_t>(uiScreenHeight()));
     for (const QueuedSdfText& queued : sdfTextBatch) {
         hashCombine(hash, std::hash<std::string>{}(queued.text));
         hashCombine(hash, static_cast<std::size_t>(queued.fontRole));
+        hashCombine(hash, static_cast<std::size_t>(queued.fallback));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.x));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.y));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.scaledSize));
@@ -767,8 +912,11 @@ std::size_t currentSdfTextBatchHash() {
 }
 
 bool ensureHudTextBatchTarget() {
-    const int width = std::max(GetScreenWidth(), 1);
-    const int height = std::max(GetScreenHeight(), 1);
+    // Keep the cached HUD at framebuffer resolution. A UI-sized texture
+    // becomes visibly softer than directly rendered glyphs when composited
+    // onto HiDPI or scaled windows.
+    const int width = std::max(GetRenderWidth(), 1);
+    const int height = std::max(GetRenderHeight(), 1);
     if (IsRenderTextureValid(hudTextBatchTarget) &&
         hudTextBatchTarget.texture.width == width &&
         hudTextBatchTarget.texture.height == height) {
@@ -792,15 +940,15 @@ std::vector<Rectangle> buildHudTextBatchRegions(
     std::span<const QueuedSdfText* const> items) {
     constexpr int TileSize = 128;
     constexpr float SamplingPadding = 2.0F;
-    const int width = std::max(GetScreenWidth(), 1);
-    const int height = std::max(GetScreenHeight(), 1);
+    const int width = std::max(uiScreenWidth(), 1);
+    const int height = std::max(uiScreenHeight(), 1);
     const int columnCount = (width + TileSize - 1) / TileSize;
     const int rowCount = (height + TileSize - 1) / TileSize;
     std::vector<unsigned char> occupied(
         static_cast<std::size_t>(columnCount * rowCount), 0U);
 
     for (const QueuedSdfText* queued : items) {
-        const Font font = activeSdfFont(queued->scaledSize, queued->fontRole);
+        const Font font = activeSdfFont(queued->scaledSize, queued->fontRole, queued->fallback);
         const CachedGlyphLayout& layout = cachedGlyphLayout(
             queued->text, font, queued->scaledSize);
         if (layout.quads.empty()) continue;
@@ -913,17 +1061,24 @@ bool drawCachedHudTextBatch(
         if (hudTextBatchCandidateFrames < 2U) {
             return false;
         }
+        suspendUiCanvas();
         BeginTextureMode(hudTextBatchTarget);
         ClearBackground(BLANK);
+        const float framebufferScale =
+            static_cast<float>(hudTextBatchTarget.texture.width) /
+            static_cast<float>(std::max(uiScreenWidth(), 1));
+        BeginMode2D(Camera2D{{}, {}, 0.0F, framebufferScale});
         rlSetBlendFactorsSeparate(
             RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
             RL_ONE, RL_ONE_MINUS_SRC_ALPHA,
             RL_FUNC_ADD, RL_FUNC_ADD);
         BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-        drawSdfTextItemsDirect(items, 1.0F);
+        drawSdfTextItemsDirect(items, framebufferScale);
         EndBlendMode();
+        EndMode2D();
         EndTextureMode();
-    restoreUiRenderLayer();
+        restoreUiRenderLayer();
+        resumeUiCanvas();
         hudTextBatchRegions = buildHudTextBatchRegions(items);
         hudTextBatchHash = hash;
         hudTextBatchCacheValid = true;
@@ -931,13 +1086,20 @@ bool drawCachedHudTextBatch(
     hudTextBatchCandidateHash = hash;
     hudTextBatchCandidateFrames = 2U;
     BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+    const float sourceScaleX =
+        static_cast<float>(hudTextBatchTarget.texture.width) /
+        static_cast<float>(std::max(uiScreenWidth(), 1));
+    const float sourceScaleY =
+        static_cast<float>(hudTextBatchTarget.texture.height) /
+        static_cast<float>(std::max(uiScreenHeight(), 1));
     for (const Rectangle& region : hudTextBatchRegions) {
         DrawTexturePro(
             hudTextBatchTarget.texture,
-            {region.x,
+            {region.x * sourceScaleX,
              static_cast<float>(hudTextBatchTarget.texture.height) -
-                 region.y - region.height,
-             region.width, -region.height},
+                 (region.y + region.height) * sourceScaleY,
+             region.width * sourceScaleX,
+             -region.height * sourceScaleY},
             region, {}, 0.0F, WHITE);
     }
     EndBlendMode();
@@ -975,7 +1137,9 @@ void drawSdfTextBatch() {
     // On-demand cache rendering temporarily changes the framebuffer. Keep
     // nested render-texture users on the direct path so their target remains
     // untouched.
-    const bool mayBuildCache = rlGetActiveFramebuffer() == 0U;
+    const bool mayBuildCache = rlGetActiveFramebuffer() == 0U &&
+        GetRenderWidth() == uiScreenWidth() &&
+        GetRenderHeight() == uiScreenHeight();
     for (const QueuedSdfText& queued : sdfTextBatch) {
         // Rotated text uses a screen-space pivot, so caching it into a small
         // local texture would change the pivot and produce incorrect output.
@@ -1018,6 +1182,15 @@ void drawSdfTextValue(const char* value, Vector2 position,
     const ScopedTextPerformanceSample performanceSample(
         std::char_traits<char>::length(value));
     if (!isSdfTextReady(scaledSize)) {
+        if (currentFontRole == UiFontRole::MenuBodyBold) {
+            const Vector2 measured = MeasureTextEx(
+                uiFont(), value, scaledSize, scaledSize * 0.02F);
+            drawRotatedStyledUiText(value,
+                {position.x + measured.x * 0.5F,
+                 position.y + measured.y * 0.5F},
+                scaledSize / UiTextScale, 0.0F, style);
+            return;
+        }
         drawBitmapUiText(value, position, scaledSize, style.fillColor);
         return;
     }
@@ -1027,6 +1200,7 @@ void drawSdfTextValue(const char* value, Vector2 position,
         .scaledSize = scaledSize,
         .style = style,
         .fontRole = currentFontRole,
+        .fallback = currentFontFallback,
         .cacheable = sdfTextCacheEnabled,
     });
     drawSdfTextBatch();
@@ -1237,6 +1411,7 @@ void initializeUiText() {
     }
     constexpr std::size_t ExpectedHudTextItems = 128U;
     sdfTextBatch.reserve(ExpectedHudTextItems);
+    sdfTextFontScratch.reserve(ExpectedHudTextItems);
     sdfTextPointerScratch.reserve(ExpectedHudTextItems);
     sdfTextCachedDrawScratch.reserve(ExpectedHudTextItems);
     std::array<int, GlyphCount> codepoints{};
@@ -1265,12 +1440,13 @@ void initializeUiText() {
         "assets/ui/CIKORegular.ttf", 96,
         latinCodepoints.data(), LatinGlyphCount);
     cyrillicFallbackFont = LoadFontEx(
-        "assets/ui/FredokaOneCyrillic-Regular.ttf", 64,
+        "assets/ui/RubikOne-Regular.ttf", 64,
         codepoints.data(), GlyphCount);
     for (std::size_t face = 0; face < BodyFontPaths.size(); ++face) {
         bodyFonts[face] = LoadFontEx(BodyFontPaths[face], 64,
             codepoints.data(), GlyphCount);
         configureFontFiltering(bodyFonts[face]);
+        if (face == 2U) continue; // Dico's CFF face uses bitmap text.
         bodySdfFonts[face] = loadSdfFont(BodyFontPaths[face],
             codepoints.data(), GlyphCount, SdfBaseGlyphSize);
         bodySmallSdfFonts[face] = loadSdfFont(BodyFontPaths[face],
@@ -1283,7 +1459,7 @@ void initializeUiText() {
         latinCodepoints.data(), LatinGlyphCount,
         SdfBaseGlyphSize);
     cyrillicFallbackSdfFont = loadSdfFont(
-        "assets/ui/FredokaOneCyrillic-Regular.ttf",
+        "assets/ui/RubikOne-Regular.ttf",
         codepoints.data(), GlyphCount,
         SdfBaseGlyphSize);
     primarySmallSdfFont = loadSdfFont(
@@ -1291,7 +1467,7 @@ void initializeUiText() {
         latinCodepoints.data(), LatinGlyphCount,
         SmallSdfBaseGlyphSize);
     cyrillicFallbackSmallSdfFont = loadSdfFont(
-        "assets/ui/FredokaOneCyrillic-Regular.ttf",
+        "assets/ui/RubikOne-Regular.ttf",
         codepoints.data(), GlyphCount,
         SmallSdfBaseGlyphSize);
     sdfTextShader = LoadShader(
@@ -1353,6 +1529,7 @@ void shutdownUiText() {
     bodySdfFonts = {};
     bodySmallSdfFonts = {};
     currentFontRole = UiFontRole::Display;
+    currentFontFallback = false;
     primaryFont = {};
     cyrillicFallbackFont = {};
     primarySdfFont = {};
@@ -1375,11 +1552,10 @@ ScopedUiFontRole::~ScopedUiFontRole() {
 
 Font uiFont() {
     if (currentFontRole != UiFontRole::Display) {
-        const std::size_t index = currentFontRole == UiFontRole::BodyBold ? 1U : 0U;
+        const std::size_t index = bodyFontIndex(currentFontRole);
         if (IsFontValid(bodyFonts[index])) return bodyFonts[index];
     }
-    if (currentLanguage() == Language::English &&
-        IsFontValid(primaryFont)) {
+    if (!currentFontFallback && IsFontValid(primaryFont)) {
         return primaryFont;
     }
     if (IsFontValid(cyrillicFallbackFont)) {
@@ -1388,26 +1564,20 @@ Font uiFont() {
     return IsFontValid(primaryFont) ? primaryFont : GetFontDefault();
 }
 
+Font uiFontForCodepoint(int codepoint) {
+    const ScopedFontFallback fallback(needsFallback(codepoint));
+    return uiFont();
+}
+
 Vector2 measureUiText(std::string_view text, float fontSize) {
     const float scaledSize = fontSize * UiTextScale;
-    if (isStandaloneInfinity(text) || isStandaloneCheck(text)) {
-        return {specialGlyphAdvance(scaledSize), scaledSize};
-    }
-    if (currentLanguage() == Language::English) {
-        return withNullTerminatedUiText(
-            text, [scaledSize](const char* value) {
-                return MeasureTextEx(
-                    uiFont(), value, scaledSize,
-                    scaledSize * 0.02F);
-            });
-    }
-    const std::string localized = localizeText(text);
-    return withNullTerminatedUiText(
-        localized, [scaledSize](const char* value) {
-            return MeasureTextEx(
-                uiFont(), value, scaledSize,
-                scaledSize * 0.02F);
-        });
+    if (isStandaloneInfinity(text) || isStandaloneCheck(text))
+        return {specialGlyphAdvance(scaledSize),scaledSize};
+    const auto measure = [scaledSize](std::string_view value) {
+        return visitFontRuns(value,scaledSize,[](std::string_view,Vector2,bool) {});
+    };
+    if (currentLanguage() == Language::English) return measure(text);
+    return measure(localizeText(text));
 }
 
 float fitUiTextSize(
@@ -1432,34 +1602,27 @@ void drawUiText(std::string_view text, Vector2 position,
     const ScopedTextPerformanceSample performanceSample(text.size());
     const float scaledSize = fontSize * UiTextScale;
     const bool body = currentFontRole != UiFontRole::Display;
-    const Vector2 shadowOffset = body ? Vector2{0.0F, 1.0F} : Vector2{1.5F, 2.0F};
-    const Color shadow{
-        7, 9, 11,
-        static_cast<unsigned char>(
-            static_cast<unsigned int>(color.a) * (body ? 2U : 3U) / 4U),
-    };
-    const auto draw = [position, scaledSize, shadow, shadowOffset, color](
-                          const char* value) {
+    const Vector2 shadowOffset = body ? Vector2{0,1} : Vector2{1.5F,2};
+    const Color shadow{7,9,11,static_cast<unsigned char>(
+        static_cast<unsigned int>(color.a) * (body?2U:3U)/4U)};
+    const auto draw = [&](std::string_view value) {
         if (drawStandaloneSpecialGlyph(
                 value, {position.x + shadowOffset.x, position.y + shadowOffset.y},
                 scaledSize, shadow)) {
             drawStandaloneSpecialGlyph(value, position, scaledSize, color);
             return;
         }
-        DrawTextEx(
-            uiFont(), value,
-            {position.x + shadowOffset.x, position.y + shadowOffset.y},
-            scaledSize, scaledSize * 0.02F, shadow);
-        DrawTextEx(
-            uiFont(), value, position, scaledSize,
-            scaledSize * 0.02F, color);
+        visitFontRuns(value,scaledSize,[&](std::string_view run,Vector2 offset,bool) {
+            withNullTerminatedUiText(run,[&](const char* literal) {
+                DrawTextEx(uiFont(),literal,{position.x+offset.x+shadowOffset.x,
+                    position.y+offset.y+shadowOffset.y},scaledSize,scaledSize*.02F,shadow);
+                DrawTextEx(uiFont(),literal,{position.x+offset.x,position.y+offset.y},
+                    scaledSize,scaledSize*.02F,color);
+            });
+        });
     };
-    if (currentLanguage() == Language::English) {
-        withNullTerminatedUiText(text, draw);
-    } else {
-        const std::string localized = localizeText(text);
-        withNullTerminatedUiText(localized, draw);
-    }
+    if (currentLanguage() == Language::English) draw(text);
+    else draw(localizeText(text));
 }
 
 void drawRotatedStyledUiText(
@@ -1480,63 +1643,35 @@ void drawRotatedStyledUiText(
             return;
         }
     }
-    const auto draw = [center, scaledSize, rotationDegrees, style](
-                          const char* value) {
-        const Font font = uiFont();
-        const float spacing = scaledSize * 0.02F;
-        const Vector2 measured = MeasureTextEx(
-            font, value, scaledSize, spacing);
-        const Vector2 origin{
-            measured.x * 0.5F, measured.y * 0.5F};
-        if (isSdfTextReady(scaledSize)) {
-            const QueuedSdfText queued{
-                .text = value,
-                .position = {
-                    center.x - origin.x,
-                    center.y - origin.y,
-                },
-                .scaledSize = scaledSize,
-                .style = style,
-                .fontRole = currentFontRole,
-                .rotationRadians = rotationDegrees * DEG2RAD,
-                .rotationCenter = center,
-            };
-            const QueuedSdfText* pointer = &queued;
-            drawSdfTextItemsDirect(
-                std::span<const QueuedSdfText* const>{&pointer, 1U});
-            return;
-        }
-        if (style.shadowColor.a > 0U) {
-            DrawTextPro(
-                font, value,
-                {center.x + style.shadowOffsetPixels.x,
-                 center.y + style.shadowOffsetPixels.y},
-                origin, rotationDegrees,
-                scaledSize, spacing, style.shadowColor);
-        }
-        if (style.outlineColor.a > 0U &&
-            style.outlinePixels > 0.0F) {
-            constexpr std::array<Vector2, 8> Directions{{
-                {-1.0F, 0.0F}, {1.0F, 0.0F},
-                {0.0F, -1.0F}, {0.0F, 1.0F},
-                {-0.7071F, -0.7071F},
-                {0.7071F, -0.7071F},
-                {-0.7071F, 0.7071F},
-                {0.7071F, 0.7071F},
-            }};
-            for (const Vector2 direction : Directions) {
-                DrawTextPro(
-                    font, value,
-                    {center.x + direction.x * style.outlinePixels,
-                     center.y + direction.y * style.outlinePixels},
-                    origin, rotationDegrees,
-                    scaledSize, spacing, style.outlineColor);
+    const auto draw = [center, scaledSize, rotationDegrees, style](const char* value) {
+        const Vector2 measured = visitFontRuns(value,scaledSize,[](std::string_view,Vector2,bool) {});
+        visitFontRuns(value,scaledSize,[&](std::string_view run,Vector2 offset,bool fallback) {
+            const Font font = uiFont();
+            const Vector2 origin{measured.x*.5F-offset.x,measured.y*.5F-offset.y};
+            if (isSdfTextReady(scaledSize)) {
+                const QueuedSdfText queued{
+                    .text = std::string(run), .position = {center.x-origin.x,center.y-origin.y},
+                    .scaledSize = scaledSize, .style = style, .fontRole = currentFontRole,
+                    .fallback = fallback, .rotationRadians = rotationDegrees*DEG2RAD, .rotationCenter = center,
+                };
+                const QueuedSdfText* pointer = &queued;
+                drawSdfTextItemsDirect(std::span<const QueuedSdfText* const>{&pointer,1U});
+                return;
             }
-        }
-        DrawTextPro(
-            font, value, center, origin,
-            rotationDegrees, scaledSize, spacing,
-            style.fillColor);
+            withNullTerminatedUiText(run,[&](const char* literal) {
+                if (style.shadowColor.a > 0U) DrawTextPro(font,literal,
+                    {center.x+style.shadowOffsetPixels.x,center.y+style.shadowOffsetPixels.y},
+                    origin,rotationDegrees,scaledSize,scaledSize*.02F,style.shadowColor);
+                if (style.outlineColor.a > 0U && style.outlinePixels > 0) {
+                    constexpr std::array<Vector2,8> directions{{{-1,0},{1,0},{0,-1},{0,1},
+                        {-.7071F,-.7071F},{.7071F,-.7071F},{-.7071F,.7071F},{.7071F,.7071F}}};
+                    for (const auto direction:directions) DrawTextPro(font,literal,
+                        {center.x+direction.x*style.outlinePixels,center.y+direction.y*style.outlinePixels},
+                        origin,rotationDegrees,scaledSize,scaledSize*.02F,style.outlineColor);
+                }
+                DrawTextPro(font,literal,center,origin,rotationDegrees,scaledSize,scaledSize*.02F,style.fillColor);
+            });
+        });
     };
     if (currentLanguage() == Language::English) {
         withNullTerminatedUiText(text, draw);
@@ -1560,7 +1695,11 @@ void drawStyledSdfUiText(std::string_view text, Vector2 position,
                 value, position, scaledSize, style)) {
             return;
         }
-        drawSdfTextValue(value, position, scaledSize, style);
+        visitFontRuns(value,scaledSize,[&](std::string_view run,Vector2 offset,bool) {
+            withNullTerminatedUiText(run,[&](const char* literal) {
+                drawSdfTextValue(literal,{position.x+offset.x,position.y+offset.y},scaledSize,style);
+            });
+        });
     };
     if (currentLanguage() == Language::English) {
         withNullTerminatedUiText(text, draw);
@@ -1621,7 +1760,7 @@ void drawCenteredUiText(std::string_view text, float y,
     const Vector2 size = measureUiText(text, fontSize);
     drawUiText(
         text,
-        {(static_cast<float>(GetScreenWidth()) - size.x) * 0.5F,
+        {(static_cast<float>(uiScreenWidth()) - size.x) * 0.5F,
          y},
         fontSize, color);
 }
@@ -1632,7 +1771,7 @@ void drawCenteredStyledSdfUiText(
     const Vector2 size = measureUiText(text, fontSize);
     drawStyledSdfUiText(
         text,
-        {(static_cast<float>(GetScreenWidth()) - size.x) * 0.5F,
+        {(static_cast<float>(uiScreenWidth()) - size.x) * 0.5F,
          y},
         fontSize, style);
 }

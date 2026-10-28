@@ -181,34 +181,17 @@ void drawOutlinedTitle(
     const float logicalSize = fitUiTextSize(
         sourceText, preferredSize, 28.0F,
         maximumWidth * layout.scale);
-    const float size = logicalSize * 1.68F * layout.scale;
-    const Vector2 measured = withNullTerminatedUiText(
-        text, [size](const char* value) {
-            return MeasureTextEx(
-                uiFont(), value, size, size * 0.02F);
-        });
+    const Vector2 measured = measureUiText(sourceText,logicalSize*layout.scale);
     const Vector2 position{
-        layout.origin.x + centerX * layout.scale -
-            measured.x * 0.5F,
+        layout.origin.x + centerX * layout.scale - measured.x * .5F,
         layout.origin.y + y * layout.scale,
     };
-    constexpr std::array<Vector2, 8> OutlineOffsets{{
-        {-3.0F, -3.0F}, {0.0F, -4.0F}, {3.0F, -3.0F},
-        {-4.0F, 0.0F},                    {4.0F, 0.0F},
-        {-3.0F, 3.0F},  {0.0F, 4.0F},  {3.0F, 3.0F},
-    }};
-    withNullTerminatedUiText(text, [&](const char* value) {
-        for (const Vector2 offset : OutlineOffsets) {
-            DrawTextEx(
-                uiFont(), value,
-                {position.x + offset.x * layout.scale,
-                 position.y + offset.y * layout.scale},
-                size, size * 0.02F, {9, 12, 15, 255});
-        }
-        DrawTextEx(
-            uiFont(), value, position, size,
-            size * 0.02F, {250, 245, 224, 255});
-    });
+    SdfUiTextStyle style{};
+    style.fillColor = {250,245,224,255};
+    style.outlineColor = {9,12,15,255};
+    style.outlinePixels = 4 * layout.scale;
+    style.shadowColor = BLANK;
+    drawStyledSdfUiText(text,position,logicalSize*layout.scale,style);
 }
 
 void drawStatRow(
