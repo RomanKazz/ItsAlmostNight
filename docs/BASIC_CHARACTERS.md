@@ -35,7 +35,8 @@ New class IDs are appended to `PlayerClass`. All previous numeric IDs and
 class definitions remain readable for already suspended runs; they do not
 appear in selection or the collection. Continuing an old run keeps its old
 class and abilities. New-run selection normalizes a retired selection to
-Lumberjack. No profile, silver, purchases or quest completion is erased.
+Miner, which is also selected on application startup and after a progress reset.
+No profile, silver, purchases or quest completion is erased.
 
 The four retired class-unlock quests keep their IDs, conditions and silver
 rewards as general goals. They no longer sell invisible characters. Already

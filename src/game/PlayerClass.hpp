@@ -28,6 +28,8 @@ enum class PlayerClass {
     Miner,
 };
 
+inline constexpr PlayerClass DefaultPlayerClass = PlayerClass::Miner;
+
 struct PlayerClassDefinition {
     PlayerClass type{PlayerClass::None};
     std::string_view name;

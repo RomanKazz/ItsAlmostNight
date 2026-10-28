@@ -373,7 +373,7 @@ class App {
     QuestMenuState questMenuState_;
     UnlockMenuState unlockMenuState_;
     ShopMenuState shopMenuState_;
-    PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
+    PlayerClass selectedPlayerClass_{DefaultPlayerClass};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};
     bool pendingReturnToMenuFromUi_{};
