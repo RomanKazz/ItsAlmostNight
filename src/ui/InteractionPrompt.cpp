@@ -287,8 +287,8 @@ void drawBuildingActions(const InteractionPrompt& prompt, const Camera3D& camera
         InputKeycap::held(controls, ControlAction::Repair));
     if (prompt.showRemove) add("REMOVE", InputKeycap::label(controls, ControlAction::Sell),
         InputKeycap::held(controls, ControlAction::Sell));
-    float cursor = std::clamp(projection->anchor.x - width * .5F, 12.0F,
-        std::max(12.0F, static_cast<float>(uiScreenWidth()) - width - 12));
+    // Keep the row attached to the world anchor while it leaves the viewport.
+    float cursor = projection->anchor.x - width * .5F;
     const float y = projection->anchor.y;
     for (std::size_t i = 0; i < count; ++i) {
         const auto& action = actions[i];
