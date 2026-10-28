@@ -25,9 +25,10 @@ Old two-landmark maps regenerate their historical challenge/scenery layout and r
 ## Assets and verification
 
 - Runtime models: `assets/models/world_landmarks/player_shrine.glb`, `building_shrine.glb`.
-- Packed editable Blender project, previews, manifest and geometry report: `art/models/shrines/`.
-- Builder/validator/renderer: `tools/create_shrine_models.py`, `validate_shrine_models.py`, `render_shrine_models.py`.
+- Current packed editable Blender project, previews, manifest and geometry report: `art/models/shrines/rework/`. The earlier source remains in `art/models/shrines/` for comparison.
+- Current builder/validator/renderer: `tools/refine_shrine_models.py`, `validate_refined_shrines.py`, `render_refined_shrines.py`. The scripts without `refined`/`refine` describe the retired column design.
 - Original defense colormap is embedded byte-for-byte, SHA256 `cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6`.
-- Neutral floor pivot, GLB Y-up, runtime height 2.8 m, two meshes and one material per model. Static collision box: centered 2×2 m, height 2.8 m; hover raycast uses visible geometry.
+- Woodland redesign: Player has a split hewn-stone arch, inset ruby heart and amethyst votives; Building has an iron-banded oak frame, bronze gear with sapphire hub and a small offering anvil. Both use stepped stone, wood, thick fasteners and restrained moss accents from the existing palette.
+- Neutral floor pivot, GLB Y-up, authored/runtime height 2.8 m, two meshes and one material per model. Player: 2,324 triangles; Building: 3,028 triangles. Both fit inside the existing 2×2 m footprint. Static collision box: centered 2×2 m, height 2.8 m; hover raycast uses visible geometry.
 - Closed outward geometry, finite UVs, unit exported normals and emblem clearance are validated. Tests exercise real loader, world shader, raycasts, consumed tint and upgrade UI. These automated renders are not a native gameplay playtest.
 - `ian_shrine_tests`: seeded natural/flat maps, resource payment/rejection, three unique choices, all tome bonuses, full slots, scope isolation and real poison hits, save/load, all 24 purchases, increasing costs, reset and corruption rejection.

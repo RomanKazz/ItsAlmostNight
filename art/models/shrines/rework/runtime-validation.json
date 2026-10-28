@@ -1,0 +1,14 @@
+{
+  "platform": "macOS arm64",
+  "method": "Focused native Renderer / GraphicsResources probe using existing checkShrineRendering fixture",
+  "loader_valid": true,
+  "world_shader_render": true,
+  "active_and_spent_tint": true,
+  "bounds_height_2_8m": true,
+  "visible_mesh_raycast_flat": true,
+  "bounds_and_raycast_follow_surface_normal": true,
+  "source_fixture": "tests/ShrineGraphicsChecks.hpp",
+  "geometry_report": "validation.json",
+  "manual_gameplay_playtest": false,
+  "windows_build": false
+}

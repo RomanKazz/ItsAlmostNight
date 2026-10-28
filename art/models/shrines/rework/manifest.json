@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "style": "hewn stone / banded oak / bronze / faceted crystals",
+  "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+  "license": "Original geometry; existing Kenney CC0 colormap",
+  "models": {
+    "player": {
+      "glb": "assets/models/world_landmarks/player_shrine.glb",
+      "bounds_glb": {
+        "min": [
+          -0.8869243264198303,
+          0.0,
+          -0.9899999499320984
+        ],
+        "max": [
+          0.8869243264198303,
+          2.799999952316284,
+          0.8869243264198303
+        ]
+      },
+      "pivot_glb": [
+        0,
+        0,
+        0
+      ],
+      "runtime_height": 2.8,
+      "meshes": {
+        "woodland_player_shrine_body": {
+          "triangles": 1904,
+          "editable_components": 40
+        },
+        "woodland_player_shrine_blessing": {
+          "triangles": 420,
+          "editable_components": 3
+        }
+      },
+      "materials": 1,
+      "collision": "Unchanged game-provided centered 2x2x2.8m blocker; visible-mesh hover",
+      "animation": "Static geometry; consumed tint and terrain alignment remain in game renderer",
+      "integration": "Replaces the existing two shrine GLBs; no gameplay or renderer changes"
+    },
+    "building": {
+      "glb": "assets/models/world_landmarks/building_shrine.glb",
+      "bounds_glb": {
+        "min": [
+          -0.9049999117851257,
+          0.0,
+          -0.9899998903274536
+        ],
+        "max": [
+          0.9049999117851257,
+          2.799999952316284,
+          0.8869242668151855
+        ]
+      },
+      "pivot_glb": [
+        0,
+        0,
+        0
+      ],
+      "runtime_height": 2.8,
+      "meshes": {
+        "woodland_building_shrine_body": {
+          "triangles": 2572,
+          "editable_components": 47
+        },
+        "woodland_building_shrine_blessing": {
+          "triangles": 456,
+          "editable_components": 3
+        }
+      },
+      "materials": 1,
+      "collision": "Unchanged game-provided centered 2x2x2.8m blocker; visible-mesh hover",
+      "animation": "Static geometry; consumed tint and terrain alignment remain in game renderer",
+      "integration": "Replaces the existing two shrine GLBs; no gameplay or renderer changes"
+    }
+  }
+}

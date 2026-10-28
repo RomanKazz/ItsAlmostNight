@@ -1,0 +1,52 @@
+{
+  "player": {
+    "meshes": [
+      {
+        "name": "woodland_player_shrine_blessing",
+        "triangles": 420,
+        "closed_outward_solids": 3,
+        "uvs_valid": true
+      },
+      {
+        "name": "woodland_player_shrine_body",
+        "triangles": 1904,
+        "closed_outward_solids": 40,
+        "uvs_valid": true
+      }
+    ],
+    "palette_byte_identical": true,
+    "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+    "unit_normals": true,
+    "emblem_clearance": true,
+    "floor_zero": true,
+    "height": 2.799999952316284,
+    "within_2x2_footprint": true,
+    "self_contained_glb": true,
+    "native_manual_playtest": false
+  },
+  "building": {
+    "meshes": [
+      {
+        "name": "woodland_building_shrine_blessing",
+        "triangles": 456,
+        "closed_outward_solids": 3,
+        "uvs_valid": true
+      },
+      {
+        "name": "woodland_building_shrine_body",
+        "triangles": 2572,
+        "closed_outward_solids": 47,
+        "uvs_valid": true
+      }
+    ],
+    "palette_byte_identical": true,
+    "palette_sha256": "cbd2f95976ed3f18070769ce32a819527d9bc00d74253844e3882f747b5d76b6",
+    "unit_normals": true,
+    "emblem_clearance": true,
+    "floor_zero": true,
+    "height": 2.799999952316284,
+    "within_2x2_footprint": true,
+    "self_contained_glb": true,
+    "native_manual_playtest": false
+  }
+}
