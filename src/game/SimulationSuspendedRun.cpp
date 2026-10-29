@@ -49,6 +49,11 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         auto checkpoint = *waveStartCheckpoint_;
         // Replaying a night must not rewind the accumulated pressure clock.
         checkpoint.overtimeSeconds = overtimeSeconds_;
+        checkpoint.runUpgradeRerollTokens=runUpgradeRerollTokens_;
+        checkpoint.runUpgradeSkipTokens=runUpgradeSkipTokens_;
+        checkpoint.runUpgradeBanishTokens=runUpgradeBanishTokens_;
+        checkpoint.banishedRunUpgrades=banishedRunUpgrades_;
+        checkpoint.metaSilverPickups = coinPickups_.metaSilverState();
         return checkpoint;
     }
     SuspendedRunState saved{
@@ -116,6 +121,9 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .freeChestRerollsRemaining = freeChestRerollsRemaining_,
         .runNightlyBombBonus = runNightlyBombBonus_,
         .runUpgradeRerollTokens = runUpgradeRerollTokens_,
+        .runUpgradeSkipTokens=runUpgradeSkipTokens_,
+        .runUpgradeBanishTokens=runUpgradeBanishTokens_,
+        .banishedRunUpgrades=banishedRunUpgrades_,
         .runUpgradeLockUnlocked = runUpgradeLockUnlocked_,
         .lockedRunUpgrade = lockedRunUpgrade_,
         .bonusSelectionsNextReward = bonusSelectionsNextReward_,
@@ -171,7 +179,16 @@ bool Simulation::loadSuspendedRunState(
     const SuspendedRunState& saved) {
     if (!std::isfinite(saved.repairStationCycleRemaining) || saved.repairStationCycleRemaining <= 0 ||
         saved.repairStationCycleRemaining > RepairStationInterval) return false;
-    if (!validMetaRunBonuses(saved.metaBonuses)) return false;
+    auto metaBonuses=saved.metaBonuses;
+    const auto legacySlotBonus=[](int value,int maximum) {
+        return value>=0 && value<=4 ? std::min(value,maximum) : value;
+    };
+    metaBonuses.additionalTomeSlots=legacySlotBonus(metaBonuses.additionalTomeSlots,
+        MaximumRunTomeSlots-BaseRunTomeSlots);
+    metaBonuses.additionalBuildingSlots=legacySlotBonus(metaBonuses.additionalBuildingSlots,
+        MaximumRunBuildingSlots-BaseRunBuildingSlots);
+    if (!validMetaRunBonuses(metaBonuses) || !PowerupSystem::validState(saved.powerups)) return false;
+    if (!CoinPickupSystem::validMetaSilverState(saved.metaSilverPickups)) return false;
     const auto invalidMultiplier = [](double value) {
         return !std::isfinite(value) || value <= 0.0 || value > 1000.0;
     };
@@ -320,6 +337,7 @@ bool Simulation::loadSuspendedRunState(
         saved.wood, saved.stone, saved.crystals, saved.coins,
         saved.bombs, saved.freeChestRerollsRemaining,
         saved.runNightlyBombBonus, saved.runUpgradeRerollTokens,
+        saved.runUpgradeSkipTokens, saved.runUpgradeBanishTokens,
         saved.bonusSelectionsNextReward, saved.riskyInvestmentPending,
         saved.bloodHarvestKillProgress,
     };
@@ -410,8 +428,13 @@ bool Simulation::loadSuspendedRunState(
         !objectiveValidation.loadState(saved.objectives)) {
         return false;
     }
-    static_cast<void>(configureNextRunBonuses(saved.metaBonuses));
-    startRunFromSeed(saved.playerClass, saved.terrainSeed);
+    static_cast<void>(configureNextRunBonuses(metaBonuses));
+    // Generate legacy maps with their original two landmarks before challenge
+    // sites/scenery are selected, preserving all seeded placements on resume.
+    forcedRunTerrainSeed_=saved.terrainSeed;
+    sandboxMode_=false;
+    playerClass_=saved.playerClass;
+    resetRun(GameEventType::RunStarted,saved.worldLandmarks.size()!=2U);
     const auto failLoad = [this]() {
         enemies_.reset();
         waveStartCheckpoint_.reset();
@@ -550,8 +573,11 @@ bool Simulation::loadSuspendedRunState(
         0, saved.freeChestRerollsRemaining);
     runNightlyBombBonus_ = std::max(0, saved.runNightlyBombBonus);
     runUpgradeRerollTokens_ = std::max(0, saved.runUpgradeRerollTokens);
-    runUpgradeLockUnlocked_ = true;
-    lockedRunUpgrade_ = saved.lockedRunUpgrade;
+    runUpgradeSkipTokens_=saved.runUpgradeSkipTokens;
+    runUpgradeBanishTokens_=saved.runUpgradeBanishTokens;
+    banishedRunUpgrades_=saved.banishedRunUpgrades;
+    runUpgradeLockUnlocked_ = false;
+    lockedRunUpgrade_.reset();
     bonusSelectionsNextReward_ = std::max(
         0, saved.bonusSelectionsNextReward);
     bloodHarvestKillProgress_ = std::max(

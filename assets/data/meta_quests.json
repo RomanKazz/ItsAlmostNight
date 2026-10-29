@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "progressionRevision": 5,
+  "progressionRevision": 6,
   "quests": [
     {
       "id": "class_berserker",
@@ -1118,52 +1118,6 @@
     },
     {
       "id": "unlock_meta_refresh",
-      "title": "Complete 10 quests",
-      "description": "Complete 10 quests",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "quests_completed",
-          "scope": "lifetime",
-          "target": 10,
-          "comparison": "at_least",
-          "subject": "",
-          "playerClass": ""
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "meta.refresh",
-        "purchaseCost": 5
-      },
-      "notification": "10 quests completed"
-    },
-    {
-      "id": "unlock_meta_weapon_slots",
-      "title": "Complete 15 quests",
-      "description": "Complete 15 quests",
-      "category": "general",
-      "conditions": [
-        {
-          "metric": "quests_completed",
-          "scope": "lifetime",
-          "target": 15,
-          "comparison": "at_least",
-          "subject": "",
-          "playerClass": ""
-        }
-      ],
-      "prerequisites": [],
-      "reward": {
-        "silver": 2,
-        "unlockId": "meta.weapon_slots",
-        "purchaseCost": 0
-      },
-      "notification": "15 quests completed"
-    },
-    {
-      "id": "unlock_meta_tome_slots",
       "title": "Complete 20 quests",
       "description": "Complete 20 quests",
       "category": "general",
@@ -1180,10 +1134,56 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.tome_slots",
+        "unlockId": "meta.refresh",
         "purchaseCost": 0
       },
       "notification": "20 quests completed"
+    },
+    {
+      "id": "unlock_meta_weapon_slots",
+      "title": "Complete 25 quests",
+      "description": "Complete 25 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 25,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.weapon_slots",
+        "purchaseCost": 0
+      },
+      "notification": "25 quests completed"
+    },
+    {
+      "id": "unlock_meta_tome_slots",
+      "title": "Complete 35 quests",
+      "description": "Complete 35 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 35,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.tome_slots",
+        "purchaseCost": 0
+      },
+      "notification": "35 quests completed"
     },
     {
       "id": "unlock_meta_building_slots",
@@ -1209,6 +1209,75 @@
       "notification": "25 quests completed"
     },
     {
+      "id": "unlock_meta_skip",
+      "title": "Complete 30 quests",
+      "description": "Complete 30 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 30,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.skip",
+        "purchaseCost": 0
+      },
+      "notification": "30 quests completed"
+    },
+    {
+      "id": "unlock_meta_banish",
+      "title": "Complete 40 quests",
+      "description": "Complete 40 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 40,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.banish",
+        "purchaseCost": 0
+      },
+      "notification": "40 quests completed"
+    },
+    {
+      "id": "unlock_meta_toggler",
+      "title": "Purchase 8 permanent unlocks",
+      "description": "Purchase 8 permanent unlocks",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "unlocks_purchased",
+          "scope": "lifetime",
+          "target": 8,
+          "comparison": "at_least",
+          "subject": "",
+          "playerClass": ""
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "meta.toggler",
+        "purchaseCost": 0
+      },
+      "notification": "8 unlocks purchased"
+    },
+    {
       "id": "unlock_meta_luck",
       "title": "Open 45 chests",
       "description": "Open 45 chests",
@@ -1226,7 +1295,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.luck",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "45 chests opened"
@@ -1249,7 +1318,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.defense_damage",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "250 enemies defeated"
@@ -1272,7 +1341,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.defense_fire_rate",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "Rapid Tome level 5"
@@ -1295,7 +1364,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.building_health",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "75 repairs completed"
@@ -1318,7 +1387,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.production_speed",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "5000 resources gathered"
@@ -1341,7 +1410,7 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "meta.resource_yield",
+        "unlockId": "",
         "purchaseCost": 0
       },
       "notification": "100 nodes harvested"

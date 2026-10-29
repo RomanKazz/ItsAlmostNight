@@ -368,12 +368,12 @@ void runRunUpgradeTests() {
     require(arsenal->loadSuspendedRunState(levelTwoCore), "arsenal fixture opens shared level two through the core");
     require(arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon, RunUpgradeRarity::Legendary) &&
         arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTurret) &&
-        arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockSpikeTrap) &&
+        !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockSpikeTrap) &&
         arsenal->snapshot().buildingArsenalCount == RunBuildingSlotCount &&
         !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCatapult) &&
         arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon) &&
         arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] == 2,
-        "four types block new acquisitions but allow shared upgrades regardless of rarity");
+        "three types block new acquisitions but allow shared upgrades regardless of rarity");
     const auto arsenalSave = arsenal->saveSuspendedRunState();
     restored->returnToMainMenu();
     require(arsenalSave.buildingArsenalVersion == 5 && restored->loadSuspendedRunState(arsenalSave) &&
@@ -636,10 +636,9 @@ void runRunUpgradeTests() {
     {
         auto run = std::make_unique<Simulation>();
         run->startRunFromSeed(PlayerClass::Engineer, 12345);
-        require(run->snapshot().tomeCount == 0 && run->snapshot().tomeSlotLimit == 4,
-            "fresh run has four empty tome slots");
-        const std::array choices{RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::CriticalChance,
-            RunUpgradeEffect::Ricochet, RunUpgradeEffect::GunPiercing};
+        require(run->snapshot().tomeCount == 0 && run->snapshot().tomeSlotLimit == 3,
+            "fresh run has three empty tome slots");
+        const std::array choices{RunUpgradeEffect::ProjectileCount, RunUpgradeEffect::CriticalChance, RunUpgradeEffect::GatheringSpeed};
         for (std::size_t index = 0; index < choices.size(); ++index) {
             auto checkpoint = run->saveSuspendedRunState();
             checkpoint.runUpgradeChoicePending = true;
@@ -661,7 +660,7 @@ void runRunUpgradeTests() {
         run->returnToMainMenu();
         require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(0),
             "full inventory still offers and levels an owned tome");
-        require(run->snapshot().tomeCount == 4 &&
+        require(run->snapshot().tomeCount == 3 &&
             run->snapshot().runUpgradeStacks[runUpgradeIndex(choices[0])] == 2,
             "repeat upgrade uses no additional slot");
         // Migrating a suspended offer must drop new tomes that no longer fit.
@@ -687,7 +686,7 @@ void runRunUpgradeTests() {
         checkpoint = run->saveSuspendedRunState();
         const auto power = checkpoint.runUpgradePower;
         run->returnToMainMenu();
-        require(run->loadSuspendedRunState(checkpoint) && run->snapshot().tomeCount == 5 &&
+        require(run->loadSuspendedRunState(checkpoint) && run->snapshot().tomeCount == 4 &&
             run->snapshot().runUpgradePower == power,
             "legacy or debug inventory over the cap preserves every bonus exactly once");
         run->restartRun();
@@ -704,8 +703,8 @@ void runRunUpgradeTests() {
         run->returnToMainMenu();
         require(run->loadSuspendedRunState(checkpoint), "stale offer fixture loads");
         for (const auto tomeEffect : choices) require(run->grantDebugRunUpgrade(tomeEffect), "debug fills slots behind open offers");
-        require(!run->selectRunUpgrade(0) && run->snapshot().tomeCount == 4,
-            "selection revalidates a stale fifth tome before applying its bonus");
+        require(!run->selectRunUpgrade(0) && run->snapshot().tomeCount == 3,
+            "selection revalidates a stale fourth tome before applying its bonus");
     }
 
     {
@@ -716,8 +715,8 @@ void runRunUpgradeTests() {
             require(run->configureNextRunBonuses(bonuses), "slot bonus configures the next run");
             run->startRunFromSeed(PlayerClass::Engineer, 12345);
             for (const auto owned : {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
-                    RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::MaximumHealth})
-                require(run->grantDebugRunUpgrade(owned), "expanded inventory fixture owns four tomes");
+                    RunUpgradeEffect::MoveSpeed})
+                require(run->grantDebugRunUpgrade(owned), "expanded inventory fixture owns three tomes");
             auto checkpoint = run->saveSuspendedRunState();
             checkpoint.runUpgradeChoicePending = true;
             checkpoint.runUpgradeChoiceCount = 1;
@@ -726,8 +725,8 @@ void runRunUpgradeTests() {
             checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
             run->returnToMainMenu();
             require(run->loadSuspendedRunState(checkpoint) && run->snapshot().runUpgradeChoiceCount == 1 &&
-                run->selectRunUpgrade(0) && run->snapshot().tomeCount == 5,
-                "fifth tome fits a purchased slot and single-card offers survive resume");
+                run->selectRunUpgrade(0) && run->snapshot().tomeCount == 4,
+                "fourth tome fits a purchased slot and single-card offers survive resume");
             if (extraSlots == 2) {
                 checkpoint = run->saveSuspendedRunState();
                 checkpoint.runUpgradeChoicePending = true;
@@ -736,7 +735,7 @@ void runRunUpgradeTests() {
                 checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::Ricochet;
                 run->returnToMainMenu();
                 require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(0) &&
-                    run->snapshot().tomeCount == 6, "second meta rank allows a sixth distinct tome");
+                    run->snapshot().tomeCount == 5, "second meta rank allows a fifth distinct tome");
             }
             run->returnToMainMenu();
         }

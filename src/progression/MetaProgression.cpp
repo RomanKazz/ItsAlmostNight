@@ -1,4 +1,5 @@
 #include "progression/MetaProgression.hpp"
+#include "core/SaturatingArithmetic.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -157,16 +158,33 @@ static bool readMetaProgressionFile(
         }
         if (version >= 4) {
             const auto& shop = root.at("shop");
-            if (shop.at("version").get<int>() != 1) return false;
+            const int shopVersion=shop.at("version").get<int>();
+            if (shopVersion<1 || shopVersion>3) return false;
             const auto& levels = shop.at("levels");
             if (!levels.is_object() || levels.size() > MetaShopUpgradeCount) return false;
             for (const auto& [id, level] : levels.items()) {
                 const auto d = std::ranges::find(MetaShopDefinitions, id, &MetaShopDefinition::id);
                 if (d == MetaShopDefinitions.end() || !level.is_number_integer()) return false;
                 const int value = level.get<int>();
-                if (value < 0 || value > d->maximumLevel) return false;
-                loaded.shopLevels[static_cast<std::size_t>(d->upgrade)] = value;
+                const bool legacySlots=shopVersion==1 &&
+                    (d->upgrade==MetaShopUpgrade::TomeSlots || d->upgrade==MetaShopUpgrade::BuildingSlots);
+                const int maximum=legacySlots ? 4 : d->maximumLevel;
+                if (value < 0 || value > maximum) return false;
+                const bool retired=!activeMetaShopUpgrade(d->upgrade);
+                if(shopVersion>=3 && retired && value!=0) return false;
+                const int kept=retired ? 0 : std::min(value,d->maximumLevel);
+                // Old ranks three/four are no longer sold. Refund their actual
+                // prices once when converting the profile to the new shop schema.
+                for(int rank=kept;rank<value;++rank)
+                    loaded.silver=saturatingAdd(loaded.silver,static_cast<int>(std::ceil(
+                        static_cast<double>(d->baseCost)*std::pow(1.5,rank))));
+                loaded.shopLevels[static_cast<std::size_t>(d->upgrade)] = kept;
             }
+            if(shopVersion<3 && loaded.quests.purchasedUnlocks.contains("meta.refresh"))
+                loaded.silver=saturatingAdd(loaded.silver,5); // Retired discovery fee; ranks now own every use.
+            loaded.disabledUnlocks=shop.value("disabledUnlocks",decltype(loaded.disabledUnlocks){});
+            if(loaded.disabledUnlocks.size()>4096 || std::ranges::any_of(loaded.disabledUnlocks,
+                [](const auto& id){return id.empty() || id.size()>128;})) return false;
             if (!shop.at("silverRemainder").is_number_integer()) return false;
             for (const auto& d : MetaShopDefinitions) {
                 if (loaded.shopLevels[static_cast<std::size_t>(d.upgrade)] > 0 &&
@@ -191,7 +209,8 @@ bool loadMetaProgression(
 bool saveMetaProgression(
     std::string_view path, const MetaProgression& progression) {
     try {
-        if (!validQuestState(progression.quests)) return false;
+        if (!validQuestState(progression.quests) || progression.disabledUnlocks.size()>4096 ||
+            std::ranges::any_of(progression.disabledUnlocks,[](const auto& id){return id.empty() || id.size()>128;})) return false;
         const std::filesystem::path outputPath{path};
         if (outputPath.has_parent_path()) {
             std::filesystem::create_directories(outputPath.parent_path());
@@ -208,8 +227,9 @@ bool saveMetaProgression(
         }
         if (progression.silverRewardRemainder < 0 || progression.silverRewardRemainder >= 100) return false;
         const nlohmann::json root{
-            {"version", 4},
-            {"shop", {{"version", 1}, {"levels", levels}, {"silverRemainder", progression.silverRewardRemainder}}},
+            {"version", 5},
+            {"shop", {{"version", 3}, {"levels", levels}, {"silverRemainder", progression.silverRewardRemainder},
+                {"disabledUnlocks",progression.disabledUnlocks}}},
             {"silver", std::max(0, progression.silver)},
             {"runsPlayed", std::max(0, progression.runsPlayed)},
             {"placementControlHintsUsed", std::clamp(progression.placementControlHintsUsed, 0, 2)},

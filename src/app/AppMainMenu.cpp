@@ -438,8 +438,8 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
         };
         const auto result = drawUnlockMenu(ui_, questSystem_, metaProgression_, unlockMenuState_,
-            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, input);
-        if (result.purchase) persistMetaProgression();
+            {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
+        if (result.purchase || result.toggled) persistMetaProgression();
         if (result.close) mainMenuPage_ = MainMenuPage::None;
         if (!result.questId.empty()) {
             questMenuState_ = {};

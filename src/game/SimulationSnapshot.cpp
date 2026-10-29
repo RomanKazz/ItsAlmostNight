@@ -507,6 +507,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .runUpgradeSelectionsRemaining =
             runUpgradeSelectionsRemaining_,
         .runUpgradeRerollTokens = runUpgradeRerollTokens_,
+        .runUpgradeSkipTokens=runUpgradeSkipTokens_,
+        .runUpgradeBanishTokens=runUpgradeBanishTokens_,
+        .banishedRunUpgrades=banishedRunUpgrades_,
         .runUpgradeLockUnlocked = runUpgradeLockUnlocked_,
         .lockedRunUpgrade = lockedRunUpgrade_,
     };

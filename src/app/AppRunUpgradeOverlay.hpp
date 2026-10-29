@@ -25,7 +25,8 @@ inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
 
 [[nodiscard]] Rectangle runUpgradeCardBounds(
     std::size_t index, std::size_t count);
-[[nodiscard]] Rectangle runUpgradeStatsPanelBounds(std::size_t count);
+[[nodiscard]] Rectangle runUpgradeRerollBounds(std::size_t count);
+[[nodiscard]] Rectangle runUpgradeUtilityBounds(std::size_t count,std::size_t action);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
     const SimulationSnapshot& snapshot, Vector2 mousePosition);
 // Effective attack/trigger distance, including base levels and the offered roll.
@@ -43,7 +44,8 @@ void drawRunUpgradeOverlay(
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts,
-    std::optional<Vector2> pointerPosition = std::nullopt, bool reduceFlashes = false);
+    std::optional<Vector2> pointerPosition = std::nullopt,
+    std::optional<std::size_t> keyboardChoice = std::nullopt, bool reduceFlashes = false, bool banishArmed = false);
 struct RunShopLayout {
     std::array<Rectangle, RunShopSlotCount> cards{}, buy{}, locks{};
     Rectangle inventory{}, stats{}, header{}, reroll{}, proceed{};

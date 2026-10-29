@@ -15,20 +15,20 @@ const MetaShopDefinition* definition(MetaShopUpgrade upgrade) {
 }
 int metaShopLevel(const MetaProgression& profile, MetaShopUpgrade upgrade) {
     const auto* d = definition(upgrade);
-    return d ? std::clamp(profile.shopLevels[static_cast<std::size_t>(upgrade)], 0, d->maximumLevel) : 0;
+    return d && activeMetaShopUpgrade(upgrade) ? std::clamp(profile.shopLevels[static_cast<std::size_t>(upgrade)], 0, d->maximumLevel) : 0;
 }
 int metaShopCost(const MetaProgression& profile, MetaShopUpgrade upgrade) {
     const auto* d = definition(upgrade);
-    if (!d || metaShopLevel(profile, upgrade) >= d->maximumLevel) return 0;
+    if (!d || !activeMetaShopUpgrade(upgrade) || metaShopLevel(profile, upgrade) >= d->maximumLevel) return 0;
     return static_cast<int>(std::ceil(static_cast<double>(d->baseCost) * std::pow(1.5, metaShopLevel(profile, upgrade))));
 }
 bool metaShopAvailable(const MetaProgression& profile, MetaShopUpgrade upgrade) {
     const auto* d = definition(upgrade);
-    return d && (d->requiredUnlock.empty() || profile.quests.ownedUnlocks.contains(d->requiredUnlock));
+    return d && activeMetaShopUpgrade(upgrade) && (d->requiredUnlock.empty() || profile.quests.ownedUnlocks.contains(d->requiredUnlock));
 }
 MetaShopPurchaseResult purchaseMetaShopUpgrade(MetaProgression& profile, MetaShopUpgrade upgrade) {
     const auto* d = definition(upgrade);
-    if (!d) return MetaShopPurchaseResult::InvalidUpgrade;
+    if (!d || !activeMetaShopUpgrade(upgrade)) return MetaShopPurchaseResult::InvalidUpgrade;
     if (!metaShopAvailable(profile, upgrade)) return MetaShopPurchaseResult::Locked;
     if (metaShopLevel(profile, upgrade) >= d->maximumLevel) return MetaShopPurchaseResult::MaximumLevel;
     const int price = metaShopCost(profile, upgrade);
@@ -47,12 +47,15 @@ MetaRunBonuses metaRunBonuses(const MetaProgression& p) {
         .buildingHealth = 1 + percent(MetaShopUpgrade::BuildingHealth),
         .productionSpeed = 1 + percent(MetaShopUpgrade::ProductionSpeed),
         .resourceYield = 1 + percent(MetaShopUpgrade::ResourceYield),
-        .rerolls = metaShopLevel(p, MetaShopUpgrade::Rerolls) + (p.quests.ownedUnlocks.contains("meta.refresh") ? 1 : 0),
+        .rerolls = metaShopLevel(p, MetaShopUpgrade::Rerolls),
         .additionalTomeSlots = metaShopLevel(p, MetaShopUpgrade::TomeSlots),
         .additionalWeaponSlots = metaShopLevel(p, MetaShopUpgrade::WeaponSlots),
-        .additionalBuildingSlots = metaShopLevel(p, MetaShopUpgrade::BuildingSlots)};
+        .additionalBuildingSlots = metaShopLevel(p, MetaShopUpgrade::BuildingSlots),
+        .banishes=metaShopLevel(p,MetaShopUpgrade::Banishes),
+        .skips=metaShopLevel(p,MetaShopUpgrade::Skips)};
 }
 bool validMetaRunBonuses(const MetaRunBonuses& b) {
+    if(b.banishes<0 || b.banishes>6 || b.skips<0 || b.skips>6) return false;
     if (!std::isfinite(b.luck) || b.luck < 0 || b.luck > .20 || b.rerolls < 0 || b.rerolls > 6) return false;
     for (double value : {b.defenseDamage, b.defenseFireRate, b.buildingHealth, b.productionSpeed, b.resourceYield})
         if (!std::isfinite(value) || value < 1 || value > 1.5) return false;

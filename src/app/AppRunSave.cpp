@@ -623,6 +623,9 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"freeChestRerollsRemaining", saved.freeChestRerollsRemaining},
             {"runNightlyBombBonus", saved.runNightlyBombBonus},
             {"runUpgradeRerollTokens", saved.runUpgradeRerollTokens},
+            {"runUpgradeSkipTokens",saved.runUpgradeSkipTokens},
+            {"runUpgradeBanishTokens",saved.runUpgradeBanishTokens},
+            {"banishedRunUpgrades",saved.banishedRunUpgrades},
             {"runUpgradeLockUnlocked", saved.runUpgradeLockUnlocked},
             {"lockedRunUpgrade", saved.lockedRunUpgrade
                 ? Json(static_cast<int>(*saved.lockedRunUpgrade))
@@ -659,6 +662,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
                 {"additionalTomeSlots", saved.metaBonuses.additionalTomeSlots},
                 {"additionalWeaponSlots", saved.metaBonuses.additionalWeaponSlots},
                 {"additionalBuildingSlots", saved.metaBonuses.additionalBuildingSlots},
+                {"banishes",saved.metaBonuses.banishes},{"skips",saved.metaBonuses.skips},
             }},
             {"insight", insightJson(saved.insight)},
             {"objectives", objectivesJson(saved.objectives)},
@@ -782,6 +786,9 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.freeChestRerollsRemaining = runtime.at("freeChestRerollsRemaining");
     saved.runNightlyBombBonus = runtime.at("runNightlyBombBonus");
     saved.runUpgradeRerollTokens = runtime.at("runUpgradeRerollTokens");
+    saved.runUpgradeSkipTokens=runtime.value("runUpgradeSkipTokens",0);
+    saved.runUpgradeBanishTokens=runtime.value("runUpgradeBanishTokens",0);
+    saved.banishedRunUpgrades=runtime.value("banishedRunUpgrades",decltype(saved.banishedRunUpgrades){});
     saved.runUpgradeLockUnlocked = runtime.at("runUpgradeLockUnlocked");
     if (!runtime.at("lockedRunUpgrade").is_null()) {
         saved.lockedRunUpgrade = static_cast<RunUpgradeEffect>(
@@ -834,6 +841,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
             .additionalTomeSlots = meta.value("additionalTomeSlots", 0),
             .additionalWeaponSlots = meta.value("additionalWeaponSlots", 0),
             .additionalBuildingSlots = meta.value("additionalBuildingSlots", 0),
+            .banishes=meta.value("banishes",0),.skips=meta.value("skips",0),
         };
     }
     saved.insight = readInsight(progression.at("insight"));
@@ -934,6 +942,38 @@ bool replaceSuspendedRunFile(
 }
 
 } // namespace
+
+#if defined(IAN_PRESENTATION_SMOKE_TEST)
+bool checkRelicSaveJsonRoundTrip() {
+    RelicState state;
+    state.depletedResources={10,20,30};state.manualRollSerial=145;state.chosenStatCards=3;
+    state.bootRemaining=2;state.safeDeposits=3;state.fuseUsed=true;state.weaponTokenReady=true;
+    const BuildingInstance tower{.id={1003,7},.type=BuildingType::GunTurret,.gridPosition={4,6},.health=40,.maxHealth=100};
+    state.destroyedTowers.push_back(tower);state.ghosts.push_back({tower,7.5});state.towerHitClocks.push_back({tower.id,12.5,true});
+    const auto loaded=readRelicState(Json::parse(relicStateJson(state).dump()));
+    SuspendedRunState stump;stump.playerClass=PlayerClass::Stump;stump.classAbilityState.stumpCombo=3;
+    stump.runUpgradeSkipTokens=2;stump.runUpgradeBanishTokens=3;
+    stump.banishedRunUpgrades[runUpgradeIndex(RunUpgradeEffect::Luck)]=true;
+    stump.metaBonuses.skips=4;stump.metaBonuses.banishes=5;
+    const auto reloaded=readSuspendedRun(Json::parse(suspendedRunJson(stump).dump()));
+    ResourceNode growing{.id={1,1},.type=ResourceType::Wood,.position={},.radius=.3,
+        .health=10,.maxHealth=10,.yield=20,.yieldRemaining=20,.respawnSeconds=30,.respawnRemaining=0,
+        .active=true,.regrowthRemaining=ResourceRegrowthDuration*.5};
+    auto growthJson=resourceNodeJson(growing);
+    const auto restoredGrowth=readResourceNode(Json::parse(growthJson.dump()));
+    growthJson.erase("regrowthRemaining");
+    const bool growthSaves=restoredGrowth.regrowthRemaining==growing.regrowthRemaining &&
+        readResourceNode(growthJson).regrowthRemaining==0;
+    return growthSaves && reloaded.runUpgradeSkipTokens==2 && reloaded.runUpgradeBanishTokens==3 &&
+        reloaded.banishedRunUpgrades[runUpgradeIndex(RunUpgradeEffect::Luck)] &&
+        reloaded.metaBonuses.skips==4 && reloaded.metaBonuses.banishes==5 && reloaded.playerClass==PlayerClass::Stump && reloaded.classAbilityState.stumpCombo==3 &&
+        loaded.depletedResources==state.depletedResources && loaded.manualRollSerial==145 &&
+        loaded.chosenStatCards==3 && loaded.bootRemaining==2 && loaded.safeDeposits==3 && loaded.fuseUsed &&
+        loaded.weaponTokenReady && loaded.destroyedTowers.size()==1 && loaded.destroyedTowers[0].id==tower.id &&
+        loaded.ghosts.size()==1 && loaded.ghosts[0].remaining==7.5 && loaded.towerHitClocks.size()==1 &&
+        loaded.towerHitClocks[0].id==tower.id && loaded.towerHitClocks[0].lastAttackSeconds==12.5 && loaded.towerHitClocks[0].springArmed;
+}
+#endif
 
 bool App::saveSuspendedRun() {
     const SimulationSnapshot& snapshot = simulation_.snapshot();

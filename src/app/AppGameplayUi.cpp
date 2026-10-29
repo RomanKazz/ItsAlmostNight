@@ -949,7 +949,7 @@ drawRunUpgradeOverlay(
     runUpgradeOverlayEntranceSeconds_,
     runUpgradeOverlayExitSeconds_,
     runUpgradePendingChoice_,
-    runUpgradeCardHoverAmounts_,std::nullopt,userSettings_.accessibility.reduceFlashes);
+    runUpgradeCardHoverAmounts_, std::nullopt, runUpgradeKeyboardChoice_,userSettings_.accessibility.reduceFlashes,runUpgradeBanishArmed_);
 drawRunShopOverlay(ui_, snapshot, runShopKeyboardFocus_,std::nullopt,runShopOverlayEntranceSeconds_,
     userSettings_.accessibility.reduceFlashes);
 }

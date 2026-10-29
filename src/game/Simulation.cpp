@@ -414,7 +414,10 @@ void Simulation::resetRun(GameEventType eventType) {
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
     runUpgradeRerollTokens_ = activeMetaBonuses_.rerolls;
-    runUpgradeLockUnlocked_ = true;
+    runUpgradeSkipTokens_=activeMetaBonuses_.skips;
+    runUpgradeBanishTokens_=activeMetaBonuses_.banishes;
+    banishedRunUpgrades_.fill(false);
+    runUpgradeLockUnlocked_ = false;
     lockedRunUpgrade_.reset();
     bonusSelectionsNextReward_ = 0;
     bloodHarvestKillProgress_ = 0;

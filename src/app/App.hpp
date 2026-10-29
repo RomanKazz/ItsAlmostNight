@@ -392,6 +392,8 @@ class App {
     double runUpgradeOverlayEntranceSeconds_{};
     double runUpgradeOverlayExitSeconds_{};
     std::optional<std::size_t> runUpgradePendingChoice_{};
+    bool runUpgradeBanishArmed_{};
+    std::optional<std::size_t> runUpgradeKeyboardChoice_{};
     std::array<float, MaximumRunUpgradeChoices>
         runUpgradeCardHoverAmounts_{};
     bool fullscreenApplied_{};

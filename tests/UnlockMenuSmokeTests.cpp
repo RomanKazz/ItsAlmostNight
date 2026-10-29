@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "localization/Localization.hpp"
 #include "progression/MetaProgression.hpp"
+#include "progression/ContentUnlocks.hpp"
 #include "ui/UnlockMenu.hpp"
 #include "ui/UiText.hpp"
 
@@ -16,12 +17,20 @@ int main(int argc, char** argv) {
     ian::initializeUiText();
     ian::GameUi ui;
     ui.initialize();
+    for (std::size_t index = 0; index < ian::LootUpgradeEffectCount; ++index) {
+        const auto texture = ui.lootTexture(static_cast<ian::LootUpgradeEffect>(index));
+        require(IsTextureValid(texture) && texture.width == 256 && texture.height == 256,
+            "every catalog item has a real shared 256x256 icon");
+    }
+    require(ui.lootTexture(ian::LootUpgradeEffect::Apple).id !=
+                ui.lootTexture(ian::LootUpgradeEffect::HealthAid).id,
+        "apple and field medkit have distinct item artwork");
     ian::QuestSystem quests;
     ian::MetaProgression profile;
     quests.initialize(profile);
     for (const auto language : {ian::Language::English, ian::Language::Russian}) {
         ian::setLanguage(language);
-        for (const Vector2 viewport : {Vector2{1920,1080}, Vector2{1280,720}, Vector2{1280,800}}) {
+        for (const Vector2 viewport : {Vector2{1920,1080}, Vector2{1280,720}, Vector2{1280,800}, Vector2{1024,768}, Vector2{1280,1024}, Vector2{800,1200}, Vector2{640,360}, Vector2{2560,720}}) {
             SetWindowSize(static_cast<int>(viewport.x), static_cast<int>(viewport.y));
             PollInputEvents();
             const auto panel = ian::unlockMenuPanelBounds(viewport);
@@ -36,11 +45,11 @@ int main(int argc, char** argv) {
             auto result = ian::drawUnlockMenu(ui, quests, profile, state, viewport);
             require(!result.close && state.selectedId == "class:0", "opening selects a real class");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport,
-                {.pointer = point(949,370), .click = true});
-            require(state.selectedId == "class:4", "locked class can be selected for details");
+                {.pointer = point(798,370), .click = true});
+            require(state.selectedId == "class:3", "the fourth test class can be selected for details");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport,
                 {.pointer = point(1520,880), .click = true});
-            require(result.questId == "class_berserker", "locked class links to its actual quest");
+            require(result.questId.empty(), "test characters require no retired unlock quest");
             EndTextureMode();
             for (int tab = 0; tab < 6; ++tab) {
                 state.category = static_cast<ian::UnlockCategory>(tab);
@@ -69,9 +78,9 @@ int main(int argc, char** argv) {
             require(state.category == ian::UnlockCategory::Classes && state.selectedId == "class:0" && state.scroll == 0,
                 "tab click resets scroll and changes grid immediately");
             state.category = ian::UnlockCategory::Items;
-            state.selectedId = "item:0";
-            result = ian::drawUnlockMenu(ui, quests, profile, state, viewport, {.selectionStep=18});
-            require(state.selectedId == "item:18" && state.scroll == 0, "keyboard reaches the last row without scrolling fitting content");
+            state.selectedId = "item:"+std::to_string(ian::lootUpgradeIndex(ian::ActiveLootEffects.front()));
+            result = ian::drawUnlockMenu(ui, quests, profile, state, viewport, {.selectionStep=static_cast<int>(ian::ActiveLootEffects.size()-1)});
+            require(state.selectedId == "item:"+std::to_string(ian::lootUpgradeIndex(ian::ActiveLootEffects.back())) && state.scroll == 0, "keyboard reaches the last row without scrolling fitting content");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport, {.categoryStep=1});
             require(state.category == ian::UnlockCategory::Meta && state.selectedId == "meta.refresh", "tab navigation selects new category");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport, {.close=true});
@@ -112,18 +121,24 @@ int main(int argc, char** argv) {
         UnloadImage(capture);
         BeginTextureMode(target);
     }
-    profile.silver = 9;
+    // Shop gates are free milestones; ownership opens rank purchases in Shop.
+    profile.quests.ownedUnlocks.insert("meta.refresh");
+    profile.silver = 4;
     result = ian::drawUnlockMenu(ui, quests, profile, state, {1920,1080}, {.pointer={1520,880}, .click=true});
-    require(!result.purchase && !quests.ownsUnlock(profile,"meta.refresh"), "insufficient silver disables purchase");
-    profile.silver = 30;
-    result = ian::drawUnlockMenu(ui, quests, profile, state, {1920,1080}, {.pointer={1520,880}, .click=true});
-    require(result.purchase && profile.silver == 20 && quests.ownsUnlock(profile,"meta.refresh"), "purchase spends actual price and grants persistent ownership");
-    result = ian::drawUnlockMenu(ui, quests, profile, state, {1920,1080}, {.pointer={1520,880}, .click=true});
-    require(!result.purchase && profile.silver == 20, "owned entry cannot be bought twice");
+    require(!result.purchase && profile.silver == 4 && quests.ownsUnlock(profile,"meta.refresh"), "free shop gate does not charge silver again");
+    require(result.shopUnlockId == "meta.refresh", "owned utility links directly to its permanent shop ranks");
+    profile.shopLevels[static_cast<std::size_t>(ian::MetaShopUpgrade::Toggler)]=1;
+    profile.quests.ownedUnlocks.insert("building.mortar");
+    state.category=ian::UnlockCategory::Buildings;
+    state.selectedId="building:"+std::to_string(static_cast<int>(ian::BuildingType::Mortar));
+    result=ian::drawUnlockMenu(ui,quests,profile,state,{1920,1080},{.pointer={1520,912},.click=true});
+    require(result.toggled && profile.disabledUnlocks.contains("building.mortar"),"Toggler button disables owned discoveries");
+    result=ian::drawUnlockMenu(ui,quests,profile,state,{1920,1080},{.pointer={1520,912},.click=true});
+    require(result.toggled && !profile.disabledUnlocks.contains("building.mortar"),"Toggler button re-enables discoveries");
     state.category = ian::UnlockCategory::Classes;
     state.selectedId = "class:4";
     result = ian::drawUnlockMenu(ui, quests, profile, state, {1920,1080}, {.pointer={1520,880}, .click=true});
-    require(result.questId.empty() && ian::isPlayerClassUnlocked(ian::PlayerClass::Berserker,profile), "quest completion unlocks same class in collection and class selection");
+    require(result.questId.empty() && state.selectedId=="class:0" && ian::isPlayerClassUnlocked(ian::PlayerClass::Lumberjack,profile), "retired class IDs fall back to an available new class");
     EndTextureMode();
     UnloadRenderTexture(target);
     ui.shutdown();

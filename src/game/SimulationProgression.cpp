@@ -182,6 +182,21 @@ void Simulation::prepareRunUpgradeChoices(int selections) {
 }
 
 bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
+    if(banishedRunUpgrades_[runUpgradeIndex(effect)]) return false;
+    if (!sandboxMode_ && !unlimitedResources_ &&
+        !activeRunContent_.cards[runUpgradeIndex(effect)] &&
+        runUpgradeStacks_[runUpgradeIndex(effect)] == 0) {
+        // A purchased character keeps its starting equipment and can level it;
+        // it does not unlock that equipment for other classes or future pools.
+        const auto weapon = runUpgradeWeapon(effect);
+        const auto building = runUpgradeBuilding(effect);
+        if (!(weapon && playerWeaponUnlocked(*weapon)) &&
+            !(building && ownsRunBuilding(*building))) return false;
+    }
+    if (effect == RunUpgradeEffect::UpgradeCore) {
+        const auto core = buildings_.core();
+        if (!core || core->level >= MaxStructureLevel) return false;
+    }
     if (retiredRunUpgrade(effect) ||
         (runTomeDefinition(effect) ? runTomeLevel(effect, runUpgradeStacks_) :
             runUpgradeStacks_[runUpgradeIndex(effect)]) >= runUpgradeMaximumLevel(effect) ||
@@ -524,18 +539,25 @@ bool Simulation::rerollRunUpgrades() {
     return true;
 }
 
-bool Simulation::lockRunUpgrade(std::size_t choiceIndex) {
-    if (!runUpgradeChoicePending_ || !runUpgradeLockUnlocked_ ||
-        choiceIndex >= runUpgradeChoiceCount_) {
-        return false;
-    }
-    const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
-    if (lockedRunUpgrade_ == effect) {
-        lockedRunUpgrade_.reset();
-    } else {
-        lockedRunUpgrade_ = effect;
-    }
+bool Simulation::skipRunUpgrade() {
+    if(!runUpgradeChoicePending_ || shrines_.offer!=ShrineKind::None || runUpgradeSkipTokens_<=0) return false;
     invalidateSnapshotCache();
+    --runUpgradeSkipTokens_;
+    --runUpgradeSelectionsRemaining_;
+    if(runUpgradeSelectionsRemaining_>0) generateRunUpgradeChoices();
+    else {runUpgradeChoicePending_=false;runUpgradeChoiceCount_=0;runUpgradePaidChoicePrice_=0;}
+    return true;
+}
+
+bool Simulation::banishRunUpgrade(std::size_t index) {
+    if(!runUpgradeChoicePending_ || shrines_.offer!=ShrineKind::None ||
+        runUpgradeBanishTokens_<=0 || index>=runUpgradeChoiceCount_) return false;
+    invalidateSnapshotCache();
+    banishedRunUpgrades_[runUpgradeIndex(runUpgradeChoices_[index])]=true;
+    --runUpgradeBanishTokens_;
+    --runUpgradeSelectionsRemaining_;
+    if(runUpgradeSelectionsRemaining_>0) generateRunUpgradeChoices();
+    else {runUpgradeChoicePending_=false;runUpgradeChoiceCount_=0;runUpgradePaidChoicePrice_=0;}
     return true;
 }
 

@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "RunChoiceToolsChecks.hpp"
 #include "game/Simulation.hpp"
 #include "progression/MetaProgression.hpp"
 #include "progression/QuestSystem.hpp"
@@ -11,6 +12,7 @@
 
 int main() {
     using namespace ian;
+    checkRunChoiceTools();
     {
         const auto hintsPath=std::filesystem::temp_directory_path()/"ian-placement-hint-progress.json";
         MetaProgression firstRun; firstRun.runsPlayed=1; firstRun.placementControlHintsUsed=1;
@@ -35,14 +37,18 @@ int main() {
     profile.silver=100;
     require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::Count)==MetaShopPurchaseResult::InvalidUpgrade,"unknown upgrade cannot spend silver");
     require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::Rerolls)==MetaShopPurchaseResult::Locked && profile.silver==100,"unlock prerequisite prevents purchasing rerolls");
-    const int first=metaShopCost(profile,MetaShopUpgrade::DefenseDamage);
-    require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::DefenseDamage)==MetaShopPurchaseResult::Purchased && profile.silver==100-first,"purchase debits real price");
-    require(metaShopCost(profile,MetaShopUpgrade::DefenseDamage)>first,"next level costs more");
+    require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::DefenseDamage)==MetaShopPurchaseResult::InvalidUpgrade,
+        "retired permanent damage upgrades cannot be purchased");
+    profile.quests.ownedUnlocks.insert("meta.silver_gain");
+    const int first=metaShopCost(profile,MetaShopUpgrade::SilverGain);
+    require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::SilverGain)==MetaShopPurchaseResult::Purchased && profile.silver==100-first,"purchase debits real price");
+    require(metaShopCost(profile,MetaShopUpgrade::SilverGain)>first,"next level costs more");
     profile.silver=0;
     const auto before=profile;
-    require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::DefenseDamage)==MetaShopPurchaseResult::InsufficientSilver && profile==before,"failed purchase leaves profile intact");
+    require(purchaseMetaShopUpgrade(profile,MetaShopUpgrade::SilverGain)==MetaShopPurchaseResult::InsufficientSilver && profile==before,"failed purchase leaves profile intact");
     profile.silver=100000;
     for(const auto& d:MetaShopDefinitions) {
+        if(!activeMetaShopUpgrade(d.upgrade)) continue;
         if(!d.requiredUnlock.empty()) profile.quests.ownedUnlocks.insert(std::string(d.requiredUnlock));
         while(metaShopLevel(profile,d.upgrade)<d.maximumLevel)
             require(purchaseMetaShopUpgrade(profile,d.upgrade)==MetaShopPurchaseResult::Purchased,"all defined levels can be purchased");
@@ -50,9 +56,9 @@ int main() {
         require(purchaseMetaShopUpgrade(profile,d.upgrade)==MetaShopPurchaseResult::MaximumLevel && profile.silver==balance,"level cap cannot charge again");
     }
     require(metaRunBonuses(profile).additionalWeaponSlots == 2, "two permanent ranks expand equipment capacity to six");
-    require(metaRunBonuses(profile).additionalTomeSlots == 2, "two purchased ranks expand tome capacity to six");
+    require(metaRunBonuses(profile).additionalTomeSlots == 2, "two purchased ranks expand tome capacity from three to five");
     require(metaRunBonuses(profile).additionalBuildingSlots == 2 &&
-        runBuildingSlotLimit(metaRunBonuses(profile)) == 6, "two ranks expand shared structure capacity to six");
+        runBuildingSlotLimit(metaRunBonuses(profile)) == 5, "two ranks expand defense capacity from three to five");
     require(validMetaRunBonuses(metaRunBonuses(profile)),"catalog caps yield valid runtime bonuses");
     profile.silver=0;
     profile.shopLevels[0]=1;
@@ -71,17 +77,39 @@ int main() {
     require(loadMetaProgression(path.string(),loaded) && loaded==profile,"shop levels wallet ownership and fractional rewards survive reload");
     nlohmann::json saved;
     {std::ifstream input(path);input>>saved;}
+    auto legacySlots=saved;
+    legacySlots["shop"]["version"]=1;
+    legacySlots["shop"]["levels"]["tome_slots"]=4;
+    legacySlots["shop"]["levels"]["building_slots"]=4;
+    {std::ofstream output(path);output<<legacySlots;}
+    require(loadMetaProgression(path.string(),loaded) && loaded.silver==151 &&
+        runTomeSlotLimit(metaRunBonuses(loaded))==5 && runBuildingSlotLimit(metaRunBonuses(loaded))==5,
+        "old four-rank slot purchases cap at five total and refund 57 silver per category");
+    require(saveMetaProgression(path.string(),loaded),"converted slot purchases save in the new schema");
+    MetaProgression converted;
+    require(loadMetaProgression(path.string(),converted) && converted==loaded && converted.silver==151,
+        "slot migration and refunds are not applied a second time after saving");
+    auto retired=saved;retired["shop"]["version"]=2;
+    retired["shop"]["levels"]["defense_damage"]=2;retired["shop"]["levels"]["luck"]=1;
+    retired["quests"]["purchasedUnlocks"].push_back("meta.refresh");
+    {std::ofstream output(path);output<<retired;}
+    require(loadMetaProgression(path.string(),loaded) && loaded.silver==53 &&
+        loaded.shopLevels[static_cast<std::size_t>(MetaShopUpgrade::DefenseDamage)]==0 &&
+        metaRunBonuses(loaded).defenseDamage==1 && metaRunBonuses(loaded).luck==0,
+        "retired combat ranks and old reroll discovery fee refund their actual costs without permanent stat bonuses");
+    require(saveMetaProgression(path.string(),loaded),"retired-rank conversion saves");
+    require(loadMetaProgression(path.string(),converted) && converted==loaded,"retired rank refunds apply only once");
     auto oldShop = saved;
     oldShop["shop"]["levels"].erase("tome_slots");
     {std::ofstream output(path);output << oldShop;}
     require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalTomeSlots == 0,
-        "pre-tome shop profiles default to four slots without disturbing other purchases");
+        "pre-tome shop profiles default to three slots without disturbing other purchases");
     auto oldStructures = saved;
     oldStructures["shop"]["levels"].erase("building_slots");
     {std::ofstream output(path);output << oldStructures;}
     require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalBuildingSlots == 0 &&
         metaRunBonuses(loaded).additionalTomeSlots == 2,
-        "old profiles default structure capacity to four without losing existing purchases");
+        "old profiles default structure capacity to three without losing existing purchases");
     auto oldEquipment = saved;
     oldEquipment["shop"]["levels"].erase("weapon_slots");
     {std::ofstream output(path);output << oldEquipment;}
@@ -121,18 +149,18 @@ int main() {
     require(sim->configureNextRunBonuses(bonuses),"valid bonuses configure next run");
     requireNear(sim->snapshot().upgradeStats.defenseDamage,oldDamage,1e-9,"buying does not alter an ongoing run");
     require(sim->snapshot().weaponSlotLimit == 4, "equipment purchases do not alter an ongoing run");
-    require(sim->snapshot().tomeSlotLimit == 4, "shop slots do not alter an ongoing run");
+    require(sim->snapshot().tomeSlotLimit == 3, "shop slots do not alter an ongoing run");
     sim->restartRun();
     const auto boosted=sim->snapshot();
     require(boosted.weaponSlotLimit == 6, "equipment slot ranks activate on the next run");
-    require(boosted.tomeSlotLimit == 6, "shop slot ranks activate on the next run");
-    requireNear(boosted.upgradeStats.defenseDamage,1.25*1.1,1e-9,"defense bonus combines with class");
-    requireNear(boosted.upgradeStats.buildingHealth,1.35*1.1,1e-9,"building health bonus combines with class");
-    requireNear(boosted.upgradeStats.defenseFireRate,1.06,1e-9,"fire rate bonus is active");
-    requireNear(boosted.upgradeStats.productionSpeed,1.1,1e-9,"production bonus is active");
-    requireNear(boosted.upgradeStats.resourceYield,1.1,1e-9,"resource bonus is active");
-    requireNear(boosted.upgradeStats.luck,.04,1e-9,"permanent luck appears in stats");
-    require(boosted.runUpgradeRerollTokens==3,"refresh unlock and shop rerolls combine");
+    require(boosted.tomeSlotLimit == 5, "shop slot ranks activate on the next run");
+    requireNear(boosted.upgradeStats.defenseDamage,1.25,1e-9,"defense bonus combines with class");
+    requireNear(boosted.upgradeStats.buildingHealth,1.35,1e-9,"building health bonus combines with class");
+    requireNear(boosted.upgradeStats.defenseFireRate,1.0,1e-9,"fire rate bonus is active");
+    requireNear(boosted.upgradeStats.productionSpeed,1.0,1e-9,"production bonus is active");
+    requireNear(boosted.upgradeStats.resourceYield,1.0,1e-9,"resource bonus is active");
+    requireNear(boosted.upgradeStats.luck,0,1e-9,"permanent luck appears in stats");
+    require(boosted.runUpgradeRerollTokens==2,"purchased reroll ranks provide uses without a second discovery fee");
     PlayerCommand placeCore;
     placeCore.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};
     sim->tick(1.0/60.0,placeCore);
@@ -143,11 +171,23 @@ int main() {
     require(resumed->loadSuspendedRunState(checkpoint),"boosted run checkpoint restores");
     const auto restored=resumed->snapshot();
     require(restored.weaponSlotLimit == 6, "resume retains purchased equipment capacity");
-    require(restored.tomeSlotLimit == 6, "resume retains active tome slot purchases");
-    requireNear(restored.upgradeStats.resourceYield,1.1,1e-9,"resume retains resource bonus");
-    requireNear(restored.upgradeStats.luck,.04,1e-9,"resume retains luck");
+    require(restored.tomeSlotLimit == 5, "resume retains active tome slot purchases");
+    requireNear(restored.upgradeStats.resourceYield,1.0,1e-9,"resume retains resource bonus");
+    requireNear(restored.upgradeStats.luck,0,1e-9,"resume retains luck");
     requireNear(restored.upgradeStats.defenseDamage,boosted.upgradeStats.defenseDamage,1e-9,"resume does not apply permanent damage twice");
     require(restored.runUpgradeRerollTokens==1,"resume does not replenish spent rerolls");
+    auto legacyCheckpoint=checkpoint;
+    legacyCheckpoint.metaBonuses.additionalTomeSlots=4;
+    legacyCheckpoint.metaBonuses.additionalBuildingSlots=4;
+    for(const auto tome:{RunUpgradeEffect::Damage,RunUpgradeEffect::AttackSpeed,RunUpgradeEffect::MoveSpeed,
+            RunUpgradeEffect::Luck,RunUpgradeEffect::BuildingHealth,RunUpgradeEffect::ProductionSpeed}) {
+        legacyCheckpoint.runUpgradeStacks[runUpgradeIndex(tome)]=1;
+        legacyCheckpoint.runUpgradePower[runUpgradeIndex(tome)]=1;
+    }
+    auto legacyRun=std::make_unique<Simulation>(balance,map,world);
+    require(legacyRun->loadSuspendedRunState(legacyCheckpoint) && legacyRun->snapshot().tomeSlotLimit==5 &&
+        legacyRun->snapshot().buildingSlotLimit==5 && legacyRun->snapshot().tomeCount==6,
+        "old suspended runs normalize slot bonuses without deleting already earned tome bonuses");
     auto invalidStructures = bonuses;
     invalidStructures.additionalBuildingSlots = 3;
     require(!validMetaRunBonuses(invalidStructures), "structure ranks above two are invalid");

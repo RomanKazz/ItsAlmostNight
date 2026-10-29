@@ -10,6 +10,8 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 quests = []
+retired_shop_unlocks={"meta.luck","meta.defense_damage","meta.defense_fire_rate",
+    "meta.building_health","meta.production_speed","meta.resource_yield"}
 # The C++ access catalog is the source of truth for free starter content.
 starter_unlocks = set(re.findall(
     r'(?:CardUnlockDefinition|ItemUnlockDefinition)\{[^{}\n]*?,\s*"([^"]+)",\s*true\}',
@@ -31,7 +33,7 @@ def condition(metric, target, subject="", scope="lifetime", comparison="at_least
 
 
 def quest(id, text, category, conditions, unlock="", price=0, silver=2, prerequisites=()):
-    if unlock in starter_unlocks:
+    if unlock in starter_unlocks or unlock in retired_shop_unlocks:
         # Keep mastery goals and earned/claimed rewards under their stable IDs,
         # but never offer a purchase for content available from the first run.
         unlock, price = "", 0
@@ -124,12 +126,15 @@ for id, text, metric, target, subject, scope, price, silver, extra in [
 
 # Utility progression; no empty cosmetic/fake rewards.
 for id, text, target, price in [
-    ("refresh", "Complete 10 quests", 10, 5),
-    ("weapon_slots", "Complete 15 quests", 15, 6),
-    ("tome_slots", "Complete 20 quests", 20, 6),
+    ("refresh", "Complete 20 quests", 20, 0),
+    ("weapon_slots", "Complete 25 quests", 25, 0),
+    ("tome_slots", "Complete 35 quests", 35, 0),
     ("building_slots", "Complete 25 quests", 25, 6),
 ]:
     unlock("meta." + id, text, "general", "quests_completed", target, price=price)
+unlock("meta.skip", "Complete 30 quests", "general", "quests_completed", 30, price=0)
+unlock("meta.banish", "Complete 40 quests", "general", "quests_completed", 40, price=0)
+unlock("meta.toggler", "Purchase 8 permanent unlocks", "general", "unlocks_purchased", 8, price=0)
 for id, text, metric, target, scope in [
     ("luck", "Open 45 chests", "chests_opened", 45, "lifetime"),
     ("defense_damage", "Defeat 250 enemies in one run", "enemies_defeated", 250, "run"),
@@ -169,9 +174,9 @@ for id, text, metric, target, constraints in [
 
 # Shop gates make ranks available; the rank itself is purchased in the Shop.
 # Do not charge a discovery fee and then charge the player again for the rank.
-# Refresh is the exception: its first purchase directly grants one reroll.
+# All utility gates are free; uses are purchased as ranks in the Shop.
 for q in quests:
-    if q["reward"]["unlockId"].startswith("meta.") and q["reward"]["unlockId"] != "meta.refresh":
+    if q["reward"]["unlockId"].startswith("meta."):
         q["reward"]["purchaseCost"] = 0
 
 def notification(q):
@@ -200,7 +205,7 @@ def notification(q):
 for q in quests:
     q["notification"] = notification(q)
 
-root = dict(version=1, progressionRevision=5, quests=quests)
+root = dict(version=1, progressionRevision=6, quests=quests)
 write_artifact(ROOT / "assets/data/meta_quests.json", json.dumps(root, indent=2) + "\n")
 
 # Compile the very same catalog into the fallback: no silent regression to old quests.
@@ -222,7 +227,7 @@ for q in quests:
                   ", ".join(map(string, q["prerequisites"])), reward["silver"], string(reward["unlockId"]), reward["purchaseCost"], string(q["notification"])))
 lines.append("};")
 write_artifact(ROOT / "src/progression/QuestCatalogData.inc", "\n".join(lines) + "\n")
-print(f"Authored {len(quests)} quests, {sum(q['reward']['purchaseCost'] > 0 for q in quests)} purchasable discoveries and 10 shop gates")
+print(f"Authored {len(quests)} quests, {sum(q['reward']['purchaseCost'] > 0 for q in quests)} purchasable discoveries and 8 shop gates")
 
 # Localized objectives are derived from their actual AND conditions. A changed
 # target cannot silently retain a stale translated number or run restriction.
@@ -321,8 +326,8 @@ ru.update({
     "CLEAR THE STAGE, THEN BUY IN UNLOCKS": "ПРОЙДИТЕ ЭТАП, ЗАТЕМ КУПИТЕ В ОТКРЫТИЯХ",
     "OPEN SHOP": "МАГАЗИН",
     "Purchase ranks in the Shop. Applies from your next run.": "Покупайте уровни в Магазине. Бонус действует со следующего забега.",
-    "Start with 2 different tomes. Each rank adds one slot, up to 6.": "В начале 2 слота томов. Каждый ранг добавляет слот, максимум 6.",
-    "2 structure types. Add one slot per rank, up to 6.": "В начале 2 слота обороны. Каждый ранг добавляет слот, максимум 6.",
+    "Start with 3 tome slots. Each rank adds one slot, up to 5.": "В начале 3 слота томов. Каждый ранг добавляет слот, максимум 5.",
+    "3 defense types. Each rank adds one slot, up to 5.": "В начале 3 слота обороны. Каждый ранг добавляет слот, максимум 5.",
     "TOMES": "ТОМА", "AVAILABLE TO BUY": "ДОСТУПНО ДЛЯ ПОКУПКИ",
     "QUEST COMPLETE — AVAILABLE TO BUY": "КВЕСТ ВЫПОЛНЕН — МОЖНО КУПИТЬ",
     "Unlocks permanent upgrades in the Shop.": "Открывает постоянные улучшения в Магазине.",

@@ -64,7 +64,7 @@ inline void checkProducerCardProgression() {
     require(run->saveSuspendedRunState().runUpgradeStacks == migrated.runUpgradeStacks,
         "producer save migration is idempotent");
 
-    for (int extra = 0; extra <= 2; ++extra) {
+    for (int extra = 0; extra <= MaximumRunBuildingSlots-BaseRunBuildingSlots; ++extra) {
         run->returnToMainMenu();
         MetaRunBonuses bonuses; bonuses.additionalBuildingSlots = extra;
         require(run->configureNextRunBonuses(bonuses), "structure meta slots configure");

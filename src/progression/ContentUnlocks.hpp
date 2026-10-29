@@ -112,11 +112,27 @@ struct RunContentAccess {
 
 [[nodiscard]] inline RunContentAccess runContentAccess(const MetaProgression& profile) {
     RunContentAccess access;
+    const bool toggler=metaShopLevel(profile,MetaShopUpgrade::Toggler)>0;
     for (const auto& d : CardUnlockDefinitions)
-        access.cards[runUpgradeIndex(d.effect)] = d.starter || profile.quests.ownedUnlocks.contains(d.id);
+        access.cards[runUpgradeIndex(d.effect)] = d.starter || (profile.quests.ownedUnlocks.contains(d.id) &&
+            !(toggler && profile.disabledUnlocks.contains(d.id)));
     for (const auto& d : ItemUnlockDefinitions)
-        access.items[lootUpgradeIndex(d.effect)] = d.starter || profile.quests.ownedUnlocks.contains(d.id);
+        access.items[lootUpgradeIndex(d.effect)] = d.starter || (profile.quests.ownedUnlocks.contains(d.id) &&
+            !(toggler && profile.disabledUnlocks.contains(d.id)));
     return access;
+}
+
+[[nodiscard]] inline bool canToggleContent(const MetaProgression& profile,std::string_view id) {
+    return !id.empty() && !isStarterContentUnlock(id) &&
+        metaShopLevel(profile,MetaShopUpgrade::Toggler)>0 && profile.quests.ownedUnlocks.contains(id) &&
+        (std::ranges::any_of(CardUnlockDefinitions,[id](const auto& d){return d.id==id;}) ||
+         std::ranges::any_of(ItemUnlockDefinitions,[id](const auto& d){return d.id==id;}));
+}
+[[nodiscard]] inline bool toggleContent(MetaProgression& profile,std::string_view id) {
+    if(!canToggleContent(profile,id)) return false;
+    if(profile.disabledUnlocks.contains(id)) profile.disabledUnlocks.erase(std::string(id));
+    else profile.disabledUnlocks.insert(std::string(id));
+    return true;
 }
 
 [[nodiscard]] inline std::string_view contentUnlockName(std::string_view id) {

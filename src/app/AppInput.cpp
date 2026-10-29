@@ -223,6 +223,7 @@ void App::processInput() {
             runUpgradeChoiceWasVisible_ = true;
             runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runUpgradeChoiceInputArmed_ = false;
+            runUpgradeBanishArmed_=false;
             runUpgradeOverlayEntranceSeconds_ = 0.0;
             runUpgradeOverlayExitSeconds_ = 0.0;
             runUpgradePendingChoice_.reset();
@@ -271,8 +272,48 @@ void App::processInput() {
                 runUpgradeChoiceInputArmed_ = true;
         }
         std::optional<std::size_t> choice;
-        if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
+        const Vector2 pointerDelta = GetMouseDelta();
+        if (pointerDelta.x != 0.0F || pointerDelta.y != 0.0F)
+            runUpgradeKeyboardChoice_.reset();
+        const bool reverse = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        const int navigation = IsKeyPressed(KEY_UP) || (IsKeyPressed(KEY_TAB) && reverse) ? -1
+            : IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_TAB) ? 1 : 0;
+        if (runUpgradeChoiceInputArmed_ && navigation && upgradeChoiceCount > 0) {
+            const int count = static_cast<int>(upgradeChoiceCount);
+            const int current = runUpgradeKeyboardChoice_ ? static_cast<int>(*runUpgradeKeyboardChoice_)
+                : navigation > 0 ? -1 : 0;
+            const auto previousChoice = runUpgradeKeyboardChoice_;
+            runUpgradeKeyboardChoice_ = static_cast<std::size_t>((current + navigation + count) % count);
+            if (previousChoice != runUpgradeKeyboardChoice_) audio_.playUiSelect();
+        }
+        if (runUpgradeChoiceInputArmed_ && runUpgradeKeyboardChoice_ &&
+            (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))) choice = runUpgradeKeyboardChoice_;
+        const auto resetUtilityInput=[&] {
+            runUpgradeBanishArmed_=false;runUpgradeOverlayEntranceSeconds_=0;runUpgradeOverlayExitSeconds_=0;
+            runUpgradePendingChoice_.reset();runUpgradeCardHoverAmounts_.fill(0);runUpgradeKeyboardChoice_.reset();
+            runUpgradeChoiceInputDelayRemaining_=RunUpgradeChoiceInputQuietDuration;runUpgradeChoiceInputArmed_=false;
+            if(!simulation_.snapshot().runUpgradeChoicePending && !simulation_.snapshot().runShop.pending) DisableCursor();
+        };
+        const auto utilityClick=[&](std::size_t action) {
+            return IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+                CheckCollisionPointRec(GetMousePosition(),runUpgradeUtilityBounds(upgradeChoiceCount,action));
+        };
+        if(runUpgradeChoiceInputArmed_ && !runUpgradePendingChoice_ &&
+            (IsKeyPressed(KEY_X) || utilityClick(1)) && simulation_.skipRunUpgrade()) {
+            resetUtilityInput();audio_.playUiConfirm();suspendGameplayInput();return;
+        }
+        if(runUpgradeChoiceInputArmed_ && !runUpgradePendingChoice_ &&
+            (IsKeyPressed(KEY_Z) || utilityClick(2)) && simulation_.snapshot().runUpgradeBanishTokens>0 &&
+            simulation_.snapshot().shrines.offer==ShrineKind::None) {
+            runUpgradeBanishArmed_=!runUpgradeBanishArmed_;audio_.playUiSelect();
+            suspendGameplayInput();return;
+        }
+        const bool clickedReroll = rerollTokens > 0 &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+            CheckCollisionPointRec(GetMousePosition(), runUpgradeRerollBounds(upgradeChoiceCount));
+        if (runUpgradeChoiceInputArmed_ && (IsKeyPressed(KEY_R) || clickedReroll) &&
             simulation_.rerollRunUpgrades()) {
+            runUpgradeBanishArmed_=false;
             runUpgradeOverlayEntranceSeconds_ = 0.0;
             runUpgradeOverlayExitSeconds_ = 0.0;
             runUpgradePendingChoice_.reset();
@@ -303,6 +344,11 @@ void App::processInput() {
             choice = hoveredRunUpgradeChoice(
                 simulation_.snapshot(), GetMousePosition());
         }
+        if(choice && !runUpgradePendingChoice_ && runUpgradeBanishArmed_) {
+            if(simulation_.banishRunUpgrade(*choice)) {resetUtilityInput();audio_.playUiConfirm();}
+            else audio_.playUiError();
+            suspendGameplayInput();return;
+        }
         if (choice && !runUpgradePendingChoice_) {
             runUpgradePendingChoice_ = *choice;
             runUpgradeOverlayExitSeconds_ = 0.0;
@@ -313,6 +359,7 @@ void App::processInput() {
         return;
     }
     if (runUpgradeChoiceWasVisible_) {
+        runUpgradeBanishArmed_=false;
         runUpgradeChoiceWasVisible_ = false;
         runUpgradeChoiceInputArmed_ = false;
         runUpgradeOverlayEntranceSeconds_ = 0.0;

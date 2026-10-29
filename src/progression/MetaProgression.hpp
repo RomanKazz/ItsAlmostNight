@@ -20,6 +20,7 @@ struct MetaProgression {
     QuestState quests;
     std::array<int, MetaShopUpgradeCount> shopLevels{};
     int silverRewardRemainder{};
+    std::set<std::string,std::less<>> disabledUnlocks;
 
     bool operator==(const MetaProgression&) const = default;
 };

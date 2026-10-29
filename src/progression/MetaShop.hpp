@@ -8,7 +8,7 @@
 namespace ian {
 struct MetaProgression;
 
-enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, TomeSlots, WeaponSlots, BuildingSlots, Count };
+enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, TomeSlots, WeaponSlots, BuildingSlots, Banishes, Skips, Toggler, Count };
 inline constexpr std::size_t MetaShopUpgradeCount = static_cast<std::size_t>(MetaShopUpgrade::Count);
 
 struct MetaShopDefinition {
@@ -24,21 +24,31 @@ struct MetaShopDefinition {
 inline constexpr std::array<MetaShopDefinition, MetaShopUpgradeCount> MetaShopDefinitions{{
     {MetaShopUpgrade::SilverGain, "silver_gain", "SILVER", "Earn more silver from quest rewards.", 20, 2, 5, {}},
     {MetaShopUpgrade::Rerolls, "rerolls", "REROLLS", "Start each run with more level-up card rerolls.", 5, 4, 1, "meta.refresh"},
-    {MetaShopUpgrade::Luck, "luck", "LUCK", "Improve your chance of finding rarer level-up cards.", 10, 3, 2, {}},
-    {MetaShopUpgrade::DefenseDamage, "defense_damage", "DEFENSE DAMAGE", "Increase damage dealt by your defenses.", 10, 3, 5, {}},
-    {MetaShopUpgrade::DefenseFireRate, "defense_fire_rate", "FIRE RATE", "Make your defenses attack faster.", 10, 3, 3, {}},
-    {MetaShopUpgrade::BuildingHealth, "building_health", "FORTIFY", "Increase the maximum health of your structures.", 10, 3, 5, {}},
-    {MetaShopUpgrade::ProductionSpeed, "production_speed", "PRODUCTION", "Make mines, lumber mills and quarries produce faster.", 10, 3, 5, {}},
-    {MetaShopUpgrade::ResourceYield, "resource_yield", "RESOURCE YIELD", "Gather more wood, stone and crystals from resource nodes.", 10, 3, 5, {}},
-    {MetaShopUpgrade::TomeSlots, "tome_slots", "TOME SLOTS", "Start with 2 different tomes. Each rank adds one slot, up to 6.", 4, 10, 1, {}},
-    {MetaShopUpgrade::WeaponSlots, "weapon_slots", "EQUIPMENT SLOTS", "Start with 4 tools and weapons. Add one slot per rank, up to 6.", 2, 10, 1, {}},
-    {MetaShopUpgrade::BuildingSlots, "building_slots", "STRUCTURE SLOTS", "2 structure types. Add one slot per rank, up to 6.", 4, 10, 1, {}},
+    {MetaShopUpgrade::Luck, "luck", "LUCK", "Improve your chance of finding rarer level-up cards.", 10, 3, 2, "meta.luck"},
+    {MetaShopUpgrade::DefenseDamage, "defense_damage", "DEFENSE DAMAGE", "Increase damage dealt by your defenses.", 10, 3, 5, "meta.defense_damage"},
+    {MetaShopUpgrade::DefenseFireRate, "defense_fire_rate", "FIRE RATE", "Make your defenses attack faster.", 10, 3, 3, "meta.defense_fire_rate"},
+    {MetaShopUpgrade::BuildingHealth, "building_health", "FORTIFY", "Increase the maximum health of your structures.", 10, 3, 5, "meta.building_health"},
+    {MetaShopUpgrade::ProductionSpeed, "production_speed", "PRODUCTION", "Make mines, lumber mills and quarries produce faster.", 10, 3, 5, "meta.production_speed"},
+    {MetaShopUpgrade::ResourceYield, "resource_yield", "RESOURCE YIELD", "Gather more wood, stone and crystals from resource nodes.", 10, 3, 5, "meta.resource_yield"},
+    {MetaShopUpgrade::TomeSlots, "tome_slots", "TOME SLOTS", "Start with 3 tome slots. Each rank adds one slot, up to 5.", 2, 10, 1, "meta.tome_slots"},
+    {MetaShopUpgrade::WeaponSlots, "weapon_slots", "EQUIPMENT SLOTS", "Start with 4 tools and weapons. Add one slot per rank, up to 6.", 2, 10, 1, "meta.weapon_slots"},
+    {MetaShopUpgrade::BuildingSlots, "building_slots", "STRUCTURE SLOTS", "3 defense types. Each rank adds one slot, up to 5.", 2, 10, 1, "meta.building_slots"},
+    {MetaShopUpgrade::Banishes, "banishes", "BANISH", "Remove an offered card from this run. Uses one level-up choice.", 6, 8, 1, "meta.banish"},
+    {MetaShopUpgrade::Skips, "skips", "SKIP", "Skip a level-up choice without taking an upgrade.", 6, 8, 1, "meta.skip"},
+    {MetaShopUpgrade::Toggler, "toggler", "TOGGLER", "Enable or disable purchased discoveries in Unlocks before a run.", 1, 50, 1, "meta.toggler"},
 }};
 
-inline constexpr int BaseRunTomeSlots = 2;
-inline constexpr int MaximumRunTomeSlots = 6;
-inline constexpr int BaseRunBuildingSlots = 2;
-inline constexpr int MaximumRunBuildingSlots = 6;
+inline constexpr std::array ActiveMetaShopUpgrades{MetaShopUpgrade::SilverGain, MetaShopUpgrade::Rerolls,
+    MetaShopUpgrade::Banishes, MetaShopUpgrade::Skips, MetaShopUpgrade::WeaponSlots,
+    MetaShopUpgrade::TomeSlots, MetaShopUpgrade::BuildingSlots, MetaShopUpgrade::Toggler};
+[[nodiscard]] constexpr bool activeMetaShopUpgrade(MetaShopUpgrade upgrade) {
+    return std::find(ActiveMetaShopUpgrades.begin(),ActiveMetaShopUpgrades.end(),upgrade)!=ActiveMetaShopUpgrades.end();
+}
+
+inline constexpr int BaseRunTomeSlots = 3;
+inline constexpr int MaximumRunTomeSlots = 5;
+inline constexpr int BaseRunBuildingSlots = 3;
+inline constexpr int MaximumRunBuildingSlots = 5;
 inline constexpr int BaseRunWeaponSlots = 4;
 inline constexpr int MaximumRunWeaponSlots = 6;
 
@@ -53,6 +63,8 @@ struct MetaRunBonuses {
     int additionalTomeSlots{};
     int additionalWeaponSlots{};
     int additionalBuildingSlots{};
+    int banishes{};
+    int skips{};
     bool operator==(const MetaRunBonuses&) const = default;
 };
 

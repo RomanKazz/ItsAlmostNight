@@ -34,7 +34,7 @@ int main(int argc,char** argv) {
             profile.silver=0;const auto before=profile;
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1350,868),.click=true,.confirm=true});
             require(!result.purchase&&profile==before,"insufficient wallet blocks mouse and keyboard purchases");
-            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(650,340),.click=true});
+            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(850,340),.click=true});
             require(state.selected==MetaShopUpgrade::Rerolls,"tile selects the actual upgrade");
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1350,868),.click=true});
             require(result.openUnlocks&&!result.purchase,"locked rerolls link to unlock collection");
@@ -45,7 +45,7 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1350,868),.click=true,.confirm=true});
             require(!result.purchase&&profile.silver==46,"capped upgrade never charges again");
             result=drawShopMenu(ui,profile,state,viewport,{.selectionStep=5});
-            require(state.selected==MetaShopUpgrade::BuildingHealth,"keyboard moves between grid rows");
+            require(state.selected==MetaShopUpgrade::TomeSlots,"keyboard moves between grid rows");
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(860,620),.click=true});
             require(state.selected==MetaShopUpgrade::TomeSlots,"ninth shop tile selects tome slots");
             profile.silver=50;
@@ -55,9 +55,12 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(result.purchase&&profile.silver==25&&metaRunBonuses(profile).additionalTomeSlots==2,
                 "second tome slot costs fifteen silver");
+            profile.silver=100;
+            const int remainingSilver=profile.silver;
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
-            require(!result.purchase&&profile.silver==25,"tome slot shop purchase stops at six total slots");
-            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1060,620),.click=true});
+            require(!result.purchase&&profile.silver==remainingSilver &&
+                runTomeSlotLimit(metaRunBonuses(profile))==5,"tome slot shop purchase stops at five total slots");
+            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(500,620),.click=true});
             require(state.selected==MetaShopUpgrade::WeaponSlots,"tenth shop tile selects equipment slots");
             profile.silver=50;
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
@@ -68,7 +71,7 @@ int main(int argc,char** argv) {
                 "second equipment slot costs fifteen silver");
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(!result.purchase&&profile.silver==25,"equipment slots stop at six total");
-            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1260,620),.click=true});
+            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1100,620),.click=true});
             require(state.selected==MetaShopUpgrade::BuildingSlots,"eleventh tile selects shared structure slots");
             profile.silver=50;
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
@@ -77,8 +80,11 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(result.purchase&&profile.silver==25&&metaRunBonuses(profile).additionalBuildingSlots==2,
                 "second structure slot costs fifteen silver");
+            profile.silver=100;
+            const int remainingStructureSilver=profile.silver;
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
-            require(!result.purchase&&profile.silver==25,"structure slots stop at six total");
+            require(!result.purchase&&profile.silver==remainingStructureSilver &&
+                runBuildingSlotLimit(metaRunBonuses(profile))==5,"structure slots stop at five total");
             result=drawShopMenu(ui,profile,state,viewport,{.close=true});require(result.close,"close input works");
             profile.shopLevels={4,2,3,1,0,0,0,0};profile.silver=38;state.selected=MetaShopUpgrade::SilverGain;
             ClearBackground({61,82,66,255});

@@ -473,6 +473,9 @@ struct SimulationSnapshot {
     RunUpgradeStats upgradeStats;
     int runUpgradeSelectionsRemaining{};
     int runUpgradeRerollTokens{};
+    int runUpgradeSkipTokens{};
+    int runUpgradeBanishTokens{};
+    std::array<bool,RunUpgradeEffectCount> banishedRunUpgrades{};
     bool runUpgradeLockUnlocked{};
     std::optional<RunUpgradeEffect> lockedRunUpgrade;
 };
@@ -553,6 +556,9 @@ struct SuspendedRunState {
     int freeChestRerollsRemaining{};
     int runNightlyBombBonus{};
     int runUpgradeRerollTokens{};
+    int runUpgradeSkipTokens{};
+    int runUpgradeBanishTokens{};
+    std::array<bool,RunUpgradeEffectCount> banishedRunUpgrades{};
     bool runUpgradeLockUnlocked{};
     std::optional<RunUpgradeEffect> lockedRunUpgrade;
     int bonusSelectionsNextReward{};
@@ -686,6 +692,8 @@ class Simulation {
         RunUpgradeEffect effect, RunUpgradeRarity rarity = RunUpgradeRarity::Common);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
+    [[nodiscard]] bool skipRunUpgrade();
+    [[nodiscard]] bool banishRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool openRunShop(bool debugAccess = false);
     [[nodiscard]] bool closeRunShop();
     [[nodiscard]] bool buyRunShopOffer(std::size_t index);
@@ -1105,6 +1113,9 @@ class Simulation {
     int runNightlyBombBonus_{};
     int runUpgradeSelectionsRemaining_{};
     int runUpgradeRerollTokens_{};
+    int runUpgradeSkipTokens_{};
+    int runUpgradeBanishTokens_{};
+    std::array<bool,RunUpgradeEffectCount> banishedRunUpgrades_{};
     bool runUpgradeLockUnlocked_{};
     std::optional<RunUpgradeEffect> lockedRunUpgrade_;
     int bonusSelectionsNextReward_{};

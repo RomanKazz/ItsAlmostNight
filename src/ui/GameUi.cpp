@@ -289,6 +289,43 @@ void GameUi::initialize() {
         mapIcons_[i] = loadTexture(MapIconPaths[i]);
         smoothHudIcon(mapIcons_[i]);
     }
+    const auto utilityIcon=[](MetaShopUpgrade upgrade) {
+        const auto target=LoadRenderTexture(256,256);
+        BeginTextureMode(target);ClearBackground(BLANK);
+        constexpr Color ink{25,29,27,255}, cream{255,235,188,255};
+        if(upgrade==MetaShopUpgrade::Toggler) {
+            DrawRectangleRounded({25,83,210,108},1,16,ink);
+            DrawRectangleRounded({33,91,194,84},1,16,{102,201,114,255});
+            DrawCircle(181,133,40,ink);DrawCircle(181,128,32,cream);
+            DrawLineEx({61,128},{77,145},10,ink);DrawLineEx({77,145},{109,110},10,ink);
+        } else if(upgrade==MetaShopUpgrade::Banishes) {
+            DrawRectangleRounded({53,35,155,197},.16F,8,ink);
+            DrawRectangleRounded({61,35,139,181},.12F,8,cream);
+            DrawCircle(130,124,57,ink);DrawCircle(130,124,48,{242,100,90,255});
+            DrawLineEx({95,158},{165,89},23,ink);DrawLineEx({98,155},{162,92},12,cream);
+        } else {
+            DrawTriangle({47,45},{47,215},{170,130},ink);
+            DrawTriangle({58,63},{58,190},{151,127},{255,192,72,255});
+            DrawRectangleRounded({176,46,31,165},.2F,4,ink);
+            DrawRectangleRounded({182,51,19,150},.15F,4,cream);
+        }
+        EndTextureMode();auto image=LoadImageFromTexture(target.texture);ImageFlipVertical(&image);
+        auto texture=LoadTextureFromImage(image);UnloadImage(image);UnloadRenderTexture(target);
+        return texture;
+    };
+    for (const auto& definition : MetaShopDefinitions) {
+        auto& icon=metaShopIcons_[static_cast<std::size_t>(definition.upgrade)];
+        if(definition.upgrade==MetaShopUpgrade::Banishes || definition.upgrade==MetaShopUpgrade::Skips || definition.upgrade==MetaShopUpgrade::Toggler) {
+            icon=utilityIcon(definition.upgrade);smoothHudIcon(icon);continue;
+        }
+        const std::string path = definition.upgrade == MetaShopUpgrade::BuildingSlots
+            ? "assets/ui/shop/building_health.png"
+            : "assets/ui/shop/" + std::string(definition.id) + ".png";
+        icon=loadTexture(path.c_str());
+        smoothHudIcon(icon);
+    }
+    shopPurchaseIcon_=loadTexture("assets/ui/shop/purchase.png");
+    smoothHudIcon(shopPurchaseIcon_);
     for (const auto& tome : RunTomeDefinitions) {
         auto& icon = tomeIcons_[runUpgradeIndex(tome.effect)];
         if (const char* path = runTomeIconPath(tome.effect)) icon = loadTexture(path);

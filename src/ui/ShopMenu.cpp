@@ -74,7 +74,8 @@ void levels(Rectangle r, int current, int max) {
         i<current?Blue:Color{76,87,89,255});
 }
 std::string bonusLabel(const MetaShopDefinition& d, int level) {
-    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots || d.upgrade==MetaShopUpgrade::BuildingSlots)?"":"%");
+    if(d.upgrade==MetaShopUpgrade::Toggler) return level>0 ? "ON" : "OFF";
+    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::Banishes || d.upgrade==MetaShopUpgrade::Skips || d.upgrade==MetaShopUpgrade::TomeSlots || d.upgrade==MetaShopUpgrade::WeaponSlots || d.upgrade==MetaShopUpgrade::BuildingSlots)?"":"%");
 }
 }
 Rectangle shopMenuPanelBounds(Vector2 viewport) { return UiMenuLayout::fromViewport(viewport).rect(340,130,1240,820); }
@@ -82,20 +83,23 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
                             Vector2 viewport, const ShopMenuInput& input) {
     const UiMenuLayout l=UiMenuLayout::fromViewport(viewport);
     ShopMenuResult result{.close=input.close};
-    if(static_cast<std::size_t>(state.selected)>=MetaShopUpgradeCount) state.selected=MetaShopUpgrade::SilverGain;
+    if(!activeMetaShopUpgrade(state.selected)) state.selected=MetaShopUpgrade::SilverGain;
     if(input.selectionStep!=0) {
-        const auto index=std::clamp<std::int64_t>(static_cast<int>(state.selected)+static_cast<std::int64_t>(input.selectionStep),0,static_cast<int>(MetaShopUpgradeCount)-1);
-        state.selected=static_cast<MetaShopUpgrade>(index);result.interaction=true;
+        const auto current=std::find(ActiveMetaShopUpgrades.begin(),ActiveMetaShopUpgrades.end(),state.selected)-ActiveMetaShopUpgrades.begin();
+        const auto index=std::clamp<std::int64_t>(current+static_cast<std::int64_t>(input.selectionStep),0,
+            static_cast<std::int64_t>(ActiveMetaShopUpgrades.size()-1));
+        state.selected=ActiveMetaShopUpgrades[static_cast<std::size_t>(index)];result.interaction=true;
     }
     panel(shopMenuPanelBounds(viewport),l.scale,{26,33,36,250});
     panel(l.rect(358,148,1204,72),l.scale,{35,47,48,255});
     text("SHOP",l.rect(382,158,690,50),32*l.scale,Cream,UiFontRole::Display);
-    silver(ui,l,1374,169,profile.silver);
-    if(button(l.rect(1505,162,40,40),"X",l,input)) result.close=true;
-    text("PERMANENT UPGRADES",l.rect(380,233,950,26),16*l.scale,Muted,UiFontRole::BodyBold);
-    panel(l.rect(358,266,1204,506),l.scale,{20,28,31,255},{56,66,67,255});
-    for(std::size_t i=0;i<MetaShopUpgradeCount;++i) {
-        const auto& d=MetaShopDefinitions[i];const int level=metaShopLevel(profile,d.upgrade);
+    silver(ui,l,1340,169,profile.silver,true,100);
+    if(menuStyle::closeButton(l.rect(1490,158,52,52),l.scale,input.pointer,input.click)) result.close=true;
+    text("PERMANENT UPGRADES",l.rect(380,233,950,26),16*l.scale,Cream,UiFontRole::Display);
+    panel(l.rect(358,266,1204,506),l.scale,menuStyle::Inset);
+    const MetaShopDefinition* hoveredUpgrade = nullptr;
+    for(std::size_t i=0;i<ActiveMetaShopUpgrades.size();++i) {
+        const auto& d=MetaShopDefinitions[static_cast<std::size_t>(ActiveMetaShopUpgrades[i])];const int level=metaShopLevel(profile,d.upgrade);
         const bool unlocked=metaShopAvailable(profile,d.upgrade);
         constexpr float pitch = 1185.0F / MetaShopGridColumns;
         constexpr float width = pitch - 20.0F;
@@ -127,7 +131,7 @@ ShopMenuResult drawShopMenu(const GameUi& ui, MetaProgression& profile, ShopMenu
         text(bonusLabel(d,level+1),l.rect(781,875,86,23),16*l.scale,Green,UiFontRole::BodyBold);
     }
     text(std::to_string(level)+" / "+std::to_string(d.maximumLevel),l.rect(1087,875,105,23),15*l.scale,Muted,UiFontRole::BodyBold,2);
-    text(d.upgrade==MetaShopUpgrade::SilverGain?"Applies to future quest rewards.":"Applies from your next run.",
+    text(d.upgrade==MetaShopUpgrade::SilverGain?"Applies to future quest rewards.":d.upgrade==MetaShopUpgrade::Toggler ? "Configure your next run in Unlocks." : "Applies from your next run.",
         l.rect(510,906,682,20),12*l.scale,Muted);
     if(!unlocked) {
         text("Unlock Card Refresh first.",l.rect(1220,801,318,40),15*l.scale,Muted,UiFontRole::BodyBold,1);

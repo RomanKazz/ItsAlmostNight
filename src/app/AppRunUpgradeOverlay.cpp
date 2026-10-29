@@ -86,19 +86,23 @@ constexpr UpgradePalette upgradePalette(UpgradeColorClass colorClass) {
 float upgradeStatsPanelWidth() {
     return std::clamp(static_cast<float>(GetScreenWidth()) * 0.19F, 220.0F, 340.0F);
 }
-
-float upgradeCardsAreaWidth() {
-    return static_cast<float>(GetScreenWidth()) - upgradeStatsPanelWidth() - 48.0F;
+Rectangle upgradeCardBounds(const UpgradeLayout& layout, std::size_t index) {
+    const float s = layout.scale;
+    return {layout.offers.x + 44 * s,
+        layout.offers.y + 90 * s + index * (layout.rowHeight + 20 * s),
+        layout.offers.width - 88 * s, layout.rowHeight};
 }
+Rectangle upgradeUtilityBounds(const UpgradeLayout& layout,std::size_t action) {
+    const float s=layout.scale;
+    const float width=(layout.offers.width-112*s)/3;
+    return {layout.offers.x+44*s+static_cast<float>(action)*(width+12*s),
+        layout.offers.y+layout.offers.height-52*s,width,38*s};
+}
+Rectangle upgradeRerollBounds(const UpgradeLayout& layout) { return upgradeUtilityBounds(layout,0); }
 
-float cardLayoutScale(std::size_t count) {
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float horizontal =
-        (upgradeCardsAreaWidth() - 48.0F) /
-        (CardWidth * static_cast<float>(count) +
-         CardGap * static_cast<float>(count - 1U));
-    const float vertical = (screenHeight - 350.0F) / CardHeight;
-    return std::clamp(std::min(horizontal, vertical), 0.30F, UpgradeUiScale);
+Color fadedColor(Color color, float opacity) {
+    color.a = static_cast<unsigned char>(std::lround(color.a * std::clamp(opacity, 0.0F, 1.0F)));
+    return color;
 }
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
@@ -703,9 +707,14 @@ Rectangle runUpgradeStatsPanelBounds(std::size_t count) {
         std::clamp(center - height * 0.5F, 40.0F,
             static_cast<float>(GetScreenHeight()) - height - 40.0F), width, height};
 }
-
-std::optional<std::size_t> hoveredRunUpgradeChoice(
-    const SimulationSnapshot& snapshot, Vector2 mousePosition) {
+Rectangle runUpgradeUtilityBounds(std::size_t count,std::size_t action) {
+    const ScopedUiCoordinates coordinates;
+    const auto bounds=upgradeUtilityBounds(upgradeLayout(count),action);
+    return coordinates.owns() ? coordinates.viewport().toScreen(bounds) : bounds;
+}
+std::optional<std::size_t> hoveredRunUpgradeChoice(const SimulationSnapshot& snapshot, Vector2 pointer) {
+    const ScopedUiCoordinates coordinates;
+    if (coordinates.owns()) pointer = coordinates.viewport().toUi(pointer);
     if (!snapshot.runUpgradeChoicePending) return std::nullopt;
     for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
          ++index) {
@@ -826,26 +835,26 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     return projected;
 }
 
-void drawRunUpgradeOverlay(
-    GameUi& ui,
-    const SimulationSnapshot& snapshot,
-    double entranceSeconds,
-    double exitSeconds,
-    std::optional<std::size_t> selectedChoice,
-    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition, bool reduceFlashes) {
-    if (!snapshot.runUpgradeChoicePending ||
-        snapshot.runUpgradeChoiceCount == 0U) return;
-    const float exitProgress = std::clamp(static_cast<float>(
-        exitSeconds / RunUpgradeOverlayExitDuration), 0.0F, 1.0F);
-    const float exitEase = smoothUnit(exitProgress);
-    const float overlayFade = 1.0F - exitEase;
-    const float backgroundExitFade = 1.0F - smoothUnit(std::clamp(
-        (exitProgress - 0.72F) / 0.28F, 0.0F, 1.0F));
-    const float screenFade = smoothUnit(static_cast<float>(
-        entranceSeconds / 0.20)) * backgroundExitFade;
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                  {30, 30, 30, static_cast<unsigned char>(
-                      std::lround(170.0F * screenFade))});
+void drawRunUpgradeOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
+    double entranceSeconds, double exitSeconds, std::optional<std::size_t> selectedChoice,
+    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition,
+    std::optional<std::size_t> keyboardChoice, bool reduceFlashes, bool banishArmed) {
+    if (!snapshot.runUpgradeChoicePending || snapshot.runUpgradeChoiceCount == 0) return;
+    const ScopedUiCanvas canvas;
+    if (pointerPosition && canvas.owns()) pointerPosition = canvas.viewport().toUi(*pointerPosition);
+    const Vector2 pointer = pointerPosition.value_or(uiMousePosition());
+    const auto baseLayout = upgradeLayout(snapshot.runUpgradeChoiceCount);
+    const bool closing = selectedChoice.has_value() || exitSeconds > 0;
+    const auto transition = runUpgradeOverlayTransition(entranceSeconds, exitSeconds, closing);
+    const float fade = transition.opacity;
+    if (fade <= 0) return;
+    const auto layout = scaledUpgradeLayout(baseLayout, transition.scale);
+    const float s = layout.scale;
+    const float selectionProgress = std::clamp(static_cast<float>(
+        exitSeconds / RunUpgradeChoiceFeedbackDuration), 0.0F, 1.0F);
+    const float selectionPulse = std::sin(selectionProgress * PI) * (reduceFlashes ? 0.2F : 1.0F);
+    const bool interactive = !closing && entranceSeconds >= RunUpgradeOverlayEntranceDuration;
+    DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(), fadedColor({7, 12, 19, 175}, fade));
     reward_backdrop::draw(ui,reward_backdrop::Kind::Experience,entranceSeconds+exitSeconds,
         {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},screenFade,reduceFlashes);
     const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
@@ -1294,18 +1303,21 @@ void drawRunUpgradeOverlay(
         controls += "R  REROLL (" +
             std::to_string(snapshot.runUpgradeRerollTokens) + ")";
     }
-    if (snapshot.runUpgradeLockUnlocked) {
-        if (!controls.empty()) controls += "     ";
-        controls += "RMB  LOCK CARD";
-    }
-    if (!controls.empty()) {
-        const float controlsFade = smoothUnit(static_cast<float>(
-            (entranceSeconds - 0.34) / 0.20)) * overlayFade;
-        drawCenteredUiText(
-            controls,
-            cardTop + firstCard.height + 30.0F,
-            15.0F,
-            fadedColor({229, 219, 185, 245}, controlsFade));
+    if (!shrineOffer && (snapshot.runUpgradeRerollTokens>0 || snapshot.runUpgradeSkipTokens>0 || snapshot.runUpgradeBanishTokens>0)) {
+        const std::array counts{snapshot.runUpgradeRerollTokens,snapshot.runUpgradeSkipTokens,snapshot.runUpgradeBanishTokens};
+        constexpr std::array names{"R  REROLL","X  SKIP","Z  BANISH"};
+        for(std::size_t action=0;action<counts.size();++action) {
+            const auto bounds=upgradeUtilityBounds(layout,action);
+            const bool enabled=counts[action]>0;
+            const bool selected=action==2 && banishArmed;
+            plate(bounds,s*.65F,selected ? Color{113,52,49,255} :
+                enabled && interactive && CheckCollisionPointRec(pointer,bounds) ? menuStyle::Selected : menuStyle::Card,fade);
+            label(localizeText(names[action])+"  "+std::to_string(counts[action]),bounds,16*s,
+                enabled ? (selected ? Color{255,146,121,255} : menuStyle::Cream) : menuStyle::Muted,
+                fade,UiFontRole::Display,1);
+        }
+        if(banishArmed) label("CHOOSE A CARD TO BANISH",{layout.offers.x,layout.offers.y-30*s,layout.offers.width,24*s},
+            17*s,{255,146,121,255},fade,UiFontRole::Display,1);
     }
 }
 

@@ -30,6 +30,7 @@ struct UnlockMenuResult {
     bool close{};
     bool purchase{};
     bool interaction{};
+    bool toggled{};
     std::string questId;
 };
 

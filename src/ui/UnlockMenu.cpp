@@ -116,9 +116,13 @@ const std::vector<Entry>& catalog() {
             result.push_back({"item:" + std::to_string(i), UnlockCategory::Items, static_cast<int>(i),
                 lootUpgradeName(effect), lootUpgradeDescription(effect), {}, {}});
         }
-        result.push_back({"meta.refresh", UnlockCategory::Meta, 0, "CARD REFRESH", "Start each run with one free card reroll.", {}, "meta.refresh"});
-        result.push_back({"meta.skip", UnlockCategory::Meta, 1, "CARD SKIP", "Complete 20 quests", {}, "meta.skip"});
-        result.push_back({"meta.banish", UnlockCategory::Meta, 2, "CARD BANISH", "Complete 30 quests", {}, "meta.banish"});
+        result.push_back({"meta.refresh", UnlockCategory::Meta, 0, "CARD REFRESH", "Unlocks reroll purchases in the Shop.", {}, "meta.refresh"});
+        for (std::size_t i = 0; i < MetaShopDefinitions.size(); ++i) {
+            const auto& d = MetaShopDefinitions[i];
+            if (!activeMetaShopUpgrade(d.upgrade) || d.requiredUnlock == "meta.refresh") continue;
+            result.push_back({std::string(d.requiredUnlock), UnlockCategory::Meta,
+                static_cast<int>(i), std::string(d.title), std::string(d.description), {}, std::string(d.requiredUnlock)});
+        }
         return result;
     }();
     return entries;
@@ -358,7 +362,9 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
             silver(ui, l, x + 28, y + 46, a.price, profile.silver >= a.price);
         }
         text(e.title, l.rect(x + 5, y + 106, 127, 23), 12 * l.scale,
-            a.owned ? Cream : a.eligible ? Gold : Muted, UiFontRole::BodyBold, 1);
+            active || a.owned ? Cream : a.eligible ? Gold : Muted, UiFontRole::BodyBold, 1);
+        if(canToggleContent(profile,e.unlockId) && profile.disabledUnlocks.contains(e.unlockId))
+            text("OFF",l.rect(x+89,y+6,39,22),12*l.scale,Red,UiFontRole::Display,2);
         if (!a.owned && !a.eligible) text("?", l.rect(x + 108, y + 6, 20, 22), 18 * l.scale, Muted, UiFontRole::BodyBold, 1);
         if (a.eligible && !a.owned) text("!", l.rect(x + 108, y + 6, 20, 22), 18 * l.scale, Gold, UiFontRole::BodyBold, 1);
     }
@@ -391,7 +397,18 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
         }
         if (e.category == UnlockCategory::Meta && e.unlockId != "meta.refresh") text("Run effects coming later", l.rect(410, 933, 970, 20), 12 * l.scale, Muted);
         if (a.owned) {
-            text("UNLOCKED", l.rect(1415, 841, 230, 40), 20 * l.scale, Green, UiFontRole::BodyBold, 1);
+            const bool disabled=canToggleContent(profile,e.unlockId) && profile.disabledUnlocks.contains(e.unlockId);
+            text(disabled ? "DISABLED" : "UNLOCKED", l.rect(1415, e.category == UnlockCategory::Meta ? 813 : 841, 230, 40), 20 * l.scale, disabled ? Red : Green, UiFontRole::BodyBold, 1);
+            if(canToggleContent(profile,e.unlockId)) {
+                if(button(l.rect(1415,890,230,44),disabled ? "ENABLE" : "DISABLE",l,input)) {
+                    result.toggled=toggleContent(profile,e.unlockId);result.interaction=true;
+                }
+                if(disabled) text("DISABLED FOR FUTURE RUNS",l.rect(410,933,970,20),12*l.scale,Red);
+            }
+            if (e.category == UnlockCategory::Meta && button(l.rect(1415, 858, 230, 44), "OPEN SHOP", l, input)) {
+                result.shopUnlockId = e.unlockId;
+                result.interaction = true;
+            }
         } else if (a.eligible && a.price > 0) {
             silver(ui, l, 1474, 815, a.price, profile.silver >= a.price);
             if (button(l.rect(1415, 858, 230, 44), "UNLOCK", l, input, profile.silver >= a.price)) {
