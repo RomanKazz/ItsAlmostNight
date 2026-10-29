@@ -200,7 +200,7 @@ def notification(q):
 for q in quests:
     q["notification"] = notification(q)
 
-root = dict(version=1, progressionRevision=4, quests=quests)
+root = dict(version=1, progressionRevision=5, quests=quests)
 write_artifact(ROOT / "assets/data/meta_quests.json", json.dumps(root, indent=2) + "\n")
 
 # Compile the very same catalog into the fallback: no silent regression to old quests.

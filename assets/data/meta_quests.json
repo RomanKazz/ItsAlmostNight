@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "progressionRevision": 4,
+  "progressionRevision": 5,
   "quests": [
     {
       "id": "class_berserker",
@@ -135,8 +135,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
+        "unlockId": "building.slow_trap",
+        "purchaseCost": 4
       },
       "notification": "25 fast enemies defeated"
     },
@@ -204,8 +204,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "building.tesla_tower",
-        "purchaseCost": 7
+        "unlockId": "",
+        "purchaseCost": 0
       },
       "notification": "50 flying enemies defeated"
     },
@@ -227,8 +227,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "building.missile_launcher",
-        "purchaseCost": 9
+        "unlockId": "",
+        "purchaseCost": 0
       },
       "notification": "Cannon level 6"
     },
@@ -273,8 +273,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
+        "unlockId": "building.mortar",
+        "purchaseCost": 6
       },
       "notification": "200 enemies defeated"
     },
@@ -296,8 +296,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "",
-        "purchaseCost": 0
+        "unlockId": "building.repair_station",
+        "purchaseCost": 4
       },
       "notification": "40 repairs completed"
     },

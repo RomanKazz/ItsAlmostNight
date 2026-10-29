@@ -68,9 +68,9 @@ inline void checkQuestContentProgression() {
     const auto countStarters=[](std::string_view category) {
         return std::ranges::count_if(CardUnlockDefinitions,[category](const auto& d){return d.starter && d.id.starts_with(category);});
     };
-    require(countStarters("building.")==14 && countStarters("tome.")==14 &&
+    require(countStarters("building.")==13 && countStarters("tome.")==14 &&
         std::ranges::count_if(ItemUnlockDefinitions,[](const auto& d){return d.starter;})==14,
-        "first-run pool contains fourteen buildings, fourteen tomes and fourteen items");
+        "first-run pool contains thirteen buildings, fourteen tomes and fourteen items");
     const auto paid=std::ranges::count_if(quests.definitions(),[](const auto& q){return q.reward.purchaseCost>0;});
     for(const auto& q:quests.definitions()) for(const auto& c:q.conditions)
         if(c.metric==QuestMetric::UnlocksPurchased) require(c.target<=static_cast<double>(paid),
@@ -84,6 +84,12 @@ inline void checkQuestContentProgression() {
         !veteran.quests.progress.at("milestone_unlocks_purchased_5").rewardClaimed && veteran.silver==17,
         "startup refresh makes rebalanced purchase goals claimable without automatically changing the wallet");
     const auto initial = runContentAccess(profile);
+    require(initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockMissileLauncher)] &&
+        initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockTeslaTower)] &&
+        !initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockMortar)] &&
+        !initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockRepairStation)] &&
+        !initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockSlowTrap)],
+        "rockets and Tesla start available; mortar, repair station and slow trap require their discoveries");
     require(initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockGunTurret)] &&
         initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockTurret)] &&
         initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)],
