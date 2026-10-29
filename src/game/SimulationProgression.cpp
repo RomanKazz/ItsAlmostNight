@@ -102,8 +102,9 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
         for (const auto type : RunBuildingTypes) {
             const auto card = buildingRunUpgrade(type);
             const auto level = static_cast<std::uint8_t>(std::clamp(
-                runUpgradeStacks_[runUpgradeIndex(*card)], 1, static_cast<int>(MaxBuildingLevel)));
-            defenseLevelsChanged = buildings_.setCombatBlueprintLevel(type, level) || defenseLevelsChanged;
+                runUpgradeStacks_[runUpgradeIndex(*card)], 1, static_cast<int>(MaxStructureLevel)));
+            defenseLevelsChanged = buildings_.setCombatBlueprintLevel(type, level,
+                type == BuildingType::Wall ? runUpgradePower(*card) : 0.0) || defenseLevelsChanged;
         }
     }
     resources_.setGatheringYieldMultiplier(

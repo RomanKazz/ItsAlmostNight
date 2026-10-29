@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "RunChoiceToolsChecks.hpp"
+#include "WallRarityChecks.hpp"
 #include "game/Simulation.hpp"
 #include "progression/MetaProgression.hpp"
 #include "progression/QuestSystem.hpp"
@@ -13,6 +14,7 @@
 int main() {
     using namespace ian;
     checkRunChoiceTools();
+    checkWallRarity();
     {
         const auto hintsPath=std::filesystem::temp_directory_path()/"ian-placement-hint-progress.json";
         MetaProgression firstRun; firstRun.runsPlayed=1; firstRun.placementControlHintsUsed=1;

@@ -490,7 +490,8 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr bool fixedRunUpgradePower(RunUpgradeEffect effect) {
-    return effect == RunUpgradeEffect::ExtraBuilding || runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
+    if (effect == RunUpgradeEffect::UnlockWall) return false;
+    return effect == RunUpgradeEffect::UpgradeCore || effect == RunUpgradeEffect::ExtraBuilding || runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
         effect == RunUpgradeEffect::RiskyInvestment ||
         effect == RunUpgradeEffect::RerollToken;
 }

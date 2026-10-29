@@ -224,7 +224,10 @@ bool Simulation::loadSuspendedRunState(
             const auto index = runUpgradeIndex(definition.effect);
             const int maximum = saved.buildingArsenalVersion >= 3 && runDefenseCard(definition.effect) &&
                 (runCombatBuilding(*runUpgradeBuilding(definition.effect)) || saved.buildingArsenalVersion >= 5)
-                ? MaxBuildingLevel : 1;
+                ? MaxStructureLevel : 1;
+            if (definition.effect == RunUpgradeEffect::UnlockWall)
+                return saved.runUpgradeStacks[index] > maximum ||
+                    saved.runUpgradePower[index] > maximum * runUpgradeRarityMultiplier(RunUpgradeRarity::Legendary);
             return saved.runUpgradeStacks[index] > maximum || saved.runUpgradePower[index] > maximum ||
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
@@ -518,7 +521,9 @@ bool Simulation::loadSuspendedRunState(
                 if (building.type == type) level = std::max(level, static_cast<int>(building.level));
         }
         runUpgradeStacks_[index] = level;
-        runUpgradePower_[index] = static_cast<double>(level);
+        runUpgradePower_[index] = type == BuildingType::Wall
+            ? std::max(static_cast<double>(level), runUpgradePower_[index])
+            : static_cast<double>(level);
     }
     insight_ = std::move(insightValidation);
     objectives_ = std::move(objectiveValidation);

@@ -16,6 +16,11 @@ namespace ian {
 inline constexpr std::uint8_t MaxBuildingLevel = 8;
 inline constexpr int CoreBuildRadiusPerLevel = 1;
 
+// Shared health progression for placement, upgrades and stat previews.
+[[nodiscard]] double buildingMaxHealthAtLevel(
+    double baseHealth, std::uint8_t level);
+[[nodiscard]] double wallMaxHealthAtPower(double baseHealth, double power);
+
 enum class BuildingType {
     Core,
     Wall,
@@ -231,7 +236,8 @@ class BuildingSystem {
     void setSandboxMode(bool enabled);
     void setCombatCardProgressionEnabled(bool enabled);
     // Returns true if any existing instance changes level. Preserves damage taken.
-    bool setCombatBlueprintLevel(BuildingType type, std::uint8_t level);
+    bool setCombatBlueprintLevel(BuildingType type, std::uint8_t level, double wallPower = 0.0);
+    std::optional<BuildingInstance> convertWallToGate(EntityId id);
     void setMaxHealthMultiplier(double multiplier);
     double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
@@ -297,6 +303,7 @@ class BuildingSystem {
     [[nodiscard]] ResourceCost cost(BuildingType type) const;
     [[nodiscard]] ResourceCost repairCost(const BuildingInstance& building) const;
     [[nodiscard]] ResourceCost sellRefund(const BuildingInstance& building) const;
+    [[nodiscard]] double blueprintMaxHealth(BuildingType type, std::uint8_t level) const;
 
     std::vector<BuildingInstance> buildings_;
     std::uint32_t nextIndex_{1000};
@@ -305,6 +312,7 @@ class BuildingSystem {
     int coreBuildRadius_;
     int buildingLimitBonus_{};
     double maxHealthMultiplier_{1.0};
+    double wallCardPower_{};
     bool newTowerBonusEnabled_{};
     bool sandboxMode_{};
     std::uint8_t newTowerBonusStacks_{};

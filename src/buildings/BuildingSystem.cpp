@@ -248,6 +248,24 @@ int addCostComponents(int left, int right) {
 
 } // namespace
 
+double buildingMaxHealthAtLevel(
+    double baseHealth, std::uint8_t level) {
+    return wallMaxHealthAtPower(baseHealth, level);
+}
+
+double wallMaxHealthAtPower(double baseHealth, double power) {
+    constexpr std::array<int, MaxBuildingLevel> LevelPercent{
+        100, 130, 160, 190, 220, 250, 280, 300};
+    const double safePower = std::isfinite(power) ? std::max(power, 1.0) : 1.0;
+    double percent = 300.0 + 20.0 * (safePower - MaxBuildingLevel);
+    if (safePower < MaxBuildingLevel) {
+        const auto index = static_cast<std::size_t>(std::floor(safePower)) - 1;
+        const double fraction = safePower - std::floor(safePower);
+        percent = LevelPercent[index] + fraction * (LevelPercent[index + 1] - LevelPercent[index]);
+    }
+    return 5.0 * std::round(baseHealth * percent / 500.0);
+}
+
 ResourceCost buildingCost(BuildingType type) {
     const auto& definition = defaultBuildingDefinitions()[buildingTypeIndex(type)];
     return {definition.wood, definition.stone, definition.crystals};
@@ -609,6 +627,16 @@ ResourceCost BuildingSystem::configuredCost(BuildingType type) const {
     return result;
 }
 
+double BuildingSystem::baseMaxHealth(BuildingType type) const {
+    return definition(type).maxHealth;
+}
+
+double BuildingSystem::blueprintMaxHealth(BuildingType type, std::uint8_t level) const {
+    if (wallCardPower_ > 0.0 && (type == BuildingType::Wall || type == BuildingType::Gate))
+        return wallMaxHealthAtPower(definition(BuildingType::Wall).maxHealth, wallCardPower_);
+    return buildingMaxHealthAtLevel(definition(type).maxHealth, level);
+}
+
 ResourceCost BuildingSystem::repairCost(const BuildingInstance& building) const {
     return repairCostFor(
         building, cost(building.type), economy_);
@@ -628,6 +656,11 @@ ResourceCost BuildingSystem::upgradeCost(const BuildingInstance& building) const
 void BuildingSystem::reset() {
     buildings_.clear();
     blueprintLevels_.fill(1);
+    coreHealthBaseLevel_ = 1;
+    coreBuildingBaseLevel_ = 1;
+    coreHealthPower_ = 0.0;
+    coreBuildingPower_ = 0.0;
+    wallCardPower_ = 0.0;
 }
 
 void BuildingSystem::setSandboxMode(bool enabled) {
@@ -638,13 +671,25 @@ void BuildingSystem::setCombatCardProgressionEnabled(bool enabled) {
     combatCardProgressionEnabled_ = enabled;
 }
 
-bool BuildingSystem::setCombatBlueprintLevel(BuildingType type, std::uint8_t level) {
-    if (type == BuildingType::Core || isRemovedStorageBuilding(type) ||
-        level < 1U || level > MaxBuildingLevel) return false;
+bool BuildingSystem::setCombatBlueprintLevel(BuildingType type, std::uint8_t level, double wallPower) {
+    if ((type == BuildingType::Core || isRemovedStorageBuilding(type)) ||
+        level < 1U) return false;
     blueprintLevels_[static_cast<std::size_t>(type)] = level;
+    if (type == BuildingType::Wall) wallCardPower_ = std::isfinite(wallPower) ? std::max(0.0, wallPower) : 0.0;
+    if (type == BuildingType::Wall)
+        blueprintLevels_[static_cast<std::size_t>(BuildingType::Gate)] = level;
     bool changed = false;
     for (auto& building : buildings_) {
-        if (building.type != type || building.level == level) continue;
+        const bool sharedDoor = type == BuildingType::Wall &&
+            building.type == BuildingType::Gate;
+        if (building.type != type && !sharedDoor) continue;
+        const double nextMaxHealth = blueprintMaxHealth(type, level) * maxHealthMultiplier_ *
+            buildingAnvilMultiplier(building);
+        const bool normalizeDoor = sharedDoor &&
+            std::abs(building.maxHealth - nextMaxHealth) > 1e-6;
+        const bool wallPowerChanged = type == BuildingType::Wall &&
+            std::abs(building.maxHealth - nextMaxHealth) > 1e-6;
+        if (building.level == level && !normalizeDoor && !wallPowerChanged) continue;
         const double damageTaken = building.maxHealth - building.health;
         building.level = level;
         building.maxHealth = definition(type).maxHealth *
@@ -667,8 +712,10 @@ void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
             1.0 + 0.15 * static_cast<double>(building.level - 1);
         const double towerMultiplier =
             buildingAnvilMultiplier(building);
-        building.maxHealth = definition(building.type).maxHealth *
-            levelMultiplier * next * towerMultiplier;
+        building.maxHealth = blueprintMaxHealth(building.type,
+            static_cast<std::uint8_t>(building.type == BuildingType::Core ? coreHealthBaseLevel_ : building.level)) *
+            (building.type == BuildingType::Core ? 1.0 + 0.15 * coreHealthPower_ : 1.0) *
+            next * towerMultiplier;
         building.health += building.maxHealth - previous;
     }
     maxHealthMultiplier_ = next;
@@ -787,9 +834,8 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         ? newTowerBonusStacks_ : 0U;
     const std::uint8_t level = combatCardProgressionEnabled_ &&
         type != BuildingType::Core
-        ? blueprintLevels_[static_cast<std::size_t>(type)] : blueprintLevel(type);
-    const double health = definition(type).maxHealth *
-        (1.0 + 0.15 * static_cast<double>(level - 1)) *
+        ? blueprintLevels_[static_cast<std::size_t>(type)] : 1U;
+    const double health = blueprintMaxHealth(type, level) *
         maxHealthMultiplier_ *
         buildingAnvilMultiplier(anvilStacks);
     BuildingInstance building{
@@ -1049,9 +1095,8 @@ UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int crys
     if (iterator->type == BuildingType::Core) {
         setCoreBuildRadius(coreBuildRadius() + CoreBuildRadiusPerLevel);
     }
-    iterator->maxHealth =
-        definition(iterator->type).maxHealth *
-        (1.0 + 0.15 * static_cast<double>(iterator->level - 1)) *
+    iterator->maxHealth = blueprintMaxHealth(iterator->type,
+        iterator->level) *
         maxHealthMultiplier_ *
         (buildingAnvilMultiplier(*iterator));
     iterator->health += iterator->maxHealth - previousMaxHealth;

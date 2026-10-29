@@ -376,6 +376,30 @@ int main(int argc, char** argv) {
             projected.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCatapult)] == 1,
             "new defense preview adds one type slot at level one");
     }
+    if (argc > 1) {
+        auto fence = snapshot;
+        fence.runUpgradeChoiceCount = 1;
+        fence.runUpgradeChoices[0] = ian::RunUpgradeEffect::UnlockWall;
+        fence.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockWall)] = 2;
+        fence.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockWall)] = 2.0;
+        fence.runUpgradeRarities[0] = ian::RunUpgradeRarity::Legendary;
+        fence.unlockedBuildings[static_cast<std::size_t>(ian::BuildingType::Wall)] = true;
+        fence.buildingBlueprintLevels[static_cast<std::size_t>(ian::BuildingType::Wall)] = 2;
+        fence.wallBaseMaxHealth = 100;
+        fence.upgradeStats.buildingHealth = 1.0;
+        SetWindowSize(1280, 720);
+        const auto target = LoadRenderTexture(1280, 720);
+        const std::array<float, ian::MaximumRunUpgradeChoices> hovers{};
+        BeginTextureMode(target);
+        ClearBackground({66, 96, 70, 255});
+        ian::app_detail::drawRunUpgradeOverlay(ui, fence, 2.0, 0.0, std::nullopt, hovers);
+        EndTextureMode();
+        auto capture = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&capture);
+        require(ExportImage(capture, (std::string(argv[1]) + "/wall-hp-upgrade.png").c_str()), "fence HP preview exported");
+        UnloadImage(capture);
+        UnloadRenderTexture(target);
+    }
     for (const ian::Language language : {ian::Language::English, ian::Language::Russian}) {
         ian::setLanguage(language);
         for (const Vector2 resolution : {Vector2{1920, 1080}, Vector2{1280, 720}}) {
