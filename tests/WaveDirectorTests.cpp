@@ -20,10 +20,10 @@ void runWaveDirectorTests() {
     require(std::isfinite(ian::enemyWaveHealthGrowth(std::numeric_limits<int>::max())) &&
                 ian::enemyWaveHealthGrowth(-10) == 1.0,
             "endless health growth stays finite and invalid waves normalize");
-    constexpr std::array<int, 6> ExpectedBudgets{10, 17, 23, 30, 44, 100};
-    constexpr std::array<double, 6> ExpectedHealth{.70, .9975, 1.3375, 1.737, 2.1875, 2.6975};
-    constexpr std::array<double, 6> ExpectedDamage{.68, .77, .86, .96, 1.07, 1.17};
-    constexpr std::array<int, 6> EarlyActiveStart{8, 14, 22, 32, 45, 60};
+    constexpr std::array<int, 6> ExpectedBudgets{8, 17, 23, 30, 44, 100};
+    constexpr std::array<double, 6> ExpectedHealth{.65, .9975, 1.3375, 1.737, 2.1875, 2.6975};
+    constexpr std::array<double, 6> ExpectedDamage{.60, .77, .86, .96, 1.07, 1.17};
+    constexpr std::array<int, 6> EarlyActiveStart{6, 14, 22, 32, 45, 60};
     for (int night = 1; night <= 6; ++night) {
         const auto plan = director.buildWave(night, {});
         requireNear(plan.spawns.front().healthMultiplier,
@@ -195,8 +195,8 @@ void runWaveDirectorTests() {
                 director.composition(9).airTank > 0,
         "enemy roles unlock in the specified order through night nine");
     require(
-        firstComposition.groupSize == 3 &&
-            firstComposition.groupInterval == 1.6,
+        firstComposition.groupSize == 2 &&
+            firstComposition.groupInterval == 2.0,
         "first timed night uses a manageable spawn cadence");
 
     const auto firstBuild = director.buildWave(4, {3, -2});
@@ -299,9 +299,9 @@ void runWaveDirectorTests() {
         "unbounded wave numbers keep a bounded spawn queue");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
-    requireNear(groupedWave.spawns.front().healthMultiplier, .70, 1e-12,
+    requireNear(groupedWave.spawns.front().healthMultiplier, .65, 1e-12,
                 "first night has gentle enemy health");
-    requireNear(groupedWave.spawns.front().damageMultiplier, .68, 1e-12,
+    requireNear(groupedWave.spawns.front().damageMultiplier, .60, 1e-12,
                 "first night forgives a few leaks");
     requireNear(groupedWave.spawns[0].position.z, -24.0, 1e-12,
                 "first group uses first attack direction");

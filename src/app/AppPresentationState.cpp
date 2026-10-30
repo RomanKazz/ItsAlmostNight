@@ -256,6 +256,7 @@ void App::addDamageIndicator(Vec3 sourcePosition,
 void App::addFloatingDamageNumber(
     Vec3 position, double damage, bool critical,
     double startDelay, std::optional<EntityId> targetId) {
+    if (!std::isfinite(damage) || damage <= 0.0) return;
     constexpr double MaximumCreationDistance = 28.0;
     const double deltaX =
         position.x - damageNumberObserverPosition_.x;
@@ -265,30 +266,46 @@ void App::addFloatingDamageNumber(
         MaximumCreationDistance * MaximumCreationDistance) {
         return;
     }
-    constexpr std::size_t MaximumNumbers = 32;
-    if (floatingDamageNumbers_.size() >= MaximumNumbers) {
-        floatingDamageNumbers_.erase(
-            floatingDamageNumbers_.begin());
-    }
-    std::array<bool, MaximumNumbers> occupiedLanes{};
-    for (const FloatingDamageNumber& number : floatingDamageNumbers_) {
-        const double separationX =
-            number.position.x - position.x;
-        const double separationZ =
-            number.position.z - position.z;
-        const bool nearbyEnemy =
-            separationX * separationX +
-                separationZ * separationZ < 1.1 * 1.1 &&
-            std::abs(number.position.y - position.y) < 1.0;
-        if ((targetId && number.targetId == targetId) ||
-            nearbyEnemy) {
-            occupiedLanes[number.lane] = true;
+    // Roll up a short burst on one target, without extending its lifetime or
+    // mixing critical hits with ordinary damage. Delayed impacts stay separate.
+    if (targetId && startDelay <= 0.0) {
+        for (auto number = floatingDamageNumbers_.rbegin(); number != floatingDamageNumbers_.rend(); ++number) {
+            if (number->targetId == targetId && number->critical == critical &&
+                number->startDelayRemaining <= 0.0 &&
+                number->duration - number->remaining < 0.12) {
+                number->damage += damage;
+                return;
+            }
         }
+    }
+    constexpr std::size_t MaximumNumbers = 32;
+    constexpr std::size_t MaximumNearbyNumbers = 7;
+    const auto nearby = [&](const FloatingDamageNumber& number) {
+        const double x = number.position.x - position.x;
+        const double z = number.position.z - position.z;
+        return (targetId && number.targetId == targetId) ||
+            (x * x + z * z < 1.1 * 1.1 && std::abs(number.position.y - position.y) < 1.0);
+    };
+    std::array<bool, MaximumNearbyNumbers> occupiedLanes{};
+    for (const FloatingDamageNumber& number : floatingDamageNumbers_) {
+        if (nearby(number)) occupiedLanes[number.lane % MaximumNearbyNumbers] = true;
     }
     std::uint8_t lane = 0;
     while (lane + 1U < occupiedLanes.size() &&
            occupiedLanes[lane]) {
         ++lane;
+    }
+    if (occupiedLanes[lane]) {
+        // Replace the oldest local label instead of building higher rows.
+        auto oldest = floatingDamageNumbers_.end();
+        for (auto number = floatingDamageNumbers_.begin(); number != floatingDamageNumbers_.end(); ++number) {
+            if (nearby(*number) && (oldest == floatingDamageNumbers_.end() ||
+                number->duration - number->remaining > oldest->duration - oldest->remaining)) oldest = number;
+        }
+        if (oldest != floatingDamageNumbers_.end()) {
+            lane = oldest->lane;
+            floatingDamageNumbers_.erase(oldest);
+        }
     }
     std::uint32_t randomState =
         (++floatingDamageSequence_) * 0x9e3779b9U;
@@ -313,6 +330,8 @@ void App::addFloatingDamageNumber(
         direction * (3.0F + random01() * 6.0F);
     const float rotationTravel =
         -direction * (7.0F + random01() * 8.0F);
+    if (floatingDamageNumbers_.size() >= MaximumNumbers)
+        floatingDamageNumbers_.erase(floatingDamageNumbers_.begin());
     floatingDamageNumbers_.push_back({
         .position = position,
         .targetId = targetId,

@@ -1,6 +1,6 @@
 {
   "waves": [
-    { "budget": 10, "basic": 10, "fast": 0, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 3, "groupInterval": 1.6 },
+    { "budget": 8, "basic": 8, "fast": 0, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 2, "groupInterval": 2.0 },
     { "budget": 17, "basic": 13, "fast": 2, "heavy": 0, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 3, "groupInterval": 1.6 },
     { "budget": 23, "basic": 12, "fast": 3, "heavy": 1, "ranged": 0, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 4, "groupInterval": 1.5 },
     { "budget": 30, "basic": 14, "fast": 4, "heavy": 1, "ranged": 1, "sapper": 0, "flying": 0, "splitter": 0, "groupSize": 4, "groupInterval": 1.4 },

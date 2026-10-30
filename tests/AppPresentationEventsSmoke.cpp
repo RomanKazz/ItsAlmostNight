@@ -2,6 +2,7 @@
 #include "app/AppRenderSupport.hpp"
 #include "app/TutorialPresentation.hpp"
 #include "ui/EnemySpawnMenu.hpp"
+#include "presentation/PresentationTimeline.hpp"
 #include <filesystem>
 #include <algorithm>
 #include <cstdlib>
@@ -19,6 +20,37 @@ struct AppPresentationTestAccess {
     static int run() {
         if (!checkRelicSaveJsonRoundTrip()) {std::cerr << "Relic JSON save roundtrip failed\n";return 1;}
         auto app=std::make_unique<App>();
+        {
+            const Vec3 anchor{0,1,0};
+            const EntityId target{456,1};
+            for(int hit=0;hit<100;++hit) app->addFloatingDamageNumber(anchor,4,false,0,target);
+            if(app->floatingDamageNumbers_.size()!=1 || app->floatingDamageNumbers_[0].damage!=400) {
+                std::cerr<<"Rapid damage was not combined per target\n";return 1;
+            }
+            const double remaining=app->floatingDamageNumbers_[0].remaining;
+            app->addFloatingDamageNumber(anchor,20,true,0,target);
+            if(app->floatingDamageNumbers_.size()!=2 || app->floatingDamageNumbers_[0].remaining!=remaining) {
+                std::cerr<<"Critical hits merged or damage text lifetime was extended\n";return 1;
+            }
+            app->floatingDamageNumbers_[0].remaining-=.13;
+            app->addFloatingDamageNumber(anchor,4,false,0,target);
+            if(app->floatingDamageNumbers_.size()!=3) {std::cerr<<"Damage burst window never closed\n";return 1;}
+            app->floatingDamageNumbers_.clear();
+            for(std::uint32_t hit=0;hit<100;++hit)
+                app->addFloatingDamageNumber(anchor,5,false,0,EntityId{hit,1});
+            std::array<bool,7> lanes{};
+            if(app->floatingDamageNumbers_.size()!=lanes.size()) {std::cerr<<"Crowded damage labels are unbounded\n";return 1;}
+            for(const auto& number:app->floatingDamageNumbers_) {
+                if(number.lane>=lanes.size() || lanes[number.lane]) {std::cerr<<"Crowded damage lanes overlap\n";return 1;}
+                lanes[number.lane]=true;
+            }
+            app->floatingDamageNumbers_.clear();
+            app->addFloatingDamageNumber(anchor,4,false,.2,target);
+            app->addFloatingDamageNumber(anchor,5,false,0,target);
+            if(app->floatingDamageNumbers_.size()!=2) {std::cerr<<"Delayed hit displayed before impact\n";return 1;}
+            presentation::advanceTimeline(app->floatingDamageNumbers_,1.0);
+            if(!app->floatingDamageNumbers_.empty()) {std::cerr<<"Damage numbers did not expire\n";return 1;}
+        }
         SetConfigFlags(FLAG_WINDOW_HIDDEN|FLAG_WINDOW_HIGHDPI);
         InitWindow(800,600,"Presentation event integration");
         if(!IsWindowReady()) return 77;

@@ -107,9 +107,9 @@ WaveDefinition encounterComposition(
 WaveDifficulty waveDifficulty(int wave) {
     const int night = std::max(1, wave);
     if (night <= 6) {
-        // Keep night one; retain 85% of the former onboarding HP growth.
-        constexpr std::array<double, 6> Health{.70, .9975, 1.3375, 1.737, 2.1875, 2.6975};
-        constexpr std::array<double, 6> Damage{.68, .77, .86, .96, 1.07, 1.17};
+        // Gentler first-night pressure; later onboarding keeps its existing curve.
+        constexpr std::array<double, 6> Health{.65, .9975, 1.3375, 1.737, 2.1875, 2.6975};
+        constexpr std::array<double, 6> Damage{.60, .77, .86, .96, 1.07, 1.17};
         constexpr std::array<double, 6> SpawnRate{.95, 1.0, 1.06, 1.12, 1.18, 1.24};
         const std::size_t index = static_cast<std::size_t>(night - 1);
         const double baseDamage = MainWaveDifficultyScale * (1.0 + .06 * (night - 1));
@@ -147,7 +147,7 @@ WaveDifficulty waveDifficulty(int wave) {
 double waveTargetActiveEnemies(int wave, NightPattern pattern, double progress) {
     const int night=std::max(1,wave);
     const int act=nightAct(std::clamp(progress,0.0,1.0));
-    constexpr std::array<double,10> Population{8,14,22,32,45,60,78,85,110,135};
+    constexpr std::array<double,10> Population{6,14,22,32,45,60,78,85,110,135};
     const double base=night<=10 ? Population[static_cast<std::size_t>(night-1)]
         : std::min(512.0,160.0+18.0*(night-11));
     const double patternScale=night<=5 ? 1.0 : std::max(.85,nightPopulationScale(pattern,night));

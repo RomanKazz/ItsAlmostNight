@@ -789,7 +789,7 @@ void runSimulationTests() {
         require(
             timedNight.snapshot().state == ian::RunState::Wave &&
                 timedNight.snapshot().activeEnemyCount >= 4U &&
-                timedNight.snapshot().activeEnemyCount <= 10U,
+                timedNight.snapshot().activeEnemyCount <= 8U,
             "first timed night builds continuous pressure without overcrowding");
         timedNight.tick(4.0);
         require(
@@ -857,8 +857,8 @@ void runSimulationTests() {
         ian::PlayerCommand startNight;
         startNight.startWaveEarly = ian::StartWaveEarlyCommand{};
         fastClearNight.tick(0.0, startNight);
-        require(fastClearNight.snapshot().activeEnemyCount == 3U &&
-                    fastClearNight.snapshot().pendingEnemyCount == 7U,
+        require(fastClearNight.snapshot().activeEnemyCount == 2U &&
+                    fastClearNight.snapshot().pendingEnemyCount == 6U,
             "fast-clear night starts with the configured group");
 
         const auto killEnemies = [&](int count) {
@@ -881,12 +881,12 @@ void runSimulationTests() {
             fastClearNight.tick(0.0, lightning);
         };
         killEnemies(3);
-        require(fastClearNight.snapshot().activeEnemyCount == 3U &&
+        require(fastClearNight.snapshot().activeEnemyCount == 2U &&
                     fastClearNight.snapshot().pendingEnemyCount == 4U,
                 "clearing the opening group immediately admits one replacement group");
-        fastClearNight.tick(1.61);
-        require(fastClearNight.snapshot().activeEnemyCount >= 3U &&
-                    fastClearNight.snapshot().pendingEnemyCount < 7U,
+        fastClearNight.tick(2.11);
+        require(fastClearNight.snapshot().activeEnemyCount >= 2U &&
+                    fastClearNight.snapshot().pendingEnemyCount < 6U,
                 "clearing a group does not leave a long empty night");
         fastClearNight.takeEvents();
         fastClearNight.tick(5.61);
@@ -4298,8 +4298,8 @@ void runSimulationTests() {
         simulation.snapshot().attackPortalPositions[
             static_cast<std::size_t>(ian::AttackDirection::South)]->z > 0.0,
         "south attack portal surrounds the enemy spawn lane");
-    require(simulation.snapshot().activeEnemyCount == 3 &&
-                simulation.snapshot().pendingEnemyCount == 7,
+    require(simulation.snapshot().activeEnemyCount == 2 &&
+                simulation.snapshot().pendingEnemyCount == 6,
             "early wave immediately spawns first enemy group");
     const ian::Vec3 southPortal =
         *simulation.snapshot().attackPortalPositions[
@@ -4331,8 +4331,8 @@ void runSimulationTests() {
     require(waveEventFound,
             "early wave emits WaveStarted event");
     require(simulation.snapshot().wave == 1 &&
-                simulation.snapshot().activeEnemyCount == 3 &&
-                simulation.snapshot().pendingEnemyCount == 7,
+                simulation.snapshot().activeEnemyCount == 2 &&
+                simulation.snapshot().pendingEnemyCount == 6,
             "first wave starts with configured enemy group");
     requireNear(simulation.snapshot().phaseDuration, 60.0, 1e-12,
                 "first night leaves room for early base expansion");
@@ -4342,7 +4342,7 @@ void runSimulationTests() {
             "quest tracker stays hidden during the first night");
     simulation.tick(8.0);
     require(simulation.snapshot().activeEnemyCount >= 4 &&
-                simulation.snapshot().activeEnemyCount <= 10,
+                simulation.snapshot().activeEnemyCount <= 8,
             "night builds pressure through regular reinforcements");
     const std::size_t activeBeforeDebugSpawn =
         simulation.snapshot().activeEnemyCount;

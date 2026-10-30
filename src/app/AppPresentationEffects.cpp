@@ -78,7 +78,7 @@ void App::drawFloatingDamageNumbers(
     constexpr float MaximumDamageNumberDistance = 25.0F;
     constexpr float FullOpacityDistance = 20.0F;
     constexpr float LaneHorizontal[]{
-        -0.75F, 0.75F, -1.50F, 1.50F};
+        0.0F, -0.40F, 0.40F, -0.75F, 0.75F, -1.10F, 1.10F};
     for (const FloatingDamageNumber& number :
          floatingDamageNumbers_) {
         if (number.startDelayRemaining > 0.0) {
@@ -109,17 +109,8 @@ void App::drawFloatingDamageNumbers(
                 fastMotion * number.verticalRise,
             static_cast<float>(number.position.z),
         };
-        if (number.lane > 0) {
-            const std::size_t laneIndex = number.lane - 1U;
-            animatedPosition.y +=
-                0.24F +
-                static_cast<float>(laneIndex / 4U) * 0.68F;
-            animatedPosition = Vector3Add(
-                animatedPosition,
-                Vector3Scale(
-                    cameraRight,
-                    LaneHorizontal[laneIndex % 4U]));
-        }
+        animatedPosition = Vector3Add(animatedPosition,
+            Vector3Scale(cameraRight, LaneHorizontal[number.lane % std::size(LaneHorizontal)]));
         animatedPosition = Vector3Add(
             animatedPosition,
             Vector3Scale(
