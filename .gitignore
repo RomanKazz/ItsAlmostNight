@@ -12,3 +12,25 @@ compile_commands.json
 
 # Local tester screenshots and comments
 /feedback/
+
+# Generated releases, rendered reviews and validation output.
+/dist/
+/output/
+/art/models/**/*_views/*.png
+/art/models/**/views/*.png
+/art/models/**/*_preview.png
+/art/models/**/*_comparison.png
+/art/models/**/level_*.png
+/art/models/**/levels_*.png
+/art/models/**/levels-*.png
+/art/models/**/all_levels.png
+/art/archive/**/*.png
+/art/models/**/*_beauty.png
+/art/models/**/*_front.png
+/art/models/**/*_back.png
+/art/models/**/*_side.png
+/art/models/**/*_top.png
+/art/models/**/game-*.png
+/art/models/**/runtime-*.png
+/art/models/**/family-comparison.png
+/art/models/**/before-after.png

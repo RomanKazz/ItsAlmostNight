@@ -95,7 +95,6 @@ class GameUi {
     [[nodiscard]] Texture2D runUpgradeTexture(
         RunUpgradeEffect effect) const;
     [[nodiscard]] Texture2D lootTexture(LootUpgradeEffect effect) const;
-    [[nodiscard]] Texture2D stumpPortraitTexture() const { return stumpPortrait_; }
     [[nodiscard]] Texture2D mainMenuLogoTexture() const;
     [[nodiscard]] Texture2D mainMenuTexture(MainMenuTexture texture) const;
     [[nodiscard]] Texture2D coreMenuTexture(
@@ -145,7 +144,6 @@ class GameUi {
     static Texture2D loadTexture(const char* path);
     static void unloadTexture(Texture2D& texture);
 
-    Texture2D stumpPortrait_{};
     Texture2D panel_{};
     Texture2D insetPanel_{};
     Texture2D button_{};

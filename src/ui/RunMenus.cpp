@@ -336,7 +336,7 @@ bool drawCreditsMenu(UiMenuMotion& motion, Vector2 screen, const MenuNavigationI
     panel(layout.rect(445,190,1030,695),layout.scale,MenuPageSurface);
     menuPageTitle(layout.rect(580,218,760,64),"CREDITS",layout.scale,motion);
     constexpr std::array<std::string_view,5> Credits{
-        "MADE WITH RAYLIB","ASSETS: KENNEY","ASSETS: KAYKIT","FONT: LILITA ONE","EFFECTS: BRACKEYS"};
+        "MADE WITH RAYLIB","ASSETS: KENNEY","ASSETS: KAYKIT","FONTS: CIKO / RUBIK ONE / BALSAMIQ SANS / DICO","EFFECTS: BRACKEYS"};
     for(std::size_t i=0;i<Credits.size();++i) {
         const float y=340+static_cast<float>(i)*70+(1-motion.reveal(static_cast<int>(i)))*12;
         text(Credits[i],layout.rect(560,y,800,44),26*layout.scale,

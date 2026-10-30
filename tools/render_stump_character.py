@@ -32,7 +32,6 @@ model=objects[0];assert len(model.data.materials)==1 and len(model.data.uv_layer
 assert all(math.isfinite(x) for v in model.data.vertices for x in v.normal)
 assert all(.98<v.normal.length<1.02 for v in model.data.vertices)
 for name,view in [('front',(0,-5,.15)),('side',(5,0,.15)),('back',(0,5,.15)),('top',(0,-.01,5)),('portrait',(2.4,-6,2.4))]:render(ART/(name+'.png'),view)
-render(ROOT/'assets/ui/characters/stump.png',(2.4,-6,2.4))
 for o in objects:bpy.data.objects.remove(o,do_unlink=True)
 for name,path in [('tree','assets/models/environment/tree.glb'),('club','assets/models/tools/club.glb'),('acorn','assets/models/items/relics/acorn.glb')]:
     before=set(studio.objects);bpy.ops.import_scene.gltf(filepath=str(ROOT/path));objs=[o for o in studio.objects if o not in before]

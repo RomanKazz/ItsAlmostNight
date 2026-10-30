@@ -120,7 +120,6 @@ GameUi::~GameUi() {
 
 void GameUi::initialize() {
     shutdown();
-    stumpPortrait_ = loadTexture("assets/ui/characters/stump.png");
     panel_ = loadTexture("assets/ui/cartoony/panel.png");
     insetPanel_ = loadTexture("assets/ui/cartoony/inset.png");
     button_ = loadTexture("assets/ui/cartoony/button.png");
@@ -418,7 +417,6 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
-    unloadTexture(stumpPortrait_);
     minimapLandscape_.shutdown();
     minimapMarkers_.clear();
     for (auto& icon : mapIcons_) unloadTexture(icon);
