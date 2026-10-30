@@ -225,7 +225,6 @@ std::string localizeText(std::string_view text) {
         // the genitive form before generic catalog fragments are applied.
         replaceAll(result, " BUILDINGS", " ЗДАНИЙ");
         replaceAll(result, " PIECES", " ДЕТАЛЕЙ");
-        replaceAll(result, " CRYSTALS", " КРИСТАЛЛОВ");
     }
     // Runtime labels are often composed from independently translated parts
     // (key binding + action, building name + state, and so on). Apply catalog

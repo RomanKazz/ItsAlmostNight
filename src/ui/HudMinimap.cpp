@@ -6,7 +6,6 @@
 #include "ui/GameUi.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiMenuStyle.hpp"
-#include "ui/MinimapSymbols.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -300,67 +299,81 @@ void drawMapIcons(GameUi& ui, const SimulationSnapshot& snapshot,
         if (marker.icon == MapIcon::Wood && !marker.highlighted) {
             const int cellX = static_cast<int>(std::floor(marker.position.x / 24));
             const int cellZ = static_cast<int>(std::floor(marker.position.z / 24));
-            if (((cellX % 2 + 2) % 2) != 1 || ((cellZ % 2 + 2) % 2) != 1) continue;
+            if (((cellX % 3 + 3) % 3) != 1 || ((cellZ % 3 + 3) % 3) != 1) continue;
         }
         const Vector2 point = minimapPoint(bounds, scale, 0,
             snapshot.playerPosition.x, snapshot.playerPosition.z, marker.position.x, marker.position.z);
         const bool important = marker.priority >= 3;
-        const float size = std::lerp(important ? 18.0F : 11.0F,
-            important ? 26.0F : 14.0F, expanded) * renderScale;
+        float size = std::lerp(important ? 19.0F : 14.0F, important ? 32.0F : 24.0F, expanded) * renderScale;
+        if (!important && marker.count == 1) size *= .82F;
         const float distance = Vector2Distance(point, center);
         if (distance > bounds.width * .5F - size * .65F - 3 * renderScale ||
             (!important && distance < 17 * renderScale)) continue;
-        const float collisionRadius = size * (important ? .54F : .36F);
+        const float collisionRadius = size * .36F;
         // Keep chest/challenge markers; decorative/resource markers yield first.
         if (marker.priority < 5 && std::ranges::any_of(occupied, [&](const Occupied& other) {
             return Vector2Distance(point, other.point) < collisionRadius + other.radius;
         })) continue;
         occupied.push_back({point, collisionRadius});
-        drawMinimapSymbol(marker.icon, point, size, important,
-            static_cast<float>(snapshot.playerYaw) * RAD2DEG, marker.highlighted);
+        if (marker.highlighted) {
+            DrawCircleV(point, size * .48F, {255, 206, 65, 100});
+            DrawCircleLinesV(point, size * .49F, {255, 232, 132, 245});
+        }
+        const Texture2D texture = ui.mapIconTexture(marker.icon);
+        if (IsTextureValid(texture)) {
+            // The target rotates with the compass; counter-rotate each symbol.
+            DrawTexturePro(texture, {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {point.x, point.y, size, size}, {size * .5F, size * .5F},
+                static_cast<float>(snapshot.playerYaw) * RAD2DEG, WHITE);
+        } else {
+            DrawCircleV(point, size * .28F, {255, 230, 175, 255});
+            DrawCircleLinesV(point, size * .28F, BLACK);
+        }
     }
 }
 
-void drawMapLegend(Rectangle mapBounds, float expansion) {
+void drawMapLegend(GameUi& ui, Rectangle mapBounds, float expansion) {
     if (expansion < .9F) return;
-    const float x = mapBounds.x + mapBounds.width + 48;
-    const float y = mapBounds.y + 12;
-    constexpr float width = 192;
-    menuStyle::text("PLACES", {x, y, width, 28}, 18, menuStyle::Muted, UiFontRole::Display);
-    constexpr std::array icons{MapIcon::Base, MapIcon::Chest, MapIcon::Supplies,
-        MapIcon::PlayerShrine, MapIcon::Industry, MapIcon::Challenge, MapIcon::Ruins, MapIcon::Boss};
-    constexpr std::array<std::string_view, 8> labels{
-        "BASE", "CHESTS", "SUPPLIES", "SHRINES", "INDUSTRY", "CHALLENGES", "SITES", "BOSS"};
-    constexpr float row = 34;
-    for (std::size_t i = 0; i < icons.size(); ++i) {
-        const float top = y + 36 + static_cast<float>(i) * row;
-        drawMinimapSymbol(icons[i], {x + 13, top + row * .5F}, 23, true);
-        menuStyle::text(labels[i], {x + 36, top, width - 36, row}, 17,
-            menuStyle::Cream, UiFontRole::Display);
-    }
-    const float resourceY = y + 36 + static_cast<float>(icons.size()) * row + 24;
-    DrawLineEx({x, resourceY - 12}, {x + width, resourceY - 12}, 1, {94, 108, 91, 255});
-    menuStyle::text("RESOURCES", {x, resourceY, width, 28}, 18,
-        menuStyle::Muted, UiFontRole::Display);
-    constexpr std::array resources{MapIcon::Wood, MapIcon::Stone, MapIcon::Crystal};
-    constexpr std::array<std::string_view, 3> resourceLabels{"WOOD", "STONE", "CRYSTALS"};
-    for (std::size_t i = 0; i < resources.size(); ++i) {
-        const float top = resourceY + 32 + static_cast<float>(i) * 29;
-        drawMinimapSymbol(resources[i], {x + 13, top + 14}, 23);
-        menuStyle::text(resourceLabels[i], {x + 36, top, width - 36, 29}, 16,
-            menuStyle::Cream, UiFontRole::Display);
-    }
-    const float biomesY = resourceY + 132;
-    DrawLineEx({x, biomesY - 12}, {x + width, biomesY - 12}, 1, {94, 108, 91, 255});
-    constexpr std::array<Color, 4> colors{{{91,126,76,255}, {158,132,84,255},
-        {111,145,151,255}, {122,87,119,255}}};
-    constexpr std::array<std::string_view, 4> biomes{"FOREST", "DESERT", "SNOW", "CORRUPTED"};
-    for (std::size_t i = 0; i < biomes.size(); ++i) {
-        const float top = biomesY + static_cast<float>(i / 2) * 26;
-        const float left = x + static_cast<float>(i % 2) * 100;
-        DrawRectangleRounded({left, top + 6, 10, 10}, .3F, 3, colors[i]);
-        menuStyle::text(biomes[i], {left + 16, top, 80, 23}, 11,
-            menuStyle::Muted, UiFontRole::Display);
+    constexpr std::array icons{MapIcon::Count, MapIcon::Base, MapIcon::Boss,
+        MapIcon::Ruins, MapIcon::Chest, MapIcon::Supplies, MapIcon::Challenge,
+        MapIcon::Wood, MapIcon::Stone, MapIcon::Crystal,
+        MapIcon::Forest, MapIcon::Desert, MapIcon::Snow, MapIcon::Corrupted,
+        MapIcon::Mountain};
+    constexpr std::array<std::string_view, 15> labels{"PLAYER", "BASE", "BOSS",
+        "SITES", "CHESTS", "SUPPLIES", "CHALLENGES", "WOOD", "STONE", "CRYSTALS",
+        "FOREST", "DESERT", "SNOW", "CORRUPTED", "RELIEF"};
+    const float row = std::clamp(mapBounds.height / 17.0F, 26.0F, 40.0F);
+    const float x = mapBounds.x + mapBounds.width + 86;
+    const float y = mapBounds.y + (mapBounds.height - row * 17 - 20) * .5F;
+    const Rectangle panel{x, y, 220, row * 17 + 20};
+    DrawRectangleRounded(panel, .06F, 8, {24, 26, 23, 226});
+    DrawRectangleRoundedLinesEx(panel, .06F, 8, 1.5F, {160, 147, 122, 140});
+    for (std::size_t i = 0; i < 17; ++i) {
+        const float top = y + 10 + static_cast<float>(i) * row;
+        const Vector2 iconCenter{x + 28, top + row * .5F};
+        std::string_view label;
+        if (i < icons.size()) {
+            label = labels[i];
+            if (icons[i] == MapIcon::Count) drawRoundedPlayerMarker(iconCenter, .95F, {255, 238, 192, 255});
+            else {
+                const Texture2D texture = ui.mapIconTexture(icons[i]);
+                if (IsTextureValid(texture)) DrawTexturePro(texture,
+                    {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                    {iconCenter.x - row*.46F, top + row*.04F, row*.92F, row*.92F}, {}, 0, WHITE);
+            }
+        } else if (i == 15) {
+            label = "WATER";
+            DrawEllipse(static_cast<int>(iconCenter.x), static_cast<int>(iconCenter.y), 16, 10, {92, 248, 223, 255});
+            DrawEllipse(static_cast<int>(iconCenter.x), static_cast<int>(iconCenter.y), 13, 8, {5, 167, 186, 255});
+        } else {
+            label = "PATHS";
+            for (int dash = 0; dash < 3; ++dash) DrawLineEx(
+                {iconCenter.x-16+dash*12.0F, iconCenter.y+3-dash*3.0F},
+                {iconCenter.x-9+dash*12.0F, iconCenter.y+1-dash*3.0F}, 3, {238, 211, 139, 255});
+        }
+        if (i > 0) DrawLineEx({x+12, top}, {x+208, top}, 1, {216, 197, 158, 20});
+        drawUiText(label, {x + 55, top + (row-17)*.5F},
+            fitObjectiveText(label, 15, 10, 150), {255, 238, 202, 255});
     }
 }
 
@@ -374,8 +387,8 @@ void ensureMinimapFrameTarget(GameUi& ui) {
     const Vector2 center{targetSize * 0.5F, targetSize * 0.5F};
     constexpr float mapRadius = CachedFrameMapDiameter * 0.5F;
     constexpr float frameScale = CachedFrameMapDiameter / 150.0F;
-    constexpr float outerPadding = 5.0F * frameScale;
-    constexpr float lightPadding = 2.2F * frameScale;
+    constexpr float outerPadding = 6.0F * frameScale;
+    constexpr float lightPadding = 2.8F * frameScale;
     constexpr float outerSpikeLength = 1.4F * frameScale;
     constexpr float lightSpikeLength = 1.0F * frameScale;
     constexpr float spikeHalfAngle = 0.13F;
@@ -384,17 +397,17 @@ void ensureMinimapFrameTarget(GameUi& ui) {
         spikeHalfAngle, 0.0F, {18, 23, 22, 255});
     drawRoundedCompassPlate(
         center, mapRadius + lightPadding, lightSpikeLength,
-        spikeHalfAngle, 0.0F, {118, 137, 111, 255});
+        spikeHalfAngle, 0.0F, {255, 230, 175, 255});
     // The collapsed border is static in compass coordinates.
     // Cache its 64-segment mesh with the compass frame instead of rebuilding
     // and submitting it every HUD frame.
-    constexpr float borderThickness = 1.0F * frameScale;
+    constexpr float borderThickness = 3.0F * frameScale;
     DrawRing(
         center,
         mapRadius - borderThickness,
         mapRadius,
         0.0F, 360.0F, CompassFrameSegments,
-        {118, 137, 111, 255});
+        {255, 230, 175, 255});
     ui.endMinimapFrameTarget();
 }
 
@@ -424,14 +437,14 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float expandedMapSize = std::max(
         collapsedMapSize,
         std::min(
-            static_cast<float>(uiScreenWidth()) * 0.62F,
-            std::min(static_cast<float>(uiScreenHeight()) * 0.70F,
-                static_cast<float>(uiScreenWidth()) - objectiveWidth - 390.0F)));
+            static_cast<float>(uiScreenWidth()) * 0.68F,
+            std::min(static_cast<float>(uiScreenHeight()) * 0.74F,
+                static_cast<float>(uiScreenWidth()) - objectiveWidth - 330.0F)));
     const float displayMapSize = std::lerp(
         collapsedMapSize, expandedMapSize, expanded);
-    const float panelPadding = std::lerp(4.0F, 54.0F, expanded);
-    const float headerHeight = std::lerp(0.0F, 60.0F, expanded);
-    const float panelWidth = displayMapSize + panelPadding * 2.0F + 244.0F * expanded;
+    const float panelPadding = std::lerp(4.0F, 20.0F, expanded);
+    const float headerHeight = std::lerp(0.0F, 42.0F, expanded);
+    const float panelWidth = displayMapSize + panelPadding * 2.0F;
     const float collapsedPanelWidth =
         collapsedMapSize + 4.0F * 2.0F;
     const float collapsedCompassMargin = 32.0F;
@@ -439,10 +452,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<float>(uiScreenWidth()) -
         collapsedPanelWidth - 12.0F - collapsedCompassMargin;
     const float expandedPanelX =
-        (static_cast<float>(uiScreenWidth()) - panelWidth + objectiveWidth) * 0.5F;
+        (static_cast<float>(uiScreenWidth()) - panelWidth + objectiveWidth - 290.0F) * 0.5F;
     const float expandedPanelY =
         static_cast<float>(uiScreenHeight()) * 0.5F -
-        (displayMapSize + panelPadding * 2.0F + headerHeight) * 0.5F;
+        displayMapSize * 0.5F - panelPadding - headerHeight;
     const float panelX = std::lerp(
         collapsedPanelX, expandedPanelX, expanded);
     const float panelY = std::lerp(
@@ -474,7 +487,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                  std::lround(192.0F * expanded))});
     }
     const int desiredTargetSize = expanded > 0.55F
-        ? 1024
+        ? 768
         : 512;
     ui.updateMinimapTarget(desiredTargetSize);
     const double minimapNow = GetTime();
@@ -613,9 +626,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const float maximum = mapSize * .5F - 18 * renderScale;
             const Vector2 marker = Vector2Add(mapCenter,
                 Vector2Scale(delta, distance > maximum ? maximum / distance : 1));
-            const float size = std::lerp(22.0F, 32.0F, expanded) * renderScale;
-            drawMinimapSymbol(MapIcon::Base, marker, size, true,
-                static_cast<float>(compassYaw) * RAD2DEG);
+            const Texture2D texture = ui.mapIconTexture(MapIcon::Base);
+            const float size = std::lerp(25.0F, 39.0F, expanded) * renderScale;
+            if (IsTextureValid(texture)) DrawTexturePro(texture,
+                {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+                {marker.x, marker.y, size, size}, {size*.5F, size*.5F},
+                static_cast<float>(compassYaw) * RAD2DEG, WHITE);
             break;
         }
         case BuildingType::Turret:
@@ -822,9 +838,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         if (!enemy.active || enemy.state == EnemyState::Dead || enemy.type != EnemyType::Boss) continue;
         const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
         if (!pointVisible(point)) continue;
-        const float size = std::lerp(23.0F, 32.0F, expanded) * renderScale;
-        drawMinimapSymbol(MapIcon::Boss, point, size, true,
-            static_cast<float>(compassYaw) * RAD2DEG);
+        const Texture2D texture = ui.mapIconTexture(MapIcon::Boss);
+        const float size = std::lerp(25.0F, 38.0F, expanded) * renderScale;
+        if (IsTextureValid(texture)) DrawTexturePro(texture,
+            {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+            {point.x, point.y, size, size}, {size*.5F, size*.5F},
+            static_cast<float>(compassYaw) * RAD2DEG, WHITE);
     }
 
     const Vector2 player = mapPoint(
@@ -943,19 +962,6 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         return;
     }
 
-    if (expanded > .01F) {
-        const float opacity = std::clamp((expanded - .35F) / .55F, 0.0F, 1.0F);
-        const Rectangle panel{panelX, panelY, panelWidth,
-            displayMapSize + panelPadding * 2 + headerHeight};
-        menuStyle::panel(panel, 1, {33, 43, 36, 255}, opacity);
-        if (expanded > .9F) {
-            menuStyle::text("WORLD MAP", {panelX + 30, panelY + 14, panelWidth - 60, 44},
-                30, menuStyle::Cream, UiFontRole::Display, 1);
-            DrawLineEx({panelX + 24, panelY + 68}, {panelX + panelWidth - 24, panelY + 68},
-                1, {78, 93, 76, 255});
-        }
-    }
-
     const Vector2 displayMapCenter{
         displayMapBounds.x + displayMapSize * 0.5F,
         displayMapBounds.y + displayMapSize * 0.5F,
@@ -963,12 +969,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float frameScale = std::clamp(
         displayMapSize / 150.0F, 1.0F, 3.5F);
     const float mapRadius = displayMapSize * 0.5F;
-    const float outerPadding = std::lerp(5.0F * frameScale, 7.0F, expanded);
-    const float lightPadding = std::lerp(2.2F * frameScale, 3.5F, expanded);
+    const float outerPadding = 6.0F * frameScale;
+    const float lightPadding = 2.8F * frameScale;
     const float outerSpikeLength = 1.4F * frameScale;
     const float lightSpikeLength = 1.0F * frameScale;
     constexpr float SpikeHalfAngle = 0.13F;
-    const float shadowOffset = std::lerp(4.0F * frameScale, 5.0F, expanded);
+    const float shadowOffset = 4.0F * frameScale;
     const float compassRotation =
         static_cast<float>(compassYaw);
     const float mapRotationDegrees =
@@ -1029,7 +1035,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             displayMapCenter,
             mapRadius + lightPadding, lightSpikeLength,
             SpikeHalfAngle, compassRotation,
-            {118, 137, 111, 255});
+            {255, 230, 175, 255});
     }
     ui.drawMinimapTarget(displayMapBounds, mapRotationDegrees);
     if (expanded > .55F) {
@@ -1037,11 +1043,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         for (int tick = 0; tick < 48; ++tick) {
             const float angle = static_cast<float>(tick) * 2 * PI / 48 - compassRotation;
             const Vector2 direction{std::cos(angle), std::sin(angle)};
-            const float tickLength = tick % 4 == 0 ? 6.0F : 3.0F;
-            const float tickRadius = mapRadius - 5.0F;
+            const float tickLength = (tick % 4 == 0 ? 3.0F : 1.6F) * frameScale;
+            const float tickRadius = mapRadius + 1.8F * frameScale;
             DrawLineEx(Vector2Add(displayMapCenter, Vector2Scale(direction, tickRadius)),
                 Vector2Add(displayMapCenter, Vector2Scale(direction, tickRadius - tickLength)),
-                tick % 4 == 0 ? 1.8F : 1.1F, {198, 209, 179, 140});
+                tick % 4 == 0 ? 1.8F : 1.1F, {88, 76, 53, 255});
         }
     }
     Vector2 displayPlayer = minimapPoint(displayMapBounds,
@@ -1072,12 +1078,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     drawRoundedPlayerMarker(displayPlayer,
         std::lerp(1.0F, 1.55F, expanded) * 1.25F, playerColor, heading);
     if (expanded > 0.001F) {
-        const float borderThickness = std::lerp(1.0F * frameScale, 1.5F, expanded);
+        const float borderThickness = 3.0F * frameScale;
         DrawRing(
             displayMapCenter,
             displayMapSize * 0.5F - borderThickness,
             displayMapSize * 0.5F, 0.0F, 360.0F, CompassFrameSegments,
-            {118, 137, 111, 255});
+            {255, 230, 175, 255});
     }
     for (std::size_t index = 0;
          index < snapshot.upcomingAttackDirections.size(); ++index) {
@@ -1123,11 +1129,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     minimapSectionStart = PerformanceClock::now();
 
     const float compassRenderedSize =
-        std::lerp(22.0F, 31.0F, expanded);
+        std::lerp(22.0F, 42.0F, expanded);
     const float compassFontSize =
         compassRenderedSize / 1.68F;
     const float compassRadius =
-        mapRadius + outerPadding + std::lerp(8.0F * frameScale, 16.0F, expanded);
+        mapRadius + outerPadding + outerSpikeLength +
+        7.0F * frameScale;
     const auto drawCompassLabel =
         [compassFontSize, frameScale, warningPulse, warningIntro,
          warningColor](
@@ -1174,7 +1181,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         snapshot, panelX, panelY,
         displayMapSize + panelPadding * 2.0F + headerHeight,
         expanded);
-    drawMapLegend(displayMapBounds, expanded);
+    drawMapLegend(ui, displayMapBounds, expanded);
     minimapPerformanceStats.labelsMs =
         performanceMilliseconds(minimapSectionStart);
 }

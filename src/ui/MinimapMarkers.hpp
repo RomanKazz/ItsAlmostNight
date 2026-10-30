@@ -6,7 +6,7 @@
 
 namespace ian {
 struct SimulationSnapshot;
-enum class MapIcon { Chest, Wood, Stone, Crystal, Ruins, Supplies, Challenge, Forest, Desert, Snow, Corrupted, Mountain, Base, Boss, Boulders, PlayerShrine, BuildingShrine, Industry, Count };
+enum class MapIcon { Chest, Wood, Stone, Crystal, Ruins, Supplies, Challenge, Forest, Desert, Snow, Corrupted, Mountain, Base, Boss, Boulders, Count };
 struct MinimapMarker {
     MapIcon icon;
     Vec3 position;

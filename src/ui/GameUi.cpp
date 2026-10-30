@@ -60,7 +60,7 @@ Texture2D createPoisonUpgradeIcon() {
 
 constexpr float UiTextScale = 1.68F;
 constexpr int MinimapTargetSize = 512;
-constexpr int MaximumMinimapTargetSize = 1024;
+constexpr int MaximumMinimapTargetSize = 768;
 constexpr int MinimapFrameTargetSize = 1024;
 
 std::string localizedCopy(std::string_view text) {
@@ -314,6 +314,19 @@ void GameUi::initialize() {
             loadTexture(CoreMenuTexturePaths[index]);
         smoothHudIcon(coreMenuTextures_[index]);
     }
+    constexpr std::array MapIconPaths{
+        "assets/ui/map/chest.png", "assets/ui/map/wood.png", "assets/ui/map/stone.png",
+        "assets/ui/map/crystal.png", "assets/ui/map/ruins.png", "assets/ui/map/supplies.png",
+        "assets/ui/map/challenge.png", "assets/ui/map/forest.png", "assets/ui/map/desert.png",
+        "assets/ui/map/snow.png", "assets/ui/map/corrupted.png", "assets/ui/map/mountain.png",
+        "assets/ui/map/base.png", "assets/ui/map/boss.png", "assets/ui/map/boulders.png"};
+    for (std::size_t i = 0; i < mapIcons_.size(); ++i) {
+        if (i == static_cast<std::size_t>(MapIcon::Wood) ||
+            i == static_cast<std::size_t>(MapIcon::Stone) ||
+            i == static_cast<std::size_t>(MapIcon::Crystal)) continue;
+        mapIcons_[i] = loadTexture(MapIconPaths[i]);
+        smoothHudIcon(mapIcons_[i]);
+    }
     const auto utilityIcon=[](MetaShopUpgrade upgrade) {
         const auto target=LoadRenderTexture(256,256);
         BeginTextureMode(target);ClearBackground(BLANK);
@@ -406,6 +419,7 @@ void GameUi::initialize() {
 void GameUi::shutdown() {
     minimapLandscape_.shutdown();
     minimapMarkers_.clear();
+    for (auto& icon : mapIcons_) unloadTexture(icon);
     minimapTargetCacheValid_ = false;
     minimapFrameTargetCacheValid_ = false;
     minimapTargetLastRefreshSeconds_ = 0.0;
@@ -486,6 +500,17 @@ void GameUi::prepareMinimapLandscape(const SimulationSnapshot& snapshot) {
 
 void GameUi::drawMinimapLandscape(const SimulationSnapshot& snapshot, Rectangle bounds, double radius) {
     minimapLandscape_.draw(snapshot, bounds, radius);
+}
+
+Texture2D GameUi::mapIconTexture(MapIcon icon) const {
+    switch (icon) {
+    case MapIcon::Wood: return resourceWood_;
+    case MapIcon::Stone: return resourceStone_;
+    case MapIcon::Crystal: return resourceCrystal_;
+    default: break;
+    }
+    const auto index = static_cast<std::size_t>(icon);
+    return index < mapIcons_.size() ? mapIcons_[index] : Texture2D{};
 }
 
 void GameUi::updateMinimapMarkers(const SimulationSnapshot& snapshot) {

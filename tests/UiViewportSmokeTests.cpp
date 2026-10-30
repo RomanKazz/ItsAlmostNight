@@ -230,6 +230,18 @@ int main(int argc, char** argv) {
     verifyMapMarkers(snapshot);
     verifyMapWater(snapshot);
     verifyHudFade(ui, snapshot);
+    require(ui.mapIconTexture(MapIcon::Wood).id == ui.resourceTexture(UiResourceIcon::Wood).id &&
+        ui.mapIconTexture(MapIcon::Stone).id == ui.resourceTexture(UiResourceIcon::Stone).id &&
+        ui.mapIconTexture(MapIcon::Crystal).id == ui.resourceTexture(UiResourceIcon::Crystal).id,
+        "resource clusters reuse the exact HUD textures");
+    for (int icon = 0; icon < static_cast<int>(MapIcon::Count); ++icon) {
+        const Texture2D texture = ui.mapIconTexture(static_cast<MapIcon>(icon));
+        require(IsTextureValid(texture) && texture.width == 256 && texture.height == 256,
+            "map icons are loaded at the same 256x256 resolution");
+        Image image = LoadImageFromTexture(texture);
+        require(GetImageColor(image, 0, 0).a == 0, "map icon background remains transparent");
+        UnloadImage(image);
+    }
     snapshot.coreMaxHealth = 500;
     snapshot.coreLevel = 1;
     snapshot.coreHealth = 350;
