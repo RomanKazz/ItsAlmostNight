@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiMenuMotion.hpp"
 
 #include "progression/QuestSystem.hpp"
 #include "ui/GameUi.hpp"
@@ -18,6 +19,7 @@ struct QuestRewardFlight {
 };
 
 struct QuestMenuState {
+    UiMenuMotion motion;
     std::optional<QuestCategory> category;
     bool completedLast{true};
     std::string selectedId;
@@ -36,6 +38,7 @@ struct QuestMenuInput {
     int selectionStep{};
     int categoryStep{};
     float deltaTime{};
+    bool reduceEffects{};
 };
 
 struct QuestMenuResult { bool close{}; bool purchase{}; bool rewardClaimed{}; bool interaction{}; };

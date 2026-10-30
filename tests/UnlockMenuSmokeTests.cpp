@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
             auto result = ian::drawUnlockMenu(ui, quests, profile, state, viewport);
             require(!result.close && state.selectedId == "class:0", "opening selects a real class");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport,
-                {.pointer = point(798,370), .click = true});
+                {.pointer = point(1450,520), .click = true});
             require(state.selectedId == "class:3", "the fourth test class can be selected for details");
             result = ian::drawUnlockMenu(ui, quests, profile, state, viewport,
                 {.pointer = point(1520,880), .click = true});

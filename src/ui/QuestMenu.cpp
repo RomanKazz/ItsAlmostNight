@@ -118,8 +118,10 @@ bool rewardButton(const GameUi& ui, Rectangle bounds, const UiMenuLayout& layout
                   const QuestMenuInput& input, int amount) {
     const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
     panel(bounds, layout.scale, hovered ? Color{255, 204, 0, 255} : menuStyle::Selected);
-    text("COLLECT", {bounds.x + 8 * layout.scale, bounds.y, 100 * layout.scale, bounds.height},
-        14 * layout.scale, Cream, UiFontRole::Display, 1);
+    text("COLLECT", {bounds.x + 8 * layout.scale, bounds.y,
+        (amount>0?100:168) * layout.scale, bounds.height},
+        17 * layout.scale, Cream, UiFontRole::Display, 1);
+    if(amount<=0) return hovered && input.click;
     ui.drawResourceIcon({bounds.x + 116 * layout.scale, bounds.y + 8 * layout.scale,
         28 * layout.scale, 28 * layout.scale}, UiResourceIcon::Silver);
     text(std::to_string(amount), {bounds.x + 148 * layout.scale, bounds.y, 28 * layout.scale, bounds.height},
@@ -276,6 +278,7 @@ QuestMenuResult drawQuestMenu(
     QuestMenuState& state, Vector2 viewport, const QuestMenuInput& input) {
     const auto layout = UiMenuLayout::fromViewport(viewport);
     updateRewardFlights(state, input.deltaTime);
+    state.motion.advance(input.deltaTime,input.reduceEffects);
     QuestMenuResult result{.close = input.close};
     if (input.categoryStep != 0) {
         const int index = (static_cast<int>(tabIndex(state)) + input.categoryStep + 9) % 9;
@@ -283,16 +286,15 @@ QuestMenuResult drawQuestMenu(
         result.interaction = true;
     }
     const auto bounds = questMenuPanelBounds(viewport);
-    panel(bounds, layout.scale, menuStyle::Frame);
-    panel(layout.rect(194, 104, 1532, 84), layout.scale, menuStyle::Card);
-    text("QUESTS", layout.rect(218, 110, 360, 68), 32 * layout.scale, Cream, UiFontRole::Display);
+    state.motion.select(static_cast<int>(tabIndex(state)),state.selectedId);
+    panel(bounds,layout.scale,MenuPageSurface);
+    menuPageTitle(layout.rect(600,110,720,68),"QUESTS",layout.scale,state.motion);
     const auto all = quests.statuses(profile, state.completedLast);
     const auto done = static_cast<std::size_t>(std::ranges::count_if(all, [](const auto& row) { return row.completed; }));
     const auto total = all.size();
     const std::string summary = std::to_string(done) + " / " + std::to_string(total);
-    text("COMPLETED", layout.rect(590, 115, 220, 28), 13 * layout.scale, Muted, UiFontRole::BodyBold);
-    text(summary, layout.rect(810, 114, 230, 30), 17 * layout.scale, Cream, UiFontRole::BodyBold, 2);
-    bar(layout.rect(590, 158, 450, 8), total == 0 ? 0 : static_cast<double>(done) / static_cast<double>(total), Green);
+    text(summary,layout.rect(218,122,220,38),24*layout.scale,Green,UiFontRole::MenuBodyBold);
+    bar(layout.rect(218,167,220,5),total==0?0:static_cast<double>(done)/static_cast<double>(total),Green);
     // Wallet writes happen on claim; only its presentation waits for arrivals.
     // Closing the screen or quitting mid-flight cannot lose a claimed reward.
     std::int64_t inFlightSilver = 0;
@@ -316,12 +318,9 @@ QuestMenuResult drawQuestMenu(
         const auto category = quests.categoryProgress(profile,
             i == 0 ? std::nullopt : std::optional{static_cast<QuestCategory>(i - 1)});
         const bool selected = tabIndex(state) == i;
-        panel(tab, layout.scale, menuStyle::selectionFill(selected, CheckCollisionPointRec(input.pointer, tab)));
-        text(TabNames[i], layout.rect(x + 8, 209, category.unclaimedRewards > 0 ? 122 : 144, 27), 13 * layout.scale,
-            !selected && category.total == 0 ? Muted : Cream, UiFontRole::Display, 1);
-        text(std::to_string(category.completed) + " / " + std::to_string(category.total),
-            layout.rect(x + 8, 238, 144, 19), 11 * layout.scale, selected ? Cream : Muted,
-            UiFontRole::BodyBold, 1);
+        menuChoicePlate(tab,layout.scale,selected,CheckCollisionPointRec(input.pointer,tab),false,state.motion);
+        text(TabNames[i],layout.rect(x+7,211,146,44),17*layout.scale,
+            !selected && category.total==0?Muted:Cream,UiFontRole::Display,1);
         const auto badge = layout.rect(x + 148, 205, 0, 0);
         drawUiNotificationBadge({badge.x, badge.y}, 13 * layout.scale, category.unclaimedRewards);
     }
@@ -334,7 +333,7 @@ QuestMenuResult drawQuestMenu(
     DrawRectangleRec(layout.rect(205, 279, 21, 21), BLACK);
     DrawRectangleRec(layout.rect(208, 282, 15, 15), menuStyle::Inset);
     if (state.completedLast) check({layout.rect(215, 289, 0, 0).x, layout.rect(215, 289, 0, 0).y}, 17 * layout.scale, Green);
-    text("COMPLETED LAST", layout.rect(238, 278, 260, 24), 12 * layout.scale, Cream);
+    text("COMPLETED LAST", layout.rect(238, 278, 260, 24), 15 * layout.scale, Cream);
 
 
     // Rebuild order after a sort/tab click, retaining selection by stable ID.
@@ -367,6 +366,7 @@ QuestMenuResult drawQuestMenu(
     }
     state.scroll = std::clamp(state.scroll, 0.0F, maximumScroll);
 
+    std::string hoveredId;
     beginUiScissor(static_cast<int>(list.x), static_cast<int>(list.y),
         static_cast<int>(list.width), static_cast<int>(list.height));
     for (std::size_t i = 0; i < rows.size(); ++i) {
@@ -380,10 +380,11 @@ QuestMenuResult drawQuestMenu(
             selectedIndex = i;
             result.interaction = true;
         }
+        if(hovered) hoveredId=row.definition->id;
         const bool active = row.definition->id == state.selectedId;
-        panel(rowBounds, layout.scale, menuStyle::selectionFill(active, hovered, !row.prerequisitesMet));
-        icon(ui, *row.definition, layout.rect(213, y + 7, 46, 46), layout.scale);
-        text(row.definition->title, layout.rect(278, y + 9, 835, 42), 18 * layout.scale,
+        menuChoicePlate(rowBounds,layout.scale,active,hovered,!row.prerequisitesMet,state.motion);
+        icon(ui,*row.definition,state.motion.icon(layout.rect(213,y+7,46,46),static_cast<int>(i),active,row.definition->id),layout.scale);
+        text(row.definition->title, layout.rect(278, y + 9, 835, 42), 22 * layout.scale,
             active || row.prerequisitesMet ? Cream : Muted, UiFontRole::BodyBold);
         text(counter(row), layout.rect(1140, y + 4, 265, 36), 17 * layout.scale,
             active ? Cream : row.completed ? Green : Cream, UiFontRole::BodyBold, 1);
@@ -395,15 +396,17 @@ QuestMenuResult drawQuestMenu(
                     startRewardFlight(state, {1630, y + 30}, claim.silverGranted);
                     result.rewardClaimed = true;
                     result.interaction = true;
+                    state.motion.feedback=.36F;
                 }
             }
         } else if (row.completed) check({layout.rect(1628, y + 31, 0, 0).x, layout.rect(1628, y + 31, 0, 0).y}, 28 * layout.scale, Green);
         else {
-            silver(ui, layout, 1540, y + 16, row.definition->reward.silver);
-            if (!row.prerequisitesMet) text("LOCKED", layout.rect(1430, y + 17, 95, 26), 11 * layout.scale, Muted, UiFontRole::BodyBold, 1);
+            if(row.definition->reward.silver>0) silver(ui,layout,1540,y+16,row.definition->reward.silver);
         }
     }
     EndScissorMode();
+    state.motion.hover(hoveredId);
+    state.motion.select(static_cast<int>(tabIndex(state)),state.selectedId);
     if (rows.empty()) {
         text("NO QUESTS IN THIS CATEGORY YET", layout.rect(400, 477, 1100, 60), 20 * layout.scale,
             Muted, UiFontRole::BodyBold, 1);
@@ -418,13 +421,12 @@ QuestMenuResult drawQuestMenu(
     if (!rows.empty()) {
         const auto& row = rows[selectedIndex];
         const auto& definition = *row.definition;
-        icon(ui, definition, layout.rect(222, 819, 96, 96), layout.scale);
-        text(definition.title, layout.rect(342, 814, 1060, 37), 20 * layout.scale, Cream, UiFontRole::Display);
+        icon(ui,definition,state.motion.icon(layout.rect(222,819,96,96),0,true,state.selectedId),layout.scale);
+        text(definition.title, layout.rect(342, 814, 1060, 37), 25 * layout.scale, Cream, UiFontRole::Display);
         const bool runGoal = std::ranges::any_of(definition.conditions, [](const auto& condition) { return condition.scope == QuestScope::Run; });
         const std::string description = definition.description != definition.title ? definition.description
-            : runGoal ? "IN ONE RUN. UNFINISHED PROGRESS RESETS ON A NEW RUN."
-                      : "LIFETIME GOAL. PROGRESS IS SAVED BETWEEN RUNS.";
-        text(description, layout.rect(342, 858, 1060, 27), 13 * layout.scale, Cream);
+            : runGoal ? "ONE RUN" : "ALL RUNS";
+        text(description, layout.rect(342, 858, 1060, 32), 19 * layout.scale, Cream);
         std::string detail = row.rewardAvailable ? localizeText("COMPLETED — COLLECT REWARD")
             : row.completed ? localizeText("COMPLETED — REWARD RECEIVED")
             : localizeText(runGoal ? "ONE RUN" : "ALL RUNS") + "   " + counter(row);
@@ -437,16 +439,17 @@ QuestMenuResult drawQuestMenu(
         }
         if (!row.completed && row.failedThisRun)
             detail += " — " + localizeText("FAILED THIS RUN");
-        text(detail, layout.rect(342, 900, 1060, 28), 13 * layout.scale,
+        text(detail, layout.rect(342, 904, 1060, 28), 16 * layout.scale,
             row.completed ? Green : !row.prerequisitesMet ? Muted : Cream, UiFontRole::BodyBold);
         if (row.unlockAvailable && !row.unlockOwned && definition.reward.purchaseCost > 0) {
             const std::string label = localizeText("BUY") + "  " + std::to_string(definition.reward.purchaseCost);
             text(unlockName(definition.reward.unlockId), layout.rect(1428, 817, 261, 30), 15 * layout.scale, Gold, UiFontRole::BodyBold, 1);
-            text("AVAILABLE TO BUY", layout.rect(1428, 851, 261, 18), 10 * layout.scale, Green, UiFontRole::BodyBold, 1);
+
             const bool affordable = profile.silver >= definition.reward.purchaseCost;
             if (button(layout.rect(1437, 873, 252, 53), label, layout, input, affordable)) {
                 result.purchase = quests.purchaseUnlock(profile, definition.reward.unlockId) == QuestPurchaseResult::Purchased;
                 result.interaction = true;
+                if(result.purchase) state.motion.feedback=.36F;
             }
             if (!affordable) text("NOT ENOUGH SILVER", layout.rect(1428, 933, 261, 17),
                 10 * layout.scale, Red, UiFontRole::BodyBold, 1);
@@ -459,9 +462,11 @@ QuestMenuResult drawQuestMenu(
                 : row.completed ? std::string_view{"REWARD RECEIVED"} : std::string_view{"REWARD"};
             text(label, layout.rect(1428, 822, 261, 30),
                 12 * layout.scale, row.completed ? Green : Muted, UiFontRole::BodyBold, 1);
-            silver(ui, layout, 1505, 871, definition.reward.silver, 38);
+            if(definition.reward.silver>0) silver(ui,layout,1505,871,definition.reward.silver,38);
         }
     }
+    const auto burst=layout.rect(270,868,0,0);
+    menuActionBurst({burst.x,burst.y},54*layout.scale,state.motion);
     drawRewardFlights(ui, layout, state);
     if (result.close) {
         state.rewardFlights.clear();

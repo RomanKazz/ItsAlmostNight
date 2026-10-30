@@ -418,6 +418,7 @@ class App {
     bool classCollectionOnly_{};
     MainMenuPage mainMenuPage_{MainMenuPage::None};
     MainMenuHomeState mainMenuHomeState_;
+    UiMenuMotion creditsMenuMotion_;
     ClassSelectionState classSelectionState_;
     PauseMenuState pauseMenuState_;
     RunSummaryState runSummaryState_;

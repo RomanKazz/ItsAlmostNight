@@ -398,6 +398,14 @@ int main(int argc, char** argv) {
                 for (const auto& line : lines) require(measureUiText(line,18).x<=180,
                     "localized tooltip wrapping preserves the available text width"); }
             setLanguage(language);
+            UiMenuMotion credits;
+            BeginTextureMode(target); ClearBackground({76,114,64,255});
+            for(int frame=0;frame<6;++frame)
+                require(!drawCreditsMenu(credits,screen,{.deltaTime=.1F}),"credits never close without an action");
+            EndTextureMode(); capture("credits");
+            BeginTextureMode(target);
+            require(drawCreditsMenu(credits,screen,{.activate=true}),"Enter returns from credits");
+            EndTextureMode();
             drawPause({}); capture("pause");
             summaryState = {};
             summary.stageCleared = false; drawSummary({}); capture("defeat");

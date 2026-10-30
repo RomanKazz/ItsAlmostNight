@@ -177,6 +177,7 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
                                UnlockMenuState& state, Vector2 viewport, const UnlockMenuInput& input) {
     const UiMenuLayout l = UiMenuLayout::fromViewport(viewport);
     UnlockMenuResult result{.close = input.close, .questId = {}, .shopUnlockId = {}};
+    state.motion.advance(input.deltaTime,input.reduceEffects);
     if (static_cast<std::size_t>(state.category) >= TabNames.size()) selectCategory(state, 0);
     if (input.categoryStep != 0) {
         const int next = (static_cast<int>(state.category) + (input.categoryStep > 0 ? 1 : -1) + 6) % 6;
@@ -210,9 +211,9 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
             ? top + CellStep - GridHeight : state.scroll, 0.0F, maxScroll);
         result.interaction = true;
     }
-    panel(unlockMenuPanelBounds(viewport), l.scale, menuStyle::Frame);
-    panel(l.rect(248, 128, 1424, 73), l.scale, menuStyle::Card);
-    text("UNLOCKS", l.rect(270, 138, 650, 50), 32 * l.scale, Cream, UiFontRole::Display);
+    state.motion.select(static_cast<int>(state.category),state.selectedId);
+    panel(unlockMenuPanelBounds(viewport), l.scale, MenuPageSurface);
+    menuPageTitle(l.rect(600,132,720,64),"UNLOCKS",l.scale,state.motion);
     silver(ui, l, 1465, 150, profile.silver);
     if (menuStyle::closeButton(l.rect(1600, 138, 52, 52), l.scale, input.pointer, input.click)) result.close = true;
 
@@ -221,21 +222,18 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
         const Rectangle bounds = l.rect(x, 220, 216, 66);
         const bool active = static_cast<std::size_t>(state.category) == tab;
         const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
-        panel(bounds, l.scale, menuStyle::selectionFill(active, hovered));
-        std::size_t total = 0, owned = 0, ready = 0;
+        menuChoicePlate(bounds,l.scale,active,hovered,false,state.motion);
+        std::size_t ready = 0;
         for (const auto& e : catalog()) {
             if (static_cast<std::size_t>(e.category) != tab) continue;
-            ++total; const auto a = availability(e, profile, statuses);
-            if (a.owned) ++owned;
-            else if (a.eligible) ++ready;
+            const auto a = availability(e, profile, statuses);
+            if (!a.owned && a.eligible) ++ready;
         }
-        text(TabNames[tab], l.rect(x + 8, 226, 200, 27), 18 * l.scale, Cream, UiFontRole::Display, 1);
-        text(std::to_string(owned) + " / " + std::to_string(total), l.rect(x + 8, 255, 200, 20), 13 * l.scale,
-            active ? Cream : Muted, UiFontRole::BodyBold, 1);
+        text(TabNames[tab],l.rect(x+8,228,200,46),21*l.scale,Cream,UiFontRole::Display,1);
         if (ready > 0) DrawCircleV({bounds.x + bounds.width - 11 * l.scale, bounds.y + 11 * l.scale}, 5 * l.scale, Gold);
     }
     const Rectangle grid = l.rect(270, 309, 1348, GridHeight);
-    panel(l.rect(248, 300, 1424, 487), l.scale, menuStyle::Inset);
+
     if (CheckCollisionPointRec(input.pointer, grid) && std::isfinite(input.wheel)) state.scroll = std::clamp(state.scroll - input.wheel * 65, 0.0F, maxScroll);
     const Rectangle track = l.rect(1636, 316, 9, GridHeight - 14);
     if (maxScroll > 0) {
@@ -250,54 +248,50 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
     beginUiScissor(static_cast<int>(grid.x), static_cast<int>(grid.y), static_cast<int>(grid.width), static_cast<int>(grid.height));
     for (std::size_t i = 0; i < visible.size(); ++i) {
         const Entry& e = *visible[i]; const auto a = availability(e, profile, statuses);
-        const float x = 272 + static_cast<float>(i % Columns) * CellStep;
-        const float y = 314 + static_cast<float>(i / Columns) * CellStep - state.scroll;
-        const Rectangle cell = l.rect(x, y, 137, 137);
+        const bool character=state.category==UnlockCategory::Classes;
+        const float x=272+static_cast<float>(i%(character?4:Columns))*(character?341:CellStep);
+        const float y=character?410:314+static_cast<float>(i/Columns)*CellStep-state.scroll;
+        const Rectangle cell=l.rect(x,y,character?323:137,character?264:137);
         if (cell.y + cell.height < grid.y || cell.y > grid.y + grid.height) continue;
         const bool hovered = CheckCollisionPointRec(input.pointer, cell) && CheckCollisionPointRec(input.pointer, grid);
         if (hovered) hoveredEntry = &e;
         if (hovered && input.click) { state.selectedId = e.id; result.interaction = true; }
         const bool active = state.selectedId == e.id;
-        panel(cell, l.scale, menuStyle::selectionFill(active, hovered, !a.owned && !a.eligible));
-        icon(ui, e, l.rect(x + 18, y + 9, 101, 91), !a.owned && !a.eligible);
+        menuChoicePlate(cell,l.scale,active,hovered,!a.owned && !a.eligible,state.motion);
+        const Rectangle artwork=character?l.rect(x+74,y+18,175,175):l.rect(x+12,y+12,113,108);
+        icon(ui,e,state.motion.icon(artwork,static_cast<int>(i),active,e.id),!a.owned && !a.eligible);
+        if(character) text(e.title,l.rect(x+12,y+210,299,42),27*l.scale,Cream,UiFontRole::Display,1);
         if (a.eligible && !a.owned) {
             panel(l.rect(x + 20, y + 42, 97, 36), l.scale, menuStyle::Inset);
             silver(ui, l, x + 28, y + 46, a.price, profile.silver >= a.price);
         }
-        text(e.title, l.rect(x + 5, y + 106, 127, 23), 12 * l.scale,
-            active || a.owned ? Cream : a.eligible ? Gold : Muted, UiFontRole::BodyBold, 1);
         if(canToggleContent(profile,e.unlockId) && profile.disabledUnlocks.contains(e.unlockId))
             text("OFF",l.rect(x+89,y+6,39,22),12*l.scale,Red,UiFontRole::Display,2);
         if (!a.owned && !a.eligible) text("?", l.rect(x + 108, y + 6, 20, 22), 18 * l.scale, Muted, UiFontRole::BodyBold, 1);
         if (a.eligible && !a.owned) text("!", l.rect(x + 108, y + 6, 20, 22), 18 * l.scale, Gold, UiFontRole::BodyBold, 1);
     }
     EndScissorMode();
+    state.motion.hover(hoveredEntry?hoveredEntry->id:"");
+    state.motion.select(static_cast<int>(state.category),state.selectedId);
 
     panel(l.rect(248, 802, 1424, 159), l.scale, menuStyle::Inset);
     selected = std::find_if(visible.begin(), visible.end(), [&](const Entry* e) { return e->id == state.selectedId; });
     if (selected != visible.end()) {
         const Entry& e = **selected; const auto a = availability(e, profile, statuses);
         panel(l.rect(268, 820, 119, 119), l.scale, menuStyle::Card);
-        icon(ui, e, l.rect(283, 834, 90, 90), !a.owned && !a.eligible);
-        text(e.title, l.rect(410, 814, 970, 32), 22 * l.scale, Cream, UiFontRole::Display);
-        text(e.description, l.rect(410, 850, 970, 30), 17 * l.scale, Cream);
+        icon(ui,e,state.motion.icon(l.rect(279,830,98,98),0,true,e.id),!a.owned && !a.eligible);
+        text(e.title, l.rect(410, 814, 970, 36), 26 * l.scale, Cream, UiFontRole::Display);
+        text(e.description, l.rect(410, 858, 970, 38), 20 * l.scale, Cream);
         if (e.category == UnlockCategory::Classes && a.owned) {
-            for (std::size_t i = 0; i < e.traits.size(); ++i) text(e.traits[i],
-                l.rect(410, 885 + static_cast<float>(i) * 19, 970, 20), 13 * l.scale, Muted);
+            // One readable line replaces the role plus three repeated trait lines.
+            const std::string traits=localizeText(e.traits[0])+"   /   "+localizeText(e.traits[1]);
+            text(traits,l.rect(410,897,970,28),18*l.scale,Gold,UiFontRole::MenuBodyBold);
+            text(e.traits[2],l.rect(410,928,970,24),17*l.scale,Red,UiFontRole::MenuBodyBold);
         } else if (a.quest && !a.owned) {
-            text(a.eligible ? "QUEST COMPLETE — AVAILABLE TO BUY" : a.quest->definition->description, l.rect(410, 886, 865, 25), 15 * l.scale, a.eligible ? Green : Muted);
-            text(std::to_string(static_cast<int>(std::clamp(a.quest->fraction, 0.0, 1.0) * 100)) + "%",
-                l.rect(1285, 886, 95, 25), 15 * l.scale, Green, UiFontRole::BodyBold, 2);
-            const Rectangle progress = l.rect(410, 925, 970, 7);
-            menuStyle::progress(progress, a.quest->fraction);
-        } else {
-            const auto source = e.category == UnlockCategory::Buildings ? "Available in future runs. Find its blueprint during a run."
-                : e.category == UnlockCategory::Weapons ? "Available in future runs and character loadouts."
-                : e.category == UnlockCategory::Upgrades ? "Available when choosing a level-up upgrade."
-                : e.category == UnlockCategory::Items ? "Available from chests and crate drops." : e.unlockId == "meta.refresh" ? "Applies from your next run." : "Purchase ranks in the Shop. Applies from your next run.";
-            text(source, l.rect(410, 887, 970, 36), 15 * l.scale, Muted);
+            text(a.eligible?"QUEST COMPLETE":a.quest->definition->description,
+                l.rect(410,902,970,30),18*l.scale,a.eligible?Green:Muted);
+            menuStyle::progress(l.rect(410,941,970,5),a.quest->fraction);
         }
-        if (e.category == UnlockCategory::Meta && e.unlockId != "meta.refresh") text("Unlocks permanent upgrades in the Shop.", l.rect(410, 933, 970, 20), 12 * l.scale, Muted);
         if (a.owned) {
             const bool disabled=canToggleContent(profile,e.unlockId) && profile.disabledUnlocks.contains(e.unlockId);
             text(disabled ? "DISABLED" : "UNLOCKED", l.rect(1415, e.category == UnlockCategory::Meta ? 813 : 841, 230, 40), 20 * l.scale, disabled ? Red : Green, UiFontRole::BodyBold, 1);
@@ -305,7 +299,7 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
                 if(button(l.rect(1415,890,230,44),disabled ? "ENABLE" : "DISABLE",l,input)) {
                     result.toggled=toggleContent(profile,e.unlockId);result.interaction=true;
                 }
-                if(disabled) text("DISABLED FOR FUTURE RUNS",l.rect(410,933,970,20),12*l.scale,Red);
+
             }
             if (e.category == UnlockCategory::Meta && button(l.rect(1415, 858, 230, 44), "OPEN SHOP", l, input)) {
                 result.shopUnlockId = e.unlockId;
@@ -325,7 +319,10 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
             }
         }
     }
-    if (hoveredEntry) drawItemTooltip(hoveredEntry->title,hoveredEntry->description,input.pointer,viewport,l.scale);
+    if(result.purchase || result.toggled) state.motion.feedback=.36F;
+    const auto burst=l.rect(328,880,0,0);
+    menuActionBurst({burst.x,burst.y},58*l.scale,state.motion);
+    if (hoveredEntry && hoveredEntry->id!=state.selectedId) drawItemTooltip(hoveredEntry->title,hoveredEntry->description,input.pointer,viewport,l.scale);
     return result;
 }
 

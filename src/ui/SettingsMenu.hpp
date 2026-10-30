@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiMenuMotion.hpp"
 
 #include "app/UserSettings.hpp"
 #include <raylib.h>
@@ -11,6 +12,7 @@ namespace ian {
 enum class SettingsTab { Video, Audio, Controls, Game };
 
 struct SettingsMenuState {
+    UiMenuMotion motion;
     SettingsTab tab{SettingsTab::Video};
     float scroll{};
     int focusedRow{-1};
@@ -35,6 +37,7 @@ struct SettingsMenuInput {
     bool reset{};
     bool mainMenu{};
     std::optional<ControlAction> pendingBinding;
+    float deltaTime{1.0F / 60.0F};
 };
 
 struct SettingsMenuResult {

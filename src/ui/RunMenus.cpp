@@ -1,4 +1,5 @@
 #include "ui/RunMenus.hpp"
+#include "ui/UiMenuLayout.hpp"
 #include "ui/UiMenuStyle.hpp"
 #include "ui/UiViewport.hpp"
 #include "ui/UiLabels.hpp"
@@ -327,6 +328,23 @@ ClassSelectionResult drawClassSelectionMenu(const GameUi& ui, const MetaProgress
     if (result.back) { state.launching = false; result.start = false; }
     if (hoveredGear && !state.launching) drawItemTooltip(hoveredGear->label, hoveredGear->description, input.pointer, screen, s);
     return result;
+}
+
+bool drawCreditsMenu(UiMenuMotion& motion, Vector2 screen, const MenuNavigationInput& input) {
+    const auto layout=UiMenuLayout::fromViewport(screen);
+    motion.advance(input.deltaTime,input.reduceEffects);
+    panel(layout.rect(445,190,1030,695),layout.scale,MenuPageSurface);
+    menuPageTitle(layout.rect(580,218,760,64),"CREDITS",layout.scale,motion);
+    constexpr std::array<std::string_view,5> Credits{
+        "MADE WITH RAYLIB","ASSETS: KENNEY","ASSETS: KAYKIT","FONT: LILITA ONE","EFFECTS: BRACKEYS"};
+    for(std::size_t i=0;i<Credits.size();++i) {
+        const float y=340+static_cast<float>(i)*70+(1-motion.reveal(static_cast<int>(i)))*12;
+        text(Credits[i],layout.rect(560,y,800,44),26*layout.scale,
+            i==0?Gold:Cream,UiFontRole::Display,1);
+    }
+    const bool close=closeButton(layout.rect(1398,218,46,46),layout.scale,input.pointer,input.click);
+    const bool back=menuPrimaryButton(layout.rect(810,774,300,64),layout.scale,"BACK",input.pointer,input.click);
+    return close || back || input.activate;
 }
 
 PauseMenuLayout pauseMenuLayout(Vector2 screen) {

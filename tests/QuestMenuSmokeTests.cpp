@@ -101,28 +101,33 @@ int main(int argc, char** argv) {
         }
     }
     // Exercise the real purchase button against backend eligibility and wallet.
-    ian::MetaProgression buyer = profile;
+    ian::QuestDefinition paidUnlock{.id="paid_unlock",.title="Harvest resources",.category=ian::QuestCategory::General,
+        .conditions={{ian::QuestMetric::ResourcesGathered,ian::QuestScope::Lifetime,1,
+            ian::QuestComparison::AtLeast,{},{}}},.reward={0,"building.mortar",5}};
+    ian::QuestSystem purchaseQuests({paidUnlock});
+    ian::MetaProgression buyer;
+    purchaseQuests.beginRun(buyer);
     const std::array milestones{
         ian::QuestSignal{ian::QuestMetric::ResourcesGathered, 1000},
         ian::QuestSignal{ian::QuestMetric::ChestsOpened, 10},
         ian::QuestSignal{ian::QuestMetric::CoinsCollected, 500},
         ian::QuestSignal{ian::QuestMetric::PlayerLevel, 20},
     };
-    static_cast<void>(quests.record(buyer, milestones));
+    static_cast<void>(purchaseQuests.record(buyer,milestones));
     buyer.silver = 20;
     ian::QuestMenuState buying;
     buying.category = ian::QuestCategory::General;
-    buying.selectedId = "unlock_meta_refresh";
+    buying.selectedId = "paid_unlock";
     ian::setLanguage(ian::Language::English);
     SetWindowSize(1280, 720);
     PollInputEvents();
     auto purchaseTarget = LoadRenderTexture(1280, 720);
     BeginTextureMode(purchaseTarget);
-    auto purchased = ian::drawQuestMenu(ui, quests, buyer, buying, {1280, 720},
+    auto purchased = ian::drawQuestMenu(ui, purchaseQuests, buyer, buying, {1280, 720},
         {.pointer = {1042, 600}, .click = true});
-    require(purchased.purchase && quests.ownsUnlock(buyer, "meta.refresh") && buyer.silver == 15,
+    require(purchased.purchase && purchaseQuests.ownsUnlock(buyer,"building.mortar") && buyer.silver == 15,
             "eligible purchase button deducts actual silver and grants permanent ownership");
-    purchased = ian::drawQuestMenu(ui, quests, buyer, buying, {1280, 720},
+    purchased = ian::drawQuestMenu(ui, purchaseQuests, buyer, buying, {1280, 720},
         {.pointer = {1042, 600}, .click = true});
     require(!purchased.purchase && buyer.silver == 15, "owned unlock has no repeat purchase button");
     EndTextureMode();

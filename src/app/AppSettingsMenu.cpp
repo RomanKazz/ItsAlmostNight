@@ -15,6 +15,7 @@ void App::openSettings(bool debug) {
     }
     debugSettings_ = debug;
     settingsMenuState_.graphicsDraft.reset();
+    settingsMenuState_.motion={};
     // Opening from another menu must not replay its click/Enter on the first option.
     settingsRebindConsumedInput_ = true;
     settingsMenuState_.resetConfirmation = false;
@@ -84,6 +85,7 @@ void App::drawPlayerSettingsPanel() {
         .reset = keysEnabled && IsKeyPressed(KEY_DELETE),
         .mainMenu = mainMenu,
         .pendingBinding = pendingControlRebind_,
+        .deltaTime = GetFrameTime(),
     };
     const auto result = drawSettingsMenu(settings, settingsMenuState_,
         {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
@@ -113,7 +115,7 @@ void App::drawPlayerSettingsPanel() {
         (input.click || input.activate || input.valueStep || input.reset)) audio_.playUiConfirm();
     if (result.close || result.chooseBackground || result.credits) closeSettings();
     if (result.chooseBackground && mainMenu) beginMenuBackgroundEdit(simulation_.snapshot());
-    if (result.credits && mainMenu) mainMenuPage_ = MainMenuPage::Credits;
+    if (result.credits && mainMenu) { creditsMenuMotion_={}; mainMenuPage_=MainMenuPage::Credits; }
 }
 
 } // namespace ian

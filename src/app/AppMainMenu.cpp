@@ -96,51 +96,6 @@ void drawMenuPanel(Rectangle bounds, const MenuLayout& layout) {
         MenuPanelBorder);
 }
 
-bool drawMenuButton(
-    Rectangle bounds, std::string_view label,
-    const MenuLayout& layout, bool primary = false, bool secondary = false) {
-    const bool hovered = CheckCollisionPointRec(
-        uiMousePosition(), bounds);
-    const bool pressed = hovered &&
-        IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-    const Color fill = primary
-        ? pressed ? Color{174, 92, 35, 255}
-                  : hovered ? Color{233, 143, 56, 255}
-                            : Color{211, 116, 46, 255}
-        : pressed ? Color{54, 65, 70, 255}
-                  : hovered ? Color{75, 87, 90, 255}
-                            : Color{45, 54, 58, 255};
-    const Color edge = primary
-        ? Color{103, 50, 27, 255}
-        : Color{17, 21, 24, 255};
-    DrawRectangleRounded(
-        {bounds.x, bounds.y + 4.0F * layout.scale,
-         bounds.width, bounds.height},
-        0.18F, 8, edge);
-    DrawRectangleRounded(
-        {bounds.x, bounds.y,
-         bounds.width, bounds.height - 3.0F * layout.scale},
-        0.18F, 8, fill);
-    DrawRectangleRoundedLinesEx(
-        bounds, 0.18F, 8, 3.0F * layout.scale,
-        primary ? Color{255, 204, 111, 255}
-                : Color{129, 101, 72, 255});
-    const ScopedUiFontRole font(secondary ? UiFontRole::BodyBold : UiFontRole::Display);
-    const std::string localized = localizeText(label);
-    const float size = fitUiTextSize(
-        label, (secondary ? 17.0F : primary ? 25.0F : 19.0F) * layout.scale,
-        11.0F * layout.scale,
-        bounds.width - 22.0F * layout.scale,
-        bounds.height - 13.0F * layout.scale);
-    const Vector2 measured = measureUiText(localized, size);
-    drawUiText(
-        localized,
-        {bounds.x + (bounds.width - measured.x) * 0.5F,
-         bounds.y + (bounds.height - measured.y) * 0.5F -
-             2.0F * layout.scale},
-        size, MenuCream);
-    return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
-}
 
 Vector3 menuViewDirection(float yaw, float pitch) {
     return {
@@ -150,26 +105,6 @@ Vector3 menuViewDirection(float yaw, float pitch) {
     };
 }
 
-void drawOutlinedTitle(
-    std::string_view sourceText, const MenuLayout& layout,
-    float centerX, float y, float preferredSize,
-    float maximumWidth) {
-    const std::string text = localizeText(sourceText);
-    const float logicalSize = fitUiTextSize(
-        sourceText, preferredSize, 28.0F,
-        maximumWidth * layout.scale);
-    const Vector2 measured = measureUiText(sourceText,logicalSize*layout.scale);
-    const Vector2 position{
-        layout.origin.x + centerX * layout.scale - measured.x * .5F,
-        layout.origin.y + y * layout.scale,
-    };
-    SdfUiTextStyle style{};
-    style.fillColor = {250,245,224,255};
-    style.outlineColor = {9,12,15,255};
-    style.outlinePixels = 4 * layout.scale;
-    style.shadowColor = BLANK;
-    drawStyledSdfUiText(text,position,logicalSize*layout.scale,style);
-}
 
 } // namespace
 
@@ -673,6 +608,7 @@ void App::drawMainMenu() {
             .selectionStep = IsKeyPressed(KEY_DOWN) ? 1 : IsKeyPressed(KEY_UP) ? -1 : 0,
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
             .deltaTime = GetFrameTime(),
+            .reduceEffects = userSettings_.accessibility.reduceFlashes,
         };
         const auto previousSelection = questMenuState_.selectedId;
         const auto previousCategory = questMenuState_.category;
@@ -697,6 +633,8 @@ void App::drawMainMenu() {
             .confirm = IsKeyPressed(KEY_ENTER),
             .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
                 : IsKeyPressed(KEY_DOWN) ? MetaShopGridColumns : IsKeyPressed(KEY_UP) ? -MetaShopGridColumns : 0,
+            .deltaTime = GetFrameTime(),
+            .reduceEffects = userSettings_.accessibility.reduceFlashes,
         };
         const auto previousSelection = shopMenuState_.selected;
         const auto result = drawShopMenu(ui_, metaProgression_, shopMenuState_,
@@ -726,6 +664,8 @@ void App::drawMainMenu() {
             .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
                 : IsKeyPressed(KEY_DOWN) ? 9 : IsKeyPressed(KEY_UP) ? -9 : 0,
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
+            .deltaTime = GetFrameTime(),
+            .reduceEffects = userSettings_.accessibility.reduceFlashes,
         };
         const auto previousSelection = unlockMenuState_.selectedId;
         const auto previousCategory = unlockMenuState_.category;
@@ -736,6 +676,7 @@ void App::drawMainMenu() {
         if (!result.shopUnlockId.empty()) {
             for (const auto& upgrade : MetaShopDefinitions)
                 if (upgrade.requiredUnlock == result.shopUnlockId) shopMenuState_.selected = upgrade.upgrade;
+            shopMenuState_.motion={};
             mainMenuPage_ = MainMenuPage::Shop;
         }
         if (!result.questId.empty()) {
@@ -810,123 +751,12 @@ void App::drawMainMenu() {
         return;
     }
 
-    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
-        const Texture2D logo = ui_.mainMenuLogoTexture();
-        if (IsTextureValid(logo)) {
-            DrawTexturePro(logo,
-                {0.0F, 0.0F, static_cast<float>(logo.width),
-                 static_cast<float>(logo.height)},
-                layout.rect(618.0F, 24.0F, 684.0F, 235.0F),
-                {}, 0.0F, WHITE);
-        } else {
-            drawOutlinedTitle("FORTBONK", layout,
-                960.0F, 82.0F, 62.0F, 820.0F);
-        }
-
-    }
-
-    const std::string silverText = std::to_string(
-        std::max(0, metaProgression_.silver));
-    const float silverFontSize = 22.0F * layout.scale;
-    const Vector2 silverTextSize = measureUiText(
-        silverText, silverFontSize);
-    constexpr float SilverRight = 1884.0F;
-    constexpr float SilverIconSize = 33.0F;
-    constexpr float SilverGap = 8.0F;
-    const float silverTextX = layout.origin.x +
-        SilverRight * layout.scale - silverTextSize.x;
-    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
-        ui_.drawResourceIcon(
-            {silverTextX - (SilverIconSize + SilverGap) * layout.scale,
-             25.0F * layout.scale,
-             SilverIconSize * layout.scale,
-             SilverIconSize * layout.scale},
-            UiResourceIcon::Silver);
-    }
-    SdfUiTextStyle silverStyle{};
-    silverStyle.fillColor = {250, 245, 224, 255};
-    silverStyle.outlineColor = {34, 35, 38, 255};
-    silverStyle.outlinePixels = 3.0F;
-    silverStyle.shadowColor = {68, 70, 74, 255};
-    silverStyle.shadowOffsetPixels = {0.0F, 2.0F * layout.scale};
-    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
-        drawStyledSdfUiText(
-            silverText,
-            {silverTextX,
-             27.0F * layout.scale},
-            silverFontSize, silverStyle);
-
-    }
-
-    if (mainMenuPage_ != MainMenuPage::None) {
-        DrawRectangle(
-            0, 0, uiScreenWidth(), uiScreenHeight(),
-            {6, 9, 13, 205});
-        const Rectangle panel =
-            layout.rect(445.0F, 190.0F, 1030.0F, 695.0F);
-        drawMenuPanel(panel, layout);
-        if (mainMenuPage_ == MainMenuPage::Shop) {
-            drawOutlinedTitle(
-                "SHOP", layout, 960.0F, 222.0F,
-                38.0F, 680.0F);
-            const float balanceSize = 27.0F * layout.scale;
-            const Vector2 balanceTextSize = measureUiText(
-                silverText, balanceSize);
-            const float balanceGroupWidth =
-                45.0F * layout.scale +
-                12.0F * layout.scale + balanceTextSize.x;
-            const float balanceX = layout.origin.x +
-                960.0F * layout.scale -
-                balanceGroupWidth * 0.5F;
-            ui_.drawResourceIcon(
-                {balanceX, layout.origin.y + 373.0F * layout.scale,
-                 45.0F * layout.scale, 45.0F * layout.scale},
-                UiResourceIcon::Silver);
-            drawStyledSdfUiText(
-                silverText,
-                {balanceX + 57.0F * layout.scale,
-                 layout.origin.y + 382.0F * layout.scale},
-                balanceSize, silverStyle);
-            const std::string shopMessage =
-                "META UPGRADES ARE COMING SOON";
-            const float fontSize = 19.0F * layout.scale;
-            const Vector2 size = measureUiText(shopMessage, fontSize);
-            drawUiText(
-                shopMessage,
-                {layout.origin.x + 960.0F * layout.scale -
-                     size.x * 0.5F,
-                 layout.origin.y + 478.0F * layout.scale},
-                fontSize, {237, 223, 188, 255});
-        } else {
-            drawOutlinedTitle(
-                "CREDITS", layout, 960.0F, 222.0F,
-                38.0F, 680.0F);
-            constexpr std::array<std::string_view, 5> Credits{{
-                "MADE WITH RAYLIB",
-                "ASSETS: KENNEY",
-                "ASSETS: KAYKIT",
-                "FONT: LILITA ONE",
-                "EFFECTS: BRACKEYS",
-            }};
-            for (std::size_t index = 0;
-                 index < Credits.size(); ++index) {
-                const float fontSize = 15.0F * layout.scale;
-                const Vector2 size = measureUiText(
-                    Credits[index], fontSize);
-                drawUiText(
-                    Credits[index],
-                    {layout.origin.x +
-                         960.0F * layout.scale - size.x * 0.5F,
-                     layout.origin.y +
-                         (355.0F + static_cast<float>(index) * 60.0F) *
-                             layout.scale},
-                    fontSize, {237, 223, 188, 255});
-            }
-        }
-        if (drawMenuButton(
-                layout.rect(810.0F, 774.0F, 300.0F, 70.0F),
-                "BACK", layout)) {
-            mainMenuPage_ = MainMenuPage::None;
+    if (mainMenuPage_ == MainMenuPage::Credits) {
+        auto input=readMenuNavigationInput();
+        input.reduceEffects=userSettings_.accessibility.reduceFlashes;
+        if(drawCreditsMenu(creditsMenuMotion_,
+            {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},input)) {
+            mainMenuPage_=MainMenuPage::None;
             audio_.playUiConfirm();
         }
         return;
@@ -965,10 +795,12 @@ void App::drawMainMenu() {
         pendingContinueFromUi_ = true;
         break;
     case MainMenuHomeAction::Unlocks:
+        unlockMenuState_.motion={};
         mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
         break;
     case MainMenuHomeAction::Quests:
+        questMenuState_.motion={};
         if (!result.questId.empty()) {
             questMenuState_ = {};
             questMenuState_.selectedId = result.questId;
@@ -983,6 +815,7 @@ void App::drawMainMenu() {
         audio_.playUiConfirm();
         break;
     case MainMenuHomeAction::Shop:
+        shopMenuState_.motion={};
         mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
         break;
@@ -990,6 +823,7 @@ void App::drawMainMenu() {
         openSettings();
         break;
     case MainMenuHomeAction::Credits:
+        creditsMenuMotion_={};
         mainMenuPage_ = MainMenuPage::Credits;
         audio_.playUiConfirm();
         break;

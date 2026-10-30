@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiMenuMotion.hpp"
 
 #include "game/PlayerClass.hpp"
 #include "progression/MetaProgression.hpp"
@@ -42,6 +43,9 @@ struct ClassSelectionLayout {
     const GameUi& ui, const MetaProgression& profile, PlayerClass& selected,
     bool& sandbox, bool collectionOnly, ClassSelectionState& state,
     Vector2 screen, const MenuNavigationInput& input);
+
+[[nodiscard]] bool drawCreditsMenu(UiMenuMotion& motion, Vector2 screen,
+    const MenuNavigationInput& input);
 
 enum class PauseMenuAction { None, Resume, Settings, Restart, MainMenu, Exit };
 struct PauseMenuState { int focused{}; };

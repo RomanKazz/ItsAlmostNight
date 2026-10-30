@@ -14,7 +14,7 @@
 
 namespace ian {
 namespace {
-constexpr float RowHeight = 72;
+constexpr float RowHeight = 70;
 constexpr std::array PlayerActions{
     ControlAction::MoveForward, ControlAction::MoveBackward,
     ControlAction::MoveLeft, ControlAction::MoveRight,
@@ -123,6 +123,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     const auto language = settings.language;
     const auto t = [language](std::string_view en, std::string_view ru) { return tr(language, en, ru); };
     SettingsMenuResult result{};
+    state.motion.advance(input.deltaTime,settings.accessibility.reduceFlashes);
     if (!state.graphicsDraft) state.graphicsDraft = settings.graphics;
     const bool progressDialogWasOpen = state.progressResetConfirmation;
     const bool modal = state.resetConfirmation || state.progressResetConfirmation;
@@ -136,12 +137,10 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     };
     if (interactive && input.tabStep) selectTab(static_cast<int>(state.tab) + input.tabStep);
 
-    menuStyle::panel(layout.panel, 1, menuStyle::Frame);
+    menuStyle::panel(layout.panel,1,MenuPageSurface);
     const Rectangle header{layout.panel.x + 20, layout.panel.y + 20, layout.panel.width - 40, 68};
-    menuStyle::panel(header, 1, menuStyle::Card);
-    menuStyle::text(t("SETTINGS", "НАСТРОЙКИ"),
-        {header.x + 20, header.y, header.width - 96, header.height}, 36,
-        menuStyle::Cream, UiFontRole::Display);
+    menuPageTitle({header.x+72,header.y,header.width-144,header.height},
+        t("SETTINGS","НАСТРОЙКИ"),1,state.motion);
     const Rectangle closeIcon{header.x + header.width - 56, header.y + 12, 44, 44};
     result.close = menuStyle::closeButton(closeIcon, 1, input.pointer, input.click && !modal);
     constexpr std::array<std::string_view, 4> TabsEn{"VIDEO", "AUDIO", "CONTROLS", "GAME"};
@@ -150,7 +149,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
         const auto bounds = layout.tabs[i];
         const bool selected = static_cast<int>(state.tab) == i;
         const bool hovered = interactive && CheckCollisionPointRec(input.pointer, bounds);
-        menuStyle::panel(bounds, 1, menuStyle::selectionFill(selected, hovered));
+        menuChoicePlate(bounds,1,selected,hovered,false,state.motion);
         menuStyle::text(language == Language::Russian ? TabsRu[static_cast<std::size_t>(i)] : TabsEn[static_cast<std::size_t>(i)],
             {bounds.x + 12, bounds.y, bounds.width - 24, bounds.height}, 23,
             menuStyle::Cream, UiFontRole::Display, 1);
@@ -246,8 +245,8 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
         slider(t("Brightness", "Яркость"), {}, graphics.brightness, -.3F, .3F);
         toggle(t("Shadows", "Тени"), {}, graphics.shadows);
         toggle(t("Grass", "Трава"), {}, graphics.grass);
-        toggle(t("Performance log", "Запись performance log"),
-            "performance_logs/session_*.csv", graphics.performanceLogging);
+        toggle(t("Performance log", "Запись производительности"),
+            {}, graphics.performanceLogging);
         break;
     }
     case SettingsTab::Audio:
@@ -314,16 +313,21 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     menuStyle::panel(layout.content, 1, menuStyle::Inset);
     beginUiScissor(static_cast<int>(layout.content.x + 5), static_cast<int>(layout.content.y + 5),
         static_cast<int>(layout.content.width - 10), static_cast<int>(layout.content.height - 10));
+    std::string hoveredRow;
+    state.motion.select(static_cast<int>(state.tab),std::to_string(state.focusedRow));
     for (std::size_t i = 0; i < rows.size(); ++i) {
         auto& row = rows[i];
         const float y = layout.content.y + static_cast<float>(i) * RowHeight - state.scroll;
         const Rectangle bounds{layout.content.x + 12, y + 8, layout.content.width - 32, RowHeight - 12};
         const bool visible = bounds.y + bounds.height > layout.content.y + 5 && bounds.y < layout.content.y + layout.content.height - 5;
         const bool hovered = interactive && visible && CheckCollisionPointRec(input.pointer, layout.content) && CheckCollisionPointRec(input.pointer, bounds);
+        if(hovered) hoveredRow=std::to_string(i);
         const bool focused = state.focusedRow == static_cast<int>(i);
         const bool waiting = row.binding && input.pendingBinding == row.binding;
         if (visible) {
-            DrawRectangleRec(bounds, hovered || focused || waiting ? menuStyle::Card : menuStyle::Inset);
+            DrawRectangleRec(bounds,focused || waiting?menuStyle::Card:hovered?menuStyle::Hover:menuStyle::Inset);
+            const float hover=state.motion.hoverAmount(std::to_string(i));
+            if(hover>0) DrawRectangleRec({bounds.x,bounds.y+10,2,bounds.height-20},Fade(menuStyle::Gold,hover));
             if (focused || waiting) DrawRectangleRec({bounds.x, bounds.y + 10, 3, bounds.height - 20}, menuStyle::Gold);
             const float labelWidth = bounds.width * .54F;
             menuStyle::text(row.label, {bounds.x + 12, bounds.y + (row.detail.empty() ? 0 : 2), labelWidth - 20,
@@ -373,6 +377,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
         }
     }
     EndScissorMode();
+    state.motion.hover(hoveredRow);
     if (maximumScroll > 0) {
         const float trackHeight = layout.content.height - 24;
         const float thumbHeight = std::max(32.0F, trackHeight * layout.content.height / (maximumScroll + layout.content.height));
@@ -384,8 +389,8 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     const bool pendingGraphics = graphics != settings.graphics;
     if (state.tab == SettingsTab::Video) {
         const bool applyFocused = state.focusedRow == static_cast<int>(rows.size());
-        const bool applyClicked = menuStyle::button(layout.apply, 1, t("APPLY", "ПРИМЕНИТЬ"), 21,
-            input.pointer, input.click && interactive, pendingGraphics && interactive);
+        const bool applyClicked = menuPrimaryButton(layout.apply,1,t("APPLY","ПРИМЕНИТЬ"),
+            input.pointer,input.click && interactive,pendingGraphics && interactive);
         if (applyFocused && interactive) DrawRectangleLinesEx(layout.apply, 2, menuStyle::Gold);
         if (pendingGraphics && (applyClicked || (applyFocused && input.activate && interactive))) {
             settings.graphics = graphics;

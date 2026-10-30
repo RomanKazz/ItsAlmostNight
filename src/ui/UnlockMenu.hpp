@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/UiMenuMotion.hpp"
 
 #include "progression/QuestSystem.hpp"
 #include "ui/GameUi.hpp"
@@ -10,6 +11,7 @@ namespace ian {
 enum class UnlockCategory { Classes, Buildings, Weapons, Upgrades, Items, Meta };
 
 struct UnlockMenuState {
+    UiMenuMotion motion;
     UnlockCategory category{UnlockCategory::Classes};
     std::string selectedId;
     float scroll{};
@@ -24,6 +26,8 @@ struct UnlockMenuInput {
     bool close{};
     int selectionStep{};
     int categoryStep{};
+    float deltaTime{1.0F / 60.0F};
+    bool reduceEffects{};
 };
 
 struct UnlockMenuResult {
