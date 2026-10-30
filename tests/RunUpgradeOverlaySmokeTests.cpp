@@ -18,6 +18,33 @@
 #include <string>
 
 int main(int argc, char** argv) {
+    {
+        constexpr auto type=ian::BuildingType::TeslaTower;
+        ian::SimulationSnapshot state{};
+        const auto effect=*ian::buildingRunUpgrade(type);
+        state.buildingBlueprintLevels[static_cast<std::size_t>(type)]=1;
+        state.runUpgradeStacks[ian::runUpgradeIndex(effect)]=1;
+        std::uint64_t seed=0;
+        for(;seed<1000;++seed) {
+            const auto roll=ian::rollBuildingStatUpgrade(type,ian::RunUpgradeRarity::Common,seed);
+            if(std::find(roll.stats.begin(),roll.stats.begin()+roll.count,ian::AttackStat::Quantity)!=roll.stats.begin()+roll.count) break;
+        }
+        require(seed<1000,"Tesla preview rolls an attack-count card");
+        auto preview=ian::app_detail::buildingAttackCountUpgradePreview(state,type,ian::RunUpgradeRarity::Common,seed);
+        require(preview.first==1 && preview.second==2,"Tesla attack-count card starts at one rather than zero");
+        state.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::ProjectileCount)]=2;
+        state.buildingUpgradePowers[static_cast<std::size_t>(type)][static_cast<std::size_t>(ian::AttackStat::Quantity)]=1.4;
+        const auto global=ian::shrineDefenseAttackModifiers(state.runUpgradePower,state.shrines);
+        auto tower=std::make_unique<ian::TowerSystem>();tower->setAttackModifiers(global);
+        std::array<ian::AttackModifiers,ian::GameBalance::BuildingTypeCount> local{};
+        local[static_cast<std::size_t>(type)]=ian::buildingStatUpgradeModifiers(type,state.buildingUpgradePowers);
+        tower->setBuildingUpgradeModifiers(local);
+        const ian::BuildingInstance building{.type=type};
+        preview=ian::app_detail::buildingAttackCountUpgradePreview(state,type,ian::RunUpgradeRarity::Common,seed);
+        requireNear(preview.first,ian::effectiveAttackCount(tower->finalStats(building).quantity,1),1e-9,
+            "Tesla preview includes existing global and local bonuses");
+        require(preview.second==preview.first+1,"Tesla count upgrade matches the added attack");
+    }
     require(!ian::debugUpgradeMatches(
         ian::RunUpgradeDefinitions[ian::runUpgradeIndex(ian::RunUpgradeEffect::RiskyInvestment)], {}),
         "high stakes is absent from the debug catalog");

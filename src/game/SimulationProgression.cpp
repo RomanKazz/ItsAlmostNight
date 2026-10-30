@@ -362,6 +362,7 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity,
     int copies, bool debug, std::uint64_t rollSeed) {
+    const double previousPlayerMaxHealth = playerPermanentMaxHealth();
     if (effect == RunUpgradeEffect::RiskyInvestment) return false;
     if (effect == RunUpgradeEffect::UpgradeCore &&
         (!buildings_.core() || buildings_.core()->level >= MaxStructureLevel)) return false;
@@ -469,7 +470,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         playerBonusMaxHealth_ += 12.0 * power;
         playerHealth_ = std::min(
             playerPermanentMaxHealth() + playerTemporaryHealth_,
-            playerHealth_ + 12.0 * power);
+            playerHealth_ + playerPermanentMaxHealth() - previousPlayerMaxHealth);
         break;
     case RunUpgradeEffect::RecoverableArmor:
         playerMaxRecoverableArmor_ += 8.0 * power;
@@ -480,6 +481,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         break;
     case RunUpgradeEffect::BuildingHealth:
         runBuildingMaxHealthMultiplier_ += 0.15 * power;
+        playerHealth_ = std::min(playerPermanentMaxHealth() + playerTemporaryHealth_,
+            playerHealth_ + playerPermanentMaxHealth() - previousPlayerMaxHealth);
         break;
     case RunUpgradeEffect::BuildRadius:
         buildings_.setCoreBuildRadius(

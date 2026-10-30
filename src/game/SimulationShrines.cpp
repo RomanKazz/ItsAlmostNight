@@ -69,6 +69,7 @@ bool Simulation::selectShrineBlessing(std::size_t choice) {
     const auto effect=runUpgradeChoices_[choice];
     const auto* blessing=shrineBlessing(shrines_.offer,effect);
     if (!blessing || !availableShrineBlessing(effect)) return false;
+    const double previousPlayerMaxHealth=playerPermanentMaxHealth();
     const bool doubled=mirrorStatCard(effect);
     if (effect==RunUpgradeEffect::UpgradeCore &&
         !applyRunUpgradeEffect(effect,runUpgradeRarities_[choice],1,false,
@@ -82,7 +83,11 @@ bool Simulation::selectShrineBlessing(std::size_t choice) {
     if (effect==RunUpgradeEffect::MaximumHealth) {
         const double bonus=blessing->increment*runUpgradeRarityMultiplier(runUpgradeRarities_[choice])*(doubled?2:1);
         playerBonusMaxHealth_+=bonus;
-        playerHealth_=std::min(playerPermanentMaxHealth()+playerTemporaryHealth_,playerHealth_+bonus);
+        playerHealth_=std::min(playerPermanentMaxHealth()+playerTemporaryHealth_,
+            playerHealth_+playerPermanentMaxHealth()-previousPlayerMaxHealth);
+    } else if (effect==RunUpgradeEffect::BuildingHealth) {
+        playerHealth_=std::min(playerPermanentMaxHealth()+playerTemporaryHealth_,
+            playerHealth_+playerPermanentMaxHealth()-previousPlayerMaxHealth);
     } else if (effect==RunUpgradeEffect::RecoverableArmor) {
         const double bonus=blessing->increment*runUpgradeRarityMultiplier(runUpgradeRarities_[choice])*(doubled?2:1);
         playerMaxRecoverableArmor_+=bonus;

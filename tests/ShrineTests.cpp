@@ -245,7 +245,9 @@ int main() {
         case RunUpgradeEffect::Damage: requireNear(after.playerDamageMultiplier,stats.playerDamageMultiplier*1.10,1e-10,"player damage multiplier");break;
         case RunUpgradeEffect::AttackSpeed: requireNear(after.upgradeStats.playerAttackSpeed,stats.upgradeStats.playerAttackSpeed*1.15,1e-10,"personal attack speed multiplier");break;
         case RunUpgradeEffect::MoveSpeed: requireNear(after.playerMoveSpeedMultiplier,stats.playerMoveSpeedMultiplier*1.08,1e-10,"personal movement multiplier");break;
-        case RunUpgradeEffect::MaximumHealth: requireNear(after.playerMaxHealth,stats.playerMaxHealth+12,1e-10,"flat HP blessing");break;
+        case RunUpgradeEffect::MaximumHealth:
+            requireNear(after.playerMaxHealth,stats.playerMaxHealth+12,1e-10,"flat HP blessing");
+            requireNear(after.upgradeStats.buildingHealth,stats.upgradeStats.buildingHealth*1.15,1e-10,"personal HP blessing also fortifies structures");break;
         case RunUpgradeEffect::RecoverableArmor: requireNear(after.playerMaxRecoverableArmor,stats.playerMaxRecoverableArmor+8,1e-10,"flat shield blessing");break;
         case RunUpgradeEffect::DefenseDamage: requireNear(after.upgradeStats.defenseDamage,stats.upgradeStats.defenseDamage*1.12,1e-10,"global defense damage multiplier");break;
         case RunUpgradeEffect::DefenseFireRate: requireNear(after.upgradeStats.defenseFireRate,stats.upgradeStats.defenseFireRate*1.10,1e-10,"global defense speed multiplier");break;
@@ -253,7 +255,9 @@ int main() {
             require(after.totalBuildingLimit == stats.totalBuildingLimit + 1 && after.tomeCount == stats.tomeCount &&
                 after.buildingLimitBonus == stats.buildingLimitBonus + 1,
                 "building shrine adds exactly one shared place without a tome slot"); break;
-        case RunUpgradeEffect::BuildingHealth: requireNear(after.upgradeStats.buildingHealth,stats.upgradeStats.buildingHealth*1.15,1e-10,"global structure durability multiplier");break;
+        case RunUpgradeEffect::BuildingHealth:
+            requireNear(after.upgradeStats.buildingHealth,stats.upgradeStats.buildingHealth*1.15,1e-10,"global structure durability multiplier");
+            requireNear(after.playerMaxHealth,stats.playerMaxHealth*1.15,1e-10,"building HP blessing also fortifies the player");break;
         case RunUpgradeEffect::ProductionSpeed: requireNear(after.upgradeStats.productionSpeed,stats.upgradeStats.productionSpeed*1.12,1e-10,"global producer speed multiplier");break;
         case RunUpgradeEffect::ExperienceGain: requireNear(after.upgradeStats.experienceGain,stats.upgradeStats.experienceGain+.10,1e-10,"personal experience blessing applies without a tome slot");break;
         case RunUpgradeEffect::Luck: requireNear(after.upgradeStats.luck,stats.upgradeStats.luck+.10,1e-10,"same luck as tome");break;

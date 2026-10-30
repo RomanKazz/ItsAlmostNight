@@ -68,7 +68,7 @@ inline void checkQuestContentProgression() {
     const auto countStarters=[](std::string_view category) {
         return std::ranges::count_if(CardUnlockDefinitions,[category](const auto& d){return d.starter && d.id.starts_with(category);});
     };
-    require(countStarters("building.")==13 && countStarters("tome.")==14 &&
+    require(countStarters("building.")==13 && countStarters("tome.")==14 && countStarters("weapon.")==5 &&
         std::ranges::count_if(ItemUnlockDefinitions,[](const auto& d){return d.starter;})==14,
         "first-run pool contains thirteen buildings, fourteen tomes and fourteen items");
     const auto paid=std::ranges::count_if(quests.definitions(),[](const auto& q){return q.reward.purchaseCost>0;});
@@ -94,6 +94,11 @@ inline void checkQuestContentProgression() {
         initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockTurret)] &&
         initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)],
         "gun turret, crossbow and cannon enter fresh profiles without a discovery purchase");
+    require(initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockIceWand)] &&
+        initial.cards[runUpgradeIndex(RunUpgradeEffect::UnlockFireWand)] &&
+        quests.purchaseUnlock(profile,"weapon.ice_wand")==QuestPurchaseResult::AlreadyOwned &&
+        quests.purchaseUnlock(profile,"weapon.fire_wand")==QuestPurchaseResult::AlreadyOwned,
+        "both wands are free on new profiles and never charge discovery silver");
     std::set<std::string_view> ids;
     const auto validateDiscovery = [&](std::string_view id, bool starter) {
         require(ids.insert(id).second, "meta content IDs are unique");

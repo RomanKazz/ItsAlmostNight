@@ -30,7 +30,7 @@ Toggler unlocks after eight discovery purchases and costs 50 silver once.
 Owned, non-starter weapons, tomes, defenses and chest items gain an Enable /
 Disable button in Unlocks. Changes apply to future runs; default content
 always remains available. Disabled choices persist in the profile. Eight is
-reachable with this game's twelve paid exotic discoveries.
+reachable with this game's ten paid exotic discoveries.
 
 Reference mechanics were checked against the [Megabonk shop catalog](https://megabonk.wiki/wiki/Shop),
 [beginner guide](https://progameguides.com/megabonk/megabonk-beginners-guide-how-to-farm-silver-unlock-extra-slots/)

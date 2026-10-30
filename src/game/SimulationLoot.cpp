@@ -260,8 +260,9 @@ void Simulation::updatePlayerClassEffects(
 }
 
 double Simulation::playerPermanentMaxHealth() const {
-    return gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
-        playerBonusMaxHealth_ + classLevelBonuses().maximumHealth;
+    return (gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+        playerBonusMaxHealth_ + classLevelBonuses().maximumHealth) *
+        fortitudePlayerHealthMultiplier(runUpgradePower_,shrines_);
 }
 
 void Simulation::applyPotionWaveStart() {

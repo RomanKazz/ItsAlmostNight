@@ -26,6 +26,38 @@ void runRunUpgradeTests() {
     checkCoreDefenseGateAndRepairs();
     using namespace ian;
     {
+        auto world=WorldConfig::defaults();world.terrainResolution=33;
+        world.terrainAmplitude=world.terrainSurfaceNoiseAmplitude=0;
+        world.pondMinimumCount=world.pondMaximumCount=0;
+        auto map=MapDefinition::defaults();map.resources.clear();map.obstacles.clear();
+        auto run=std::make_unique<Simulation>(GameBalance::defaults(),map,world);
+        run->startRunFromSeed(PlayerClass::Miner,348);
+        auto saved=run->saveSuspendedRunState();saved.playerHealth=80;
+        saved.buildings={
+            {.id={1000,1},.type=BuildingType::Core,.gridPosition={0,0},.health=500,.maxHealth=500},
+            {.id={1001,1},.type=BuildingType::Wall,.gridPosition={2,0},.health=80,.maxHealth=100}};
+        run->returnToMainMenu();require(run->loadSuspendedRunState(saved),"shared health fixture restores");
+        const double basePlayer=run->snapshot().playerMaxHealth;
+        const double baseBuilding=run->snapshot().upgradeStats.buildingHealth;
+        require(run->grantDebugRunUpgrade(RunUpgradeEffect::BuildingHealth,RunUpgradeRarity::Rare),"Fortitude applies");
+        requireNear(run->snapshot().playerMaxHealth,basePlayer*1.21,1e-9,"rare Fortitude gives player twenty-one percent HP");
+        requireNear(run->snapshot().upgradeStats.buildingHealth,baseBuilding*1.21,1e-9,"Fortitude gives the same HP bonus to structures");
+        requireNear(run->snapshot().playerMaxHealth-run->snapshot().playerHealth,20,1e-9,"Fortitude heals only the gained player capacity");
+        saved=run->saveSuspendedRunState();
+        saved.playerTemporaryHealth=30;saved.playerHealth+=30;
+        run->returnToMainMenu();require(run->loadSuspendedRunState(saved),"shared health survives suspension");
+        const double before=run->snapshot().playerMaxHealth;
+        requireNear(before,basePlayer*1.21+30,1e-9,"temporary health is outside the Fortitude multiplier");
+        require(run->grantDebugRunUpgrade(RunUpgradeEffect::BuildingHealth),"Fortitude stacks");
+        requireNear(run->snapshot().playerMaxHealth,basePlayer*1.36+30,1e-9,"Fortitude stacks additively without multiplying temporary HP");
+        const double upgraded=run->snapshot().playerMaxHealth;
+        for(int load=0;load<2;++load) {
+            saved=run->saveSuspendedRunState();run->returnToMainMenu();
+            require(run->loadSuspendedRunState(saved),"Fortitude saves repeatedly");
+            requireNear(run->snapshot().playerMaxHealth,upgraded,1e-9,"resume cannot double-apply shared health");
+        }
+    }
+    {
         auto run = std::make_unique<Simulation>();
         run->startRunFromSeed(PlayerClass::Vanguard, 71234);
         auto offer = run->saveSuspendedRunState();

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "progressionRevision": 6,
+  "progressionRevision": 7,
   "quests": [
     {
       "id": "class_berserker",
@@ -465,8 +465,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "weapon.ice_wand",
-        "purchaseCost": 5
+        "unlockId": "",
+        "purchaseCost": 0
       },
       "notification": "3 shrines activated"
     },
@@ -488,8 +488,8 @@
       "prerequisites": [],
       "reward": {
         "silver": 2,
-        "unlockId": "weapon.fire_wand",
-        "purchaseCost": 5
+        "unlockId": "",
+        "purchaseCost": 0
       },
       "notification": "Might Tome level 5"
     },
@@ -1877,14 +1877,14 @@
     },
     {
       "id": "milestone_unlocks_purchased_30",
-      "title": "Purchase 12 permanent unlocks",
-      "description": "Purchase 12 permanent unlocks",
+      "title": "Purchase 10 permanent unlocks",
+      "description": "Purchase 10 permanent unlocks",
       "category": "general",
       "conditions": [
         {
           "metric": "unlocks_purchased",
           "scope": "lifetime",
-          "target": 12,
+          "target": 10,
           "comparison": "at_least",
           "subject": "",
           "playerClass": ""
@@ -1896,7 +1896,7 @@
         "unlockId": "",
         "purchaseCost": 0
       },
-      "notification": "12 unlocks purchased"
+      "notification": "10 unlocks purchased"
     },
     {
       "id": "milestone_challenges_completed_1",

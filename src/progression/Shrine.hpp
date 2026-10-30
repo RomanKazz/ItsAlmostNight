@@ -51,6 +51,7 @@ inline constexpr std::array ShrineBlessings{
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::AttackSpeed, .15, RunUpgradeEffect::AttackSpeed, "+15% weapon attack speed"),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::MoveSpeed, .08),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::MaximumHealth, 12),
+    tomeBlessing(ShrineKind::Player, RunUpgradeEffect::BuildingHealth, .15),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::RecoverableArmor, 8),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::Luck, .10),
     tomeBlessing(ShrineKind::Player, RunUpgradeEffect::ExperienceGain, .10),
@@ -104,9 +105,19 @@ inline constexpr ShrineBlessing CoreShrineBlessing{
     return shrineBlessing(kind,effect) ? shrineBonusPowers(state,kind)[runUpgradeIndex(effect)] : 0.0;
 }
 [[nodiscard]] inline double shrineMultiplier(const ShrineRunState& state, RunUpgradeEffect effect) {
+    if (effect == RunUpgradeEffect::BuildingHealth)
+        return 1.0 + .15 * (shrineBonusPower(state,ShrineKind::Buildings,effect) +
+            shrineBonusPower(state,ShrineKind::Player,effect) +
+            shrineBonusPower(state,ShrineKind::Player,RunUpgradeEffect::MaximumHealth));
     for (const auto& blessing : ShrineBlessings)
         if (blessing.effect == effect) return 1.0 + blessing.increment * shrineBonusPower(state,blessing.kind,effect);
     return 1.0;
+}
+[[nodiscard]] inline double fortitudePlayerHealthMultiplier(
+    const std::array<double,RunUpgradeEffectCount>& powers, const ShrineRunState& state) {
+    return (1.0 + .15 * powers[runUpgradeIndex(RunUpgradeEffect::BuildingHealth)]) *
+        (1.0 + .15 * (shrineBonusPower(state,ShrineKind::Buildings,RunUpgradeEffect::BuildingHealth) +
+            shrineBonusPower(state,ShrineKind::Player,RunUpgradeEffect::BuildingHealth)));
 }
 // Keep the shared AttackStats binding/hit flow. Flat counters add, independent
 // percentage sources multiply. Tome ownership/power is never changed.

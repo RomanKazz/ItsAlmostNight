@@ -472,6 +472,11 @@ OfferDescription describeOffer(const SimulationSnapshot& snapshot, std::size_t c
                     snapshot.runUpgradeRarities[choice], snapshot.runUpgradeRollSeeds[choice]);
                 compare(name, range.first, range.second, "m");
             }
+            else if (stat == AttackStat::Quantity && *building == BuildingType::TeslaTower) {
+                const auto count = buildingAttackCountUpgradePreview(snapshot, *building,
+                    snapshot.runUpgradeRarities[choice], snapshot.runUpgradeRollSeeds[choice]);
+                compare(name, count.first, count.second, "", 0);
+            }
             else if (stat == AttackStat::Quantity || stat == AttackStat::Bounces || stat == AttackStat::Pierce)
                 compare(name, std::floor(before + 1e-6), std::floor(after + 1e-6), "", 0);
             else if (stat == AttackStat::CritDamage)
@@ -484,7 +489,10 @@ OfferDescription describeOffer(const SimulationSnapshot& snapshot, std::size_t c
     const auto next = previewRunUpgrade(snapshot, choice);
     if (const auto weapon = runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect)) {
         const auto index = static_cast<std::size_t>(*weapon);
-        compare("Weapon level", snapshot.weaponLevels[index], next.weaponLevels[index], "", 0);
+        if (*weapon == PlayerWeapon::Axe || *weapon == PlayerWeapon::Pickaxe)
+            compare("Power", 100 * playerWeaponLevelDamage(*weapon, snapshot.weaponLevels[index]),
+                100 * playerWeaponLevelDamage(*weapon, next.weaponLevels[index]), "%", 0);
+        else compare("Weapon level", snapshot.weaponLevels[index], next.weaponLevels[index], "", 0);
     } else if (runUpgradeBuilding(effect)) {
         compare("Building level", snapshot.runUpgradeStacks[runUpgradeIndex(effect)],
             snapshot.runUpgradeStacks[runUpgradeIndex(effect)] + 1, "", 0);
@@ -507,10 +515,16 @@ OfferDescription describeOffer(const SimulationSnapshot& snapshot, std::size_t c
         break;
     case RunUpgradeEffect::GatheringSpeed: compare("Tool speed", snapshot.upgradeStats.toolAttackSpeed, next.upgradeStats.toolAttackSpeed, "x"); break;
     case RunUpgradeEffect::MoveSpeed: compare("Move speed", snapshot.playerMoveSpeedMultiplier, next.playerMoveSpeedMultiplier, "x"); break;
-    case RunUpgradeEffect::MaximumHealth: compare("Max HP", snapshot.playerMaxHealth, next.playerMaxHealth); break;
+    case RunUpgradeEffect::MaximumHealth:
+        compare("Max HP", snapshot.playerMaxHealth, next.playerMaxHealth);
+        if(snapshot.shrines.offer!=ShrineKind::None)
+            compare("Building HP",snapshot.upgradeStats.buildingHealth,next.upgradeStats.buildingHealth,"x");
+        break;
     case RunUpgradeEffect::RecoverableArmor: compare("Shield", snapshot.playerMaxRecoverableArmor, next.playerMaxRecoverableArmor); break;
     case RunUpgradeEffect::Regeneration: compare("HP regen", snapshot.upgradeStats.healthRegeneration, next.upgradeStats.healthRegeneration, "/s"); break;
-    case RunUpgradeEffect::BuildingHealth: compare("Building HP", snapshot.upgradeStats.buildingHealth, next.upgradeStats.buildingHealth, "x"); break;
+    case RunUpgradeEffect::BuildingHealth:
+        compare("Max HP",snapshot.playerMaxHealth,next.playerMaxHealth);
+        compare("Building HP", snapshot.upgradeStats.buildingHealth, next.upgradeStats.buildingHealth, "x"); break;
     case RunUpgradeEffect::DefenseDamage: compare("Defense damage", snapshot.upgradeStats.defenseDamage, next.upgradeStats.defenseDamage, "x"); break;
     case RunUpgradeEffect::DefenseFireRate: compare("Fire rate", snapshot.upgradeStats.defenseFireRate, next.upgradeStats.defenseFireRate, "x"); break;
     case RunUpgradeEffect::ProductionSpeed: compare("Production", snapshot.upgradeStats.productionSpeed, next.upgradeStats.productionSpeed, "x"); break;
@@ -851,7 +865,7 @@ std::optional<std::size_t> hoveredRunUpgradeChoice(const SimulationSnapshot& sna
     return std::nullopt;
 }
 
-std::pair<double,double> buildingRangeUpgradePreview(
+static std::pair<FinalAttackStats,FinalAttackStats> buildingAttackStatsUpgradePreview(
     const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
     std::uint64_t rollSeed) {
     const auto index = static_cast<std::size_t>(type);
@@ -872,15 +886,29 @@ std::pair<double,double> buildingRangeUpgradePreview(
     applyBuildingStatUpgrade(upgraded, type, rollBuildingStatUpgrade(type, rarity, rollSeed), rarity);
     const auto run = compatibleAttackModifiers(type,
         shrineDefenseAttackModifiers(snapshot.runUpgradePower, snapshot.shrines));
-    const auto distance = [&](int tier, const BuildingUpgradePowers& powers) {
+    const auto resolved = [&](int tier, const BuildingUpgradePowers& powers) {
         const std::array sources{run, buildingStatUpgradeModifiers(type, powers)};
-        const auto stats = resolveAttackStats(base(tier), sources);
-        const bool scalesWithSize = type == BuildingType::Flamethrower || type == BuildingType::WindBlower ||
-            type == BuildingType::SlowTrap || type == BuildingType::SpikeTrap;
-        return stats.range * (scalesWithSize ? stats.size : 1.0);
+        return resolveAttackStats(base(tier), sources);
     };
-    return {distance(level, snapshot.buildingUpgradePowers),
-        distance(std::min(level + 1, static_cast<int>(MaxStructureLevel)), upgraded)};
+    return {resolved(level, snapshot.buildingUpgradePowers),
+        resolved(std::min(level + 1, static_cast<int>(MaxStructureLevel)), upgraded)};
+}
+
+std::pair<double,double> buildingRangeUpgradePreview(
+    const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t rollSeed) {
+    const auto [before, after] = buildingAttackStatsUpgradePreview(snapshot,type,rarity,rollSeed);
+    const bool scalesWithSize = type == BuildingType::Flamethrower || type == BuildingType::WindBlower ||
+        type == BuildingType::SlowTrap || type == BuildingType::SpikeTrap;
+    return {before.range * (scalesWithSize ? before.size : 1.0),
+        after.range * (scalesWithSize ? after.size : 1.0)};
+}
+
+std::pair<double,double> buildingAttackCountUpgradePreview(
+    const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t rollSeed) {
+    const auto [before, after] = buildingAttackStatsUpgradePreview(snapshot,type,rarity,rollSeed);
+    return {effectiveAttackCount(before.quantity,1),effectiveAttackCount(after.quantity,1)};
 }
 
 SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::size_t choiceIndex) {
@@ -902,7 +930,11 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
         case RunUpgradeEffect::Damage: projected.playerDamageMultiplier*=ratio; break;
         case RunUpgradeEffect::AttackSpeed: projected.upgradeStats.playerAttackSpeed*=ratio; projected.upgradeStats.toolAttackSpeed*=ratio; break;
         case RunUpgradeEffect::MoveSpeed: projected.playerMoveSpeedMultiplier*=ratio; break;
-        case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth+=blessing->increment*gain; break;
+        case RunUpgradeEffect::MaximumHealth:
+            projected.playerMaxHealth+=blessing->increment*gain*fortitudePlayerHealthMultiplier(snapshot.runUpgradePower,snapshot.shrines);
+            projected.upgradeStats.buildingHealth*=shrineMultiplier(projected.shrines,RunUpgradeEffect::BuildingHealth)/
+                shrineMultiplier(snapshot.shrines,RunUpgradeEffect::BuildingHealth);
+            break;
         case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor+=blessing->increment*gain; break;
         case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage*=ratio; break;
         case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate*=ratio; break;
@@ -912,7 +944,12 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
             projected.buildingLimitBonus+=added;
             break;
         }
-        case RunUpgradeEffect::BuildingHealth: projected.upgradeStats.buildingHealth*=ratio; break;
+        case RunUpgradeEffect::BuildingHealth:
+            projected.playerMaxHealth=(snapshot.playerMaxHealth-snapshot.playerTemporaryHealth)*
+                fortitudePlayerHealthMultiplier(snapshot.runUpgradePower,projected.shrines)/
+                fortitudePlayerHealthMultiplier(snapshot.runUpgradePower,snapshot.shrines)+snapshot.playerTemporaryHealth;
+            projected.upgradeStats.buildingHealth*=shrineMultiplier(projected.shrines,effect)/shrineMultiplier(snapshot.shrines,effect);
+            break;
         case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed*=ratio; break;
         case RunUpgradeEffect::ExperienceGain: projected.upgradeStats.experienceGain+=blessing->increment*gain; break;
         case RunUpgradeEffect::ResourceCapacity: projected.upgradeStats.resourceCapacity+=blessing->increment*gain; break;
@@ -982,6 +1019,8 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
         break;
     case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate *= (1.0 + 0.10 * (current + gain)) / (1.0 + 0.10 * current); break;
     case RunUpgradeEffect::BuildingHealth:
+        projected.playerMaxHealth=(snapshot.playerMaxHealth-snapshot.playerTemporaryHealth)*
+            (1+.15*(current+gain))/(1+.15*current)+snapshot.playerTemporaryHealth;
         projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.15); break;
     case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.12); break;
     case RunUpgradeEffect::ExperienceGain: projected.upgradeStats.experienceGain += .10 * gain; break;
@@ -992,7 +1031,8 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     case RunUpgradeEffect::Damage: projected.playerDamageMultiplier *= ratio(1.0, 0.10); break;
     case RunUpgradeEffect::MoveSpeed:
         projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.08); break;
-    case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth += 12.0 * gain; break;
+    case RunUpgradeEffect::MaximumHealth:
+        projected.playerMaxHealth += 12.0 * gain * fortitudePlayerHealthMultiplier(snapshot.runUpgradePower,snapshot.shrines); break;
     case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
     case RunUpgradeEffect::BuildingCapacity:
     case RunUpgradeEffect::ExtraBuilding: {

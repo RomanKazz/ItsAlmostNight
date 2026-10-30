@@ -48,6 +48,9 @@ struct RunUpgradeOverlayTransition { float opacity; float scale; };
 [[nodiscard]] std::pair<double,double> buildingRangeUpgradePreview(
     const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
     std::uint64_t rollSeed);
+[[nodiscard]] std::pair<double,double> buildingAttackCountUpgradePreview(
+    const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,
+    std::uint64_t rollSeed);
 
 // Projects only HUD values; the simulation and its world views are unchanged.
 [[nodiscard]] SimulationSnapshot previewRunUpgrade(

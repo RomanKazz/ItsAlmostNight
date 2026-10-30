@@ -1765,7 +1765,12 @@
       "Complete 40 quests": "Выполните 40 заданий",
       "40 quests completed": "Заданий выполнено: 40",
       "Purchase 8 permanent unlocks": "Купите 8 постоянных открытий",
-      "8 unlocks purchased": "Открытий куплено: 8"
+      "8 unlocks purchased": "Открытий куплено: 8",
+      "Purchase 10 permanent unlocks": "Купите 10 постоянных открытий",
+      "10 unlocks purchased": "Открытий куплено: 10",
+      "Power": "Сила",
+      "+15% player and building HP": "+15% здоровья игрока и построек",
+      "Player and building HP": "Здоровье игрока и построек"
     }
   }
 }

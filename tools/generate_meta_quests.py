@@ -155,7 +155,7 @@ for metric, label, thresholds in [
     ("buildings_placed", "Place {} structures", [(1, 15), (10, 50), (50, 150)]),
     ("waves_completed", "Survive {} nights in total", [(1, 3), (5, 10), (20, 30)]),
     ("chests_opened", "Open {} chests", [(1, 8), (25, 25), (50, 60)]),
-    ("unlocks_purchased", "Purchase {} permanent unlocks", [(5, 3), (15, 7), (30, 12)]),
+    ("unlocks_purchased", "Purchase {} permanent unlocks", [(5, 3), (15, 7), (30, 10)]),
     ("challenges_completed", "Complete {} portal challenges", [(1, 3), (5, 8), (15, 20)]),
 ]:
     for i, (stable_id, target) in enumerate(thresholds):
@@ -205,7 +205,7 @@ def notification(q):
 for q in quests:
     q["notification"] = notification(q)
 
-root = dict(version=1, progressionRevision=6, quests=quests)
+root = dict(version=1, progressionRevision=7, quests=quests)
 write_artifact(ROOT / "assets/data/meta_quests.json", json.dumps(root, indent=2) + "\n")
 
 # Compile the very same catalog into the fallback: no silent regression to old quests.
@@ -320,6 +320,9 @@ for q in quests:
     ru[q["title"]] = description
     ru[q["notification"]] = russian_notification(q)
 ru.update({
+    "Power": "Сила",
+    "Player and building HP": "Здоровье игрока и построек",
+    "+15% player and building HP": "+15% здоровья игрока и построек",
     "REACH NIGHT 6, THEN BUY IN UNLOCKS": "ДОЙДИТЕ ДО НОЧИ 6, ЗАТЕМ КУПИТЕ В ОТКРЫТИЯХ",
     "DEFEAT 250 ENEMIES, THEN BUY IN UNLOCKS": "ПОБЕДИТЕ 250 ВРАГОВ, ЗАТЕМ КУПИТЕ В ОТКРЫТИЯХ",
     "COLLECT 20 ITEMS, THEN BUY IN UNLOCKS": "СОБЕРИТЕ 20 ПРЕДМЕТОВ, ЗАТЕМ КУПИТЕ В ОТКРЫТИЯХ",
