@@ -1301,10 +1301,19 @@ struct AppPresentationTestAccess {
         app->closeFeedback();debugKeys &= app->simulation_.snapshot().state==RunState::Paused;
         app->simulation_.togglePause();
         app->openSettings(false);
+        const auto graphicsBeforeCancel = app->renderer_->settings();
+        app->settingsMenuState_.graphicsDraft = graphicsBeforeCancel;
+        app->settingsMenuState_.graphicsDraft->displayWidth = 960;
+        app->settingsMenuState_.graphicsDraft->displayHeight = 540;
+        app->settingsMenuState_.graphicsDraft->brightness = .25F;
         chord(KEY_F3);app->closeFeedback();
         debugKeys &= app->renderer_->graphicsPanelVisible() && app->simulation_.snapshot().state==RunState::Paused;
         app->closeSettings();
-        debugKeys &= app->simulation_.snapshot().state==RunState::BuildPhase;
+        UserSettings cancelledGraphics;
+        debugKeys &= app->simulation_.snapshot().state==RunState::BuildPhase &&
+            !app->settingsMenuState_.graphicsDraft && app->renderer_->settings()==graphicsBeforeCancel &&
+            loadUserSettings("user_settings/game_settings.json", cancelledGraphics) &&
+            cancelledGraphics.graphics == graphicsBeforeCancel;
         app->userSettings_.debugHotkeysEnabled=true;
         app->persistUserSettings(true);
         UserSettings enabledSettings;

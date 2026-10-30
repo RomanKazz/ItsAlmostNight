@@ -88,6 +88,7 @@ SettingsMenuLayout settingsMenuLayout(Vector2 screen) {
     }
     layout.close = {panel.x + width - 184, panel.y + height - 70, 156, 44};
     layout.reset = {panel.x + 264, panel.y + height - 70, 264, 44};
+    layout.apply = {layout.close.x - 236, layout.close.y, 216, 44};
     return layout;
 }
 
@@ -122,6 +123,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     const auto language = settings.language;
     const auto t = [language](std::string_view en, std::string_view ru) { return tr(language, en, ru); };
     SettingsMenuResult result{};
+    if (!state.graphicsDraft) state.graphicsDraft = settings.graphics;
     const bool progressDialogWasOpen = state.progressResetConfirmation;
     const bool modal = state.resetConfirmation || state.progressResetConfirmation;
     const bool interactive = !input.pendingBinding && !modal;
@@ -170,7 +172,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
         rows.push_back({std::string(label), std::string(detail), std::string(t("OPEN", "ОТКРЫТЬ")), {}, {}, 0, {}, id});
     };
 
-    auto& graphics = settings.graphics;
+    auto& graphics = *state.graphicsDraft;
     switch (state.tab) {
     case SettingsTab::Video: {
         rows.push_back({std::string(t("Display mode", "Режим экрана")), {},
@@ -301,8 +303,10 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
     }
     if (interactive && CheckCollisionPointRec(input.pointer, layout.content)) state.scroll -= input.wheel * 56;
     if (interactive && input.rowStep) {
-        state.focusedRow = std::clamp(state.focusedRow + input.rowStep, 0, static_cast<int>(rows.size()) - 1);
-        const float top = static_cast<float>(state.focusedRow) * RowHeight;
+        const int lastRow = static_cast<int>(rows.size()) - 1;
+        state.focusedRow = std::clamp(state.focusedRow + input.rowStep, 0,
+            lastRow + (state.tab == SettingsTab::Video ? 1 : 0));
+        const float top = static_cast<float>(std::min(state.focusedRow, lastRow)) * RowHeight;
         state.scroll = std::clamp(state.scroll, top + RowHeight - layout.content.height, top);
     }
     state.scroll = std::clamp(state.scroll, 0.0F, maximumScroll);
@@ -377,7 +381,23 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
             layout.content.y + 12 + (trackHeight - thumbHeight) * state.scroll / maximumScroll, 5, thumbHeight}, menuStyle::Gold);
     }
 
-    result.close = menuStyle::button(layout.close, 1, t("BACK", "НАЗАД"), 21,
+    const bool pendingGraphics = graphics != settings.graphics;
+    if (state.tab == SettingsTab::Video) {
+        const bool applyFocused = state.focusedRow == static_cast<int>(rows.size());
+        const bool applyClicked = menuStyle::button(layout.apply, 1, t("APPLY", "ПРИМЕНИТЬ"), 21,
+            input.pointer, input.click && interactive, pendingGraphics && interactive);
+        if (applyFocused && interactive) DrawRectangleLinesEx(layout.apply, 2, menuStyle::Gold);
+        if (pendingGraphics && (applyClicked || (applyFocused && input.activate && interactive))) {
+            settings.graphics = graphics;
+            result.applyGraphics = true;
+        }
+        if (pendingGraphics && !result.applyGraphics && state.bindingError.empty())
+            menuStyle::text(t("Changes not applied", "Изменения не применены"),
+                {layout.content.x, layout.content.y + layout.content.height + 8, layout.content.width, 24},
+                15, menuStyle::Gold);
+    }
+    result.close = menuStyle::button(layout.close, 1,
+        pendingGraphics && !result.applyGraphics ? t("CANCEL", "ОТМЕНА") : t("BACK", "НАЗАД"), 21,
         input.pointer, input.click && !modal) || result.close;
     if (menuStyle::button(layout.reset, 1, t("RESET SECTION", "СБРОСИТЬ РАЗДЕЛ"), 18,
         input.pointer, input.click && interactive) || (interactive && input.reset)) state.resetConfirmation = true;
@@ -400,7 +420,14 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
             t("RESET", "СБРОСИТЬ"), 20, input.pointer, input.click) || input.activate;
         const bool cancel = menuStyle::button({dialog.x + 28, dialog.y + 142, 240, 48}, 1,
             t("CANCEL", "ОТМЕНА"), 20, input.pointer, input.click) || input.back;
-        if (confirm) { resetTab(settings, state.tab); state.resetConfirmation = false; }
+        if (confirm) {
+            if (state.tab == SettingsTab::Video) {
+                UserSettings reset = settings;
+                resetTab(reset, state.tab);
+                graphics = reset.graphics;
+            } else resetTab(settings, state.tab);
+            state.resetConfirmation = false;
+        }
         else if (cancel) state.resetConfirmation = false;
     }
     if(state.progressResetConfirmation) {
@@ -434,6 +461,7 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
             state.progressResetConfirmation=false;
         }
     }
+    if (result.close || result.chooseBackground || result.credits) state.graphicsDraft.reset();
     return result;
 }
 } // namespace ian

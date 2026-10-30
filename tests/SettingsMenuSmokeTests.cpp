@@ -48,26 +48,59 @@ int main(int argc, char** argv) {
         return result;
     };
     require(!draw({}).close, "drawing the settings does not change navigation");
-    const bool initialFullscreen = settings.graphics.fullscreen;
+    require(!draw({.pointer = {layout.apply.x + 30, layout.apply.y + 20}, .click = true}).applyGraphics,
+        "Apply is disabled until there are pending video changes");
+    const auto initialGraphics = settings.graphics;
     draw({.valueStep = 1});
-    require(settings.graphics.fullscreen != initialFullscreen,
-        "an arrow immediately changes the first setting without requiring a prior selection");
+    require(settings.graphics == initialGraphics &&
+        state.graphicsDraft->fullscreen != initialGraphics.fullscreen,
+        "display mode selection edits a draft without changing live graphics");
+    require(draw({.back = true}).close && !state.graphicsDraft && settings.graphics == initialGraphics,
+        "Escape discards pending video changes");
     state = {};
-    const bool fullscreen = settings.graphics.fullscreen;
     draw({.rowStep = 1, .valueStep = 1});
-    require(settings.graphics.fullscreen != fullscreen, "keyboard navigation changes the focused option");
+    require(settings.graphics == initialGraphics &&
+        state.graphicsDraft->fullscreen != initialGraphics.fullscreen,
+        "keyboard navigation changes the selected option without applying it");
+    state = {};
     state.focusedRow = 1;
     settings.graphics.fullscreen = false;
     settings.graphics.displayWidth = 1280;
     settings.graphics.displayHeight = 720;
     settings.graphics.renderWidth = 1280;
     settings.graphics.renderHeight = 720;
+    const auto beforeResolution = settings.graphics;
     draw({.valueStep = 1});
-    require(settings.graphics.displayWidth > 0 && settings.graphics.displayHeight > 0 &&
-        (settings.graphics.displayWidth != 1280 || settings.graphics.displayHeight != 720),
-        "resolution arrows select output pixel dimensions");
-    require(settings.graphics.renderWidth == 1920 && settings.graphics.renderHeight == 1080,
+    const auto selected = *state.graphicsDraft;
+    require(settings.graphics == beforeResolution && selected.displayWidth > 0 && selected.displayHeight > 0 &&
+        (selected.displayWidth != 1280 || selected.displayHeight != 720),
+        "resolution arrows select draft output dimensions without applying them");
+    require(selected.renderWidth == 1920 && selected.renderHeight == 1080,
         "output resolution does not inherit the previous relative render scale");
+    draw({.tabStep = 1});
+    require(settings.graphics == beforeResolution && *state.graphicsDraft == selected,
+        "changing tabs preserves the draft without applying it");
+    draw({.tabStep = -1});
+    require(draw({.pointer = {layout.apply.x + 30, layout.apply.y + 20}, .click = true}).applyGraphics &&
+        settings.graphics == selected,
+        "Apply commits all selected video settings together");
+    require(!draw({.pointer = {layout.apply.x + 30, layout.apply.y + 20}, .click = true}).applyGraphics,
+        "an applied draft cannot be saved repeatedly without new changes");
+    draw({.reset = true}); draw({.activate = true});
+    require(settings.graphics == selected && *state.graphicsDraft != selected,
+        "resetting the Video section also waits for Apply");
+    state.focusedRow = 7;
+    draw({.rowStep = 1});
+    require(state.focusedRow == 8 && draw({.activate = true}).applyGraphics &&
+        settings.graphics.displayWidth == 0 && settings.graphics.renderWidth == 1920,
+        "keyboard navigation reaches Apply and commits the reset");
+    state.focusedRow = 0;
+    draw({.valueStep = -1});
+    const auto beforeCancel = settings.graphics;
+    require(draw({.pointer = {layout.close.x + 30, layout.close.y + 20}, .click = true}).close &&
+        !state.graphicsDraft && settings.graphics == beforeCancel,
+        "Cancel discards the pending draft");
+    state = {};
     draw({.tabStep = 1});
     require(state.tab == SettingsTab::Audio, "Tab navigates player settings sections");
     const auto graphics = settings.graphics;
@@ -137,6 +170,11 @@ int main(int argc, char** argv) {
             settings.language = language; setLanguage(language);
             for (int tab = 0; tab < 4; ++tab) {
                 state = {}; state.tab = static_cast<SettingsTab>(tab);
+                if (state.tab == SettingsTab::Video) {
+                    state.graphicsDraft = settings.graphics;
+                    state.graphicsDraft->displayWidth = 1280;
+                    state.graphicsDraft->displayHeight = 800;
+                }
                 draw({.mainMenu = true});
                 auto image = LoadImageFromTexture(target.texture);
                 ImageFlipVertical(&image);

@@ -19,6 +19,7 @@ struct SettingsMenuState {
     bool progressResetConfirmation{};
     bool progressResetSelected{};
     std::string bindingError;
+    std::optional<GraphicsSettings> graphicsDraft;
 };
 
 struct SettingsMenuInput {
@@ -41,6 +42,7 @@ struct SettingsMenuResult {
     bool chooseBackground{};
     bool credits{};
     bool resetProgress{};
+    bool applyGraphics{};
     std::optional<ControlAction> rebind;
 };
 
@@ -50,6 +52,7 @@ struct SettingsMenuLayout {
     Rectangle tabs[4];
     Rectangle close;
     Rectangle reset;
+    Rectangle apply;
 };
 
 [[nodiscard]] SettingsMenuLayout settingsMenuLayout(Vector2 screen);

@@ -14,6 +14,7 @@ void App::openSettings(bool debug) {
         resumeAfterSettings_ = true;
     }
     debugSettings_ = debug;
+    settingsMenuState_.graphicsDraft.reset();
     // Opening from another menu must not replay its click/Enter on the first option.
     settingsRebindConsumedInput_ = true;
     settingsMenuState_.resetConfirmation = false;
@@ -33,6 +34,7 @@ void App::openSettings(bool debug) {
 }
 
 void App::closeSettings() {
+    settingsMenuState_.graphicsDraft.reset();
     renderer_->setGraphicsPanelVisible(false);
     pendingControlRebind_.reset();
     settingsMenuState_.resetConfirmation = false;
@@ -63,6 +65,7 @@ void App::drawPlayerSettingsPanel() {
         .debugHotkeysEnabled = userSettings_.debugHotkeysEnabled,
     };
     const auto previous = settings;
+    const auto previousGraphicsSelection = settingsMenuState_.graphicsDraft.value_or(settings.graphics);
     const auto previousTab = settingsMenuState_.tab;
     const int previousRow = settingsMenuState_.focusedRow;
     const bool keysEnabled = !settingsRebindConsumedInput_ && !pendingControlRebind_;
@@ -99,11 +102,14 @@ void App::drawPlayerSettingsPanel() {
     userSettings_.debugHotkeysEnabled = settings.debugHotkeysEnabled;
     if (previous.language != settings.language) setLanguage(settings.language);
     if (result.rebind) pendingControlRebind_ = result.rebind;
+    if (result.applyGraphics) persistUserSettings(true);
+    const bool graphicsSelectionChanged =
+        previousGraphicsSelection != settingsMenuState_.graphicsDraft.value_or(settings.graphics);
     if (!result.close && !result.chooseBackground && !result.credits &&
         (input.click || input.tabStep || input.rowStep) &&
         (previousTab != settingsMenuState_.tab || previousRow != settingsMenuState_.focusedRow) &&
         previous == settings && !result.rebind) audio_.playUiSelect();
-    if ((previous != settings || result.rebind) &&
+    if ((previous != settings || graphicsSelectionChanged || result.rebind) &&
         (input.click || input.activate || input.valueStep || input.reset)) audio_.playUiConfirm();
     if (result.close || result.chooseBackground || result.credits) closeSettings();
     if (result.chooseBackground && mainMenu) beginMenuBackgroundEdit(simulation_.snapshot());
