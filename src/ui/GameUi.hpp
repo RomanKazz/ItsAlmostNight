@@ -115,7 +115,6 @@ class GameUi {
     [[nodiscard]] int minimapTargetSize() const;
     void prepareMinimapLandscape(const SimulationSnapshot& snapshot);
     void drawMinimapLandscape(const SimulationSnapshot& snapshot, Rectangle bounds, double radius);
-    [[nodiscard]] Texture2D mapIconTexture(MapIcon icon) const;
     void updateMinimapMarkers(const SimulationSnapshot& snapshot);
     [[nodiscard]] std::span<const MinimapMarker> minimapMarkers() const { return minimapMarkers_; }
     [[nodiscard]] bool minimapTargetRefreshDue(
@@ -206,7 +205,6 @@ class GameUi {
     RenderTexture2D minimapTarget_{};
     MinimapLandscape minimapLandscape_{};
     std::vector<MinimapMarker> minimapMarkers_;
-    std::array<Texture2D, static_cast<std::size_t>(MapIcon::Count)> mapIcons_{};
     RenderTexture2D minimapFrameTarget_{};
     Shader minimapCircleShader_{};
     bool minimapTargetCacheValid_{};

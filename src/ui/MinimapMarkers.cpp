@@ -27,9 +27,9 @@ std::vector<MinimapMarker> collectMinimapMarkers(const SimulationSnapshot& snaps
     }
     for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
         if (!reveal && !nearby(landmark.position) && !landmark.activated) continue;
-        markers.push_back({landmarkShrineKind(landmark.type)==ShrineKind::Player ? MapIcon::Crystal
-            : landmarkShrineKind(landmark.type)==ShrineKind::Buildings ? MapIcon::Challenge
-            : landmark.type == WorldLandmarkType::Mine ? MapIcon::Stone : MapIcon::Wood,
+        markers.push_back({landmarkShrineKind(landmark.type)==ShrineKind::Player ? MapIcon::PlayerShrine
+            : landmarkShrineKind(landmark.type)==ShrineKind::Buildings ? MapIcon::BuildingShrine
+            : MapIcon::Industry,
             landmark.position, 4, 1, landmark.activated});
     }
     struct Group { Vec3 sum{}; int count{}; Vec3 anchor{}; double anchorDistance{1e30}; };

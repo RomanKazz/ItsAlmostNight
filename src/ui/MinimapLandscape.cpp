@@ -7,7 +7,6 @@
 #include <array>
 #include <cmath>
 #include <limits>
-#include <set>
 #include <thread>
 #include <system_error>
 #include <vector>
@@ -18,8 +17,8 @@ constexpr int AtlasSize = 1024;
 // Cartographic colors deliberately improve contrast without recoloring the world.
 Color terrainColor(const visual_biomes::Layout& layout, float x, float z) {
     constexpr std::array<Color, 4> palette{{
-        {113, 174, 61, 255}, {185, 79, 145, 255},
-        {216, 155, 67, 255}, {116, 194, 226, 255}}};
+        {91, 126, 76, 255}, {122, 87, 119, 255},
+        {158, 132, 84, 255}, {111, 145, 151, 255}}};
     const auto weights = visual_biomes::weights(layout, x, z);
     float r = 0, g = 0, b = 0;
     for (std::size_t i = 0; i < palette.size(); ++i) {
@@ -95,7 +94,7 @@ void MinimapLandscape::update(const SimulationSnapshot& snapshot) {
                 const float height = heights[i];
                 const float dx = static_cast<float>((heightAt(x + 2, z) - heightAt(x - 2, z)) / (4 * step));
                 const float dz = static_cast<float>((heightAt(x, z + 2) - heightAt(x, z - 2)) / (4 * step));
-                const float light = std::clamp(1.01F - .24F * (dx + dz * .8F) /
+                const float light = std::clamp(1.01F - .16F * (dx + dz * .8F) /
                     std::sqrt(1 + dx * dx + dz * dz), .82F, 1.16F);
                 Color color = terrainColor(biomes,
                     static_cast<float>((x + .5) * step - half),
@@ -108,21 +107,21 @@ void MinimapLandscape::update(const SimulationSnapshot& snapshot) {
                 const float slope = std::hypot(dx, dz);
                 const float contourWidth = static_cast<float>(step) * slope * .7F;
                 if (slope > .08F && contour < contourWidth)
-                    color = ColorLerp(color, {37, 79, 51, 255}, .12F * (1 - contour / contourWidth));
+                    color = ColorLerp(color, {32, 53, 43, 255}, .22F * (1 - contour / contourWidth));
                 const float shore = shores[i];
                 if (shore < 1.6F && shore >= 0)
-                    color = ColorLerp({237, 218, 147, 255}, color, shore / 1.6F);
+                    color = ColorLerp({184, 184, 144, 255}, color, shore / 1.6F);
                 if (shore < 0) {
                     const float depth = std::clamp((-shore - .5F) / 7.0F, 0.0F, 1.0F);
-                    color = ColorLerp({26, 224, 215, 255}, {6, 133, 164, 255}, depth);
+                    color = ColorLerp({74, 143, 153, 255}, {41, 91, 112, 255}, depth);
                     if (shore > -.55F)
-                        color = ColorLerp({144, 255, 239, 255}, color, -shore / .55F);
+                        color = ColorLerp({135, 188, 184, 255}, color, -shore / .55F);
                     // Short, quiet cartographic wave strokes, clipped to deep water.
                     const double wx = (x + .5) * step - half;
                     const double wz = (z + .5) * step - half;
                     if (shore < -3 && std::abs(std::remainder(wz + std::sin(wx * .17) * .45, 5.0)) < step * .55 &&
                         std::sin(wx * .42 + std::floor(wz / 5) * 2.7) > .72)
-                        color = ColorLerp(color, {171, 232, 231, 255}, .35F);
+                        color = ColorLerp(color, {155, 192, 195, 255}, .20F);
                 }
                 pixels[i] = color;
             }
@@ -150,18 +149,12 @@ void MinimapLandscape::update(const SimulationSnapshot& snapshot) {
         paintRows(static_cast<int>(started) * AtlasSize /
             static_cast<int>(workerCount), AtlasSize);
     }
-    // Roads and vegetation are baked once with the landscape, never submitted
-    // as hundreds of per-frame HUD sprites. Their positions come from the world.
+    // Relief, shores and roads are one quiet cached layer. Resource symbols
+    // are drawn separately, so depletion never leaves a second baked-in icon.
     const auto atlasPoint = [&](double x, double z) {
         return Vector2{static_cast<float>((x + half) / step),
             static_cast<float>((z + half) / step)};
     };
-    const auto dry = [&](Vector2 p, float clearance) {
-        if (p.x < 0 || p.y < 0 || p.x >= AtlasSize || p.y >= AtlasSize) return false;
-        return shores[static_cast<std::size_t>(p.y) * AtlasSize +
-            static_cast<std::size_t>(p.x)] > clearance;
-    };
-    std::vector<Vector2> roadCenters;
     std::vector<float> roadMask(AtlasSize * AtlasSize);
     for (const auto& path : snapshot.terrainPaths) {
         const auto curve = [&](double t) {
@@ -188,53 +181,11 @@ void MinimapLandscape::update(const SimulationSnapshot& snapshot) {
                 auto& mask = roadMask[static_cast<std::size_t>(z)*AtlasSize+static_cast<std::size_t>(x)];
                 mask = std::max(mask, std::clamp(width+.8F-distance, 0.0F, 1.0F)*fade);
             }
-            roadCenters.push_back(from);
         }
     }
     for (std::size_t i = 0; i < roadMask.size(); ++i)
         if (shores[i] > .8F && roadMask[i] > 0)
-            pixels[i] = ColorLerp(pixels[i], {238, 211, 139, 255}, roadMask[i]*.86F);
-    constexpr std::array paths{"assets/ui/map/forest.png", "assets/ui/map/corrupted.png",
-        "assets/ui/map/desert.png", "assets/ui/map/snow.png", "assets/ui/map/boulders.png",
-        "assets/ui/map/mountain.png"};
-    std::array<Image, paths.size()> stamps{};
-    for (std::size_t i = 0; i < paths.size(); ++i) stamps[i] = LoadImage(paths[i]);
-    const auto stamp = [&](std::size_t index, Vector2 p, float size) {
-        if (IsImageValid(stamps[index])) ImageDraw(&image, stamps[index], {0, 0, 256, 256},
-            {p.x - size * .5F, p.y - size * .78F, size, size}, WHITE);
-    };
-    // Stable world cells retain the same silhouette when a resource is depleted.
-    std::set<std::pair<int, int>> trees, stones;
-    for (const auto& node : snapshot.resourceNodes) {
-        const bool tree = node.type == ResourceType::Wood;
-        if (!tree && node.type != ResourceType::Stone) continue;
-        const Vector2 point = atlasPoint(node.position.x, node.position.z);
-        if (!dry(point, 3.0F) || std::ranges::any_of(roadCenters, [&](Vector2 road) {
-                return std::hypot(point.x-road.x, point.y-road.y) < 5.0 / step;
-            })) continue;
-        const double spacing = tree ? 11.0 : 24.0;
-        auto& cells = tree ? trees : stones;
-        if (!cells.emplace(static_cast<int>(std::floor(node.position.x / spacing)),
-            static_cast<int>(std::floor(node.position.z / spacing))).second) continue;
-        if (!tree) { stamp(4, point, static_cast<float>(7.5 / step)); continue; }
-        const auto weights = visual_biomes::weights(biomes,
-            static_cast<float>(node.position.x), static_cast<float>(node.position.z));
-        const std::size_t biome = static_cast<std::size_t>(
-            std::max_element(weights.begin(), weights.end()) - weights.begin());
-        const float variation = visual_biomes::randomUnit(seed_, node.id.index);
-        stamp(biome, point, static_cast<float>((10.0 + 2.0 * variation) / step));
-    }
-    // Relief symbols only mark real raised, steep terrain, never invented obstacles.
-    for (double z = -half + 14; z < half - 14; z += 22)
-        for (double x = -half + 14; x < half - 14; x += 22) {
-            const float h = sampleHeight(snapshot, x, z);
-            const float slope = std::hypot(sampleHeight(snapshot, x+3, z) - h,
-                sampleHeight(snapshot, x, z+3) - h) / 3;
-            const Vector2 point = atlasPoint(x, z);
-            if (h > 10 && slope > .6F && dry(point, 5))
-                stamp(5, point, static_cast<float>(16.0 / step));
-        }
-    for (auto& sprite : stamps) if (IsImageValid(sprite)) UnloadImage(sprite);
+            pixels[i] = ColorLerp(pixels[i], {204, 190, 142, 255}, roadMask[i]*.64F);
     texture_ = LoadTextureFromImage(image);
     UnloadImage(image);
     if (IsTextureValid(texture_)) SetTextureFilter(texture_, TEXTURE_FILTER_BILINEAR);
