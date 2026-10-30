@@ -221,22 +221,42 @@ int main(int argc, char** argv) {
     require(!drawClass({}).start, "opening character selection does not start a run");
     drawClass({.horizontalStep = 1});
     require(selected == PlayerClass::Sharpshooter, "Right selects the next class");
+    drawClass({.horizontalStep = 1});
+    require(selected == PlayerClass::Mechanic, "Right reaches the third class in the single-row roster");
+    drawClass({.horizontalStep = 1});
+    require(selected == PlayerClass::Miner, "Right reaches the fourth class");
     drawClass({.verticalStep = 1});
-    require(selected == PlayerClass::Miner, "Down moves to the same column of the second row");
-    require(drawClass({.activate = true}).start, "all four test characters are available immediately");
+    require(classes.focused == 4, "Down reaches Start beneath the roster");
+    const auto startSelectedClass = [&] {
+        require(!drawClass({.activate = true}).start && classes.launching,
+            "Start plays its confirmation before entering the run");
+        require(!drawClass({.activate = true, .deltaTime = .09F}).start,
+            "a repeated confirmation does not skip or restart the transition");
+        return drawClass({.deltaTime = .10F}).start;
+    };
+    require(startSelectedClass(), "all four test characters can start without progression requirements");
     classes.focused = 3;
     drawClass({.tabStep = 1});
-    require(classes.focused == 4 && drawClass({.activate = true}).start, "Start follows the four character cards");
+    require(classes.focused == 4 && startSelectedClass(), "Start follows the four character cards");
     drawClass({.tabStep = 1});
     drawClass({.activate = true});
     require(sandbox && !drawClass({.activate = false}).start, "sandbox switch does not start a run");
     classes.focused = 3;
-    require(drawClass({.activate = true}).start, "sandbox can start every test character");
+    require(startSelectedClass(), "sandbox can start every test character");
     classes.focused = 5;
     drawClass({.activate = true});
     require(!sandbox && selected == PlayerClass::Miner, "switching modes preserves a valid new character");
     classes.focused = 6;
     require(drawClass({.activate = true}).back, "Back is accessible from the keyboard");
+    classes.focused = 4;
+    drawClass({.activate = true});
+    const auto classActions = classSelectionLayout(screen);
+    const auto backBounds = classActions.buttons[2];
+    require(drawClass({.pointer = {backBounds.x + 20, backBounds.y + 20}, .click = true}).back &&
+        !classes.launching && !drawClass({.deltaTime = .1F}).start,
+        "Back cancels a pending start transition");
+    require(classSelectionLayout({800, 1200}).columns == 2 && classSelectionLayout(screen).columns == 4,
+        "portrait uses two rows while landscape shows all four classes in one row");
     for (const auto legacy : {PlayerClass::Vanguard,PlayerClass::Stump,PlayerClass::Chronomancer}) {
         selected=legacy;drawClass({});
         require(selected==PlayerClass::Miner,"retired classes fall back to the default Miner");
@@ -345,19 +365,32 @@ int main(int argc, char** argv) {
             drawDebugUpgradeMenu(ui,upgradeSnapshot,upgrades,screen); EndTextureMode(); capture("debug-upgrades");
             BeginTextureMode(target); ClearBackground({76,114,64,255});
             drawDebugUpgradeMenu(ui,upgradeSnapshot,upgrades,{800,1200}); EndTextureMode(); capture("debug-upgrades-portrait");
-            drawClass({}); capture("classes");
+            for (int frame = 0; frame < 6; ++frame) drawClass({.deltaTime = .1F});
+            capture("classes");
             for (int i = 0; i < static_cast<int>(PlayerClassDefinitions.size()); ++i) {
                 selected = PlayerClassDefinitions[static_cast<std::size_t>(i)].type;
                 classes.focused = i;
-                drawClass({});
+                for (int frame = 0; frame < 5; ++frame) drawClass({.deltaTime = .1F});
                 capture(("class-" + std::to_string(i)).c_str());
             }
             selected = PlayerClass::Lumberjack; classes.focused = 0;
             drawClass({}); capture("available-roster");
             selected = PlayerClass::Mechanic; classes.focused = 2;
             const auto details = classSelectionLayout(screen);
-            drawClass({.pointer={details.details.x+60*details.scale,details.details.y+478*details.scale}});
+            for (int frame = 0; frame < 5; ++frame) drawClass({.deltaTime = .1F});
+            drawClass({.pointer={details.details.x+details.details.width*.72F+35*details.scale,
+                details.details.y+110*details.scale}});
             capture("gear-tooltip");
+            auto portraitTarget = LoadRenderTexture(1280, 1920);
+            BeginTextureMode(portraitTarget); ClearBackground({76,114,64,255});
+            static_cast<void>(drawClassSelectionMenu(ui,profile,selected,sandbox,false,classes,{1280,1920},{}));
+            EndTextureMode();
+            auto portrait = LoadImageFromTexture(portraitTarget.texture); ImageFlipVertical(&portrait);
+            require(ExportImage(portrait,(folder/(std::string(languageCode(language))+"-classes-portrait.png")).string().c_str()),
+                "portrait class selection preview exports");
+            UnloadImage(portrait); UnloadRenderTexture(portraitTarget);
+            classes={};
+            drawClass({.deltaTime=.05F}); capture("classes-entering");
             setLanguage(Language::Russian);
             const auto lines = itemTooltipLines(localizeText("Fully repairing a structure releases a knockback shockwave."),180,18);
             require(lines.size()>1,"long localized descriptions wrap into readable lines");

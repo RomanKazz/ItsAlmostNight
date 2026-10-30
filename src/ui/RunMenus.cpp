@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
 #include <vector>
 
 namespace ian {
@@ -66,29 +67,33 @@ MenuNavigationInput readMenuNavigationInput() {
         .tabStep = IsKeyPressed(KEY_TAB) ? (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT) ? -1 : 1) : 0,
         .horizontalStep = pressed(KEY_RIGHT) ? 1 : pressed(KEY_LEFT) ? -1 : 0,
         .verticalStep = pressed(KEY_DOWN) ? 1 : pressed(KEY_UP) ? -1 : 0,
-        .activate = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)};
+        .activate = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE),
+        .deltaTime = GetFrameTime()};
 }
 
 ClassSelectionLayout classSelectionLayout(Vector2 screen) {
     ClassSelectionLayout layout;
-    layout.columns = 2;
     const bool stacked = screen.y > screen.x;
-    const float width = stacked ? 900.0F : 1480.0F;
-    const float height = stacked ? 1550.0F : 900.0F;
-    layout.scale = std::min({1.0F, (screen.x-64)/width, (screen.y-64)/height});
+    layout.columns = stacked ? 2 : 4;
+    const float width = stacked ? 900.0F : 1440.0F;
+    const float height = stacked ? 1440.0F : 850.0F;
+    layout.scale = std::min({1.0F, (screen.x - 64) / width, (screen.y - 64) / height});
     const float s = layout.scale;
-    layout.panel = {(screen.x-width*s)*.5F, (screen.y-height*s)*.5F, width*s, height*s};
+    layout.panel = {(screen.x - width * s) * .5F, (screen.y - height * s) * .5F, width * s, height * s};
     const auto rect = [&](float x, float y, float w, float h) {
-        return Rectangle{layout.panel.x+x*s, layout.panel.y+y*s, w*s, h*s};
+        return Rectangle{layout.panel.x + x * s, layout.panel.y + y * s, w * s, h * s};
     };
-    const float gridWidth = stacked ? width-64 : 560;
-    const float cardWidth = (gridWidth-16)/2;
-    for (int i=0; i<static_cast<int>(PlayerClassDefinitions.size()); ++i) layout.cards[static_cast<std::size_t>(i)] = rect(
-        32+static_cast<float>(i%2)*(cardWidth+16), 124+static_cast<float>(i/2)*328, cardWidth, 312);
-    layout.details = stacked ? rect(32,796,width-64,640) : rect(612,124,width-644,640);
-    const float buttonWidth = (width-96)/3;
-    for (int i=0; i<3; ++i) layout.buttons[static_cast<std::size_t>(i)] = rect(
-        32+static_cast<float>(i)*(buttonWidth+16), height-96, buttonWidth, 64);
+    const float gap = 18;
+    const float cardWidth = (width - 64 - gap * static_cast<float>(layout.columns - 1)) /
+        static_cast<float>(layout.columns);
+    for (int i = 0; i < static_cast<int>(PlayerClassDefinitions.size()); ++i)
+        layout.cards[static_cast<std::size_t>(i)] = rect(
+            32 + static_cast<float>(i % layout.columns) * (cardWidth + gap),
+            124 + static_cast<float>(i / layout.columns) * 288, cardWidth, 264);
+    layout.details = stacked ? rect(32, 716, width - 64, 580) : rect(32, 420, width - 64, 286);
+    layout.buttons[0] = rect((width - 440) * .5F, height - 96, 440, 64);
+    layout.buttons[1] = rect(width - (stacked ? 212 : 282), height - 96, stacked ? 180 : 250, 64);
+    layout.buttons[2] = rect(32, height - 96, stacked ? 160 : 180, 64);
     return layout;
 }
 
@@ -97,132 +102,230 @@ ClassSelectionResult drawClassSelectionMenu(const GameUi& ui, const MetaProgress
     Vector2 screen, const MenuNavigationInput& input) {
     const auto layout = classSelectionLayout(screen);
     const float s = layout.scale;
-    ClassSelectionResult result;
+    const bool stacked = layout.columns == 2;
     constexpr int ClassCount = static_cast<int>(PlayerClassDefinitions.size());
     constexpr int ControlCount = ClassCount + 3;
+    ClassSelectionResult result;
+    const float dt = std::isfinite(input.deltaTime) ? std::clamp(input.deltaTime, 0.0F, .1F) : 0.0F;
+    state.elapsed += dt;
+    state.selectionAge += dt;
+    const bool wasLaunching = state.launching;
+    if (wasLaunching) {
+        state.launchElapsed += dt;
+        if (state.launchElapsed >= .18F) {
+            state.launching = false;
+            result.start = true;
+        }
+    }
     if (!isSelectablePlayerClass(selected)) selected = DefaultPlayerClass;
-    const auto unlocked = [&](int i) { return sandbox || isPlayerClassUnlocked(PlayerClassDefinitions[static_cast<std::size_t>(i)].type, profile); };
+    const auto unlocked = [&](int i) {
+        return sandbox || isPlayerClassUnlocked(PlayerClassDefinitions[static_cast<std::size_t>(i)].type, profile);
+    };
     const auto select = [&](int i) {
         state.focused = i;
         if (i < ClassCount) selected = PlayerClassDefinitions[static_cast<std::size_t>(i)].type;
         result.interaction = true;
     };
     state.focused = std::clamp(state.focused, 0, ControlCount - 1);
-    if (input.tabStep) {
-        int next = wrap(state.focused + input.tabStep, ControlCount);
-        if (collectionOnly && next >= ClassCount && next < ClassCount + 2) next = input.tabStep > 0 ? ClassCount + 2 : ClassCount - 1;
-        select(next);
-    } else if (input.horizontalStep || input.verticalStep) {
-        if (state.focused < ClassCount) {
-            const int cols = layout.columns;
-            if (input.horizontalStep) select((state.focused / cols) * cols + wrap(state.focused % cols + input.horizontalStep, cols));
-            else {
-                const int next = state.focused + input.verticalStep * cols;
-                select(next < 0 ? (collectionOnly ? ClassCount + 2 : ClassCount) : next >= ClassCount ? (collectionOnly ? ClassCount + 2 : ClassCount + std::min(state.focused % cols, 2)) : next);
+    if (!wasLaunching) {
+        if (input.tabStep) {
+            int next = wrap(state.focused + input.tabStep, ControlCount);
+            if (collectionOnly && next >= ClassCount && next < ClassCount + 2)
+                next = input.tabStep > 0 ? ClassCount + 2 : ClassCount - 1;
+            select(next);
+        } else if (input.horizontalStep || input.verticalStep) {
+            if (state.focused < ClassCount) {
+                const int cols = layout.columns;
+                if (input.horizontalStep)
+                    select((state.focused / cols) * cols + wrap(state.focused % cols + input.horizontalStep, cols));
+                else {
+                    const int next = state.focused + input.verticalStep * cols;
+                    select(next < 0 || next >= ClassCount ? (collectionOnly ? ClassCount + 2 : ClassCount) : next);
+                }
+            } else if (input.verticalStep) {
+                const auto current = std::find_if(PlayerClassDefinitions.begin(), PlayerClassDefinitions.end(),
+                    [&](const auto& definition) { return definition.type == selected; });
+                select(current == PlayerClassDefinitions.end() ? 0 : static_cast<int>(current - PlayerClassDefinitions.begin()));
+            } else if (!collectionOnly) {
+                constexpr std::array ButtonOrder{2, 0, 1}; // Match the actual left-to-right footer.
+                const auto current = std::find(ButtonOrder.begin(), ButtonOrder.end(), state.focused - ClassCount);
+                select(ClassCount + ButtonOrder[static_cast<std::size_t>(wrap(
+                    static_cast<int>(current - ButtonOrder.begin()) + input.horizontalStep, 3))]);
             }
-        } else if (input.verticalStep) {
-            const auto current = std::find_if(PlayerClassDefinitions.begin(), PlayerClassDefinitions.end(),
-                [&](const auto& definition) { return definition.type == selected; });
-            select(current == PlayerClassDefinitions.end() ? 0 : static_cast<int>(current - PlayerClassDefinitions.begin()));
-        } else if (!collectionOnly) select(ClassCount + wrap(state.focused - ClassCount + input.horizontalStep, 3));
+        }
+        for (int i = 0; i < ClassCount; ++i)
+            if (input.click && CheckCollisionPointRec(input.pointer, layout.cards[static_cast<std::size_t>(i)])) select(i);
     }
-    panel(layout.panel, s);
-    const Rectangle header{layout.panel.x + 20*s, layout.panel.y + 20*s, layout.panel.width - 40*s, 74*s};
-    panel(header, s, Card);
+    if (state.shownClass != selected) {
+        state.shownClass = selected;
+        state.selectionAge = 0;
+    }
+    const auto ease = [](float value) {
+        const float t = std::clamp(value, 0.0F, 1.0F);
+        return 1.0F - (1.0F - t) * (1.0F - t) * (1.0F - t);
+    };
+    const auto accent = [](int i) {
+        constexpr std::array Colors{Color{137, 205, 99, 255}, Color{110, 203, 233, 255},
+            Color{244, 182, 91, 255}, Color{191, 153, 237, 255}};
+        return Colors[static_cast<std::size_t>(i)];
+    };
+    const auto blendColor = [](Color from, Color to, float amount) {
+        return Color{
+            static_cast<unsigned char>(static_cast<float>(from.r) + static_cast<float>(to.r - from.r) * amount),
+            static_cast<unsigned char>(static_cast<float>(from.g) + static_cast<float>(to.g - from.g) * amount),
+            static_cast<unsigned char>(static_cast<float>(from.b) + static_cast<float>(to.b - from.b) * amount), 255};
+    };
+    panel(layout.panel, s, {33, 43, 36, 255});
+    const Rectangle header{layout.panel.x + 32 * s, layout.panel.y + 26 * s, layout.panel.width - 64 * s, 64 * s};
     text(caption(collectionOnly ? "CLASS COLLECTION" : sandbox ? "CHOOSE SANDBOX CLASS" : "CHOOSE YOUR CLASS"),
-        {header.x + 20*s, header.y, header.width - 100*s, header.height}, 36*s, Cream, UiFontRole::Display);
-    if (closeButton({header.x + header.width - 58*s, header.y + 13*s, 48*s, 48*s}, s, input.pointer, input.click)) result.back = true;
+        {header.x + 60 * s, header.y, header.width - 120 * s, header.height}, 40 * s, Cream, UiFontRole::Display, 1);
+    if (closeButton({header.x + header.width - 46 * s, header.y + 10 * s, 44 * s, 44 * s}, s,
+        input.pointer, input.click)) result.back = true;
+
+    const float follow = 1.0F - std::exp(-15.0F * dt);
     for (int i = 0; i < ClassCount; ++i) {
-        const auto bounds = layout.cards[static_cast<std::size_t>(i)];
-        const auto& definition = PlayerClassDefinitions[static_cast<std::size_t>(i)];
-        const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
-        if (hovered && input.click) select(i);
+        const auto index = static_cast<std::size_t>(i);
+        auto bounds = layout.cards[index];
+        const auto& definition = PlayerClassDefinitions[index];
         const bool chosen = selected == definition.type;
-        panel(bounds, s, selectionFill(chosen, hovered, !unlocked(i)));
-        const float iconSize = bounds.height - 60*s;
-        texture(classIcon(ui, i), {bounds.x + (bounds.width-iconSize)*.5F, bounds.y + 12*s, iconSize, iconSize},
-            unlocked(i) ? WHITE : Color{130, 135, 137, 255});
-        text(caption(definition.name), {bounds.x + 8*s, bounds.y + bounds.height - 46*s, bounds.width - 16*s, 34*s},
-            23*s, unlocked(i) ? Cream : Muted, UiFontRole::Display, 1);
-        if (!unlocked(i)) text(caption("LOCKED"), {bounds.x + 10*s, bounds.y + 8*s, bounds.width - 20*s, 20*s},
-            13*s, Muted, UiFontRole::MenuBodyBold, 2);
-        if (state.focused == i) focusCorners(bounds, s);
+        const bool hovered = !wasLaunching && CheckCollisionPointRec(input.pointer, bounds);
+        state.hover[index] += ((hovered ? 1.0F : 0.0F) - state.hover[index]) * follow;
+        state.selection[index] += ((chosen ? 1.0F : 0.0F) - state.selection[index]) * follow;
+        const float reveal = input.reduceEffects ? 1.0F : ease((state.elapsed - static_cast<float>(i) * .045F) / .32F);
+        bounds.y += (1.0F - reveal) * 22 * s - state.hover[index] * 5 * s;
+        const float selectedAmount = state.selection[index];
+        panel({bounds.x, bounds.y + 7 * s, bounds.width, bounds.height}, s, {17, 24, 19, 255});
+        panel(bounds, s, blendColor(Card, accent(i), selectedAmount * .24F + state.hover[index] * .05F));
+        beginUiScissor(static_cast<int>(bounds.x + 4 * s), static_cast<int>(bounds.y + 4 * s),
+            static_cast<int>(bounds.width - 8 * s), static_cast<int>(bounds.height - 8 * s));
+        const Vector2 center{bounds.x + bounds.width * .5F, bounds.y + 112 * s};
+        DrawCircleGradient(center, 115 * s,
+            Fade(accent(i), .13F + selectedAmount * .13F), Fade(accent(i), 0));
+        if (selectedAmount > .01F && !input.reduceEffects) {
+            for (int ray = 0; ray < 8; ++ray) {
+                const float angle = static_cast<float>(ray) * PI / 4 + state.elapsed * .09F;
+                const auto point = [&](float offset, float radius) {
+                    return Vector2{center.x + std::cos(angle + offset) * radius * s,
+                        center.y + std::sin(angle + offset) * radius * s};
+                };
+                DrawTriangle(center, point(.12F, 150), point(-.12F, 150), Fade(accent(i), .055F * selectedAmount));
+            }
+        }
+        const float pulse = !input.reduceEffects && chosen ?
+            std::sin(std::min(state.selectionAge / .28F, 1.0F) * PI) * .10F : 0;
+        const float iconSize = (162 + selectedAmount * 12 + state.hover[index] * 8 + pulse * 100) * s;
+        const float bob = !input.reduceEffects && chosen ? std::sin(state.elapsed * 2) * 2.5F * s : 0;
+        const Rectangle iconSlot{center.x - iconSize * .5F, center.y - iconSize * .5F + bob, iconSize, iconSize};
+        texture(classIcon(ui, i), {iconSlot.x + 5 * s, iconSlot.y + 8 * s, iconSize, iconSize}, Fade(BLACK, .20F));
+        texture(classIcon(ui, i), iconSlot, unlocked(i) ? WHITE : Color{125, 130, 127, 255});
+        EndScissorMode();
+        DrawRectangleRec({bounds.x + 18 * s, bounds.y + bounds.height - 65 * s, bounds.width - 36 * s, 2 * s},
+            Fade(accent(i), chosen ? .75F : .20F));
+        text(caption(definition.name), {bounds.x + 12 * s, bounds.y + bounds.height - 54 * s,
+            bounds.width - 24 * s, 42 * s}, 27 * s, unlocked(i) ? Cream : Muted, UiFontRole::Display, 1);
+        if (chosen) {
+            const Vector2 check{bounds.x + bounds.width - 28 * s, bounds.y + 26 * s};
+            DrawCircleV(check, 13 * s, Gold);
+            DrawLineEx({check.x - 6 * s, check.y}, {check.x - 1 * s, check.y + 5 * s}, 3 * s, Inset);
+            DrawLineEx({check.x - 1 * s, check.y + 5 * s}, {check.x + 7 * s, check.y - 5 * s}, 3 * s, Inset);
+        }
+        if (!unlocked(i)) text(caption("LOCKED"), {bounds.x + 16 * s, bounds.y + 12 * s,
+            bounds.width - 32 * s, 24 * s}, 15 * s, Muted, UiFontRole::Display);
+        if (state.focused == i || chosen) focusCorners(bounds, s);
     }
     const auto* definition = playerClassDefinition(selected);
-    if (!definition) { selected = DefaultPlayerClass; definition = playerClassDefinition(selected); }
     const int selectedIndex = static_cast<int>(definition - PlayerClassDefinitions.data());
     const bool available = unlocked(selectedIndex);
-    const auto details = layout.details;
+    auto details = layout.details;
+    details.y += input.reduceEffects ? 0 : (1.0F - ease(state.selectionAge / .22F)) * 9 * s;
     panel(details, s, Inset);
     const auto slot = [&](float x, float y, float w, float h) {
-        return Rectangle{details.x+x*s, details.y+y*s, w*s, h*s};
+        return Rectangle{details.x + x * s, details.y + y * s, w * s, h * s};
     };
-    const float dw = details.width/s;
-    texture(classIcon(ui, selectedIndex), slot(20,16,96,96));
-    text(caption(definition->name), slot(136,16,dw-156,40), 34*s, Cream, UiFontRole::Display);
-    text(caption(definition->role), slot(136,58,dw-156,26), 22*s);
-    text(caption(definition->drawback), slot(136,90,dw-156,24), 18*s, {242,112,91,255}, UiFontRole::MenuBodyBold);
-
-    panel(slot(16,132,dw-32,140), s, Frame);
-    text(caption(definition->passiveName), slot(32,142,dw-64,34), 26*s, Gold, UiFontRole::Display);
-    for (std::size_t i=0; i<definition->passiveDescription.size(); ++i) {
-        text(caption(definition->passiveDescription[i]), slot(32,179+static_cast<float>(i)*28,dw-64,26), 18*s);
-    }
-    panel(slot(16,284,dw-32,100), s, Frame);
-    text(caption("PER LEVEL"), slot(32,294,dw-64,26), 23*s, Green, UiFontRole::Display);
-    for (std::size_t i=0; i<definition->levelGrowth.size(); ++i) {
-        text(caption(definition->levelGrowth[i]), slot(32,325+static_cast<float>(i)*25,dw-64,24), 18*s);
-    }
-
-    text(caption("STARTING GEAR"), slot(20,394,dw-40,32), 25*s, Cream, UiFontRole::Display);
-    struct Gear { Texture2D icon; std::string label; std::string_view kind; std::string_view description; bool equipped{}; };
+    const float dw = details.width / s;
+    const float passiveWidth = stacked ? dw - 48 : dw * .46F - 48;
+    const float growthX = stacked ? 24 : dw * .46F + 24;
+    const float growthY = stacked ? 320 : 24;
+    const float growthWidth = dw * (stacked ? .46F : .23F) - 40;
+    const float gearX = dw * (stacked ? .51F : .72F);
+    const float gearY = stacked ? 320 : 24;
+    const float gearWidth = dw - gearX - 24;
+    const auto body = [&](std::string_view value, float x, float y, float width, Color color = Cream, float size = 21) {
+        const auto lines = itemTooltipLines(caption(value), width * s, size * s);
+        for (std::size_t i = 0; i < lines.size(); ++i)
+            text(lines[i], slot(x, y + static_cast<float>(i) * (size + 6), width, size + 6), size * s, color);
+        return y + static_cast<float>(lines.size()) * (size + 6);
+    };
+    text(caption(definition->passiveName), slot(24, 20, passiveWidth, 40), 29 * s,
+        accent(selectedIndex), UiFontRole::Display);
+    float passiveY = body(definition->passiveDescription[0], 24, 74, passiveWidth);
+    if (selected != PlayerClass::Miner)
+        passiveY = body(definition->passiveDescription[1], 24, passiveY + 8, passiveWidth);
+    body(definition->drawback, 24, std::max(passiveY + 14, 220.0F), passiveWidth,
+        {244, 141, 125, 255}, 19);
+    text(caption("PER LEVEL"), slot(growthX, growthY, growthWidth, 30), 18 * s, Green, UiFontRole::Display);
+    float growthCursor = growthY + 50;
+    for (const auto growth : definition->levelGrowth) growthCursor = body(growth, growthX, growthCursor, growthWidth) + 10;
+    if (stacked) DrawLineEx({details.x + 24 * s, details.y + 288 * s},
+        {details.x + details.width - 24 * s, details.y + 288 * s}, s, Frame);
+    else for (const float x : {dw * .46F, dw * .70F}) DrawLineEx(
+        {details.x + x * s, details.y + 24 * s}, {details.x + x * s, details.y + details.height - 24 * s}, s, Frame);
+    text(caption("STARTING GEAR"), slot(gearX, gearY, gearWidth, 30), 18 * s, Muted, UiFontRole::Display);
+    struct Gear { Texture2D icon; std::string label; std::string_view description; };
     std::vector<Gear> gear;
-    const auto weaponName = [](PlayerWeapon weapon) -> std::string_view {
-        constexpr std::array<std::string_view,7> names{"AXE","PICKAXE","CLUB","RIFLE","BOMB","ICE WAND","FIRE WAND"};
-        const auto it = std::find(PlayerWeaponHotbarOrder.begin(),PlayerWeaponHotbarOrder.end(),weapon);
-        return it == PlayerWeaponHotbarOrder.end() ? "AXE" : names[static_cast<std::size_t>(it-PlayerWeaponHotbarOrder.begin())];
-    };
-    std::string primaryName = caption(weaponName(definition->startingWeapon));
-    gear.push_back({ui.weaponTexture(definition->startingWeapon),primaryName,"EQUIPPED",weaponDescription(definition->startingWeapon),true});
-    for (const auto tool : {PlayerWeapon::Axe,PlayerWeapon::Pickaxe}) {
-        if (tool != definition->startingWeapon) gear.push_back({ui.weaponTexture(tool),caption(weaponName(tool)),"TOOL",weaponDescription(tool)});
-    }
-    gear.push_back({ui.buildingTexture(definition->startingBuilding),caption(buildingDisplayName(definition->startingBuilding)),"BLUEPRINT",buildingDescription(definition->startingBuilding)});
-    for (const auto item : definition->startingItems) {
-        if (item) gear.push_back({ui.lootTexture(*item),caption(lootUpgradeName(*item)),"ITEM",lootUpgradeDescription(*item)});
-    }
-    const float gap = 8;
-    const float gearWidth = (dw-40-gap*static_cast<float>(gear.size()-1))/static_cast<float>(gear.size());
+    constexpr std::array<std::string_view, 7> WeaponNames{"AXE", "PICKAXE", "CLUB", "RIFLE", "BOMB", "ICE WAND", "FIRE WAND"};
+    const auto weapon = std::find(PlayerWeaponHotbarOrder.begin(), PlayerWeaponHotbarOrder.end(), definition->startingWeapon);
+    const auto weaponIndex = static_cast<std::size_t>(weapon - PlayerWeaponHotbarOrder.begin());
+    gear.push_back({ui.weaponTexture(definition->startingWeapon), caption(WeaponNames[weaponIndex]), weaponDescription(definition->startingWeapon)});
+    gear.push_back({ui.buildingTexture(definition->startingBuilding), caption(buildingDisplayName(definition->startingBuilding)), buildingDescription(definition->startingBuilding)});
+    for (const auto item : definition->startingItems) if (item)
+        gear.push_back({ui.lootTexture(*item), caption(lootUpgradeName(*item)), lootUpgradeDescription(*item)});
+    const float gearSize = std::min(96.0F, (gearWidth - static_cast<float>(gear.size() - 1) * 12) / static_cast<float>(gear.size()));
     const Gear* hoveredGear = nullptr;
-    for (std::size_t i=0; i<gear.size(); ++i) {
-        const float x = 20+static_cast<float>(i)*(gearWidth+gap);
-        panel(slot(x,438,gearWidth,120), s, gear[i].equipped ? Card : Frame);
-        if (CheckCollisionPointRec(input.pointer,slot(x,438,gearWidth,120))) hoveredGear = &gear[i];
-        texture(gear[i].icon, slot(x+(gearWidth-74)*.5F,442,74,74));
-        text(gear[i].label, slot(x+5,515,gearWidth-10,24), 16*s, Cream, UiFontRole::MenuBodyBold,1);
-        text(caption(gear[i].kind), slot(x+5,541,gearWidth-10,14), 10*s,
-            gear[i].equipped ? Gold : Muted, UiFontRole::MenuBodyBold,1);
+    for (std::size_t i = 0; i < gear.size(); ++i) {
+        const float intro = input.reduceEffects ? 1.0F : ease((state.selectionAge - static_cast<float>(i) * .035F) / .22F);
+        const auto bounds = slot(gearX + static_cast<float>(i) * (gearSize + 12), gearY + 56 + (1 - intro) * 10, gearSize, gearSize);
+        const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
+        panel(bounds, s, hovered ? Card : Frame);
+        texture(gear[i].icon, {bounds.x + 8 * s, bounds.y + 8 * s, bounds.width - 16 * s, bounds.height - 16 * s});
+        if (hovered) hoveredGear = &gear[i];
     }
-    text(caption(definition->startingLoadoutLabel), slot(20,566,dw-40,24), 17*s, Gold, UiFontRole::MenuBodyBold);
     if (!available) {
-        text(caption(playerClassUnlockRequirement(selected)), slot(20,596,dw-40,22), 17*s, Muted, UiFontRole::MenuBodyBold);
-        progress(slot(20,624,dw-40,6),playerClassUnlockProgress(selected,profile));
+        text(caption(playerClassUnlockRequirement(selected)), slot(gearX, gearY + 172, gearWidth, 54), 16 * s, Muted);
+        progress(slot(gearX, gearY + 236, gearWidth, 6), playerClassUnlockProgress(selected, profile));
     }
     if (!collectionOnly) {
-        for (int i = 0; i < 3; ++i) {
-            if (input.click && CheckCollisionPointRec(input.pointer, layout.buttons[static_cast<std::size_t>(i)])) select(ClassCount + i);
-        }
-        const bool start = navigationButton(layout.buttons[0], s, sandbox ? "START SANDBOX" : "START RUN", state.focused == ClassCount, input, available);
-        result.start = start || (input.activate && state.focused < ClassCount && available);
-        if (navigationButton(layout.buttons[1], s, sandbox ? "NORMAL RUN" : "SANDBOX", state.focused == ClassCount + 1, input)) {
-            sandbox = !sandbox;
-            if (!sandbox && !isPlayerClassUnlocked(selected, profile)) selected = DefaultPlayerClass;
-            result.interaction = true;
-        }
+        const auto startBounds = layout.buttons[0];
+        const bool startHover = CheckCollisionPointRec(input.pointer, startBounds);
+        auto startVisual = startBounds;
+        const float press = state.launching && !input.reduceEffects ? std::sin(std::min(state.launchElapsed / .18F, 1.0F) * PI) : 0;
+        startVisual.x += press * 5 * s; startVisual.width -= press * 10 * s;
+        startVisual.y += press * 3 * s;
+        panel({startVisual.x, startVisual.y + 6 * s, startVisual.width, startVisual.height}, s, {16, 25, 18, 255});
+        panel(startVisual, s, available ? (startHover || state.launching ? Color{255, 220, 66, 255} : Gold) : Disabled);
+        text(caption(sandbox ? "START SANDBOX" : "START RUN"), startVisual, 30 * s,
+            available ? Cream : Muted, UiFontRole::Display, 1);
+        if (state.focused == ClassCount) focusCorners(startVisual, s);
+        if (!wasLaunching) {
+            if (available && ((input.click && startHover) ||
+                (input.activate && state.focused <= ClassCount))) {
+                state.launching = true;
+                state.launchElapsed = 0;
+                result.interaction = true;
+            }
+            if (input.click && startHover) state.focused = ClassCount;
+            if (input.click && CheckCollisionPointRec(input.pointer, layout.buttons[1])) select(ClassCount + 1);
+            if (navigationButton(layout.buttons[1], s, sandbox ? "NORMAL RUN" : "SANDBOX", state.focused == ClassCount + 1, input)) {
+                sandbox = !sandbox;
+                if (!sandbox && !isPlayerClassUnlocked(selected, profile)) selected = DefaultPlayerClass;
+                result.interaction = true;
+            }
+        } else navigationButton(layout.buttons[1], s, sandbox ? "NORMAL RUN" : "SANDBOX", false, {}, false);
     }
-    if (collectionOnly && input.click && CheckCollisionPointRec(input.pointer, layout.buttons[2])) select(ClassCount + 2);
+    if (input.click && CheckCollisionPointRec(input.pointer, layout.buttons[2])) select(ClassCount + 2);
     if (navigationButton(layout.buttons[2], s, "BACK", state.focused == ClassCount + 2, input)) result.back = true;
-    if (hoveredGear) drawItemTooltip(hoveredGear->label,hoveredGear->description,input.pointer,screen,s);
+    if (result.back) { state.launching = false; result.start = false; }
+    if (hoveredGear && !state.launching) drawItemTooltip(hoveredGear->label, hoveredGear->description, input.pointer, screen, s);
     return result;
 }
 

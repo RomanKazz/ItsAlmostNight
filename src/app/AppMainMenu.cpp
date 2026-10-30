@@ -621,6 +621,7 @@ void App::drawMainMenu() {
     }
     if (classSelectionVisible_) {
         auto navigation = readMenuNavigationInput();
+        navigation.reduceEffects = userSettings_.accessibility.reduceFlashes;
         if (!navigation.horizontalStep) navigation.horizontalStep = IsKeyPressed(KEY_D) ? 1 : IsKeyPressed(KEY_A) ? -1 : 0;
         const int previousFocus = classSelectionState_.focused;
         const auto result = drawClassSelectionMenu(ui_, metaProgression_, selectedPlayerClass_,

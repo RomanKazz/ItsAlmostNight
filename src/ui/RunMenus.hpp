@@ -13,10 +13,21 @@ struct MenuNavigationInput {
     int horizontalStep{};
     int verticalStep{};
     bool activate{};
+    float deltaTime{1.0F / 60.0F};
+    bool reduceEffects{};
 };
 [[nodiscard]] MenuNavigationInput readMenuNavigationInput();
 
-struct ClassSelectionState { int focused{}; };
+struct ClassSelectionState {
+    int focused{};
+    float elapsed{};
+    float selectionAge{};
+    PlayerClass shownClass{PlayerClass::None};
+    std::array<float, PlayerClassDefinitions.size()> hover{};
+    std::array<float, PlayerClassDefinitions.size()> selection{};
+    bool launching{};
+    float launchElapsed{};
+};
 struct ClassSelectionResult { bool start{}; bool back{}; bool interaction{}; };
 struct ClassSelectionLayout {
     Rectangle panel{};
