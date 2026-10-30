@@ -3,6 +3,8 @@
 #include "app/UserSettings.hpp"
 #include "app/TutorialPresentation.hpp"
 #include "app/RestartHold.hpp"
+#include "app/TesterFeedback.hpp"
+#include "app/MenuBackgroundScene.hpp"
 #include "audio/AudioSystem.hpp"
 #include "buildings/PlacementLine.hpp"
 #include "core/FixedStep.hpp"
@@ -19,9 +21,14 @@
 #include "progression/MetaProgression.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/MenuInputBarrier.hpp"
+#include "ui/MainMenuHome.hpp"
 #include "ui/QuestMenu.hpp"
 #include "ui/UnlockMenu.hpp"
 #include "ui/ShopMenu.hpp"
+#include "ui/SettingsMenu.hpp"
+#include "ui/QuestCompletionToast.hpp"
+#include "ui/RunMenus.hpp"
+#include "ui/DebugUpgradeMenu.hpp"
 #include "ui/HudRenderer.hpp"
 #include "ui/NightForecastHud.hpp"
 #include "ui/InteractionPrompt.hpp"
@@ -45,6 +52,7 @@ struct ResourceGainVisual {
     Vec3 position;
     int amount;
     bool showAmount{true};
+    bool lingerAboveSource{};
     double remaining;
     double duration;
     float horizontalDrift{};
@@ -73,12 +81,16 @@ struct AppPerformanceStats {
     PerformanceMetric input;
     PerformanceMetric simulation;
     PerformanceMetric simulationTick;
+    PerformanceMetric simulationTickTotal;
     PerformanceMetric render;
     PerformanceMetric renderPreparation;
     PerformanceMetric shadowPass;
     PerformanceMetric selectionPass;
+    PerformanceMetric selectionComposite;
+    PerformanceMetric resourceImpactOverlays;
     PerformanceMetric terrainRender;
     PerformanceMetric worldEntitiesRender;
+    WorldObjectTimings worldObjectTimings{};
     PerformanceMetric decorationsRender;
     PerformanceMetric grassRender;
     PerformanceMetric environmentRender;
@@ -139,8 +151,15 @@ class App {
     static constexpr double EnemyHitFlashInterval = 1.0 / 6.0;
     static constexpr double EnemyHitFlashDuration = 0.105;
     static constexpr float EnemyHitFlashPeak = 0.92F;
-
-    enum class MainMenuPage : std::uint8_t { None, Quests, Unlocks, Shop, Credits };
+    static constexpr double EnemyDeathHoldDuration = 0.065;
+    static constexpr double EnemyDeathFadeDuration = 0.10;
+    enum class MainMenuPage : std::uint8_t {
+        None,
+        Quests,
+        Unlocks,
+        Shop,
+        Credits,
+    };
 
     struct RenderFrameTimings {
         PerformanceClock::time_point uiStart{};
@@ -169,6 +188,12 @@ class App {
         double uiOverlaysMilliseconds{};
     };
 
+    void beginFeedback();
+    void processFeedbackInput();
+    void closeFeedback();
+    void finishFeedbackClose();
+    void captureFeedbackFrame();
+    void drawFeedback() const;
     void processInput();
     void processGameplayInput(bool controlDown,
                               bool primaryMouseDown);
@@ -249,6 +274,8 @@ class App {
         const SimulationSnapshot& snapshot,
         const Camera3D& camera);
     void drawFloatingDamageNumbers(const Camera3D& camera) const;
+    void drawProducerResourceGainVisuals(
+        const Camera3D& camera, Vec3 playerPosition) const;
     void drawResourceGainVisuals(const Camera3D& camera) const;
     void updateHoverTarget(const SimulationSnapshot& snapshot,
                            double frameSeconds);
@@ -261,6 +288,8 @@ class App {
         Vec3 position,
         std::optional<EntityId> entityId =
             std::nullopt) const;
+    [[nodiscard]] BuildingFeedbackHighlight buildingFeedbackHighlightAt(
+        Vec3 center, EntityId id, double bottomY, double topY) const;
     [[nodiscard]] std::span<const ModularAnimationScale>
     modularAnimationScales(
         const SimulationSnapshot& snapshot) const;
@@ -279,11 +308,23 @@ class App {
     void drawCancelledPlacementPreview(
         const WorldLighting& lighting);
     void drawGraphicsPanel();
-    void drawMainMenu(const SimulationSnapshot& snapshot);
+    void drawPlayerSettingsPanel();
+    void openSettings(bool debug = false);
+    void closeSettings();
+    void drawMainMenu();
     void resetMainMenuInput();
     void drawMainMenuWorld(const SimulationSnapshot& snapshot);
+    void processMenuBackgroundInput(
+        const SimulationSnapshot& snapshot);
+    void beginMenuBackgroundEdit(
+        const SimulationSnapshot& snapshot);
+    [[nodiscard]] bool loadMenuBackgroundView();
+    [[nodiscard]] bool saveMenuBackgroundView();
     void persistUserSettings(bool force = false);
     void persistMetaProgression();
+    [[nodiscard]] bool resetAllProgress();
+    [[nodiscard]] bool questCompletionToastVisible() const;
+    void updateQuestCompletionNotices(double seconds);
     [[nodiscard]] bool saveSuspendedRun();
     [[nodiscard]] bool loadSuspendedRun();
     void discardSuspendedRun();
@@ -341,9 +382,12 @@ class App {
                             const SimulationSnapshot& snapshot, bool severe);
     void addFloatingDamageNumber(Vec3 position, double damage,
                                  bool critical,
-                                 double startDelay = 0.0);
+                                 double startDelay = 0.0,
+                                 std::optional<EntityId> targetId =
+                                     std::nullopt);
     void addResourceGainVisual(ResourceType type, Vec3 position,
-                               int amount, bool showAmount = true);
+                               int amount, bool showAmount = true,
+                               bool lingerAboveSource = false);
 
     FixedStep fixedStep_;
     Simulation simulation_;
@@ -355,6 +399,9 @@ class App {
     QuestGameplayTracker questGameplayTracker_;
     MetaProgression metaProgression_;
     MetaProgression persistedMetaProgression_;
+    bool pendingProgressReset_{};
+    std::deque<QuestCompletionNotice> questCompletionNotices_;
+    double questCompletionRemaining_{};
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
     ShaderResource vfxImpactShader_;
@@ -370,9 +417,28 @@ class App {
     bool sandboxClassSelection_{};
     bool classCollectionOnly_{};
     MainMenuPage mainMenuPage_{MainMenuPage::None};
+    MainMenuHomeState mainMenuHomeState_;
+    ClassSelectionState classSelectionState_;
+    PauseMenuState pauseMenuState_;
+    RunSummaryState runSummaryState_;
+    bool runSummaryWasVisible_{};
     QuestMenuState questMenuState_;
     UnlockMenuState unlockMenuState_;
     ShopMenuState shopMenuState_;
+    Camera3D menuBackgroundCamera_{};
+    Camera3D menuBackgroundCameraBeforeEdit_{};
+    std::optional<MenuBackgroundScene> menuBackgroundScene_;
+    std::optional<MenuBackgroundScene> menuBackgroundSceneBeforeEdit_;
+    std::optional<BuildingPreview> menuBackgroundBuildingPreview_;
+    int menuBackgroundBuildingCategory_{};
+    int menuBackgroundBuildingSlot_{};
+    std::uint8_t menuBackgroundBuildingRotation_{};
+    bool menuBackgroundBuildingEnabled_{true};
+    std::optional<std::uint32_t> menuBackgroundTerrainSeed_;
+    float menuBackgroundYaw_{};
+    float menuBackgroundPitch_{};
+    bool menuBackgroundEditing_{};
+    bool menuBackgroundMenuPreviewVisible_{true};
     PlayerClass selectedPlayerClass_{DefaultPlayerClass};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};
@@ -398,8 +464,16 @@ class App {
         runUpgradeCardHoverAmounts_{};
     bool fullscreenApplied_{};
     int graphicsPanelTab_{};
+    bool debugSettings_{};
+    TesterFeedback feedback_;
+    bool resumeAfterFeedback_{};
+    bool feedbackClosing_{};
+    bool resumeAfterSettings_{};
+    bool settingsRebindConsumedInput_{};
+    SettingsMenuState settingsMenuState_;
     std::optional<ControlAction> pendingControlRebind_;
-    std::array<FirstPersonToolTuning, 8> toolTunings_{};
+    std::array<FirstPersonToolTuning,
+        static_cast<std::size_t>(FirstPersonToolVisual::Bomb) + 1U> toolTunings_{};
     FirstPersonToolVisual toolPanelPreviewVisual_{
         FirstPersonToolVisual::Axe};
     int toolPanelPage_{};
@@ -411,7 +485,6 @@ class App {
     double pendingYaw_{};
     double pendingPitch_{};
     bool pendingJump_{};
-    bool pendingDash_{};
     bool pendingPickaxe_{};
     bool toolSwingUsesAxe_{};
     bool toolSwingAlternateAnimation_{};
@@ -434,8 +507,6 @@ class App {
     double toolSwapCandidateSeconds_{};
     double toolSwapRemaining_{};
     double toolSwapDuration_{0.32};
-    double contextualHammerRemaining_{};
-    bool contextualHammerSwingPending_{};
     bool pendingRifleShot_{};
     bool pendingIceWandShot_{};
     bool pendingFireWandShot_{};
@@ -455,6 +526,7 @@ class App {
     std::deque<PlaceBuildingCommand> pendingWallPlacements_;
     std::vector<BuildingPreview> placementDragPreviews_;
     int pendingBuildingRotation_{};
+    std::optional<std::uint8_t> pendingBuildingRotationOverride_;
     double buildingItemWheelAccumulator_{};
     double buildingItemWheelReleaseRemaining_{};
     bool buildingItemWheelArmed_{true};
@@ -463,10 +535,8 @@ class App {
     bool pendingStartWave_{};
     bool pendingUnlimitedResources_{};
     std::optional<UpgradeBuildingCommand> pendingBuildingUpgrade_;
-    std::optional<UpgradeBuildingBlueprintCommand>
-        pendingBuildingBlueprintUpgrade_;
+    std::optional<CollectProducerCommand> pendingCollectProducer_;
     std::optional<RepairBuildingCommand> pendingBuildingRepair_;
-    bool pendingPurchaseBombBundle_{};
     std::optional<EntityId> repairSweepTarget_;
     bool repairSweepActive_{};
     std::optional<SellBuildingCommand> pendingBuildingSale_;
@@ -502,15 +572,17 @@ class App {
     bool sandboxCardMenuVisible_{};
     bool coreDefenseMenuVisible_{};
     bool coreDefenseMenuClosing_{};
+    std::optional<EntityId> coreDefenseMenuTarget_;
     bool coreMenuPointerActive_{};
+    std::optional<Rectangle> coreMenuPanelBounds_;
     double coreDefenseMenuEntranceSeconds_{};
     double coreMenuLostAimSeconds_{};
     double coreMenuPointerAwaySeconds_{};
     std::uint8_t coreDefenseMenuAnimatedLevel_{};
-    float sandboxCardMenuScroll_{};
+    DebugUpgradeMenuState sandboxCardMenuState_;
     int debugSpawnCount_{50};
     LootUpgradeEffect debugGrantLootEffect_{
-        LootUpgradeEffect::Apple};
+        LootUpgradeEffect::Acorn};
     LootRarity debugGrantLootRarity_{LootRarity::Common};
     int debugGrantLootCount_{1};
     struct PendingLootGrant {
@@ -519,14 +591,13 @@ class App {
         int count;
     };
     std::optional<PendingLootGrant> pendingLootGrant_;
-    std::optional<RunUpgradeEffect> pendingSandboxCardGrant_;
+    std::optional<DebugUpgradeGrant> pendingSandboxCardGrant_;
     std::optional<ToggleGateCommand> pendingGateToggle_;
     std::optional<RotatePlacedBuildingCommand>
         pendingPlacedBuildingRotation_;
     std::string statusMessage_;
     double statusMessageRemaining_{};
     double statusMessageShakeRemaining_{};
-    double lootDescriptionRemaining_{};
     atmosphere::Field atmosphereParticles_;
     std::vector<PresentationEffect> effects_;
     std::vector<GameEvent> gameEventBuffer_;
@@ -545,7 +616,6 @@ class App {
         float burnAmount{};
     };
     std::vector<BurnVisualCandidate> burnVisualCandidates_;
-    std::vector<ArrowVisual> arrowVisuals_;
     double cameraShakeRemaining_{};
     double cameraShakeStrength_{};
     double explosionShakeCooldownRemaining_{};
@@ -576,6 +646,7 @@ class App {
     float motionSwayIntensity_{1.0F};
     std::vector<DamageIndicator> damageIndicators_;
     std::vector<FloatingDamageNumber> floatingDamageNumbers_;
+    Vec3 damageNumberObserverPosition_{};
     std::uint32_t floatingDamageSequence_{};
     std::vector<ResourceGainVisual> resourceGainVisuals_;
     std::vector<ProductionVisual> productionVisuals_;
@@ -589,6 +660,8 @@ class App {
         double yaw;
         double remaining;
         double duration;
+        double startDelayRemaining{};
+        bool flashOnDeath{};
         std::optional<EntityId> summonerId{};
         double bossHoverOffset{AlpakingHover};
     };
@@ -651,15 +724,19 @@ class App {
         bool wasOpen{};
     };
     std::vector<GateDoorVisual> gateDoorVisuals_;
-    struct FlamethrowerRotationVisual {
-        EntityId id;
-        double yaw{};
+    struct FlameHitFeedback {
+        EntityId id{};
+        std::size_t firstEvent{std::numeric_limits<std::size_t>::max()};
+        double damage{};
+        double duration{};
+        bool critical{};
     };
-    std::vector<FlamethrowerRotationVisual> flamethrowerRotationVisuals_;
+    std::array<FlameHitFeedback, EnemySystem::MaxEnemies> flameHitFeedback_{};
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
     double crystalHudBounceRemaining_{};
     double coinHudBounceRemaining_{};
+    double silverHudRemaining_{};
     struct HudResourceCounter {
         double displayed{-1.0};
         int target{-1};
@@ -670,14 +747,13 @@ class App {
     HudResourceCounter stoneHudCounter_;
     HudResourceCounter crystalHudCounter_;
     HudResourceCounter coinHudCounter_;
-    double displayedInsight_{-1.0};
+    double displayedInsightFraction_{-1.0};
     double insightPulseRemaining_{};
     double insightPulseDuration_{0.55};
+    float insightBarGlow_{};
     double insightPointSequenceRemaining_{};
     double insightPointSequenceDuration_{0.48};
-    double insightAnimationBefore_{};
-    double insightAnimationAfter_{};
-    double insightAnimationRequirement_{100.0};
+    double insightAnimationStartFraction_{};
     std::unordered_map<std::string, double>
         objectiveProgressCache_;
     std::string objectivePulseId_;
@@ -697,9 +773,6 @@ class App {
     int objectiveCompletionReward_{};
     double objectiveCompletionRemaining_{};
     double objectiveCompletionDuration_{2.6};
-    double insightGainAmount_{};
-    double insightGainRemaining_{};
-    double insightGainDuration_{0.9};
     std::optional<EntityId> hoveredResource_;
     std::optional<EntityId> interactionResourceAim_;
     std::optional<EntityId> hoveredBuilding_;

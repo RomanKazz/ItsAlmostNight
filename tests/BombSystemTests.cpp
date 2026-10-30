@@ -15,19 +15,18 @@ void runBombSystemTests() {
     enemies.spawnWave(Spawn);
 
     ian::BombSystem bombs;
-    bombs.addBombs(3);
     require(bombs.throwBomb({0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}),
-            "bomb throw consumes available bomb");
-    require(bombs.remainingBombs() == 2, "bomb stock decreases after throw");
-    const int stockBeforeFreeThrow = bombs.remainingBombs();
-    require(bombs.throwBomb(
-                {0.0, 1.7, 0.0}, {1.0, 0.0, 0.0}, false) &&
-                bombs.remainingBombs() == stockBeforeFreeThrow,
-            "god-mode bomb throw never consumes stock");
+            "first bomb throw succeeds without stock");
+    require(!bombs.throwBomb({0.0, 1.7, 0.0}, {1.0, 0.0, 0.0}) &&
+                bombs.cooldownRemaining() > 0.0,
+            "bomb throw waits for cooldown");
+    static_cast<void>(bombs.tick(bombs.cooldownDuration(), enemies));
+    require(bombs.throwBomb({0.0, 1.7, 0.0}, {1.0, 0.0, 0.0}),
+            "bombs remain unlimited after cooldown");
     const ian::EntityId firstRunProjectile =
         bombs.projectiles().front().id;
     bombs.reset();
-    bombs.addBombs(3);
+    require(bombs.cooldownRemaining() == 0.0, "new run resets bomb cooldown");
     require(
         bombs.throwBomb(
             {0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}) &&
@@ -48,9 +47,15 @@ void runBombSystemTests() {
             exploded = true;
             require(explosions.front().hitCount == 2, "bomb damages enemies in radius");
             require(explosions.front().killedCount == 1, "bomb kills basic but not heavy enemy");
+            require(bombs.hits().size() == 2 &&
+                        bombs.hits()[0].damage > 0.0 &&
+                        bombs.hits()[1].damage > 0.0,
+                    "bomb exposes each enemy hit for damage number events");
         }
     }
     require(exploded, "bomb fuse triggers explosion");
+    static_cast<void>(bombs.tick(1.0 / 60.0, enemies));
+    require(bombs.hits().empty(), "bomb hit events last only one tick");
     require(enemies.activeCount() == 1, "heavy enemy survives bomb");
     const auto knockback = enemies.enemies()[1].knockbackVelocity;
     require(std::abs(knockback.x) + std::abs(knockback.z) > 0.0,
@@ -71,7 +76,6 @@ void runBombSystemTests() {
     }
     ian::EnemySystem emptyEnemies;
     ian::BombSystem slopeBomb;
-    slopeBomb.addBombs(1);
     require(slopeBomb.throwBomb(
                 {steepPoint.x, steepPoint.y + 0.05, steepPoint.z}, {}),
             "slope physics fixture throws bomb");

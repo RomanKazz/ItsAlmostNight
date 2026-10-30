@@ -157,8 +157,9 @@ bool Simulation::modularRemovalWouldDestroyCore(
 }
 
 void Simulation::syncBuildingRuntimeSystems() {
-    towers_.syncBuildings(buildings_.buildings());
-    cannons_.syncBuildings(buildings_.buildings());
+    rebuildRelicCombatBuildings();
+    towers_.syncBuildings(relics_.ghosts.empty()?buildings_.buildings():relicCombatBuildings_);
+    cannons_.syncBuildings(relics_.ghosts.empty()?buildings_.buildings():relicCombatBuildings_);
     traps_.syncBuildings(buildings_.buildings());
     crystalMines_.syncBuildings(buildings_.buildings());
     // Capacity is derived from the current Core level. Keep inventory valid

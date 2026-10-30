@@ -1,5 +1,6 @@
 #include "game/Simulation.hpp"
 
+#include "buildings/BuildingOrientation.hpp"
 #include "core/SaturatingArithmetic.hpp"
 #include "game/ModularCombat.hpp"
 
@@ -33,88 +34,49 @@ ResourceCost salvageSaleBonus(ResourceCost cost,
 
 void Simulation::processBuildingActions(
     const PlayerCommand& command) {
-    if (command.purchaseBombBundle) {
-        const int cost = saturatingAdd(
-            economy_.bombPurchaseCoinCost,
-            saturatingMultiplyNonNegative(
-                economy_.bombPurchaseCoinCostPerWave, wave_));
-        const bool bombsUnlocked =
-            playerWeaponUnlocked(PlayerWeapon::Bomb);
-        if (bombsUnlocked &&
-            (unlimitedResources_ || coins_ >= cost)) {
-            if (!unlimitedResources_) coins_ -= cost;
-            bombs_.addBombs(economy_.bombPurchaseAmount);
-            events_.push_back({
-                .type = GameEventType::BombPurchased,
-                .amount = cost,
-                .coinAmount = economy_.bombPurchaseAmount,
-            });
-        } else {
-            events_.push_back({
-                .type = GameEventType::EconomyPurchaseRejected,
-                .amount = cost,
-            });
-        }
-    }
-
-    if (!selectedBuilding_ && command.upgradeBuildingBlueprint) {
-        const BuildingType type =
-            command.upgradeBuildingBlueprint->type;
-        const int availableWood = unlimitedResources_
-            ? std::numeric_limits<int>::max() : wood_;
-        const int availableStone = unlimitedResources_
-            ? std::numeric_limits<int>::max() : stone_;
-        const int availableCrystals = unlimitedResources_
-            ? std::numeric_limits<int>::max() : crystals_;
-        std::vector<BuildingInstance> previousBuildings;
-        for (const BuildingInstance& building : buildings_.buildings()) {
-            if (building.type == type) previousBuildings.push_back(building);
-        }
-
-        BlueprintUpgradeResult result;
-        if (!buildingUnlocked(type)) {
-            result = {
-                .error = UpgradeError::Unsupported,
-                .type = type,
-                .previousLevel = buildings_.blueprintLevel(type),
-                .level = buildings_.blueprintLevel(type),
-            };
-        } else {
-            result = buildings_.upgradeBlueprint(
-                type, availableWood, availableStone,
-                availableCrystals);
-        }
-        if (result.valid()) {
-            if (!unlimitedResources_) {
-                wood_ -= result.cost.wood;
-                stone_ -= result.cost.stone;
-                crystals_ -= result.cost.crystals;
-            }
-            syncBuildingRuntimeSystems();
-            if (previousBuildings.empty()) {
+    if (command.collectProducer) {
+        const BuildingType type = command.collectProducer->type;
+        if (type == BuildingType::LumberMill ||
+            type == BuildingType::Quarry ||
+            type == BuildingType::CrystalMine) {
+            const ResourceType resource = type == BuildingType::LumberMill
+                ? ResourceType::Wood
+                : type == BuildingType::Quarry
+                    ? ResourceType::Stone : ResourceType::Crystal;
+            const ResourceCapacityType capacityType =
+                type == BuildingType::LumberMill
+                    ? ResourceCapacityType::Wood
+                    : type == BuildingType::Quarry
+                        ? ResourceCapacityType::Stone
+                        : ResourceCapacityType::Crystal;
+            int space = unlimitedResources_
+                ? std::numeric_limits<int>::max()
+                : std::max(0, resourceCapacity(capacityType) -
+                    (resource == ResourceType::Wood ? wood_ :
+                     resource == ResourceType::Stone ? stone_ : crystals_));
+            for (const CrystalMineRuntime& producer : crystalMines_.mines()) {
+                if (producer.buildingType != type || space <= 0) continue;
+                const auto building = std::ranges::find(
+                    buildings_.buildings(), producer.buildingId,
+                    &BuildingInstance::id);
+                if (building == buildings_.buildings().end()) continue;
+                const int amount = crystalMines_.collect(building->id, space);
+                if (amount <= 0) continue;
+                space -= amount;
+                if (resource == ResourceType::Wood) addWood(amount);
+                else if (resource == ResourceType::Stone) addStone(amount);
+                else addCrystals(amount);
                 events_.push_back({
-                    .type = GameEventType::BuildingUpgraded,
+                    .type = resource == ResourceType::Crystal
+                        ? GameEventType::CrystalProduced
+                        : GameEventType::ResourceGranted,
+                    .entityId = building->id,
+                    .resourceType = resource,
                     .buildingType = type,
-                    .position = buildings_.core()
-                        ? buildingWorldPosition(*buildings_.core())
-                        : Vec3{},
+                    .position = buildingWorldPosition(*building),
+                    .amount = amount,
                 });
-            } else {
-                for (const BuildingInstance& building : previousBuildings) {
-                    events_.push_back({
-                        .type = GameEventType::BuildingUpgraded,
-                        .entityId = building.id,
-                        .buildingType = type,
-                        .position = buildingWorldPosition(building),
-                    });
-                }
             }
-        } else {
-            events_.push_back({
-                .type = GameEventType::BuildingUpgradeRejected,
-                .buildingType = type,
-                .upgradeError = result.error,
-            });
         }
     }
 
@@ -122,7 +84,7 @@ void Simulation::processBuildingActions(
         std::optional<BuildingInstance> upgraded;
         UpgradeError error = UpgradeError::None;
         const int attempts = command.upgradeBuilding->maximumAffordable
-            ? MaxBuildingLevel - 1 : 1;
+            ? MaxStructureLevel - 1 : 1;
         for (int attempt = 0; attempt < attempts; ++attempt) {
             const int availableWood = unlimitedResources_
                 ? std::numeric_limits<int>::max() : wood_;
@@ -130,8 +92,9 @@ void Simulation::processBuildingActions(
                 ? std::numeric_limits<int>::max() : stone_;
             const int availableCrystals = unlimitedResources_
                 ? std::numeric_limits<int>::max() : crystals_;
-            const UpgradeResult result = buildings_.upgrade(command.upgradeBuilding->buildingId,
-                    availableWood, availableStone, availableCrystals);
+            const UpgradeResult result = buildings_.upgrade(
+                command.upgradeBuilding->buildingId,
+                availableWood, availableStone, availableCrystals);
             if (!result.valid() || !result.building) {
                 error = result.error;
                 break;
@@ -142,6 +105,11 @@ void Simulation::processBuildingActions(
                 crystals_ -= result.cost.crystals;
             }
             upgraded = result.building;
+            if (upgraded->type == BuildingType::Core) {
+                coreHealthBaseLevel_ = upgraded->level;
+                coreBuildingBaseLevel_ = upgraded->level;
+                coreStorageBaseLevel_ = std::min<int>(upgraded->level, MaxBuildingLevel);
+            }
         }
         if (upgraded) {
             // A bulk upgrade produces one effect/sound and one runtime refresh.
@@ -186,28 +154,29 @@ void Simulation::processBuildingActions(
                 &ActiveFortification::id);
             if (active == activeFortifications_.end())
                 activeFortifications_.push_back({command.repairBuilding->buildingId,
-                    playerClass_ == PlayerClass::Engineer ? 20.0 : 10.0});
+                    classLevelBonuses().fortificationDuration});
             else
-                active->remaining = playerClass_ == PlayerClass::Engineer ? 20.0 : 10.0;
+                active->remaining = classLevelBonuses().fortificationDuration;
             events_.push_back({.type = GameEventType::BuildingFortified,
                                .entityId = fortifyTarget->id,
                                .buildingType = fortifyTarget->type,
                                .position = buildingWorldPosition(*fortifyTarget),
-                               .amount = playerClass_ == PlayerClass::Engineer ? 20 : 10});
+                               .amount = static_cast<int>(std::lround(classLevelBonuses().fortificationDuration))});
             startRepairCooldown(fortifyTarget->id);
             return;
         }
+        const bool freeRelicRepair = rollManualRelic(.10, relicStacks(LootUpgradeEffect::RepairNail));
         const int availableWood =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
+            (unlimitedResources_ || freeRelicRepair) ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
+            (unlimitedResources_ || freeRelicRepair) ? std::numeric_limits<int>::max() : stone_;
         const int availableCurrency =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
+            (unlimitedResources_ || freeRelicRepair) ? std::numeric_limits<int>::max() : crystals_;
         const RepairResult result =
             buildings_.repair(command.repairBuilding->buildingId, availableWood, availableStone,
-                              availableCurrency);
+                              availableCurrency, playerClass_ == PlayerClass::Mechanic ? .70 : 1.0);
         if (result.valid() && result.building) {
-            if (!unlimitedResources_) {
+            if (!unlimitedResources_ && !freeRelicRepair) {
                 wood_ -= result.cost.wood;
                 stone_ -= result.cost.stone;
                 crystals_ -= result.cost.crystals;
@@ -221,6 +190,7 @@ void Simulation::processBuildingActions(
                 .position =
                     buildingWorldPosition(*result.building),
                 .amount = static_cast<int>(result.repairedHealth),
+                .intensity = result.repairedHealth,
             });
             triggerAnvilShockwave(
                 result.building->id,
@@ -231,9 +201,9 @@ void Simulation::processBuildingActions(
             const ModularBuildingRepairResult
                 modularResult = foundations_.repair(
                     command.repairBuilding->buildingId,
-                    availableWood, availableStone);
+                    availableWood, availableStone, playerClass_ == PlayerClass::Mechanic ? .70 : 1.0);
             if (modularResult.valid()) {
-                if (!unlimitedResources_) {
+                if (!unlimitedResources_ && !freeRelicRepair) {
                     wood_ -= modularResult.cost.wood;
                     stone_ -= modularResult.cost.stone;
                 }
@@ -251,6 +221,7 @@ void Simulation::processBuildingActions(
                         modularResult, worldConfig_),
                     .amount = static_cast<int>(
                         modularResult.repairedHealth),
+                    .intensity = modularResult.repairedHealth,
                 });
                 triggerAnvilShockwave(
                     modularResult.id,
@@ -371,7 +342,7 @@ void Simulation::processBuildingActions(
             std::find_if(buildings_.buildings().begin(), buildings_.buildings().end(),
                          [&command](const BuildingInstance& building) {
                              return building.id == command.toggleGate->gateId &&
-                                    building.type == BuildingType::Gate;
+                                    (building.type == BuildingType::Gate || building.type == BuildingType::Wall);
                          });
         bool rejected = gate == buildings_.buildings().end();
         if (!rejected && gate->open) {
@@ -388,7 +359,9 @@ void Simulation::processBuildingActions(
                 .entityId = command.toggleGate->gateId,
             });
         } else {
-            const auto toggled = buildings_.toggleGate(command.toggleGate->gateId);
+            const auto toggled = gate->type == BuildingType::Wall
+                ? buildings_.convertWallToGate(command.toggleGate->gateId)
+                : buildings_.toggleGate(command.toggleGate->gateId);
             if (toggled) {
                 syncWorldStructures();
                 events_.push_back({

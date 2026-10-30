@@ -31,7 +31,7 @@ enum class ControlAction : std::uint8_t {
     MoveRight,
     Jump,
     Sprint, // Stable saved action ID, now sandbox flight descent.
-    Dash,
+    UnusedLegacy, // Preserve action IDs from existing saved controls.
     Attack,
     ToggleTool,
     Interact,

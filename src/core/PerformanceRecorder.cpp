@@ -50,7 +50,27 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "gpu_postprocess_ms,gpu_viewmodel_ms,"
                "gpu_viewmodel_target_ms,gpu_viewmodel_composite_ms,"
                "gpu_ui_ms,enemy_ai_ms,"
-               "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms";
+               "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms,"
+               "window_width,window_height,render_width,render_height,"
+               "fps_limit,graphics_quality,selection_kind,resource_nodes,"
+               "coin_pickups,loot_chests,presentation_effects,"
+               "enemy_projectiles,instanced_enemies,enemy_batches,"
+               "low_detail_enemies,blob_shadow_count,"
+               "blob_shadow_triangles,enemy_full_ai_updates,"
+               "enemy_throttled_ai_moves,enemy_spatial_rebuilds,"
+               "enemy_structure_grid_rebuilds,enemy_spatial_rebuild_ms,"
+               "sim_tick_total_ms,selection_composite_ms,"
+               "resource_impact_overlays_ms,gpu_timers_supported,"
+               "gpu_world_samples,gpu_postprocess_samples,"
+               "gpu_ui_samples,frame_interval_ms,"
+               "gpu_shadow_ms,gpu_selection_ms,gpu_scene_ms,"
+               "gpu_shadow_samples,gpu_selection_samples,"
+               "gpu_scene_samples,"
+               "gpu_terrain_ms,gpu_objects_ms,gpu_environment_ms,"
+               "gpu_overlays_ms,gpu_terrain_samples,"
+               "gpu_objects_samples,gpu_environment_samples,"
+               "gpu_overlays_samples";
+    for (const auto column : WorldObjectColumns) stream_ << ',' << column;
     stream_ << ",gpu_viewmodel_target_samples,gpu_viewmodel_composite_samples,"
                "gpu_queries_issued,output_width,output_height,run_state_changed,"
                "minimap_prewarm_ms,terrain_chunks_submitted,terrain_chunks_culled,"
@@ -106,7 +126,46 @@ void PerformanceRecorder::record(
             << value.gpuViewModelCompositeMs << ','
             << value.gpuUiMs << ','
             << value.enemyAiMs << ',' << value.enemyCollisionMs << ','
-            << value.enemyDrawMs << ',' << value.blobShadowsMs;
+            << value.enemyDrawMs << ',' << value.blobShadowsMs << ','
+            << value.windowWidth << ',' << value.windowHeight << ','
+            << value.renderWidth << ',' << value.renderHeight << ','
+            << value.frameRateLimit << ',' << value.graphicsQuality << ','
+            << value.selectionKind << ',' << value.resourceNodes << ','
+            << value.coinPickups << ',' << value.lootChests << ','
+            << value.presentationEffects << ',' << value.enemyProjectiles
+            << ',' << value.instancedEnemies << ',' << value.enemyBatches
+            << ',' << value.lowDetailEnemies << ','
+            << value.blobShadowCount << ',' << value.blobShadowTriangles
+            << ',' << value.enemyFullAiUpdates << ','
+            << value.enemyThrottledAiMoves << ','
+            << value.enemySpatialRebuilds << ','
+            << value.enemyStructureGridRebuilds << ','
+            << value.enemySpatialRebuildMs << ','
+            << value.simulationTickTotalMs << ','
+            << value.selectionCompositeMs << ','
+            << value.resourceImpactOverlaysMs << ','
+            << static_cast<int>(value.gpuTimersSupported) << ','
+            << value.gpuWorldSamples << ','
+            << value.gpuPostProcessSamples << ','
+            << value.gpuUiSamples << ','
+            << value.frameIntervalMs << ','
+            << value.gpuShadowMs << ','
+            << value.gpuSelectionMs << ','
+            << value.gpuSceneMs << ','
+            << value.gpuShadowSamples << ','
+            << value.gpuSelectionSamples << ','
+            << value.gpuSceneSamples << ','
+            << value.gpuTerrainMs << ','
+            << value.gpuObjectsMs << ','
+            << value.gpuEnvironmentMs << ','
+            << value.gpuOverlaysMs << ','
+            << value.gpuTerrainSamples << ','
+            << value.gpuObjectsSamples << ','
+            << value.gpuEnvironmentSamples << ','
+            << value.gpuOverlaysSamples;
+    for (const double timing : value.worldObjectTimings) {
+        stream_ << ',' << timing;
+    }
     stream_ << ',' << value.gpuViewModelTargetSamples
             << ',' << value.gpuViewModelCompositeSamples
             << ',' << value.gpuQueriesIssued

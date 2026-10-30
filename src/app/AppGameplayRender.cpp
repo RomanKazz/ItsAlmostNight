@@ -2,6 +2,7 @@
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "graphics/WorldTransforms.hpp"
+#include "graphics/FlamethrowerEffect.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
 #include "ui/HudRenderer.hpp"
@@ -249,19 +250,25 @@ void App::renderGameplayFrame(
         performanceMilliseconds(renderPreparationStart));
 
     renderer_->beginGpuTimer(RendererGpuStage::World);
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Shadow);
     const auto shadowStart = PerformanceClock::now();
     drawShadowPass(snapshot, lighting);
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Shadow);
     performanceStats_.shadowPass.sample(
         performanceMilliseconds(shadowStart));
 
     const auto selectionStart = PerformanceClock::now();
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Selection);
     if constexpr (!MinimalWorldVisuals) {
         drawSelectionPass(feedbackSnapshot, camera);
     }
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Selection);
     performanceStats_.selectionPass.sample(
         performanceMilliseconds(selectionStart));
 
     const auto terrainStart = PerformanceClock::now();
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Scene);
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Terrain);
     renderer_->beginWorldPass(environment.skyHorizon, camera);
     BeginMode3D(camera);
     renderer_->beginWorldShader(lighting);
@@ -280,17 +287,21 @@ void App::renderGameplayFrame(
     renderer_->drawSky(skyState);
     BeginMode3D(camera);
     renderer_->beginWorldShader(lighting);
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Terrain);
     performanceStats_.terrainRender.sample(
         performanceMilliseconds(terrainStart));
 
     const auto worldEntitiesStart = PerformanceClock::now();
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Objects);
     drawWorldEntities(presentationSnapshot, camera, nightAmount,
                       lighting,
                       worldInterpolationAlpha(presentationSnapshot, fixedStep_.interpolationAlpha()));
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Objects);
     performanceStats_.worldEntitiesRender.sample(
         performanceMilliseconds(worldEntitiesStart));
 
     const auto environmentStart = PerformanceClock::now();
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Environment);
     if constexpr (!MinimalWorldVisuals) {
     const auto pondDecorStart = PerformanceClock::now();
     renderer_->beginWorldShader(lighting);
@@ -355,14 +366,59 @@ void App::renderGameplayFrame(
     performanceStats_.environmentRender.sample(
         performanceMilliseconds(environmentStart));
     }
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Environment);
 
     const auto overlayStart = PerformanceClock::now();
+    renderer_->beginGpuWorldPart(RendererGpuWorldPart::Overlays);
     drawBlobShadows(snapshot, camera);
     if constexpr (!MinimalWorldVisuals) {
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects(camera, lighting);
+        if (std::ranges::any_of(snapshot.towers, [](const auto& tower) {
+                return tower.type == BuildingType::Flamethrower && tower.flameTailRemaining > 0;
+            })) {
+            renderer_->beginWorldShader(lighting);
+            WorldMaterialState flameMaterial{};
+            flameMaterial.unlitAmount = 1;
+            flameMaterial.screenAoAmount = 0;
+            flameMaterial.inkOutlineEligible = false;
+            flameMaterial.inkOccluder = true;
+            renderer_->setWorldMaterial(flameMaterial);
+            renderer_->beginColorOnlyWorldEffects();
+            fire_wand_effect::beginBatch();
+            const float flameInterpolationAlpha = worldInterpolationAlpha(snapshot, fixedStep_.interpolationAlpha());
+            int budget = flamethrower_effect::MaximumPuffsPerFrame;
+            const bool detailed = renderer_->settings().particles;
+            for (const auto& tower : snapshot.towers) {
+                if (tower.type != BuildingType::Flamethrower || tower.flameTailRemaining <= 0 || budget < 6) continue;
+                const auto drawBuildings=snapshot.relicGhosts.empty()?snapshot.buildings:snapshot.relicCombatBuildings;
+                const auto building = std::ranges::find(drawBuildings, tower.buildingId, &BuildingInstance::id);
+                if (building == drawBuildings.end()) continue;
+                const float yaw = towerYaw(snapshot, *building, flameInterpolationAlpha);
+                const float pitch = towerPitch(snapshot, *building, flameInterpolationAlpha);
+                const Vector3 muzzle = flamethrower_effect::point(flamethrowerMuzzleWorldPosition(
+                    buildingWorldPosition(*building), yaw, pitch));
+                const float distanceSquared = Vector3DistanceSqr(muzzle, camera.position);
+                if (distanceSquared > 1024 || Vector3DotProduct(Vector3Subtract(muzzle, camera.position),
+                        Vector3Subtract(camera.target, camera.position)) < -2) continue;
+                const int particles = std::min(budget, detailed
+                    ? (distanceSquared < 100 ? 18 : distanceSquared < 400 ? 10 : 6) : 6);
+                budget -= particles;
+                flamethrower_effect::emitStream(muzzle,
+                    {-std::sin(yaw) * std::cos(pitch), std::sin(pitch), -std::cos(yaw) * std::cos(pitch)},
+                    camera.position, static_cast<float>(flamethrowerStreamLength(tower.attack.stats)),
+                    static_cast<float>(tower.attack.stats.size),
+                    1, snapshot.elapsedSeconds, tower.buildingId.index, particles, detailed,
+                    tower.flameAge, tower.flameRemaining > 0 ? -1 :
+                        flamethrowerTailSeconds(tower.attack.stats) - tower.flameTailRemaining);
+            }
+            fire_wand_effect::endBatch();
+            renderer_->endColorOnlyWorldEffects();
+            renderer_->endWorldShader();
+        }
     }
     EndMode3D();
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Overlays);
     performanceStats_.overlayRender.sample(
         performanceMilliseconds(overlayStart));
 
@@ -451,6 +507,7 @@ void App::renderGameplayFrame(
             }
         }
     }
+    renderer_->endGpuWorldPart(RendererGpuWorldPart::Scene);
     renderer_->endGpuTimer(RendererGpuStage::World);
     // Complete the tool texture before the first window draw. Switching away
     // from the window again can drain the macOS driver's command-buffer pool.
@@ -468,7 +525,7 @@ void App::renderGameplayFrame(
     renderer_->beginGpuTimer(RendererGpuStage::PostProcess);
     const auto postProcessStart = PerformanceClock::now();
     renderer_->setMenuDepthOfField(
-        snapshot.runUpgradeChoicePending, 0.1F, 0.1F, 5.0F);
+        snapshot.runUpgradeChoicePending, 0.1F, 0.1F, 3.5F);
     renderer_->endWorldPass();
     renderer_->setMenuDepthOfField(false);
     performanceStats_.postProcess.sample(
@@ -478,11 +535,17 @@ void App::renderGameplayFrame(
     // ink pass so black contours from background objects cannot overwrite
     // the white interaction silhouette.
     if constexpr (!MinimalWorldVisuals) {
+        const auto selectionCompositeStart = PerformanceClock::now();
         renderer_->drawSelectionOutline();
+        performanceStats_.selectionComposite.sample(
+            performanceMilliseconds(selectionCompositeStart));
         // Crack sprites are projected from their world-space tangent
         // planes after ink/selection composition. They therefore cannot
         // inherit world outlines while the viewmodel still covers them.
+        const auto resourceImpactStart = PerformanceClock::now();
         drawResourceImpactOverlays(camera);
+        performanceStats_.resourceImpactOverlays.sample(
+            performanceMilliseconds(resourceImpactStart));
     }
     renderer_->endGpuTimer(RendererGpuStage::PostProcess);
 

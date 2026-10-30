@@ -60,8 +60,8 @@ inline void checkBuildingHoverUi(ian::GameUi& ui,const char* captureDirectory) {
         "building level scales in the world with its health bar instead of keeping a HUD minimum size");
     for(Image image:{selected,attacked,distant}) UnloadImage(image);
     snapshot.aimedBuildingStats=BuildingStatComparison{
-        .current={.maxHealth=500,.buildingLimit=3,.woodCapacity=120,.stoneCapacity=75,.crystalCapacity=75},
-        .next=BuildingStats{.maxHealth=650,.buildingLimit=5,.woodCapacity=240,.stoneCapacity=150,.crystalCapacity=150}};
+        .current={.maxHealth=500,.buildingLimit=3,.woodCapacity=250,.stoneCapacity=150,.crystalCapacity=100},
+        .next=BuildingStats{.maxHealth=650,.buildingLimit=5,.woodCapacity=250,.stoneCapacity=150,.crystalCapacity=150}};
     HudViewState state{};state.buildingContextCardEntranceSeconds=.5F;
     BeginDrawing();BeginTextureMode(target);ClearBackground({24,32,40,255});
     hud_detail::drawBuildingContextCard(ui,snapshot,building,state,camera,ControlSettings{});

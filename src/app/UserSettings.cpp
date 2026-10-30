@@ -54,7 +54,7 @@ int nearestShadowMapSize(int value) {
 }
 
 int nearestFrameRateLimit(int value) {
-    constexpr std::array FrameRateLimits{0, 60, 120, 144};
+    constexpr std::array FrameRateLimits{0, 60, 90, 120, 144};
     return *std::min_element(
         FrameRateLimits.begin(), FrameRateLimits.end(),
         [value](int left, int right) {
@@ -67,7 +67,7 @@ constexpr std::array<const char*, ControlActionCount>
     ControlActionJsonNames{
         "moveForward", "moveLeft",       "moveBackward",
         "moveRight",   "jump",           "sprint",
-        "dash",        "attack",         "toggleTool",    "interact",
+        "unusedLegacy", "attack",      "toggleTool",    "interact",
         "bomb",        "repair",         "copy",
         "upgrade",     "sell",           "upgradeWeapon",
         "buildMode",   "pause",
@@ -111,6 +111,7 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "postProcessing", settings.postProcessing);
     readValue(value, "particles", settings.particles);
     readValue(value, "grass", settings.grass);
+    readValue(value, "enemyLod", settings.enemyLod);
     readValue(value, "contactAo", settings.blobShadows);
     readValue(value, "bloom", settings.bloom);
     readValue(value, "ssao", settings.ssao);
@@ -242,6 +243,7 @@ Json graphicsJson(const GraphicsSettings& settings) {
         {"postProcessing", settings.postProcessing},
         {"particles", settings.particles},
         {"grass", settings.grass},
+        {"enemyLod", settings.enemyLod},
         {"contactAo", settings.blobShadows},
         {"bloom", settings.bloom},
         {"ssao", settings.ssao},
@@ -324,12 +326,15 @@ void readControls(const Json& value, ControlSettings& settings) {
         keys != value.end() && keys->is_object()) {
         for (std::size_t index = 0; index < ControlActionCount;
              ++index) {
+            if (index == static_cast<std::size_t>(ControlAction::UnusedLegacy))
+                continue;
             readValue(
                 *keys, ControlActionJsonNames[index],
                 settings.keys[index]);
         }
     }
     const ControlSettings defaults;
+    settings.keys[static_cast<std::size_t>(ControlAction::UnusedLegacy)] = KEY_NULL;
     settings.mouseSensitivity = finiteClamped(
         settings.mouseSensitivity, defaults.mouseSensitivity,
         0.1F, 3.0F);
@@ -361,9 +366,43 @@ bool loadUserSettings(
             return false;
         }
         UserSettings loaded = settings;
+        int savedVersion = 0;
+        readValue(document, "version", savedVersion);
         if (const auto value = document.find("graphics");
             value != document.end() && value->is_object()) {
             readGraphics(*value, loaded.graphics);
+            // Earlier releases saved their old factory palette. Detect that
+            // complete profile before replacing it; edited colors or style
+            // choices must survive an upgrade.
+            const auto near = [](float actual, float expected) {
+                return std::abs(actual - expected) < 0.0005F;
+            };
+            const GraphicsSettings& graphics = loaded.graphics;
+            if (savedVersion == 6 &&
+                near(graphics.postExposure, 0.0F) &&
+                near(graphics.brightness, 0.0F) &&
+                near(graphics.colorSaturation, 1.0F) &&
+                near(graphics.contrast, 1.0F) &&
+                near(graphics.hueDegrees, 0.0F) &&
+                near(graphics.temperature, 0.0F) &&
+                near(graphics.tint, 0.0F) &&
+                near(graphics.gamma, 1.0F) &&
+                near(graphics.blackPoint, 0.0F) &&
+                near(graphics.curveShadows, 0.0F) &&
+                near(graphics.curveMidtones, 0.0F) &&
+                near(graphics.curveHighlights, 0.0F) &&
+                near(graphics.sharpness, 0.0F) &&
+                near(graphics.vignette, 0.0F) &&
+                near(graphics.aoStrength, 0.30F) &&
+                near(graphics.lightingSteps, 5.0F) &&
+                near(graphics.outlineStrength, 0.68F) &&
+                near(graphics.outlineWidth, 1.5F) &&
+                !graphics.bloom && graphics.posterizedLighting) {
+                resetColorSettings(loaded.graphics);
+                resetStyleSettings(loaded.graphics);
+                loaded.graphics.aoStrength =
+                    GraphicsSettings{}.aoStrength;
+            }
         }
         if (const auto value = document.find("audio");
             value != document.end() && value->is_object()) {
@@ -404,7 +443,7 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 6},
+            {"version", 7},
             {"language", std::string(languageCode(settings.language))},
             {"debugHotkeysEnabled", settings.debugHotkeysEnabled},
             {"graphics", graphicsJson(settings.graphics)},
@@ -426,6 +465,8 @@ bool saveUserSettings(
                    Json keys = Json::object();
                    for (std::size_t index = 0;
                         index < ControlActionCount; ++index) {
+                       if (index == static_cast<std::size_t>(ControlAction::UnusedLegacy))
+                           continue;
                        keys[ControlActionJsonNames[index]] =
                            settings.controls.keys[index];
                    }
@@ -458,6 +499,7 @@ void resetDisplaySettings(GraphicsSettings& settings) {
     settings.postProcessing = defaults.postProcessing;
     settings.particles = defaults.particles;
     settings.grass = defaults.grass;
+    settings.enemyLod = defaults.enemyLod;
     settings.blobShadows = defaults.blobShadows;
     settings.bloom = defaults.bloom;
     settings.ssao = defaults.ssao;
@@ -607,7 +649,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::MoveRight: return "MOVE RIGHT";
     case ControlAction::Jump: return "JUMP";
     case ControlAction::Sprint: return "FLY DOWN (SANDBOX)";
-    case ControlAction::Dash: return "DASH";
+    case ControlAction::UnusedLegacy: return "UNUSED";
     case ControlAction::Attack: return "ATTACK";
     case ControlAction::ToggleTool: return "NEXT EQUIPMENT";
     case ControlAction::Interact: return "INTERACT";

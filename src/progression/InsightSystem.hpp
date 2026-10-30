@@ -47,35 +47,38 @@ inline constexpr std::size_t InsightCategoryCount =
 
 struct InsightConfig {
     double baseRequirement{100.0};
-    double requirementGrowth{};
-    double fullRateBudget{20.0};
-    double reducedRateBudget{20.0};
+    double requirementGrowth{15.0};
+    // XP discounts for the first four rewards; later levels use the normal curve.
+    std::array<double, 4> earlyRequirementDiscounts{{70.0, 50.0, 35.0, 20.0}};
+    double fullRateBudget{28.0};
+    double reducedRateBudget{28.0};
     double reducedRateMultiplier{0.5};
     double exhaustedMultiplier{0.2};
 
     double introGatherObjective{};
-    double introCoreObjective{100.0};
-    double normalWave{30.0};
-    double milestoneWave{55.0};
-    double bossWave{100.0};
+    double introCoreObjective{};
+    double normalWave{42.0};
+    double milestoneWave{77.0};
+    double bossWave{140.0};
     int milestoneWaveInterval{5};
     // EnemyType order: Basic, Fast, Heavy, Boss, Ranged, Sapper, Flying,
     // Splitter, Splitling, Bee, AirTank.
-    std::array<double, 11> enemy{{0.75, 1.0, 3.0, 75.0, 2.0, 3.0, 2.5,
-                                 4.0, 0.5, 5.0, 12.0}};
-    std::array<double, 3> resourcePerUnit{{0.14, 0.22, 0.28}};
-    std::array<double, 3> resourceDepleted{{1.5, 2.0, 3.0}};
+    std::array<double, 11> enemy{{3.0, 3.0, 8.0, 70.0, 4.0, 6.0, 4.0,
+                                 7.0, 3.0, 5.0, 12.0}};
+    std::array<double, 3> resourcePerUnit{};
+    std::array<double, 3> resourceDepleted{{11.0, 14.0, 17.0}};
+    std::array<double, 3> prop{{24.0, 32.0, 48.0}};
     std::array<double, 10> building{{
-        4.0, 0.75, 1.5, 1.5, 3.0,
-        1.0, 1.0, 1.5, 1.5, 1.25}};
-    std::array<double, 4> modularBuilding{{1.0, 1.0, 0.5, 1.0}};
-    double firstBuildingTypeBonus{2.0};
-    double repairPerHealth{0.015};
-    std::array<double, 2> chest{{4.0, 8.0}};
+        5.6, 1.05, 2.1, 2.1, 4.2,
+        1.4, 1.4, 2.1, 2.1, 1.75}};
+    std::array<double, 4> modularBuilding{{1.4, 1.4, 0.7, 1.4}};
+    double firstBuildingTypeBonus{2.8};
+    double repairPerHealth{0.021};
+    std::array<double, 2> chest{{28.0, 49.0}};
 
     double hudSmallPulseSeconds{0.25};
     double hudLargePulseSeconds{0.55};
-    double hudLargeRewardThreshold{10.0};
+    double hudLargeRewardThreshold{14.0};
     double hudPointSequenceSeconds{0.48};
     double hudAggregationWindowSeconds{0.8};
 
@@ -95,6 +98,9 @@ struct InsightGrantContext {
     bool oneTime{};
     bool bypassDiminishing{};
     double modifier{1.0};
+    // Applied after diminishing returns; reward bonuses do not spend the
+    // source/category budget faster.
+    double rewardMultiplier{1.0};
 };
 
 struct InsightGrantResult {
@@ -133,12 +139,10 @@ class InsightSystem {
         double amount, InsightSource source, InsightCategory category,
         const InsightGrantContext& context = {});
     void beginNewDiminishingCycle();
-    void markEventConsumed(std::uint64_t eventId);
     void reset();
 
     [[nodiscard]] const InsightProgress& progress() const;
     [[nodiscard]] const InsightConfig& config() const;
-    [[nodiscard]] const InsightGrantResult& lastGrant() const;
     [[nodiscard]] const std::array<double, InsightCategoryCount>&
     earnedByCategory() const;
     [[nodiscard]] std::uint64_t blockedDuplicateEvents() const;
@@ -157,7 +161,6 @@ class InsightSystem {
     std::array<double, InsightSourceCount> earnedBySource_{};
     std::unordered_set<std::uint64_t> consumedEventIds_;
     std::uint64_t blockedDuplicateEvents_{};
-    InsightGrantResult lastGrant_{};
 };
 
 [[nodiscard]] InsightConfig loadInsightConfig(const std::filesystem::path& path);

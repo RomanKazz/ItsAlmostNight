@@ -3,6 +3,7 @@
 #include "core/Types.hpp"
 
 #include <cstdint>
+#include <array>
 #include <optional>
 #include <span>
 #include <vector>
@@ -15,7 +16,7 @@ struct ResourceNode;
 enum class LootChestType { Wooden, Stone };
 enum class LootChestPurpose { Exploration, Reward };
 enum class LootChestState { Closed, Opening, Open };
-enum class LootRarity { Common, Uncommon, Rare, Legendary };
+enum class LootRarity { Common, Uncommon, Rare, Legendary, Epic };
 enum class LootUpgradeEffect {
     Damage,
     MoveSpeed,
@@ -36,13 +37,62 @@ enum class LootUpgradeEffect {
     Rope,
     Magnet,
     HealthAid,
+    CoalBell,
+    PowderPouch,
+    PlagueMushroom,
+    InfectedPouch,
+    GasMask,
+    IcePrism,
+    TargetingLens,
+    // Append-only IDs. Older items remain readable in existing saves only.
+    Acorn,
+    CrystalPan,
+    RepairNail,
+    LumberBoot,
+    Abacus,
+    WeaponToken,
+    IdleSpring,
+    RepairMagnet,
+    Siren,
+    Clover,
+    MiningHammer,
+    DawnCoin,
+    GhostCandle,
+    CoreFuse,
+    CrystalSafe,
+    RebuildBlueprint,
+    LuckyDie,
+    UpgradeMirror,
 };
-constexpr std::size_t LootUpgradeEffectCount = 19U;
+constexpr std::size_t LootUpgradeEffectCount = 44U;
 
 [[nodiscard]] constexpr std::size_t lootUpgradeIndex(
     LootUpgradeEffect effect) {
     return static_cast<std::size_t>(effect);
 }
+
+inline constexpr std::array<LootUpgradeEffect, 18> ActiveLootEffects{
+    LootUpgradeEffect::Acorn,
+    LootUpgradeEffect::CrystalPan,
+    LootUpgradeEffect::RepairNail,
+    LootUpgradeEffect::LumberBoot,
+    LootUpgradeEffect::Abacus,
+    LootUpgradeEffect::WeaponToken,
+    LootUpgradeEffect::IdleSpring,
+    LootUpgradeEffect::RepairMagnet,
+    LootUpgradeEffect::Siren,
+    LootUpgradeEffect::Clover,
+    LootUpgradeEffect::MiningHammer,
+    LootUpgradeEffect::DawnCoin,
+    LootUpgradeEffect::GhostCandle,
+    LootUpgradeEffect::CoreFuse,
+    LootUpgradeEffect::CrystalSafe,
+    LootUpgradeEffect::RebuildBlueprint,
+    LootUpgradeEffect::LuckyDie,
+    LootUpgradeEffect::UpgradeMirror,
+};
+[[nodiscard]] LootRarity lootUpgradeRarity(LootUpgradeEffect effect);
+[[nodiscard]] const char* lootUpgradeModelPath(LootUpgradeEffect effect);
 
 struct ChestLoot {
     EntityId id;
@@ -80,6 +130,7 @@ struct LootChestInstance {
 };
 
 enum class ChestOpenResult { None, Opened, InsufficientCoins, AlreadyOpen };
+
 struct LootPickup {
     EntityId lootId;
     LootRarity rarity;
@@ -95,6 +146,8 @@ class LootChestSystem {
                Vec3 playerSpawn);
     [[nodiscard]] bool restoreChests(
         std::span<const LootChestInstance> chests);
+    [[nodiscard]] bool relocateExplorationChest(
+        EntityId id, Vec3 position, const TerrainHeightfield& terrain, double yaw);
     void tick(double deltaSeconds);
 
     [[nodiscard]] std::optional<EntityId> raycastChest(
@@ -105,8 +158,11 @@ class LootChestSystem {
         EntityId id, int& coins, bool freeOpening = false);
     [[nodiscard]] std::optional<Vec3> revealNearest(
         Vec3 playerPosition);
+    void setAllowedLoot(const std::array<bool, LootUpgradeEffectCount>& allowed);
     void setCoinCostMultiplier(double multiplier);
     void setOpeningCostSurcharge(int surcharge);
+    void setOpenedPaidChestCount(int count);
+    [[nodiscard]] int openedPaidChestCount() const;
     [[nodiscard]] int openingCost(
         const LootChestInstance& chest) const;
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
@@ -136,12 +192,20 @@ class LootChestSystem {
     [[nodiscard]] const std::vector<LootChestInstance>& chests() const;
 
   private:
+    std::array<bool, LootUpgradeEffectCount> allowedLoot_ = [] {
+        std::array<bool, LootUpgradeEffectCount> a{}; a.fill(true); return a;
+    }();
     std::vector<LootChestInstance> chests_;
     std::uint32_t runGeneration_{};
     std::uint32_t nextEntityIndex_{};
     double coinCostMultiplier_{1.0};
     int openingCostSurcharge_{};
+    int openedPaidChestCount_{};
 };
+
+[[nodiscard]] int scaledChestOpeningCost(
+    int baseCost, int surcharge, double discountMultiplier,
+    int previouslyOpenedPaidChests);
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);
 [[nodiscard]] const char* lootUpgradeName(LootUpgradeEffect effect);

@@ -1,9 +1,10 @@
-#include "buildings/TowerRig.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/RepairStation.hpp"
 #include "buildings/DecoyBeacon.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/TowerRig.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
+#include "graphics/BuildingFoundationVisual.hpp"
 #include "graphics/PortalArrivalEffect.hpp"
 
 #include "ui/UiText.hpp"
@@ -145,9 +146,9 @@ EnemyModelVisual enemyModelVisual(const EnemyInstance& enemy) {
 
 EnemyAnimationVisual enemyAnimationVisual(
     const EnemyInstance& enemy) {
-    if (enemy.hitAnimationRemaining > 0.0 &&
-        enemy.state != EnemyState::Dead) {
-        return EnemyAnimationVisual::Hit;
+    if (enemyStatusEffect(enemy, StatusEffectType::Freeze).remaining > 0.0 ||
+        (enemy.type == EnemyType::Splitter && enemy.splitAnimationRemaining > 0.0)) {
+        return EnemyAnimationVisual::Idle;
     }
     if (enemy.type == EnemyType::AirTank) {
         if (enemy.airTankWindupRemaining > 0 || enemy.attackCooldownRemaining > 1.7)
@@ -187,7 +188,7 @@ EnemyAnimationVisual enemyAnimationVisual(
     case EnemyState::Spawn:
         return EnemyAnimationVisual::Spawn;
     case EnemyState::Dead:
-        return EnemyAnimationVisual::Death;
+        return EnemyAnimationVisual::Idle;
     }
     return EnemyAnimationVisual::Idle;
 }
@@ -218,17 +219,9 @@ float enemyVisualScale(EnemyType type) {
     return 1.0F;
 }
 
-float enemyHitScale(const EnemyInstance& enemy) {
-    constexpr float HitDuration = 0.22F;
-    constexpr float Pi = 3.14159265358979323846F;
-    constexpr float BounceAmplitude = 0.10F;
-    const float progress = std::clamp(
-        static_cast<float>(
-            1.0 - enemy.hitAnimationRemaining / HitDuration),
-        0.0F, 1.0F);
-    const float pulse = std::sin(progress * Pi);
-    const float hitScale = 1.0F - BounceAmplitude * pulse;
-    return hitScale;
+float enemyAppearanceScale(const EnemyInstance&) {
+    // Split squash/stretch now uses the shared foot-pivot pose in every pass.
+    return 1.0F;
 }
 
 SplitterPose enemySplitPose(const EnemyInstance& enemy, double subTickSeconds) {
@@ -248,7 +241,7 @@ SplitterPose enemySplitPose(const EnemyInstance& enemy, double subTickSeconds) {
 }
 
 double enemySplitSubTickSeconds(const SimulationSnapshot& snapshot, double interpolationAlpha) {
-    return acceptsGameplayInput(snapshot.state) && !snapshot.runUpgradeChoicePending
+    return acceptsGameplayInput(snapshot.state) && !snapshot.runUpgradeChoicePending && !snapshot.runShop.pending
         ? std::clamp(interpolationAlpha, 0.0, 1.0) * FixedStep::TickSeconds : 0.0;
 }
 
@@ -270,31 +263,28 @@ Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
 }
 
 float enemyAnimationSeconds(
-    const EnemyInstance& enemy, double elapsedSeconds) {
-    if (enemy.hitAnimationRemaining > 0.0) {
-        return static_cast<float>(
-            0.22 - enemy.hitAnimationRemaining);
-    }
+    const EnemyInstance& enemy, double elapsedSeconds, double subTickSeconds) {
+    if (enemyStatusEffect(enemy, StatusEffectType::Freeze).remaining > 0.0) return 0.0F;
     if (enemy.type == EnemyType::AirTank) {
         if (enemy.airTankWindupRemaining > 0)
-            return static_cast<float>(AirTankWindupSeconds - enemy.airTankWindupRemaining);
+            return static_cast<float>(AirTankWindupSeconds - enemy.airTankWindupRemaining + subTickSeconds);
         if (enemy.attackCooldownRemaining > 1.7)
-            return static_cast<float>(AirTankWindupSeconds + AirTankRecoverySeconds - enemy.attackCooldownRemaining);
-        return static_cast<float>((elapsedSeconds) * .7);
+            return static_cast<float>(AirTankWindupSeconds + AirTankRecoverySeconds - enemy.attackCooldownRemaining + subTickSeconds);
+        return static_cast<float>((elapsedSeconds + subTickSeconds) * .7);
     }
     if(enemy.type==EnemyType::Bee) {
         const double windup=enemy.eliteAffixes?1.0:.75;
-        if(enemy.beeWindupRemaining>0)return static_cast<float>(windup-enemy.beeWindupRemaining);
+        if(enemy.beeWindupRemaining>0)return static_cast<float>(windup-enemy.beeWindupRemaining+subTickSeconds);
         if(enemy.attackCooldownRemaining>2.6 && enemy.beeRepositionRemaining>0)
-            return static_cast<float>(windup+2.8-enemy.attackCooldownRemaining);
-        return static_cast<float>((elapsedSeconds)*enemy.locomotionRate);
+            return static_cast<float>(windup+2.8-enemy.attackCooldownRemaining+subTickSeconds);
+        return static_cast<float>((elapsedSeconds+subTickSeconds)*enemy.locomotionRate);
     }
     if (enemy.state == EnemyState::BossRamWindup) {
         return static_cast<float>(
             std::max(
                 0.0,
                 enemy.ramWindup -
-                    enemy.ramWindupRemaining));
+                    enemy.ramWindupRemaining + subTickSeconds));
     }
     if (enemy.state == EnemyState::BossVolleyWindup ||
         enemy.state == EnemyState::BossStormWindup ||
@@ -302,7 +292,7 @@ float enemyAnimationSeconds(
         enemy.state == EnemyState::BossWarCryWindup ||
         enemy.state == EnemyState::BossPhaseTransition) {
         return static_cast<float>(std::max(
-            0.0, 1.5 - enemy.bossAbilityWindupRemaining));
+            0.0, 1.5 - enemy.bossAbilityWindupRemaining + subTickSeconds));
     }
     if (enemy.state == EnemyState::AttackBuilding ||
         enemy.state == EnemyState::AttackCore ||
@@ -317,12 +307,17 @@ float enemyAnimationSeconds(
             std::max(
                 0.0,
                 interval -
-                    enemy.attackCooldownRemaining));
+                    enemy.attackCooldownRemaining + subTickSeconds));
     }
     return static_cast<float>(
-        elapsedSeconds * enemy.locomotionRate +
+        (elapsedSeconds + subTickSeconds) * enemy.locomotionRate +
         static_cast<double>(enemy.id.index % 4U) *
             0.173);
+}
+
+double enemyAnimationSubTickSeconds(const SimulationSnapshot& snapshot, double interpolationAlpha) {
+    return acceptsGameplayInput(snapshot.state) && !snapshot.runUpgradeChoicePending && !snapshot.runShop.pending
+        ? std::clamp(interpolationAlpha, 0.0, 1.0) * FixedStep::TickSeconds : 0.0;
 }
 
 void drawCentered(const char* text, int y, int fontSize, Color color) {
@@ -393,6 +388,7 @@ float worldInterpolationAlpha(const SimulationSnapshot& snapshot, double interpo
         return 1.0F;
     return static_cast<float>(std::clamp(interpolationAlpha, 0.0, 1.0));
 }
+
 
 std::vector<GridPosition> placementLine(
     BuildingType type, GridPosition start, GridPosition end,
@@ -727,6 +723,7 @@ std::optional<EntityId> preciseWorldLandmarkAim(
     std::optional<EntityId> result;
     double closestDistance = MaximumDistance;
     for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        if (landmark.activated) continue;
         const double dx = landmark.position.x - snapshot.playerPosition.x;
         const double dz = landmark.position.z - snapshot.playerPosition.z;
         constexpr double BroadPhaseRadius = MaximumDistance + 7.0;
@@ -1101,7 +1098,7 @@ void drawPlacementFootprint(
 void drawPlacementPreviewGeometry(
     Renderer& renderer, BuildingType type, Vector3 position,
     float yawRadians, std::uint8_t rotation,
-    std::uint8_t wallConnections) {
+    std::uint8_t wallConnections, int level) {
     const float x = position.x;
     const float y = position.y;
     const float z = position.z;
@@ -1152,7 +1149,7 @@ void drawPlacementPreviewGeometry(
     } else if (type == BuildingType::MissileLauncher) {
         static_cast<void>(renderer.drawMissileLauncher(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::Flamethrower) {
-        static_cast<void>(renderer.drawFlamethrower(position, yawRadians));
+        static_cast<void>(renderer.drawFlamethrower(position, yawRadians, WHITE, 1, 0, {}, level));
     } else if (type == BuildingType::GunTurret) {
         if (!renderer.drawGunTurret(
                 position, yawRadians, yawRadians)) {
@@ -1216,56 +1213,7 @@ automaticBuildingFoundation(
     BuildingType type, GridPosition position,
     double topHeight, double bottomHeight,
     double cellSize, EntityId id) {
-    const double depth =
-        topHeight - bottomHeight;
-    if (depth <= 0.025) {
-        return std::nullopt;
-    }
-    const Vec3 worldCenter =
-        buildingWorldPosition(type, position);
-    const double halfExtent = buildingFootprintHalfExtent(type);
-    // Foundation anchors describe the lower corner, not the building center.
-    const int anchorX = static_cast<int>(std::floor(
-        (worldCenter.x - halfExtent) / cellSize));
-    const int anchorZ = static_cast<int>(std::floor(
-        (worldCenter.z - halfExtent) / cellSize));
-    const double minimumX =
-        anchorX * cellSize;
-    const double maximumX =
-        (anchorX + PlatformFrameWidthCells) *
-        cellSize;
-    const double minimumZ =
-        anchorZ * cellSize;
-    const double maximumZ =
-        (anchorZ + PlatformFrameWidthCells) *
-        cellSize;
-    const auto support =
-        [topHeight, bottomHeight](
-            double x, double z) {
-            return FoundationSupport{
-                .top = {x, topHeight, z},
-                .bottom = {x, bottomHeight, z},
-                .length =
-                    topHeight - bottomHeight,
-            };
-        };
-    return PlatformFrameInstance{
-        .id = id,
-        .anchor = {
-            anchorX,
-            static_cast<int>(std::lround(
-                topHeight / cellSize)),
-            anchorZ,
-        },
-        .floorHeight = topHeight,
-        .storey = -1,
-        .supports = {
-            support(minimumX, minimumZ),
-            support(maximumX, minimumZ),
-            support(minimumX, maximumZ),
-            support(maximumX, maximumZ),
-        },
-    };
+    return makeBuildingFoundationVisual(type, position, topHeight, bottomHeight, cellSize, id);
 }
 
 void drawTacticalGroundCircle(
@@ -1354,9 +1302,7 @@ void drawBuildingTacticalOverlay(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
-            static_cast<float>(
-                TowerSystem::attackRange(
-                    building->type, building->level)),
+            static_cast<float>(range),
             towerBaseYaw(snapshot, *building),
             static_cast<float>(defenseAttackArcDegrees(building->type, building->level)),
             {255, 252, 244, 190}, building->type == BuildingType::MissileLauncher

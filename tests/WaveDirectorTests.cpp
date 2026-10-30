@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "waves/WaveDirector.hpp"
 #include "enemies/EnemyDifficulty.hpp"
+#include "waves/NightEncounter.hpp"
 
 #include <array>
 #include <algorithm>
@@ -12,15 +13,90 @@ void runWaveDirectorTests() {
     ian::WaveDirector director;
     requireNear(ian::enemyWaveHealthGrowth(1), 1.0, 1e-12,
                 "opening wave health remains unchanged");
-    requireNear(ian::enemyWaveHealthGrowth(8), 4.395, 1e-12,
+    requireNear(ian::enemyWaveHealthGrowth(8), 3.88575, 1e-12,
                 "first boss wave has substantially stronger health growth");
-    requireNear(ian::enemyWaveHealthGrowth(12), 7.875, 1e-12,
+    requireNear(ian::enemyWaveHealthGrowth(12), 6.84375, 1e-12,
                 "strong builds face accelerating late-wave health");
     require(std::isfinite(ian::enemyWaveHealthGrowth(std::numeric_limits<int>::max())) &&
                 ian::enemyWaveHealthGrowth(-10) == 1.0,
             "endless health growth stays finite and invalid waves normalize");
-    constexpr std::array<int, 6> ExpectedBudgets{15, 25, 40, 55, 75, 100};
+    constexpr std::array<int, 6> ExpectedBudgets{10, 17, 23, 30, 44, 100};
+    constexpr std::array<double, 6> ExpectedHealth{.70, .9975, 1.3375, 1.737, 2.1875, 2.6975};
+    constexpr std::array<double, 6> ExpectedDamage{.68, .77, .86, .96, 1.07, 1.17};
+    constexpr std::array<int, 6> EarlyActiveStart{8, 14, 22, 32, 45, 60};
+    for (int night = 1; night <= 6; ++night) {
+        const auto plan = director.buildWave(night, {});
+        requireNear(plan.spawns.front().healthMultiplier,
+            ExpectedHealth[static_cast<std::size_t>(night - 1)], 1e-12,
+            "early health follows the hand-tuned curve");
+        requireNear(plan.spawns.front().damageMultiplier,
+            ExpectedDamage[static_cast<std::size_t>(night - 1)], 1e-12,
+            "early damage grows more gently than population");
+        requireNear(ian::waveTargetActiveEnemies(night, plan.pattern, 0),
+            EarlyActiveStart[static_cast<std::size_t>(night - 1)] *
+                (night<=5 ? 1 : std::max(.85,ian::nightPopulationScale(plan.pattern,night))), 1e-12,
+            "early active population starts at the configured target");
+        requireNear(ian::waveTargetActiveEnemies(night, plan.pattern, .9),
+            EarlyActiveStart[static_cast<std::size_t>(night - 1)] * 1.2 *
+                (night<=5 ? 1 : std::max(.85,ian::nightPopulationScale(plan.pattern,night))), 1e-12,
+            "early active population rises modestly through the night");
+    }
+    require(ExpectedHealth[5] / ExpectedHealth[4] < 1.26 &&
+            EarlyActiveStart[5] > EarlyActiveStart[4] &&
+            director.buildWave(6, {}).spawns.front().damageMultiplier /
+                ExpectedDamage[4] < 1.10,
+        "night six continues the fifth-night HP, damage and population curves");
+    require(director.buildWave(7, {}).spawns.front().healthMultiplier / ExpectedHealth[5] < 1.27,
+        "the first procedural night continues the health curve without a second jump");
+    for(int wave=2;wave<=16;++wave) {
+        require(ian::waveTargetActiveEnemies(wave,ian::NightPattern::Horde,0) >
+                ian::waveTargetActiveEnemies(wave-1,ian::NightPattern::Horde,0),
+            "each successive night targets a larger crowd");
+        require(ian::enemyWaveSpeedGrowth(wave)>ian::enemyWaveSpeedGrowth(wave-1),
+            "night progression gradually increases movement speed");
+    }
+    requireNear(ian::enemyWaveSpeedGrowth(16),1.3,1e-12,"night movement bonus is capped at thirty percent");
 
+    double previousHealth = 0.0;
+    double previousDamage = 0.0;
+    for (int wave = 1; wave <= 24; ++wave) {
+        const auto difficulty = ian::waveDifficulty(wave);
+        if (wave <= 6) {
+            require(difficulty.extraActiveEnemies == 0U &&
+                    difficulty.spawnRateMultiplier >= .95,
+                "onboarding nights use controlled pressure");
+        } else if (wave >= 12) {
+            require(
+                difficulty.regularHealthScale == 1.0 &&
+                    difficulty.regularDamageScale >= 0.95 &&
+                    difficulty.regularDamageScale < 1.0 &&
+                    difficulty.extraActiveEnemies > 0U &&
+                    difficulty.spawnRateMultiplier > 1.0,
+                "mature nights retain their original formula");
+        }
+        const auto plan = director.buildWave(wave, {0, 0});
+        const auto& regular = plan.spawns.front();
+        require(
+            regular.healthMultiplier > previousHealth &&
+                regular.damageMultiplier >= previousDamage,
+            "individual enemy stats still increase smoothly each night");
+        previousHealth = regular.healthMultiplier;
+        previousDamage = regular.damageMultiplier;
+        for (const auto& spawn : plan.spawns) {
+            if (spawn.type != ian::EnemyType::Boss) continue;
+            const double cycle = static_cast<double>(wave / ian::WaveDirector::BossWaveInterval - 1);
+            requireNear(
+                spawn.healthMultiplier,
+                0.85 * 0.92 * ian::enemyWaveHealthGrowth(wave) *
+                    (1.0 + 0.35 * cycle),
+                1e-12, "boss health uses accelerating growth and boss-cycle bonus");
+            requireNear(
+                spawn.damageMultiplier,
+                0.85 * 0.92 * (1.0 + std::min(10, wave - 1) * 0.06) *
+                    (1.0 + 0.02 * cycle),
+                1e-12, "later bosses add only a small damage bonus");
+        }
+    }
     auto legacyWaves = ian::GameBalance::defaults().waves;
     for (auto& wave : legacyWaves) wave.sapper = 12;
     legacyWaves.back().boss = true;
@@ -41,6 +117,28 @@ void runWaveDirectorTests() {
                     "all night acts and endless waves exclude the retired sapper");
         }
     }
+    auto ungatedWaves = ian::GameBalance::defaults().waves;
+    for (auto& wave : ungatedWaves) {
+        wave.fast = wave.heavy = wave.ranged = wave.flying = 1;
+        wave.splitter = wave.bee = wave.airTank = 1;
+    }
+    ian::WaveDirector gatedDirector(ungatedWaves);
+    for (int night = 1; night <= 8; ++night) {
+        const auto roster = gatedDirector.composition(night);
+        require((night >= 2 || roster.fast == 0) &&
+                (night >= 3 || roster.heavy == 0) &&
+                (night >= 4 || roster.ranged == 0) &&
+                (night >= 5 || roster.splitter == 0) &&
+                (night >= 6 || roster.flying == 0) &&
+                (night >= 7 || roster.bee == 0) && roster.airTank == 0,
+            "older wave data cannot unlock enemy roles before their first night");
+    }
+
+    const auto deepDifficulty = ian::waveDifficulty(1000000);
+    require(
+        deepDifficulty.extraActiveEnemies <= 18U &&
+            deepDifficulty.spawnRateMultiplier <= 1.64 + 1e-12,
+        "late horde pressure remains bounded for endless runs");
 
     for (int wave = 1;
          wave <= ian::WaveDirector::ConfiguredWaveCount;
@@ -67,9 +165,9 @@ void runWaveDirectorTests() {
             }));
         require(
             eliteCount == plan.eliteCount &&
-                (wave < 3 ? eliteCount == 0
+                (wave < 5 ? eliteCount == 0
                           : eliteCount > 0),
-            "elite enemies begin on wave three and match plan metadata");
+            "elite enemies begin on night five and match plan metadata");
         require(
             std::none_of(
                 plan.spawns.begin(), plan.spawns.end(),
@@ -84,14 +182,18 @@ void runWaveDirectorTests() {
     const auto thirdComposition = director.composition(3);
     const auto fourthComposition = director.composition(4);
     const auto fifthComposition = director.composition(5);
-    require(
-        firstComposition.fast == 0 &&
-            secondComposition.fast > 0 &&
-            secondComposition.ranged > 0 &&
-            thirdComposition.heavy > 0 &&
-            fourthComposition.sapper == 0 &&
-            fifthComposition.flying > 0,
-        "enemy roles unlock progressively across early waves");
+    require(firstComposition.basic > 0 && firstComposition.fast == 0 &&
+                firstComposition.heavy == 0 && firstComposition.ranged == 0 &&
+                firstComposition.splitter == 0 && firstComposition.flying == 0 &&
+                secondComposition.fast > 0 && secondComposition.heavy == 0 &&
+                thirdComposition.heavy > 0 && thirdComposition.ranged == 0 &&
+                fourthComposition.ranged > 0 && fourthComposition.splitter == 0 &&
+                fifthComposition.splitter > 0 && fifthComposition.flying == 0 &&
+                director.composition(6).flying > 0 && director.composition(6).bee == 0 &&
+                director.composition(7).bee > 0 && director.composition(7).airTank == 0 &&
+                director.composition(8).boss && director.composition(8).airTank == 0 &&
+                director.composition(9).airTank > 0,
+        "enemy roles unlock in the specified order through night nine");
     require(
         firstComposition.groupSize == 3 &&
             firstComposition.groupInterval == 1.6,
@@ -197,15 +299,21 @@ void runWaveDirectorTests() {
         "unbounded wave numbers keep a bounded spawn queue");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
+    requireNear(groupedWave.spawns.front().healthMultiplier, .70, 1e-12,
+                "first night has gentle enemy health");
+    requireNear(groupedWave.spawns.front().damageMultiplier, .68, 1e-12,
+                "first night forgives a few leaks");
     requireNear(groupedWave.spawns[0].position.z, -24.0, 1e-12,
                 "first group uses first attack direction");
-    require(groupedWave.spawns[3].position.z < -20.0,
-            "first wave keeps every group on one attack front");
+    require(std::ranges::all_of(groupedWave.spawns,
+                [](const ian::EnemySpawn& spawn) { return spawn.position.z < -20.0; }),
+            "first wave keeps its original single attack front");
 
     const auto twoFrontWave = director.buildWave(2, {0, 0});
     require(twoFrontWave.spawns[0].position.z < -20.0 &&
-                twoFrontWave.spawns[4].position.x > 20.0,
-            "second wave introduces exactly a second attack front");
+                twoFrontWave.spawns[3].position.x > 20.0 &&
+                twoFrontWave.spawns[6].position.z < -20.0,
+            "second wave keeps its original two attack fronts");
     require(std::count_if(twoFrontWave.spawns.begin(), twoFrontWave.spawns.end(),
                 [](const auto& spawn) { return spawn.type == ian::EnemyType::Fast; }) > 0,
             "second night retains unlocked fast attackers in coherent groups");

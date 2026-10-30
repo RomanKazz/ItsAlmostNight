@@ -9,7 +9,7 @@
     {"x": -24.0, "y": 0.0, "z": 0.0}
   ],
   "resources": [
-    {"type": "wood", "position": {"x": 0.0, "y": 1.0, "z": 2.5}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
+    {"type": "wood", "position": {"x": 0.0, "y": 1.0, "z": 2.5}, "radius": 1.0, "health": 3.0, "yield": 20, "respawnSeconds": 12.0},
     {"type": "wood", "position": {"x": -4.0, "y": 1.0, "z": -2.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
     {"type": "wood", "position": {"x": 5.0, "y": 1.0, "z": -5.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
     {"type": "wood", "position": {"x": -8.0, "y": 1.0, "z": -9.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},

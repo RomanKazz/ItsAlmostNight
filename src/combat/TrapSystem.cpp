@@ -43,7 +43,7 @@ double TrapSystem::spikeTriggerRadius(std::uint8_t level) {
 
 double TrapSystem::spikeDamage(std::uint8_t level) {
     constexpr std::array<double, MaxBuildingLevel> Damage{
-        18.0, 23.0, 28.0, 33.0, 38.0, 43.0, 48.0, 54.0};
+        12.0, 17.0, 22.0, 27.0, 32.0, 37.0, 42.0, 48.0};
     return Damage[static_cast<std::size_t>(
         std::clamp<int>(level, 1, MaxBuildingLevel) - 1)];
 }
@@ -51,12 +51,12 @@ double TrapSystem::spikeDamage(std::uint8_t level) {
 double TrapSystem::spikeCooldown(std::uint8_t level) {
     return std::max(
         SpikeAnimationDuration,
-        1.55 - 0.05 * static_cast<double>(level - 1));
+        2.2 - 0.05 * static_cast<double>(level - 1));
 }
 
 void TrapSystem::reset() {
     setTypeBonuses(BuildingType::Core, 1.0, 1.0);
-    modifiers_ = {}; typeModifiers_ = {}; reactiveShockDamage_ = 0.0; activationSerial_ = 0;
+    modifiers_ = {}; typeModifiers_ = {}; buildingUpgradeModifiers_ = {}; reactiveShockDamage_ = 0.0; activationSerial_ = 0;
     traps_.clear();
     activationBuffer_.clear();
     hitBuffer_.clear();
@@ -78,7 +78,8 @@ AttackStats TrapSystem::baseStats(BuildingType type, std::uint8_t level) {
 FinalAttackStats TrapSystem::finalStats(const BuildingInstance& building) const {
     return resolveBuildingAttackStats(baseStats(building.type, building.level), building,
         compatibleAttackModifiers(building.type, modifiers_), bonusType_,
-        compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_);
+        compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_,
+        buildingUpgradeModifiers_[static_cast<std::size_t>(building.type)]);
 }
 
 void TrapSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
@@ -173,9 +174,11 @@ std::span<const TrapActivation> TrapSystem::tick(
             if (affectedCount == 0) continue;
             trap.activationRemaining = stats.duration;
         } else {
+            const double slowFraction = std::clamp(
+                slowPercent(building->level) / 100.0 * stats.slowStrength,
+                0.0, 0.95);
             const auto affected = enemies.applySlowInRadius(position,
-                radius,
-                1.0 - slowPercent(building->level) / 100.0, stats.duration);
+                radius, 1.0 - slowFraction, stats.duration);
             affectedCount = static_cast<int>(affected.size());
             if (affectedCount == 0) continue;
         }
@@ -185,7 +188,8 @@ std::span<const TrapActivation> TrapSystem::tick(
             auto shockBase = baseStats(building->type, building->level);
             shockBase.damage = reactiveShockDamage_;
             auto shock = resolveBuildingAttackStats(shockBase, *building, modifiers_, bonusType_,
-                typeModifiers_, highGroundDamageMultiplier_);
+                typeModifiers_, highGroundDamageMultiplier_,
+                buildingUpgradeModifiers_[static_cast<std::size_t>(building->type)]);
             shock.knockback += 1.5;
             applyAttackArea(enemies, query_, position,
                 std::max(triggerRadius(building->level), spikeTriggerRadius(building->level)) * stats.size * 1.25,
@@ -197,8 +201,8 @@ std::span<const TrapActivation> TrapSystem::tick(
             .trapId = trap.buildingId,
             .position = position,
             .affectedCount = affectedCount,
-            .wearDamage =
-                WearDamage / (1.0 + 0.12 * levelBonus),
+            .wearDamage = building->type == BuildingType::SpikeTrap
+                ? 0.0 : WearDamage / (1.0 + 0.12 * levelBonus),
         });
     }
     return activationBuffer_;

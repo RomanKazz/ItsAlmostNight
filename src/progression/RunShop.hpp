@@ -10,6 +10,7 @@ inline constexpr std::size_t RunShopSlotCount = 4;
 struct RunShopOffer {
     RunUpgradeEffect effect{RunUpgradeEffect::Damage};
     RunUpgradeRarity rarity{RunUpgradeRarity::Common};
+    std::uint64_t rollSeed{};
     int price{};
     bool present{};
     bool locked{};
@@ -24,6 +25,9 @@ struct RunShopState {
     bool operator==(const RunShopState&) const = default;
 };
 [[nodiscard]] inline int runUpgradeOfferWeight(RunUpgradeEffect effect) {
+    // Every eligible tome has the same acquisition/upgrade weight. Ownership
+    // removes new tomes when slots are full. Level does not bias within a group.
+    if (runTomeDefinition(effect) && !retiredRunUpgrade(effect)) return 2;
         switch (effect) {
         case RunUpgradeEffect::ProjectileCount:
         case RunUpgradeEffect::ClusterPayload:

@@ -1,6 +1,8 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiSettingsControls.hpp"
 
 #include <raylib.h>
 
@@ -73,63 +75,71 @@ const char* presetName(
 } // namespace
 
 void App::drawGraphicsPanel() {
+    if (!debugSettings_) {
+        drawPlayerSettingsPanel();
+        return;
+    }
+    const ScopedUiCanvas canvas;
     auto& settings = renderer_->settings();
     const bool liveColorPreview = graphicsPanelTab_ == ColorPage;
-    if (!liveColorPreview) {
-        DrawRectangle(
-            0, 0, GetScreenWidth(), GetScreenHeight(),
-            {7, 10, 14, 190});
-    }
+    const SettingsMenuUi menuUi;
     constexpr float PanelWidth = 900.0F;
-    const bool compact = GetScreenHeight() < 900;
+    const bool compact = uiScreenHeight() < 1000;
     float requestedPanelHeight = 920.0F;
     switch (graphicsPanelTab_) {
     case PresetPage:
-        requestedPanelHeight = compact ? 570.0F : 640.0F;
+        // Reserve space for the menu-background button above the footer.
+        requestedPanelHeight = compact ? 570.0F : 700.0F;
         break;
     case AudioPage:
-        requestedPanelHeight = compact ? 670.0F : 740.0F;
+        requestedPanelHeight = compact ? 670.0F : 770.0F;
         break;
     case AccessibilityPage:
-        requestedPanelHeight = compact ? 650.0F : 720.0F;
+        requestedPanelHeight = compact ? 740.0F : 950.0F;
         break;
     case ControlsPage:
-        requestedPanelHeight = compact ? 760.0F : 850.0F;
+        requestedPanelHeight = compact ? 760.0F : 980.0F;
         break;
     default:
         break;
     }
     const float PanelHeight = std::min(
         compact ? std::min(requestedPanelHeight,
-                           static_cast<float>(GetScreenHeight()) - 32.0F)
+                           static_cast<float>(uiScreenHeight()) - 32.0F)
                 : requestedPanelHeight,
-        static_cast<float>(GetScreenHeight()) - 56.0F);
+        static_cast<float>(uiScreenHeight()) - 56.0F);
     const float Margin = compact ? 16.0F : 28.0F;
     const float Gap = compact ? 8.0F : 14.0F;
-    const float ButtonHeight = compact ? 38.0F : 58.0F;
     const float ControlStartY = compact ? 220.0F : 286.0F;
+    // Keep all eleven Display rows inside the panel at either UI size.
+    const float ButtonHeight = graphicsPanelTab_ == DisplayPage
+        ? std::min(compact ? 38.0F : 58.0F,
+                   (PanelHeight - ControlStartY - Margin - 52.0F - Gap * 10.0F) /
+                       11.0F)
+        : compact ? 38.0F : 58.0F;
     const float RowHeight = compact ? 44.0F : 62.0F;
     const float centeredPanelX =
-        (static_cast<float>(GetScreenWidth()) - PanelWidth) * 0.5F;
+        (static_cast<float>(uiScreenWidth()) - PanelWidth) * 0.5F;
     const float panelX = std::max(
         Margin,
         liveColorPreview
-            ? static_cast<float>(GetScreenWidth()) - PanelWidth - Margin
+            ? static_cast<float>(uiScreenWidth()) - PanelWidth - Margin
             : centeredPanelX);
     const float panelY = std::max(
         compact ? 16.0F : 28.0F,
-        (static_cast<float>(GetScreenHeight()) - PanelHeight) * 0.5F);
+        (static_cast<float>(uiScreenHeight()) - PanelHeight) * 0.5F);
     const float contentX = panelX + 28.0F;
     const float contentWidth = PanelWidth - 56.0F;
     const float columnWidth = (contentWidth - Gap) * 0.5F;
 
-    ui_.drawPanel({panelX, panelY, PanelWidth, PanelHeight}, 250);
+    menuUi.drawPanel({panelX, panelY, PanelWidth, PanelHeight});
     const float headerY = compact ? 40.0F : 56.0F;
     const float headerHeight = compact ? 56.0F : 76.0F;
-    ui_.drawLabel(
+    menuStyle::panel({contentX, panelY + headerY, contentWidth, headerHeight}, 1, menuStyle::Card);
+    menuStyle::text("DEBUG SETTINGS",
         {contentX + 16.0F, panelY + headerY + 8.0F,
          contentWidth - 32.0F, headerHeight - 16.0F},
-        "SETTINGS", 1);
+        compact ? 24 : 32, menuStyle::Cream, UiFontRole::Display);
 
     const ScopedUiFontRole bodyText(UiFontRole::Body);
 
@@ -148,22 +158,22 @@ void App::drawGraphicsPanel() {
             panelY + TabY +
                 static_cast<float>(row) * (TabHeight + Gap),
             tabWidth, TabHeight};
-        if (ui_.drawToggleButton(
+        if (menuUi.drawToggleButton(
                 bounds, TabNames[static_cast<std::size_t>(page)],
                 graphicsPanelTab_ == page)) {
             graphicsPanelTab_ = page;
         }
     }
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + (tabWidth + Gap) * 4.0F,
              panelY + TabY + TabHeight + Gap,
              tabWidth, TabHeight},
             "CLOSE")) {
-        renderer_->setGraphicsPanelVisible(false);
+        closeSettings();
     }
 
     const auto toggleButton =
-        [this, contentX, columnWidth, Gap, ButtonHeight](
+        [&menuUi, contentX, columnWidth, Gap, ButtonHeight](
             int column, float y, const char* name, bool& value) {
             const Rectangle bounds{
                 contentX +
@@ -171,7 +181,7 @@ void App::drawGraphicsPanel() {
                 y, columnWidth, ButtonHeight};
             const std::string label =
                 std::string(name) + (value ? ": ON" : ": OFF");
-            if (ui_.drawToggleButton(bounds, label, value)) {
+            if (menuUi.drawToggleButton(bounds, label, value)) {
                 value = !value;
             }
         };
@@ -179,22 +189,15 @@ void App::drawGraphicsPanel() {
     if (graphicsPanelTab_ == PresetPage) {
         const auto currentPreset = detectGraphicsPreset(settings);
         const float y = panelY + ControlStartY;
-        ui_.drawInsetPanel(
+        menuUi.drawInsetPanel(
             {contentX, y, contentWidth,
              compact ? 76.0F : 104.0F}, 245);
-        drawUiText(
+        drawSettingsText(
             std::string("GRAPHICS PRESET: ") +
                 presetName(currentPreset),
             {contentX + 22.0F, y + 16.0F},
             compact ? 20.0F : 25.0F,
-            {40, 61, 78, 255});
-        drawUiText(
-            "Changes performance options together. Color, style and controls stay yours.",
-            {contentX + 22.0F,
-             y + (compact ? 45.0F : 58.0F)},
-            compact ? 13.0F : 16.0F,
-            {93, 116, 132, 255});
-
+            menuStyle::Cream);
         const float cardY =
             y + (compact ? 90.0F : 124.0F);
         const float cardGap = Gap;
@@ -205,11 +208,11 @@ void App::drawGraphicsPanel() {
             GraphicsQuality::Medium,
             GraphicsQuality::High};
         constexpr std::array PresetLabels{
-            "LOW\nMAXIMUM FPS",
-            "MEDIUM\nRECOMMENDED",
-            "HIGH\nBEST QUALITY"};
+            "LOW",
+            "MEDIUM",
+            "HIGH"};
         for (std::size_t index = 0; index < Presets.size(); ++index) {
-            if (ui_.drawToggleButton(
+            if (menuUi.drawToggleButton(
                     {contentX + static_cast<float>(index) *
                                     (cardWidth + cardGap),
                      cardY, cardWidth,
@@ -221,20 +224,16 @@ void App::drawGraphicsPanel() {
         }
         const float noteY =
             cardY + (compact ? 102.0F : 136.0F);
-        drawUiText(
-            "Preset applies instantly. Fine-tune any option in Display, Color, Style or Motion.",
-            {contentX, noteY}, compact ? 14.0F : 17.0F,
-            {53, 76, 94, 255});
         if (simulation_.snapshot().state == RunState::MainMenu &&
-            ui_.drawButton({contentX, noteY + 38.0F,
+            menuUi.drawButton({contentX, noteY + 38.0F,
                 contentWidth, compact ? 38.0F : 42.0F}, "CHOOSE BACKGROUND")) {
-            renderer_->setGraphicsPanelVisible(false);
+            closeSettings();
             beginMenuBackgroundEdit(simulation_.snapshot());
             audio_.playUiConfirm();
         }
     } else if (graphicsPanelTab_ == DisplayPage) {
     float y = panelY + ControlStartY;
-    if (ui_.drawToggleButton(
+    if (menuUi.drawToggleButton(
             {contentX, y, columnWidth, ButtonHeight},
             settings.fullscreen
                 ? "FULLSCREEN: ON"
@@ -242,7 +241,7 @@ void App::drawGraphicsPanel() {
             settings.fullscreen)) {
         settings.fullscreen = !settings.fullscreen;
     }
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + columnWidth + Gap, y,
              columnWidth, ButtonHeight},
             TextFormat("RENDER: %d X %d",
@@ -267,7 +266,9 @@ void App::drawGraphicsPanel() {
     toggleButton(0, y, "PIXEL BLOOM", settings.bloom);
     toggleButton(1, y, "SCREEN-SPACE AO", settings.ssao);
     y += ButtonHeight + Gap;
-    if (ui_.drawButton(
+    toggleButton(0, y, "ENEMY LOD", settings.enemyLod);
+    y += ButtonHeight + Gap;
+    if (menuUi.drawButton(
             {contentX, y, columnWidth,
              ButtonHeight},
             std::string("QUALITY: ") +
@@ -278,7 +279,7 @@ void App::drawGraphicsPanel() {
                            : "HIGH"))) {
         renderer_->cycleQuality();
     }
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + columnWidth + Gap, y,
              columnWidth, ButtonHeight},
             std::string("SHADOW QUALITY: ") +
@@ -292,28 +293,28 @@ void App::drawGraphicsPanel() {
     y += ButtonHeight + Gap;
 
     const float smallButtonWidth = 90.0F;
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX, y, smallButtonWidth, ButtonHeight}, "-")) {
         renderer_->adjustPixelSize(-1);
     }
-    ui_.drawInsetPanel(
+    menuUi.drawInsetPanel(
         {contentX + smallButtonWidth + Gap, y,
          columnWidth - (smallButtonWidth + Gap) * 2.0F,
          ButtonHeight}, 245);
-    ui_.drawLabel(
+    menuUi.drawLabel(
         {contentX + smallButtonWidth + Gap, y,
          columnWidth - (smallButtonWidth + Gap) * 2.0F,
          ButtonHeight},
         std::string("PIXEL: ") + std::to_string(settings.pixelSize) +
             "X",
         1);
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + columnWidth - smallButtonWidth, y,
              smallButtonWidth, ButtonHeight},
             "+")) {
         renderer_->adjustPixelSize(1);
     }
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + columnWidth + Gap, y, columnWidth,
              ButtonHeight},
             std::string("AO: ") +
@@ -329,7 +330,7 @@ void App::drawGraphicsPanel() {
             ? "FPS LIMIT: UNLIMITED"
             : std::string("FPS LIMIT: ") +
                   std::to_string(settings.frameRateLimit);
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX, y, columnWidth, ButtonHeight},
             frameRateLabel)) {
         renderer_->cycleFrameRateLimit();
@@ -338,21 +339,21 @@ void App::drawGraphicsPanel() {
                  settings.performanceLogging);
     y += ButtonHeight + Gap;
 
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX, y, columnWidth, ButtonHeight},
             "RESET DISPLAY")) {
         resetDisplaySettings(settings);
         renderer_->applyFrameRateLimit();
     }
-    if (ui_.drawButton(
+    if (menuUi.drawButton(
             {contentX + columnWidth + Gap, y, columnWidth,
              ButtonHeight},
-            "CLOSE [F2]")) {
-        renderer_->setGraphicsPanelVisible(false);
+            "CLOSE")) {
+        closeSettings();
     }
     } else if (graphicsPanelTab_ == ColorPage) {
         const auto colorSlider =
-            [this, contentX, columnWidth, panelY, Gap,
+            [&menuUi, contentX, columnWidth, panelY, Gap,
              ControlStartY, RowHeight, compact](
                 int column, int row, const char* label,
                 float& value, float minimum, float maximum) {
@@ -363,16 +364,16 @@ void App::drawGraphicsPanel() {
                 const float y =
                     panelY + ControlStartY +
                     static_cast<float>(row) * RowHeight;
-                drawUiText(
+                drawSettingsText(
                     TextFormat(
                         "%s  %.2f", label, value),
                     {x, y}, 15.0F,
-                    {53, 76, 94, 255});
-                ui_.drawInsetPanel(
+                    menuStyle::Cream);
+                menuUi.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
                     235);
-                value = ui_.drawSliderBar(
+                value = menuUi.drawSliderBar(
                     {x + 8.0F, y + (compact ? 23.0F : 35.0F),
                      columnWidth - 16.0F,
                      compact ? 20.0F : 24.0F},
@@ -425,23 +426,23 @@ void App::drawGraphicsPanel() {
         const float ActionY =
             ControlStartY + RowHeight * 7.0F +
             (compact ? 4.0F : 12.0F);
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, panelY + ActionY,
                  columnWidth, ButtonHeight},
                 "RESET COLOR")) {
             resetColorSettings(settings);
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + columnWidth + Gap,
                  panelY + ActionY,
                  columnWidth, ButtonHeight},
-                "CLOSE [F2]")) {
-            renderer_->setGraphicsPanelVisible(false);
+                "CLOSE")) {
+            closeSettings();
         }
         settings.postProcessing = true;
     } else if (graphicsPanelTab_ == StylePage) {
         const auto styleSlider =
-            [this, contentX, columnWidth, panelY, Gap,
+            [&menuUi, contentX, columnWidth, panelY, Gap,
              ControlStartY, RowHeight, compact](
                 int row, const char* label, float& value,
                 float minimum, float maximum) {
@@ -450,15 +451,15 @@ void App::drawGraphicsPanel() {
                 const float y =
                     panelY + ControlStartY +
                     static_cast<float>(row) * RowHeight;
-                drawUiText(
+                drawSettingsText(
                     TextFormat("%s  %.2f", label, value),
                     {x, y}, 15.0F,
-                    {53, 76, 94, 255});
-                ui_.drawInsetPanel(
+                    menuStyle::Cream);
+                menuUi.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
                     235);
-                value = ui_.drawSliderBar(
+                value = menuUi.drawSliderBar(
                     {x + 8.0F, y + (compact ? 23.0F : 35.0F),
                      columnWidth - 16.0F,
                      compact ? 20.0F : 24.0F},
@@ -505,7 +506,7 @@ void App::drawGraphicsPanel() {
         const float ActionY =
             ControlStartY + RowHeight * 8.0F +
             (compact ? 4.0F : 12.0F);
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, panelY + ActionY,
                  columnWidth, ButtonHeight},
                 "SIGNATURE PRESET")) {
@@ -525,7 +526,7 @@ void App::drawGraphicsPanel() {
             settings.fogBandCount = 6.0F;
             settings.paperGrainStrength = 0.025F;
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + columnWidth + Gap,
                  panelY + ActionY,
                  columnWidth, ButtonHeight},
@@ -535,25 +536,25 @@ void App::drawGraphicsPanel() {
         settings.postProcessing = true;
     } else if (graphicsPanelTab_ == MotionPage) {
         const auto motionSlider =
-            [this, contentX, contentWidth, panelY,
+            [&menuUi, contentX, contentWidth, panelY,
              ControlStartY, RowHeight, compact](
                 int row, const char* label, float& value) {
                 const float y =
                     panelY + ControlStartY +
                     static_cast<float>(row) * RowHeight;
-                drawUiText(
+                drawSettingsText(
                     TextFormat("%s  %d%%", label,
                                static_cast<int>(
                                    std::lround(value * 100.0F))),
                     {contentX, y}, 15.0F,
-                    {53, 76, 94, 255});
-                ui_.drawInsetPanel(
+                    menuStyle::Cream);
+                menuUi.drawInsetPanel(
                     {contentX,
                      y + (compact ? 20.0F : 29.0F),
                      contentWidth,
                      compact ? 27.0F : 36.0F},
                     235);
-                value = ui_.drawSliderBar(
+                value = menuUi.drawSliderBar(
                     {contentX + 8.0F,
                      y + (compact ? 23.0F : 35.0F),
                      contentWidth - 16.0F,
@@ -572,7 +573,7 @@ void App::drawGraphicsPanel() {
         const float actionY =
             panelY + ControlStartY + RowHeight * 4.0F +
             (compact ? 8.0F : 16.0F);
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, actionY, columnWidth, ButtonHeight},
                 "RESET MOTION")) {
             const MotionSettings defaults;
@@ -581,7 +582,7 @@ void App::drawGraphicsPanel() {
             motionLandingIntensity_ = defaults.landingIntensity;
             motionSwayIntensity_ = defaults.swayIntensity;
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + columnWidth + Gap, actionY,
                  columnWidth, ButtonHeight},
                 "DISABLE MOTION")) {
@@ -593,7 +594,7 @@ void App::drawGraphicsPanel() {
     } else if (graphicsPanelTab_ == AudioPage) {
         auto& audioSettings = audio_.settings();
         float y = panelY + ControlStartY;
-        if (ui_.drawToggleButton(
+        if (menuUi.drawToggleButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 audioSettings.muted ? "ALL SOUND: MUTED"
                                     : "ALL SOUND: ON",
@@ -602,21 +603,21 @@ void App::drawGraphicsPanel() {
         }
         y += ButtonHeight + (compact ? 14.0F : 22.0F);
         const auto volumeSlider =
-            [this, contentX, contentWidth, compact](
+            [&menuUi, contentX, contentWidth, compact](
                 float yPosition, const char* label,
                 float& value) {
-                drawUiText(
+                drawSettingsText(
                     TextFormat(
                         "%s  %d%%", label,
                         static_cast<int>(
                             std::lround(value * 100.0F))),
                     {contentX, yPosition}, 16.0F,
-                    {53, 76, 94, 255});
-                ui_.drawInsetPanel(
+                    menuStyle::Cream);
+                menuUi.drawInsetPanel(
                     {contentX, yPosition + 25.0F,
                      contentWidth, compact ? 30.0F : 38.0F},
                     235);
-                value = ui_.drawSliderBar(
+                value = menuUi.drawSliderBar(
                     {contentX + 10.0F, yPosition + 31.0F,
                      contentWidth - 20.0F,
                      compact ? 18.0F : 24.0F},
@@ -629,7 +630,7 @@ void App::drawGraphicsPanel() {
         y += sliderStep;
         volumeSlider(y, "MUSIC", audioSettings.musicVolume);
         y += sliderStep + 8.0F;
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 "RESET AUDIO")) {
             audioSettings = {};
@@ -638,23 +639,23 @@ void App::drawGraphicsPanel() {
     } else if (graphicsPanelTab_ == ControlsPage) {
         auto& controls = userSettings_.controls;
         float y = panelY + ControlStartY;
-        drawUiText(
+        drawSettingsText(
             TextFormat(
                 "MOUSE SENSITIVITY  %d%%",
                 static_cast<int>(
                     std::lround(controls.mouseSensitivity * 100.0F))),
             {contentX, y}, 17.0F,
-            {53, 76, 94, 255});
-        ui_.drawInsetPanel(
+            menuStyle::Cream);
+        menuUi.drawInsetPanel(
             {contentX, y + 28.0F, contentWidth,
              compact ? 32.0F : 40.0F}, 235);
-        controls.mouseSensitivity = ui_.drawSliderBar(
+        controls.mouseSensitivity = menuUi.drawSliderBar(
             {contentX + 10.0F, y + 34.0F,
              contentWidth - 20.0F,
              compact ? 20.0F : 26.0F},
             controls.mouseSensitivity, 0.1F, 3.0F);
         y += compact ? 78.0F : 98.0F;
-        if (ui_.drawToggleButton(
+        if (menuUi.drawToggleButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 controls.invertMouseY
                     ? "INVERT MOUSE Y: ON"
@@ -663,14 +664,8 @@ void App::drawGraphicsPanel() {
             controls.invertMouseY = !controls.invertMouseY;
         }
         y += ButtonHeight + Gap;
-        drawUiText(
-            "CLICK A KEY TO REBIND  •  ESC CANCELS  •  LMB REMAINS PRIMARY",
-            {contentX, y}, compact ? 11.0F : 14.0F,
-            {93, 116, 132, 255});
-        y += compact ? 22.0F : 30.0F;
-
         constexpr std::array<
-            ControlAction, ControlActionCount - 2U>
+            ControlAction, ControlActionCount - 3U>
             Actions{
                 ControlAction::MoveForward,
                 ControlAction::MoveLeft,
@@ -678,7 +673,6 @@ void App::drawGraphicsPanel() {
                 ControlAction::MoveRight,
                 ControlAction::Jump,
                 ControlAction::Sprint,
-                ControlAction::Dash,
                 ControlAction::Attack,
                 ControlAction::ToggleTool,
                 ControlAction::Interact,
@@ -693,15 +687,19 @@ void App::drawGraphicsPanel() {
                 ControlAction::Map,
                 ControlAction::StartWave,
                 ControlAction::ToggleHud,
-                ControlAction::RunShop,
             };
         const std::size_t rowsPerColumn =
             (Actions.size() + 2U) / 3U;
         const float controlColumnWidth =
             (contentWidth - Gap * 2.0F) / 3.0F;
-        const float rowHeight = compact ? 34.0F : 48.0F;
-        const float keyHeight = compact ? 32.0F : 48.0F;
-        ui_.drawInsetPanel(
+        // Leave room for Reset and the footer even when the panel is capped
+        // by a short viewport. Labels and keycaps share the resulting rows.
+        const float rowHeight = std::min(compact ? 34.0F : 48.0F,
+            (panelY + PanelHeight - 76.0F - y -
+             (compact ? 14.0F : 20.0F) - ButtonHeight) /
+                static_cast<float>(rowsPerColumn));
+        const float keyHeight = std::min(compact ? 32.0F : 48.0F, rowHeight);
+        menuUi.drawInsetPanel(
             {contentX, y, contentWidth,
              rowHeight * static_cast<float>(rowsPerColumn) +
                  (compact ? 8.0F : 12.0F)}, 235);
@@ -716,11 +714,12 @@ void App::drawGraphicsPanel() {
                     (controlColumnWidth + Gap);
             const float rowY = y + 4.0F +
                 static_cast<float>(row) * rowHeight;
-            drawUiText(
+            menuStyle::text(
                 controlActionName(Actions[index]),
-                {x + 12.0F, rowY + (compact ? 5.0F : 10.0F)},
+                {x + 12.0F, rowY,
+                 controlColumnWidth - keyWidth - 24.0F, keyHeight},
                 compact ? 10.0F : 14.0F,
-                {53, 76, 94, 255});
+                menuStyle::Cream, UiFontRole::MenuBodyBold);
             const Rectangle keyBounds{
                 x + controlColumnWidth - keyWidth, rowY,
                 keyWidth, keyHeight};
@@ -735,21 +734,17 @@ void App::drawGraphicsPanel() {
                 if (Actions[index] == ControlAction::Attack &&
                     controlKey(controls, Actions[index]) == KEY_NULL) {
                     keyLabel = "LMB";
-                } else if (
-                    Actions[index] == ControlAction::Dash &&
-                    controlKey(controls, Actions[index]) == KEY_NULL) {
-                    keyLabel = "RMB";
                 }
             }
-            if (!waiting && ui_.drawKeyCap(keyBounds, keyLabel)) {
+            if (!waiting && menuUi.drawKeyCap(keyBounds, keyLabel)) {
                 pendingControlRebind_ = Actions[index];
             } else if (waiting) {
-                ui_.drawKeyCap(keyBounds, keyLabel, true);
+                menuUi.drawKeyCap(keyBounds, keyLabel, true);
             }
         }
         y += rowHeight * static_cast<float>(rowsPerColumn) +
              (compact ? 14.0F : 20.0F);
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 "RESET CONTROLS")) {
             controls = {};
@@ -766,7 +761,7 @@ void App::drawGraphicsPanel() {
         const std::string languageLabel =
             std::string("LANGUAGE: ") +
             std::string(languageName(userSettings_.language));
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 languageLabel)) {
             userSettings_.language =
@@ -776,7 +771,7 @@ void App::drawGraphicsPanel() {
             setLanguage(userSettings_.language);
         }
         y += ButtonHeight + Gap;
-        if (ui_.drawToggleButton(
+        if (menuUi.drawToggleButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 settings.inkOutlines
                     ? "HIGH VISIBILITY OUTLINES: ON"
@@ -786,14 +781,14 @@ void App::drawGraphicsPanel() {
             settings.postProcessing = true;
         }
         y += ButtonHeight + (compact ? 18.0F : 28.0F);
-        drawUiText(
+        drawSettingsText(
             "MOTION PROFILE",
             {contentX, y}, 18.0F,
-            {40, 61, 78, 255});
+            menuStyle::Cream);
         y += compact ? 28.0F : 38.0F;
         const float profileWidth =
             (contentWidth - Gap * 2.0F) / 3.0F;
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, y, profileWidth, ButtonHeight},
                 "FULL")) {
             motionBobIntensity_ = 1.0F;
@@ -801,7 +796,7 @@ void App::drawGraphicsPanel() {
             motionLandingIntensity_ = 1.0F;
             motionSwayIntensity_ = 1.0F;
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + profileWidth + Gap, y,
                  profileWidth, ButtonHeight},
                 "REDUCED")) {
@@ -810,7 +805,7 @@ void App::drawGraphicsPanel() {
             motionLandingIntensity_ = 0.35F;
             motionSwayIntensity_ = 0.25F;
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + (profileWidth + Gap) * 2.0F, y,
                  profileWidth, ButtonHeight},
                 "OFF")) {
@@ -820,18 +815,9 @@ void App::drawGraphicsPanel() {
             motionSwayIntensity_ = 0.0F;
         }
         y += ButtonHeight + (compact ? 18.0F : 28.0F);
-        ui_.drawInsetPanel(
-            {contentX, y, contentWidth,
-             compact ? 94.0F : 124.0F}, 235);
-        drawUiText(
-            "Fine motion controls remain available in the Motion tab.\n"
-            "Outline controls remain available in Style Lab.",
-            {contentX + 20.0F, y + 20.0F},
-            compact ? 14.0F : 17.0F,
-            {93, 116, 132, 255});
     } else if (graphicsPanelTab_ == ToolPage) {
         const auto toolSlider =
-            [this, contentX, columnWidth, panelY, Gap,
+            [&menuUi, contentX, columnWidth, panelY, Gap,
              ControlStartY, RowHeight, compact](
                 int column, int row, const char* label,
                 float& value, float minimum, float maximum) {
@@ -841,14 +827,14 @@ void App::drawGraphicsPanel() {
                 const float y =
                     panelY + ControlStartY +
                     static_cast<float>(row) * RowHeight;
-                drawUiText(
+                drawSettingsText(
                     TextFormat("%s  %.2f", label, value),
-                    {x, y}, 15.0F, {53, 76, 94, 255});
-                ui_.drawInsetPanel(
+                    {x, y}, 15.0F, menuStyle::Cream);
+                menuUi.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
                     235);
-                value = ui_.drawSliderBar(
+                value = menuUi.drawSliderBar(
                     {x + 8.0F,
                      y + (compact ? 23.0F : 35.0F),
                      columnWidth - 16.0F,
@@ -914,7 +900,7 @@ void App::drawGraphicsPanel() {
                        0.0F, 2.0F);
             const float toggleY =
                 panelY + ControlStartY + RowHeight * 2.0F;
-            if (ui_.drawToggleButton(
+            if (menuUi.drawToggleButton(
                     {contentX + columnWidth + Gap, toggleY,
                      columnWidth, ButtonHeight},
                     activeToolTuning().outlineEnabled
@@ -928,7 +914,7 @@ void App::drawGraphicsPanel() {
 
         const float modelY =
             panelY + ControlStartY + RowHeight * 4.0F;
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, modelY,
                  columnWidth, ButtonHeight},
                 toolPanelPage_ == 0
@@ -938,7 +924,7 @@ void App::drawGraphicsPanel() {
                           : "PAGE: STYLE")) {
             toolPanelPage_ = (toolPanelPage_ + 1) % 3;
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + columnWidth + Gap, modelY,
                  columnWidth, ButtonHeight},
                 TextFormat("MODEL: %s",
@@ -947,7 +933,6 @@ void App::drawGraphicsPanel() {
                     toolPanelPreviewVisual_ == FirstPersonToolVisual::Club ? "CLUB" :
                     toolPanelPreviewVisual_ == FirstPersonToolVisual::IceWand ? "ICE WAND" :
                     toolPanelPreviewVisual_ == FirstPersonToolVisual::FireWand ? "FIRE WAND" :
-                    toolPanelPreviewVisual_ == FirstPersonToolVisual::Hammer ? "HAMMER" :
                     "BOMB"))) {
             int visual = static_cast<int>(toolPanelPreviewVisual_) + 1;
             if (visual > static_cast<int>(FirstPersonToolVisual::Bomb)) {
@@ -958,7 +943,7 @@ void App::drawGraphicsPanel() {
         }
         const float actionY =
             panelY + ControlStartY + RowHeight * 5.0F;
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, actionY,
                  columnWidth, ButtonHeight},
                 "PLAY SWING")) {
@@ -969,7 +954,7 @@ void App::drawGraphicsPanel() {
             toolSwingRemaining_ = toolSwingDuration_;
             chooseHarvestSwingAnimation(toolPanelPreviewVisual_);
         }
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX + columnWidth + Gap, actionY,
                  columnWidth, ButtonHeight},
                 "RESET TOOL")) {
@@ -978,19 +963,19 @@ void App::drawGraphicsPanel() {
         }
         const float bottomY =
             actionY + ButtonHeight + Gap;
-        if (ui_.drawButton(
+        if (menuUi.drawButton(
                 {contentX, bottomY, contentWidth, ButtonHeight},
-                "CLOSE [F2]")) {
-            renderer_->setGraphicsPanelVisible(false);
+                "CLOSE")) {
+            closeSettings();
         }
     }
 
-    drawUiText(
+    drawSettingsText(
         TextFormat("Window: %d x %d   Render: %d x %d",
                    GetScreenWidth(), GetScreenHeight(),
                    GetRenderWidth(), GetRenderHeight()),
         {contentX, panelY + PanelHeight - 48.0F}, 16.0F,
-        {53, 76, 94, 255});
+        menuStyle::Cream);
 
 }
 

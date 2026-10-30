@@ -37,12 +37,18 @@ InsightSystem::InsightSystem(InsightConfig config) : config_(std::move(config)) 
         config_.baseRequirement = 100.0;
     if (!std::isfinite(config_.requirementGrowth) || config_.requirementGrowth < 0.0)
         config_.requirementGrowth = 0.0;
+    for (double& discount : config_.earlyRequirementDiscounts) {
+        if (!validNonNegative(discount)) discount = 0.0;
+    }
     progress_.requiredInsight = requirementFor(0);
 }
 
 double InsightSystem::requirementFor(int totalPoints) const {
+    const auto level = static_cast<std::size_t>(std::max(0, totalPoints));
+    const double discount = level < config_.earlyRequirementDiscounts.size()
+        ? config_.earlyRequirementDiscounts[level] : 0.0;
     return std::max(1.0, config_.baseRequirement +
-        static_cast<double>(std::max(0, totalPoints)) * config_.requirementGrowth);
+        static_cast<double>(level) * config_.requirementGrowth - discount);
 }
 
 double InsightSystem::applyDiminishing(
@@ -80,14 +86,13 @@ InsightGrantResult InsightSystem::grantInsight(
         .requirement = progress_.requiredInsight};
     if (!std::isfinite(amount) || amount <= 0.0 ||
         !std::isfinite(context.modifier) || context.modifier <= 0.0 ||
+        !std::isfinite(context.rewardMultiplier) || context.rewardMultiplier <= 0.0 ||
         source == InsightSource::Count || category == InsightCategory::Count) {
-        lastGrant_ = result;
         return result;
     }
     if (context.oneTime && context.eventId != 0 && consumedEventIds_.contains(context.eventId)) {
         result.duplicate = true;
         ++blockedDuplicateEvents_;
-        lastGrant_ = result;
         return result;
     }
     if (context.oneTime && context.eventId != 0) consumedEventIds_.insert(context.eventId);
@@ -96,8 +101,8 @@ InsightGrantResult InsightSystem::grantInsight(
     result.diminishingMultiplier = 1.0;
     result.finalAmount = context.bypassDiminishing
         ? modified : applyDiminishing(modified, category, result.diminishingMultiplier);
+    result.finalAmount *= context.rewardMultiplier;
     if (!std::isfinite(result.finalAmount) || result.finalAmount <= 0.0) {
-        lastGrant_ = result;
         return result;
     }
 
@@ -115,14 +120,11 @@ InsightGrantResult InsightSystem::grantInsight(
         progress_.requiredInsight = requirementFor(progress_.totalLevelsEarned);
     }
     result.insightAfter = progress_.currentInsight;
-    lastGrant_ = result;
     return result;
 }
 
 void InsightSystem::beginNewDiminishingCycle() { cycleBaseEarned_.fill(0.0); }
-void InsightSystem::markEventConsumed(std::uint64_t eventId) {
-    if (eventId != 0) consumedEventIds_.insert(eventId);
-}
+
 void InsightSystem::reset() {
     progress_ = {};
     progress_.requiredInsight = requirementFor(0);
@@ -131,12 +133,10 @@ void InsightSystem::reset() {
     earnedBySource_.fill(0.0);
     consumedEventIds_.clear();
     blockedDuplicateEvents_ = 0;
-    lastGrant_ = {};
 }
 
 const InsightProgress& InsightSystem::progress() const { return progress_; }
 const InsightConfig& InsightSystem::config() const { return config_; }
-const InsightGrantResult& InsightSystem::lastGrant() const { return lastGrant_; }
 const std::array<double, InsightCategoryCount>& InsightSystem::earnedByCategory() const {
     return earnedByCategory_;
 }
@@ -155,6 +155,26 @@ bool InsightSystem::loadState(const InsightRunState& state) {
     constexpr std::size_t MaximumConsumedEventIds = 100'000U;
     const double expectedRequirement =
         requirementFor(state.progress.totalLevelsEarned);
+    const double previousRequirement = std::max(1.0,
+        config_.baseRequirement +
+        static_cast<double>(std::max(0, state.progress.totalLevelsEarned)) *
+            config_.requirementGrowth);
+    const bool legacyEarlyRequirement =
+        expectedRequirement < previousRequirement &&
+        std::abs(state.progress.requiredInsight - previousRequirement) <=
+            1e-9 * std::max(1.0, previousRequirement);
+    const bool legacyFlatRequirement =
+        config_.requirementGrowth > 0.0 &&
+        state.progress.totalLevelsEarned > 0 &&
+        std::abs(state.progress.requiredInsight -
+                 config_.baseRequirement) <= 1e-9;
+    const bool legacyFirstRequirement =
+        state.progress.totalLevelsEarned == 0 &&
+        expectedRequirement < previousRequirement &&
+        std::abs(expectedRequirement - 30.0) <= 1e-9 &&
+        std::abs(state.progress.requiredInsight - 40.0) <= 1e-9;
+    const double savedRequirement = (legacyFlatRequirement || legacyEarlyRequirement || legacyFirstRequirement)
+        ? expectedRequirement : state.progress.requiredInsight;
     if (!validNonNegative(state.progress.currentInsight) ||
         !std::isfinite(state.progress.requiredInsight) || state.progress.requiredInsight <= 0.0 ||
         state.progress.currentInsight >= state.progress.requiredInsight + 1e-9 ||
@@ -163,7 +183,7 @@ bool InsightSystem::loadState(const InsightRunState& state) {
         state.progress.totalInsightEarned + 1e-9 <
             state.progress.currentInsight ||
         !std::isfinite(expectedRequirement) ||
-        std::abs(state.progress.requiredInsight - expectedRequirement) >
+        std::abs(savedRequirement - expectedRequirement) >
             1e-9 * std::max(1.0, expectedRequirement) ||
         state.consumedEventIds.size() > MaximumConsumedEventIds) {
         return false;
@@ -180,12 +200,19 @@ bool InsightSystem::loadState(const InsightRunState& state) {
         }
     }
     progress_ = state.progress;
+    // Preserve the filled fraction when migrating an early level. Loading a
+    // save must not grant levels without also creating their upgrade choices.
+    if ((legacyEarlyRequirement || legacyFlatRequirement || legacyFirstRequirement) &&
+        expectedRequirement < previousRequirement) {
+        progress_.currentInsight *=
+            expectedRequirement / state.progress.requiredInsight;
+    }
+    progress_.requiredInsight = expectedRequirement;
     cycleBaseEarned_ = state.cycleBaseEarned;
     earnedByCategory_ = state.earnedByCategory;
     earnedBySource_ = state.earnedBySource;
     consumedEventIds_ = std::move(consumedEventIds);
     blockedDuplicateEvents_ = state.blockedDuplicateEvents;
-    lastGrant_ = {};
     return true;
 }
 
@@ -197,6 +224,7 @@ InsightConfig loadInsightConfig(const std::filesystem::path& path) {
         const auto json = nlohmann::json::parse(stream);
         readValue(json, "baseRequirement", config.baseRequirement);
         readValue(json, "requirementGrowth", config.requirementGrowth);
+        readArray(json, "earlyRequirementDiscounts", config.earlyRequirementDiscounts);
         if (const auto it = json.find("diminishingReturns"); it != json.end() && it->is_object()) {
             readValue(*it, "fullRateBudget", config.fullRateBudget);
             readValue(*it, "reducedRateBudget", config.reducedRateBudget);
@@ -215,6 +243,7 @@ InsightConfig loadInsightConfig(const std::filesystem::path& path) {
             } else readArray(*it, "enemy", config.enemy);
             readArray(*it, "resourcePerUnit", config.resourcePerUnit);
             readArray(*it, "resourceDepleted", config.resourceDepleted);
+            readArray(*it, "prop", config.prop);
             readArray(*it, "building", config.building);
             readArray(*it, "modularBuilding", config.modularBuilding);
             readValue(*it, "firstBuildingTypeBonus", config.firstBuildingTypeBonus);

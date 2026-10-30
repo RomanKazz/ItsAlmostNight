@@ -163,7 +163,7 @@ class FoundationSystem {
     damage(EntityId id, double amount);
     double restoreWallHealth(EntityId id, double amount);
     [[nodiscard]] ModularBuildingRepairResult repair(
-        EntityId id, int wood, int stone);
+        EntityId id, int wood, int stone, double costMultiplier = 1.0);
     [[nodiscard]] std::optional<EntityId> raycast(
         Vec3 origin, Vec3 direction,
         double maximumDistance) const;
@@ -207,10 +207,23 @@ class FoundationSystem {
         int storey{};
     };
 
+    struct FloorPlatformSupports {
+        std::vector<EntityId> ids;
+        bool complete{true};
+    };
+
+    [[nodiscard]] FloorPlatformSupports floorPlatformSupports(
+        GridCoord anchor, int supportStorey, double supportHeight,
+        bool requireSupported = true) const;
+    [[nodiscard]] bool floorOverlapsRampCells(GridCoord anchor, int storey) const;
+
     [[nodiscard]] std::optional<FloorSurface>
     topFloorAtCell(int x, int z) const;
     [[nodiscard]] const PlatformFrameInstance*
     frameAt(GridCoord anchor, int storey) const;
+    [[nodiscard]] const PlatformFrameInstance* frameAtCell(
+        int x, int z, int storey, double floorHeight,
+        bool requireSupported) const;
     [[nodiscard]] PlatformFramePlacement
     previewGroundPlatformAtAnchor(
         GridCoord anchor, double baseHeight,

@@ -134,11 +134,11 @@ void gameplayEventsFeedSmallObjectiveChains() {
 
 void dataDrivenDefinitionsLoad() {
     require(
-        ian::ObjectiveSystem::defaultDefinitions().size() == 85,
+        ian::ObjectiveSystem::defaultDefinitions().size() == 82,
         "fallback objective pool matches data-driven content");
     const auto definitions = ian::loadObjectiveDefinitions(
         IAN_SOURCE_DIR "/assets/data/objectives.json");
-    require(definitions.size() == 85,
+    require(definitions.size() == 82,
             "objective data file exposes the expanded objective pool");
     require(std::ranges::any_of(definitions, [](const ian::ObjectiveDefinition& value) {
                 return value.id == "far_from_home" &&

@@ -61,8 +61,14 @@ void Simulation::generateRunShopOffers() {
         offer.effect = pool[selected];
         random = mixBits64(random + 0xa0761d6478bd642fULL);
         const double rarityRoll = static_cast<double>(random >> 11U) / 9007199254740992.0;
-        offer.rarity = fixedRunUpgradePower(offer.effect) ? fixedRunUpgradeRarity(offer.effect)
-            : rollRunUpgradeRarity(activeMetaBonuses_.luck + .10 * runUpgradePower(RunUpgradeEffect::Luck), rarityRoll);
+        const auto building = runUpgradeBuilding(offer.effect);
+        const bool upgradingWeaponBuilding = building && runCombatBuilding(*building) &&
+            runUpgradeStacks_[runUpgradeIndex(offer.effect)] > 0;
+        offer.rarity = fixedRunUpgradePower(offer.effect) && offer.effect != RunUpgradeEffect::UpgradeCore && !upgradingWeaponBuilding ? fixedRunUpgradeRarity(offer.effect)
+            : rollRunUpgradeRarity(activeMetaBonuses_.luck + .10 * playerPassivePower(RunUpgradeEffect::Luck), rarityRoll);
+        offer.rollSeed = mixBits64(random ^
+            (static_cast<std::uint64_t>(offer.effect) << 32U) ^
+            static_cast<std::uint64_t>(&offer - runShop_.offers.data()));
         offer.price = runShopPrice(offer.effect, offer.rarity, runShop_.wave);
         offer.present = true;
         pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(selected));
@@ -70,20 +76,10 @@ void Simulation::generateRunShopOffers() {
 }
 
 bool Simulation::openRunShop(bool debugAccess) {
-    if (runShop_.pending || runUpgradeChoicePending_) return false;
-    if (debugAccess) {
-        if (state_ != RunState::Gathering && state_ != RunState::BuildPhase &&
-            state_ != RunState::Sunset && state_ != RunState::Wave &&
-            state_ != RunState::WaveComplete && state_ != RunState::StageClear) return false;
-        if (runShop_.generation == 0 || runShop_.wave != wave_) {
-            startShopVisit(runShop_,wave_);
-            generateRunShopOffers();
-        }
-    } else if (runShop_.wave <= 0 || runShop_.wave != wave_ ||
-        (state_ != RunState::BuildPhase && state_ != RunState::WaveComplete && state_ != RunState::StageClear)) return false;
-    runShop_.pending = true;
-    invalidateSnapshotCache();
-    return true;
+    // The run shop is temporarily unavailable. Keep its state and offers
+    // intact so it can be restored without a save-format change.
+    (void)debugAccess;
+    return false;
 }
 bool Simulation::closeRunShop() {
     if (!runShop_.pending || runUpgradeChoicePending_) return false;
@@ -96,7 +92,7 @@ bool Simulation::buyRunShopOffer(std::size_t index) {
     auto& offer = runShop_.offers[index];
     if (!offer.present || (!unlimitedResources_ && offer.price > coins_) || !runUpgradeAvailable(offer.effect)) return false;
     invalidateSnapshotCache();
-    if (!applyRunUpgradeEffect(offer.effect, offer.rarity)) return false;
+    if (!applyRunUpgradeEffect(offer.effect, offer.rarity, 1, false, offer.rollSeed)) return false;
     if (!unlimitedResources_) coins_ -= offer.price;
     offer.present = false;
     offer.locked = false;

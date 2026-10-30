@@ -17,14 +17,14 @@ int main() {
         const double health = plan.spawns.front().healthMultiplier;
         require(std::isfinite(health) && health > previousHealth,
                 "actual wave HP grows throughout an endless run");
-        if (wave >= 6) {
+        if (wave >= 12) {
             require(health > .85 * (1 + .1 * (wave - 1)) * 1.8,
                     "late waves materially outscale old linear HP growth");
         }
         previousHealth = health;
     }
-    requireNear(enemyWaveHealthGrowth(6), 3.075, 1e-12, "wave six health growth");
-    requireNear(enemyWaveHealthGrowth(12), 7.875, 1e-12, "wave twelve health growth");
+    requireNear(enemyWaveHealthGrowth(6), 2.76375, 1e-12, "wave six retains 85 percent of HP growth");
+    requireNear(enemyWaveHealthGrowth(12), 6.84375, 1e-12, "wave twelve retains 85 percent of HP growth");
     require(std::isfinite(enemyWaveHealthGrowth(std::numeric_limits<int>::max())),
             "HP growth does not overflow at maximum wave ID");
 

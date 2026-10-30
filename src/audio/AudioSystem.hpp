@@ -1,7 +1,9 @@
 #pragma once
 
 #include "game/Simulation.hpp"
+#include "audio/AudioCue.hpp"
 #include "audio/ExplosionSoundBudget.hpp"
+#include "audio/DefenseSoundBudget.hpp"
 
 #include <raylib.h>
 
@@ -34,19 +36,29 @@ class AudioSystem {
     void initialize();
     void shutdown();
 
-    void update(const SimulationSnapshot& snapshot);
+    void update(const SimulationSnapshot& snapshot, float upgradeOverlayOpacity = 1.0F);
     void playEvent(const GameEvent& event,
                    const SimulationSnapshot& snapshot);
+    void playTurretImpact(Vec3 position,
+                          const SimulationSnapshot& snapshot,
+                          bool secondaryImpact);
     void queueBuildingPlaced(
         Vec3 position, double delaySeconds = 0.0);
     void playHarvestSwing();
+    void playFeedbackCapture();
     void playUiConfirm();
+    void playUiSelect();
     void playUiError();
+    void playUiPurchase();
+    void playUiReward();
+    void playDefenseShot(BuildingType type, Vec3 position,
+                         const SimulationSnapshot& snapshot);
     [[nodiscard]] AudioSettings& settings();
     [[nodiscard]] const AudioSettings& settings() const;
     void applySettings();
 
   private:
+    friend struct AudioSystemTestAccess;
     struct Clip {
         Sound sound{};
         bool loaded{};
@@ -54,18 +66,30 @@ class AudioSystem {
     struct MusicTrack {
         Music music{};
         bool loaded{};
+        float volume{};
     };
     struct PendingBuildingPlacedSound {
         Vec3 position;
         double delayRemaining{};
     };
+    struct PendingDefenseSound {
+        Vec3 position{};
+        float volume{}, maximumDistance{}, audibility{};
+        double age{};
+        bool pending{};
+    };
 
     void load(Clip& clip, std::string_view path);
+    void loadDefenseGunTransient();
     void unload(Clip& clip);
     void load(MusicTrack& track, std::string_view path);
     void unload(MusicTrack& track);
-    void updateMusic();
-    void playNextMusicTrack();
+    void updateMusic(const SimulationSnapshot& snapshot, float upgradeOverlayOpacity);
+    void loadCue(Clip& clip, std::string_view name, std::string_view fallback);
+    [[nodiscard]] const Clip& cue(AudioCue type) const;
+    void playCue(AudioCue type, Vec3 position, const SimulationSnapshot& snapshot,
+                 float volume = 0.5F, float maximumDistance = 38.0F,
+                 double cooldown = 0.06);
     void play(const Clip& clip, float volume = 1.0F,
               float pitch = 1.0F, float pan = 0.5F,
               bool affectedByLowHealth = true);
@@ -78,6 +102,11 @@ class AudioSystem {
     void playExplosion(const Clip& clip, Vec3 position,
                        const SimulationSnapshot& snapshot,
                        float volume, float maximumDistance);
+    void queueDefenseSound(DefenseSoundGroup group, Vec3 position,
+        const SimulationSnapshot& snapshot, float volume, float maximumDistance);
+    void flushDefenseSounds(const SimulationSnapshot& snapshot, double seconds);
+    [[nodiscard]] const Clip* defenseVoice(DefenseSoundGroup group) const;
+    [[nodiscard]] std::size_t activeDefenseVoices(DefenseSoundGroup group) const;
     [[nodiscard]] float variedPitch(float spread);
 
     bool levelupChoiceWasPending_{};
@@ -85,6 +114,9 @@ class AudioSystem {
     bool ownsAudioDevice_{};
     AudioSettings settings_;
     std::uint32_t sequence_{0x51f15e1dU};
+    DefenseSoundBudget defenseSoundBudget_;
+    std::array<PendingDefenseSound, DefenseSoundGroupCount> pendingDefenseSounds_{};
+    std::size_t nextDefenseSoundGroup_{};
     std::array<Clip, 5> woodHits_;
     std::array<Clip, 5> stoneHits_;
     std::array<Clip, 5> grassFootsteps_;
@@ -93,6 +125,10 @@ class AudioSystem {
     Clip stoneBreak_;
     Clip critical_;
     Clip rifleShot_;
+    Clip defenseGunShot_;
+    // Turrets use a short muzzle transient; player shots keep their full tail.
+    std::array<Clip, 8> playerRifleVoices_;
+    std::array<Clip, 2> defenseRifleVoices_;
     Clip explosion_;
     std::array<Clip, ExplosionSoundBudget::MaximumVoices - 1U> explosionAliases_;
     ExplosionSoundBudget explosionSoundBudget_;
@@ -104,22 +140,37 @@ class AudioSystem {
     Clip levelupAfter_;
     Clip gate_;
     Clip crystals_;
+    Clip xpPickup_;
     Clip playerHit_;
     double playerHitSoundCooldown_{};
     Clip enemyHit_;
-    Clip turretHit_;
+    std::array<Clip, 6> turretHits_;
     Clip uiError_;
     Clip uiConfirm_;
+    Clip feedbackCapture_;
     Clip waveWarning_;
-    std::array<MusicTrack, 3> musicTracks_;
+    std::array<Clip, static_cast<std::size_t>(AudioCue::Count)> cues_;
+    std::array<double, static_cast<std::size_t>(AudioCue::Count)> cueCooldowns_{};
+    std::array<MusicTrack, 8> musicTracks_;
+    MusicTrack forestAmbience_;
+    MusicTrack levelupAmbience_;
+    MusicTrack flamethrowerLoop_;
     MusicTrack laserLoop_;
     std::optional<std::size_t> currentMusicTrack_;
+    std::optional<std::size_t> currentMusicGroup_;
+    bool currentMusicTrackStarted_{};
+    std::size_t nextBossTheme_{};
+    double uiErrorSoundCooldown_{};
+    bool upgradeChoiceWasVisible_{};
+    bool playerWasGrounded_{true};
+    bool bossWasPresent_{};
     std::optional<Vec3> previousPlayerPosition_;
     std::deque<PendingBuildingPlacedSound>
         pendingBuildingPlacedSounds_;
     double buildingPlacedSoundCooldown_{};
     double footstepDistance_{};
     double iceHitSoundCooldown_{};
+    double xpPickupSoundCooldown_{};
     float lowHealthAmount_{};
 };
 

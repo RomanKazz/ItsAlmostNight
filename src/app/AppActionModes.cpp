@@ -18,7 +18,6 @@ void App::suspendGameplayInput() {
     pendingYaw_ = 0.0;
     pendingPitch_ = 0.0;
     pendingJump_ = false;
-    pendingDash_ = false;
     pendingPickaxe_ = false;
     pendingRifleShot_ = false;
     pendingIceWandShot_ = false;
@@ -32,15 +31,15 @@ void App::resetRunInputState() {
     pendingBuildingCancel_ = false;
     pendingBuildingPlacement_.reset();
     pendingBuildingRotation_ = 0;
+    pendingBuildingRotationOverride_.reset();
     buildingItemWheelAccumulator_ = 0.0;
     buildingItemWheelReleaseRemaining_ = 0.0;
     buildingItemWheelArmed_ = true;
     pendingStartWave_ = false;
     pendingUnlimitedResources_ = false;
     pendingBuildingUpgrade_.reset();
-    pendingBuildingBlueprintUpgrade_.reset();
+    pendingCollectProducer_.reset();
     pendingBuildingRepair_.reset();
-    pendingPurchaseBombBundle_ = false;
     pendingBuildingSale_.reset();
     pendingModularBuildingRemoval_.reset();
     pendingWeaponSelection_.reset();
@@ -59,6 +58,7 @@ void App::resetRunInputState() {
     selectBuildingAfterCorePlacement_ = false;
     coreDefenseMenuVisible_ = false;
     coreDefenseMenuClosing_ = false;
+    coreDefenseMenuTarget_.reset();
     coreMenuPointerActive_ = false;
     coreDefenseMenuEntranceSeconds_ = 0.0;
     coreMenuLostAimSeconds_ = 0.0;
@@ -93,8 +93,6 @@ void App::resetRunInputState() {
     toolViewModelInitialized_ = false;
     toolSwapCandidateSeconds_ = 0.0;
     toolSwapRemaining_ = 0.0;
-    contextualHammerRemaining_ = 0.0;
-    contextualHammerSwingPending_ = false;
 
     interactionResourceAim_.reset();
     buildingHotbarCategory_ = BuildingHotbarCategory::Base;

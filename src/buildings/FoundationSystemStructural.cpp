@@ -8,7 +8,7 @@ namespace {
 
 ResourceCost modularRepairCost(
     double health, double maxHealth,
-    ResourceCost fullRepairCost) {
+    ResourceCost fullRepairCost, double costMultiplier) {
     const double missingRatio =
         maxHealth > 0.0
             ? std::clamp(
@@ -16,9 +16,9 @@ ResourceCost modularRepairCost(
                   0.0, 1.0)
             : 0.0;
     const auto scaled =
-        [missingRatio](int value) {
+        [missingRatio, costMultiplier](int value) {
             return static_cast<int>(
-                std::ceil(value * missingRatio));
+                std::ceil(value * missingRatio * std::clamp(costMultiplier, 0.0, 1.0)));
         };
     return {
         .wood = scaled(fullRepairCost.wood),
@@ -140,7 +140,7 @@ double FoundationSystem::restoreWallHealth(EntityId id, double amount) {
 }
 
 ModularBuildingRepairResult FoundationSystem::repair(
-    EntityId id, int wood, int stone) {
+    EntityId id, int wood, int stone, double costMultiplier) {
     ModularBuildingRepairResult result{
         .error = BuildingActionError::NotFound,
         .id = id,
@@ -203,7 +203,7 @@ ModularBuildingRepairResult FoundationSystem::repair(
         return result;
     }
     result.cost =
-        modularRepairCost(*health, maxHealth, fullCost);
+        modularRepairCost(*health, maxHealth, fullCost, costMultiplier);
     if (wood < result.cost.wood ||
         stone < result.cost.stone) {
         result.error =

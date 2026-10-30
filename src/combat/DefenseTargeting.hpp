@@ -13,7 +13,7 @@ namespace ian {
 inline constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
 
 [[nodiscard]] inline bool defenseCanTargetFlying(BuildingType type) {
-    return type != BuildingType::GunTurret && type != BuildingType::Catapult &&
+    return type != BuildingType::GunTurret && type != BuildingType::Cannon && type != BuildingType::Catapult &&
         type != BuildingType::Mortar;
 }
 

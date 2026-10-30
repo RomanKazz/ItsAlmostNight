@@ -20,7 +20,7 @@ inline std::string_view weaponDescription(PlayerWeapon weapon) {
     case PlayerWeapon::Pickaxe: return "Mine stone and crystals; strike enemies in melee.";
     case PlayerWeapon::Club: return "A heavy melee strike with knockback.";
     case PlayerWeapon::Rifle: return "Shoot enemies at range.";
-    case PlayerWeapon::Bomb: return "Throw an explosive into a group of enemies.";
+    case PlayerWeapon::Bomb: return "Throw unlimited explosives into groups of enemies. Short cooldown between throws.";
     case PlayerWeapon::IceWand: return "Freeze enemies with icy projectiles.";
     case PlayerWeapon::FireWand: return "Ignite enemies with fiery projectiles.";
     default: return {};

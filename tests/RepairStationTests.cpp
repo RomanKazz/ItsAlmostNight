@@ -18,11 +18,13 @@ std::unique_ptr<Simulation> fixture() {
     world.terrainResolution = 33; world.terrainAmplitude = world.terrainSurfaceNoiseAmplitude = 0;
     world.pondMinimumCount = world.pondMaximumCount = 0;
     auto run = std::make_unique<Simulation>(balance, map, world);
+    MetaRunBonuses bonuses; bonuses.additionalBuildingSlots=2;
+    require(run->configureNextRunBonuses(bonuses), "repair fixture purchases room for four defenses");
     run->startRunFromSeed(PlayerClass::Vanguard, 81875);
     for (const auto card : {RunUpgradeEffect::UnlockRepairStation, RunUpgradeEffect::UnlockWall, RunUpgradeEffect::UnlockCannon})
-        require(run->grantDebugRunUpgrade(card), "station shares the four building arsenal slots");
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockRepairStation), "station level cannot exceed core limit");
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMortar), "station consumes a defense slot");
+        require(run->grantDebugRunUpgrade(card), "repair fixture unlocks its structures");
+    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMortar),
+        "expanded structure slots accommodate the repair test arsenal");
     PlayerCommand place; place.placeBuilding = PlaceBuildingCommand{BuildingType::Core, {0,0}, 0};
     run->tick(0, place);
     require(run->snapshot().coreId.has_value(), "repair fixture has a core");
@@ -123,7 +125,9 @@ void coverageAndCadence() {
     requireNear(bulk->saveSuspendedRunState().repairStationCycleRemaining,stepped->saveSuspendedRunState().repairStationCycleRemaining,1e-7,"clock phase is independent of frame size");
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto layout=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(layout.count==15 && layout.indexOf(BuildingType::RepairStation)==9 && layout.types[14]==BuildingType::SlowTrap,"station remains before walls and traps");
+    require(layout.count==DefenseBuildingOrder.size() && layout.indexOf(BuildingType::RepairStation)==9 &&
+        layout.types[13]==BuildingType::SlowTrap && !layout.indexOf(BuildingType::Wall),
+        "station remains before traps while walls use the modular section");
 }
 }
 int main(){doseAndStats();realSimulation();coverageAndCadence();}

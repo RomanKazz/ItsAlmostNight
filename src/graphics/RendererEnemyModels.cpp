@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
+#include "graphics/EnemyAnimationSampling.hpp"
 #include "graphics/EnemyPresentation.hpp"
 #include "graphics/EliteEnemyDetails.hpp"
 
@@ -154,9 +155,6 @@ EnemyAnimationSource enemyAnimationFor(
         case EnemyAnimationVisual::Hit:
             clip = "HitRecieve";
             break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death";
-            break;
         case EnemyAnimationVisual::Idle:
         case EnemyAnimationVisual::Spawn:
             clip = "Idle";
@@ -178,9 +176,6 @@ EnemyAnimationSource enemyAnimationFor(
         case EnemyAnimationVisual::Hit:
             clip = "HitRecieve";
             break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death";
-            break;
         case EnemyAnimationVisual::Idle:
         case EnemyAnimationVisual::Spawn:
             clip = "Idle";
@@ -201,9 +196,6 @@ EnemyAnimationSource enemyAnimationFor(
             break;
         case EnemyAnimationVisual::Hit:
             clip = "HitRecieve";
-            break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death";
             break;
         case EnemyAnimationVisual::Idle:
         case EnemyAnimationVisual::Spawn:
@@ -233,9 +225,6 @@ EnemyAnimationSource enemyAnimationFor(
             break;
         case EnemyAnimationVisual::Hit:
             clip = "HitReact";
-            break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death";
             break;
         case EnemyAnimationVisual::Idle:
         case EnemyAnimationVisual::Spawn:
@@ -267,9 +256,6 @@ EnemyAnimationSource enemyAnimationFor(
             break;
         case EnemyAnimationVisual::Hit:
             clip = "Hit_A";
-            break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death_A";
             break;
         case EnemyAnimationVisual::Spawn:
             clip = "Spawn_Ground";
@@ -389,6 +375,40 @@ const std::vector<int>& Renderer::enemyBoneMapping(
     return mapping;
 }
 
+const std::vector<Matrix>& Renderer::enemyBonePose(
+    EnemyModelVisual visual, EnemyAnimationVisual animationVisual, int frame) {
+    static const std::vector<Matrix> Empty;
+    const EnemyPoseKey key{visual, animationVisual, frame};
+    const auto found = enemyBonePoseCache_.find(key);
+    if (found != enemyBonePoseCache_.end()) return found->second;
+    ModelResource* resource = enemyModelFor(resources_, visual);
+    if (!resource || !resource->valid()) return Empty;
+    Model& model = resource->get();
+    const auto animation = enemyAnimationFor(resources_, visual, animationVisual);
+    const auto* clip = animation.animations->find(animation.clipName);
+    if (!clip || frame < 0 || frame >= clip->keyframeCount ||
+        model.skeleton.boneCount <= 0 || !model.skeleton.bindPose || !model.boneMatrices) return Empty;
+    if (animation.nativeSkeleton) {
+        UpdateModelAnimation(model, *clip, static_cast<float>(frame));
+    } else {
+        const auto& mapping = enemyBoneMapping(visual, model, *animation.sourceBones);
+        enemyAnimationPose_.resize(static_cast<std::size_t>(model.skeleton.boneCount));
+        for (int bone = 0; bone < model.skeleton.boneCount; ++bone) {
+            const int source = mapping[static_cast<std::size_t>(bone)];
+            enemyAnimationPose_[static_cast<std::size_t>(bone)] = source >= 0 && source < clip->boneCount
+                ? clip->keyframePoses[frame][source] : model.skeleton.bindPose[bone];
+        }
+        enemyAnimationFrames_.assign(1U, enemyAnimationPose_.data());
+        ModelAnimation remapped{};
+        remapped.boneCount = model.skeleton.boneCount;
+        remapped.keyframeCount = 1;
+        remapped.keyframePoses = enemyAnimationFrames_.data();
+        UpdateModelAnimation(model, remapped, 0);
+    }
+    return enemyBonePoseCache_.emplace(key, std::vector<Matrix>(
+        model.boneMatrices, model.boneMatrices + model.skeleton.boneCount)).first->second;
+}
+
 bool Renderer::drawEnemy(
     EnemyModelVisual modelVisual,
     EnemyAnimationVisual animationVisual,
@@ -419,49 +439,38 @@ bool Renderer::drawEnemy(
     float motionTime = animationSeconds;
     if (clip != nullptr && clip->keyframeCount > 0 &&
         skeletonUsable) {
-        const float frameValue =
-            std::max(0.0F, animationSeconds) * 30.0F;
-        int frame = static_cast<int>(frameValue);
-        frame = loop
-            ? frame % clip->keyframeCount
-            : std::min(frame, clip->keyframeCount - 1);
-        if (quantizeCrowdPose) {
-            constexpr int CrowdPoseCount = 6;
-            const int pose = std::min(
-                CrowdPoseCount - 1,
-                frame * CrowdPoseCount / clip->keyframeCount);
-            frame = pose * clip->keyframeCount /
-                CrowdPoseCount;
-        }
-        if (quantizeCrowdPose) motionTime = static_cast<float>(frame) / 30.0F;
-        if (animation.nativeSkeleton) {
-            UpdateModelAnimation(
-                model, *clip,
-                static_cast<float>(frame));
-        } else {
-            const std::vector<int>& boneMapping =
-                enemyBoneMapping(
-                    modelVisual, model,
-                    *animation.sourceBones);
-            enemyAnimationPose_.resize(
-                static_cast<std::size_t>(model.skeleton.boneCount));
-            for (int modelBone = 0;
-                 modelBone < model.skeleton.boneCount; ++modelBone) {
-                const int sourceBone = boneMapping[
-                    static_cast<std::size_t>(modelBone)];
-                enemyAnimationPose_[
-                    static_cast<std::size_t>(modelBone)] =
-                    sourceBone >= 0 && sourceBone < clip->boneCount
-                        ? clip->keyframePoses[frame][sourceBone]
-                        : model.skeleton.bindPose[modelBone];
+        const auto sample = sampleEnemyAnimation(animationSeconds, clip->keyframeCount,
+            loop, quantizeCrowdPose);
+        if (quantizeCrowdPose) motionTime = static_cast<float>(sample.frame) / EnemyAnimationFps;
+        if (modelResource->gpuSkinningCompatible()) {
+            const auto& from = enemyBonePose(modelVisual, animationVisual, sample.frame);
+            const auto& to = enemyBonePose(modelVisual, animationVisual, sample.nextFrame);
+            for (int bone = 0; bone < model.skeleton.boneCount; ++bone) {
+                model.boneMatrices[bone] = blendEnemyBoneMatrices(
+                    from[static_cast<std::size_t>(bone)], to[static_cast<std::size_t>(bone)], sample.blend);
             }
-            enemyAnimationFrames_.assign(
-                1U, enemyAnimationPose_.data());
+        } else if (animation.nativeSkeleton) {
+            UpdateModelAnimation(model, *clip, static_cast<float>(sample.frame) + sample.blend);
+        } else {
+            const auto& mapping = enemyBoneMapping(modelVisual, model, *animation.sourceBones);
+            enemyAnimationPose_.resize(static_cast<std::size_t>(model.skeleton.boneCount));
+            for (int bone = 0; bone < model.skeleton.boneCount; ++bone) {
+                const int source = mapping[static_cast<std::size_t>(bone)];
+                Transform pose = model.skeleton.bindPose[bone];
+                if (source >= 0 && source < clip->boneCount) {
+                    const Transform a = clip->keyframePoses[sample.frame][source];
+                    const Transform b = clip->keyframePoses[sample.nextFrame][source];
+                    pose = {Vector3Lerp(a.translation, b.translation, sample.blend),
+                        QuaternionSlerp(a.rotation, b.rotation, sample.blend),
+                        Vector3Lerp(a.scale, b.scale, sample.blend)};
+                }
+                enemyAnimationPose_[static_cast<std::size_t>(bone)] = pose;
+            }
+            enemyAnimationFrames_.assign(1U, enemyAnimationPose_.data());
             ModelAnimation remapped{};
             remapped.boneCount = model.skeleton.boneCount;
             remapped.keyframeCount = 1;
-            remapped.keyframePoses =
-                enemyAnimationFrames_.data();
+            remapped.keyframePoses = enemyAnimationFrames_.data();
             UpdateModelAnimation(model, remapped, 0);
         }
     }
@@ -511,6 +520,9 @@ bool Renderer::drawEnemy(
         material.maps[MATERIAL_MAP_DIFFUSE].color =
             ColorTint(original, tint);
         DrawMesh(model.meshes[meshIndex], material, transform);
+        // Material copies share their maps with the model. Status tint must
+        // not persist into subsequent focused enemies or selection passes.
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     }
     if (shader != nullptr) {
         setSkinningEnabled(*shader, false);
@@ -614,8 +626,6 @@ bool Renderer::drawEnemiesInstanced(
         return enemyAnimationFor(resources_, model, animation);
     };
 
-    constexpr int CrowdPoseCount = 6;
-    constexpr float SourceAnimationFps = 30.0F;
     const bool lodAvailable = IsModelValid(enemyCrowdLodModel_);
     for (EnemyBatch* batch : activeEnemyBatches_) {
         batch->transforms.clear();
@@ -650,27 +660,15 @@ bool Renderer::drawEnemiesInstanced(
             clip = animation.animations->find(
                 animation.clipName);
         }
-        int frame = 0;
-        if (!lowDetail && clip != nullptr &&
-            clip->keyframeCount > 0) {
-            const int sourceFrame = static_cast<int>(
-                std::max(0.0F, instance.animationSeconds) *
-                SourceAnimationFps);
-            const int wrappedFrame =
-                instance.loop
-                    ? sourceFrame % clip->keyframeCount
-                    : std::min(
-                          sourceFrame,
-                          clip->keyframeCount - 1);
-            const int pose =
-                std::min(
-                    CrowdPoseCount - 1,
-                    wrappedFrame * CrowdPoseCount /
-                        clip->keyframeCount);
-            frame =
-                pose * clip->keyframeCount /
-                CrowdPoseCount;
+        const bool smoothAnimation = !lowDetail && instance.smoothAnimation && clip &&
+            clip->keyframeCount > 0;
+        if (smoothAnimation && (!resource->gpuSkinningCompatible() ||
+            resource->get().skeleton.boneCount > MaximumGpuSkinningBones / 2)) {
+            return false; // Preserve full interpolation through the individual fallback.
         }
+        const auto sampled = sampleEnemyAnimation(instance.animationSeconds,
+            clip ? clip->keyframeCount : 0, instance.loop, !smoothAnimation);
+        const int frame = sampled.frame;
         const std::uint32_t tint =
             static_cast<std::uint32_t>(instance.tint.r) |
             (static_cast<std::uint32_t>(instance.tint.g) << 8U) |
@@ -688,14 +686,14 @@ bool Renderer::drawEnemiesInstanced(
         const EnemyBatchKey key{
             instance.modelVisual, batchAnimation, batchFrame,
             tint, whiteFlashLevel, batchLoop, lowDetail,
-            instance.inkOutlineEligible};
+            instance.inkOutlineEligible, smoothAnimation};
         EnemyBatch& batch = enemyBatches_[key];
         batch.lastUsedFrame = enemyBatchFrame_;
         if (batch.transforms.empty()) {
             batch.representative = instance;
-            batch.representative.animationSeconds =
-                static_cast<float>(frame) /
-                SourceAnimationFps;
+            batch.representative.animationSeconds = static_cast<float>(frame) / EnemyAnimationFps;
+            batch.representative.smoothAnimation = smoothAnimation;
+            batch.animationBlend = sampled.blend;
             activeEnemyBatches_.push_back(&batch);
         }
         const float uniformScale = EnemyImportScale * instance.scale;
@@ -714,12 +712,14 @@ bool Renderer::drawEnemiesInstanced(
                         proxyPosition.x, proxyPosition.y,
                         proxyPosition.z)));
         } else {
-            const float motionTime = static_cast<float>(frame) / SourceAnimationFps;
+            const float motionTime = smoothAnimation ? instance.animationSeconds
+                : static_cast<float>(sampled.frame) / EnemyAnimationFps;
             transform = MatrixMultiply(resource->get().transform,
                 enemyPresentationTransform(instance.modelVisual, instance.animationVisual,
                     motionTime, instance.position, instance.yawRadians, uniformScale,
                     instance.bodyStretch, instance.bodyRoll));
         }
+        if (smoothAnimation) transform.m3 = sampled.blend;
         batch.transforms.push_back(transform);
     }
 
@@ -801,75 +801,27 @@ bool Renderer::drawEnemiesInstanced(
                          representative.animationVisual);
         const ModelAnimation* clip =
             animation.animations->find(animation.clipName);
-        auto poseIt = enemyBonePoseCache_.end();
-        if (clip != nullptr && clip->keyframeCount > 0 &&
-            model.skeleton.boneCount > 0 &&
-            model.skeleton.bones != nullptr &&
-            model.skeleton.bindPose != nullptr) {
-            const int frame = std::min(
-                static_cast<int>(
-                    representative.animationSeconds * 30.0F),
-                clip->keyframeCount - 1);
-            const EnemyPoseKey poseKey{
-                representative.modelVisual,
-                representative.animationVisual,
-                frame};
-            poseIt = enemyBonePoseCache_.find(poseKey);
-            if (poseIt == enemyBonePoseCache_.end()) {
-                if (animation.nativeSkeleton) {
-                    UpdateModelAnimation(
-                        model, *clip,
-                        static_cast<float>(frame));
-                } else {
-                    const std::vector<int>& boneMapping =
-                        enemyBoneMapping(
-                            representative.modelVisual, model,
-                            *animation.sourceBones);
-                    enemyAnimationPose_.resize(
-                        static_cast<std::size_t>(
-                            model.skeleton.boneCount));
-                    for (int modelBone = 0;
-                         modelBone < model.skeleton.boneCount;
-                         ++modelBone) {
-                        const int sourceBone = boneMapping[
-                            static_cast<std::size_t>(modelBone)];
-                        enemyAnimationPose_[
-                            static_cast<std::size_t>(modelBone)] =
-                            sourceBone >= 0 &&
-                                    sourceBone < clip->boneCount
-                                ? clip->keyframePoses[frame][sourceBone]
-                                : model.skeleton.bindPose[modelBone];
-                    }
-                    enemyAnimationFrames_.assign(
-                        1U, enemyAnimationPose_.data());
-                    ModelAnimation remapped{};
-                    remapped.boneCount = model.skeleton.boneCount;
-                    remapped.keyframeCount = 1;
-                    remapped.keyframePoses =
-                        enemyAnimationFrames_.data();
-                    UpdateModelAnimation(model, remapped, 0);
-                }
-                if (model.boneMatrices != nullptr) {
-                    std::vector<Matrix> cachedPose(
-                        static_cast<std::size_t>(
-                            model.skeleton.boneCount));
-                    std::copy_n(
-                        model.boneMatrices,
-                        model.skeleton.boneCount,
-                        cachedPose.begin());
-                    poseIt = enemyBonePoseCache_.emplace(
-                        poseKey, std::move(cachedPose)).first;
-                }
-            }
-        }
-
-        const Matrix* batchBoneMatrices = model.boneMatrices;
-        if (poseIt != enemyBonePoseCache_.end()) {
-            batchBoneMatrices = poseIt->second.data();
+        const int frame = clip && clip->keyframeCount > 0 ? std::clamp(static_cast<int>(std::lround(
+            representative.animationSeconds * EnemyAnimationFps)), 0, clip->keyframeCount - 1) : 0;
+        const std::vector<Matrix>& pose = enemyBonePose(
+            representative.modelVisual, representative.animationVisual, frame);
+        const Matrix* batchBoneMatrices = pose.empty() ? model.boneMatrices : pose.data();
+        int paletteCount = model.skeleton.boneCount;
+        const int poseOffset = representative.smoothAnimation && !pose.empty()
+            ? model.skeleton.boneCount : 0;
+        std::array<Matrix, MaximumGpuSkinningBones> palettes{};
+        if (poseOffset > 0) {
+            const int nextFrame = representative.loop ? (frame + 1) % clip->keyframeCount
+                : std::min(frame + 1, clip->keyframeCount - 1);
+            const auto& nextPose = enemyBonePose(representative.modelVisual,
+                representative.animationVisual, nextFrame);
+            std::copy(pose.begin(), pose.end(), palettes.begin());
+            std::copy(nextPose.begin(), nextPose.end(), palettes.begin() + poseOffset);
+            batchBoneMatrices = palettes.data();
+            paletteCount *= 2;
         }
         const bool batchSkinningEnabled = modelSkinningEnabled &&
-            finiteBoneMatrices(
-                batchBoneMatrices, model.skeleton.boneCount);
+            finiteBoneMatrices(batchBoneMatrices, paletteCount);
         bool bonesUploaded = false;
         for (int meshIndex = 0; meshIndex < model.meshCount;
              ++meshIndex) {
@@ -886,26 +838,29 @@ bool Renderer::drawEnemiesInstanced(
                 resource->meshHasSkinning(
                     static_cast<std::size_t>(meshIndex));
             setSkinningEnabled(shader, meshSkinningEnabled);
+            if (poseOffset > 0) {
+                SetShaderValue(shader, worldBonePoseOffsetLocation_, &poseOffset, SHADER_UNIFORM_INT);
+                SetShaderValue(shader, worldBonePoseBlendLocation_, &batch.animationBlend, SHADER_UNIFORM_FLOAT);
+            }
             if (meshSkinningEnabled && !bonesUploaded) {
                 bonesUploaded = uploadBoneMatrices(
-                    shader, batchBoneMatrices,
-                    model.skeleton.boneCount);
+                    shader, batchBoneMatrices, paletteCount);
             }
             Material material = model.materials[materialIndex];
             material.shader = shader;
             const Color original =
                 material.maps[MATERIAL_MAP_DIFFUSE].color;
             material.maps[MATERIAL_MAP_DIFFUSE].color =
-                representative.tint;
+                ColorTint(original, representative.tint);
             setInstancing(multipleInstances);
             if (multipleInstances) {
                 instanceBuffers_.drawMesh(
                     model.meshes[meshIndex], material,
                     instanceBatch);
             } else {
-                DrawMesh(
-                    model.meshes[meshIndex], material,
-                    batch.transforms.front());
+                Matrix transform = batch.transforms.front();
+                if (poseOffset > 0) transform.m3 = 0.0F;
+                DrawMesh(model.meshes[meshIndex], material, transform);
             }
             material.maps[MATERIAL_MAP_DIFFUSE].color = original;
         }
@@ -923,7 +878,7 @@ bool Renderer::drawEnemiesInstanced(
         static_cast<void>(drawEnemy(instance.modelVisual, instance.animationVisual,
             instance.animationSeconds, instance.position, instance.yawRadians, instance.tint,
             instance.scale, instance.loop, instance.inkOutlineEligible,
-            false, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
+            !instance.smoothAnimation, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
     }
     setWorldMaterial(originalMaterial);
     instancedEnemyMillisecondsThisFrame_ +=

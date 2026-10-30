@@ -87,19 +87,13 @@ int main() {
     saved.runShop.offers[1] = {.effect = RunUpgradeEffect::UnlockRifle, .price = 1, .present = true};
     restore(*run, saved);
     const int coins = run->snapshot().coins;
-    require(!run->snapshot().runShopBuyable[0] && !run->buyRunShopOffer(0) && run->snapshot().coins == coins,
-        "locked or stale shop offers cannot bypass the equipment cap or spend coins");
-    require(run->buyRunShopOffer(1) && owned(*run) == 4 &&
+    require(!run->snapshot().runShop.pending && !run->snapshot().runShopBuyable[0] &&
+        !run->buyRunShopOffer(0) && !run->buyRunShopOffer(1) &&
+        !run->rerollRunShop() && run->snapshot().coins == coins,
+        "old pending shop saves resume closed and cannot spend coins or bypass equipment limits");
+    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockRifle) && owned(*run) == 4 &&
         run->snapshot().weaponLevels[static_cast<std::size_t>(PlayerWeapon::Rifle)] == 2,
-        "shop upgrades an owned weapon without consuming another slot");
-    for (int reroll = 0; reroll < 12; ++reroll) {
-        require(run->rerollRunShop(), "equipment-filtered shop rerolls");
-        for (const auto& offer : run->snapshot().runShop.offers)
-            if (offer.present) if (const auto weapon = runUpgradeWeapon(offer.effect))
-                require(run->snapshot().unlockedWeapons[static_cast<std::size_t>(*weapon)],
-                    "full equipment slots filter every new weapon from rerolled offers");
-    }
-    require(run->closeRunShop(), "equipment fixture closes the shop");
+        "an owned weapon upgrades without consuming another slot");
     require(run->grantDebugRunUpgradeBatch(RunUpgradeEffect::UnlockIceWand, 1),
         "explicit bulk debug grant can exceed the gameplay cap");
     saved = run->saveSuspendedRunState(); restore(*run, saved);

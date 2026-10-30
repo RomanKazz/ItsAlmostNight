@@ -200,15 +200,6 @@ bool BuildGrid::isOccupied(
         });
 }
 
-std::span<const OccupancyRecord>
-BuildGrid::occupants(GridCoord coord) const {
-    const auto iterator = occupancy_.find(coord);
-    if (iterator == occupancy_.end()) {
-        return {};
-    }
-    return iterator->second;
-}
-
 std::size_t BuildGrid::occupiedCellCount() const {
     return occupancy_.size();
 }

@@ -134,6 +134,8 @@ class ResourceSystem {
         double woodYieldMultiplier,
         double gatheringYieldMultiplier = 1.0,
         double nodeCapacityMultiplier = 1.0);
+    [[nodiscard]] bool relocateDestructibleProp(
+        EntityId id, Vec3 groundPosition, double yaw);
     void setWoodYieldMultiplier(double multiplier);
     void setGatheringYieldMultiplier(double multiplier);
     // More harvestable stock and durability; preserve resources already extracted.

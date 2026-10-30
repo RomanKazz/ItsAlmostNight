@@ -6,6 +6,7 @@
 #include "game/GameBalance.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <array>
 #include <optional>
 #include <span>
@@ -14,6 +15,9 @@
 namespace ian {
 
 inline constexpr std::uint8_t MaxBuildingLevel = 8;
+// Eight authored models and core tiers; other structures may continue through
+// the full level range represented by their saved level byte.
+inline constexpr std::uint8_t MaxStructureLevel = std::numeric_limits<std::uint8_t>::max();
 inline constexpr int CoreBuildRadiusPerLevel = 1;
 
 // Shared health progression for placement, upgrades and stat previews.
@@ -49,6 +53,11 @@ enum class BuildingType {
     DecoyBeacon, // Append-only save ID 21.
     WindBlower, // Append-only save ID 22.
 };
+
+[[nodiscard]] constexpr std::uint8_t buildingLevelLimit(BuildingType type) {
+    (void)type;
+    return MaxStructureLevel;
+}
 
 enum class BuildingLimitCategory {
     None,
@@ -144,10 +153,6 @@ struct UpgradeBuildingCommand {
     bool maximumAffordable{};
 };
 
-struct UpgradeBuildingBlueprintCommand {
-    BuildingType type{BuildingType::GunTurret};
-};
-
 struct RepairBuildingCommand {
     EntityId buildingId;
 };
@@ -162,19 +167,6 @@ struct UpgradeResult {
     ResourceCost cost;
 
     [[nodiscard]] bool valid() const { return error == UpgradeError::None; }
-};
-
-struct BlueprintUpgradeResult {
-    UpgradeError error{UpgradeError::None};
-    BuildingType type{BuildingType::GunTurret};
-    std::uint8_t previousLevel{1};
-    std::uint8_t level{1};
-    int upgradedBuildingCount{};
-    ResourceCost cost;
-
-    [[nodiscard]] bool valid() const {
-        return error == UpgradeError::None;
-    }
 };
 
 enum class BuildingActionError {
@@ -241,9 +233,12 @@ class BuildingSystem {
     void setMaxHealthMultiplier(double multiplier);
     double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
-    void setNewTowerBonusStacks(int stacks);
     void setCoreBuildRadius(int radius);
+    void setCoreCardBonuses(int healthBaseLevel, double healthPower,
+                            int buildingBaseLevel, double buildingPower);
+    [[nodiscard]] std::optional<BuildingInstance> upgradeCoreWithCard();
     [[nodiscard]] int coreBuildRadius() const;
+    [[nodiscard]] bool restoreDestroyedTower(const BuildingInstance& building);
     [[nodiscard]] bool restoreBuildings(
         std::span<const BuildingInstance> buildings,
         std::span<const std::uint8_t> blueprintLevels,
@@ -267,28 +262,19 @@ class BuildingSystem {
         EntityId id, int steps);
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
-    [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals) const;
-    RepairResult repair(EntityId id, int wood, int stone, int crystals);
+    [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals, double costMultiplier = 1.0) const;
+    RepairResult repair(EntityId id, int wood, int stone, int crystals, double costMultiplier = 1.0);
     double restoreHealth(EntityId id, double amount);
     SellResult sell(EntityId id);
     [[nodiscard]] ResourceCost configuredCost(BuildingType type) const;
+    [[nodiscard]] double baseMaxHealth(BuildingType type) const;
     [[nodiscard]] ResourceCost upgradeCost(const BuildingInstance& building) const;
     [[nodiscard]] UpgradeResult validateUpgrade(EntityId id, int wood, int stone, int crystals) const;
     UpgradeResult upgrade(EntityId id, int wood, int stone, int crystals);
-    [[nodiscard]] static bool usesGlobalBlueprint(BuildingType type);
-    [[nodiscard]] std::uint8_t blueprintLevel(BuildingType type) const;
-    [[nodiscard]] int blueprintBuildingCount(BuildingType type) const;
-    [[nodiscard]] ResourceCost blueprintUpgradeCost(BuildingType type) const;
-    [[nodiscard]] UpgradeResult validateBlueprintUpgrade(
-        BuildingType type, int wood, int stone, int crystals) const;
-    BlueprintUpgradeResult upgradeBlueprint(
-        BuildingType type, int wood, int stone, int crystals);
-    [[nodiscard]] BuildingInstance blueprintPreview(BuildingType type) const;
-
     [[nodiscard]] bool hasCore() const;
     [[nodiscard]] std::optional<BuildingInstance> core() const;
     [[nodiscard]] const std::vector<BuildingInstance>& buildings() const;
-    // Counted structures share one budget; Core, walls and gates are excluded.
+    // Counted defenses share one budget; Core, producers, walls and gates are excluded.
     void setBuildingLimitBonus(int bonus);
     [[nodiscard]] int buildingLimitBonus() const { return buildingLimitBonus_; }
     [[nodiscard]] int placedBuildingCount() const;
@@ -310,6 +296,10 @@ class BuildingSystem {
     std::array<BuildingBalanceDefinition, GameBalance::BuildingTypeCount> definitions_;
     EconomyBalanceDefinition economy_;
     int coreBuildRadius_;
+    int coreHealthBaseLevel_{1};
+    double coreHealthPower_{};
+    int coreBuildingBaseLevel_{1};
+    double coreBuildingPower_{};
     int buildingLimitBonus_{};
     double maxHealthMultiplier_{1.0};
     double wallCardPower_{};

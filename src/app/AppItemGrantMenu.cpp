@@ -1,3 +1,4 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 
 #include "ui/UiText.hpp"
@@ -15,21 +16,17 @@ namespace {
 
 [[nodiscard]] LootUpgradeEffect adjacentLootEffect(
     LootUpgradeEffect effect, int direction) {
-    const int count = static_cast<int>(LootUpgradeEffectCount);
-    const int index = (static_cast<int>(effect) + direction + count) % count;
-    return static_cast<LootUpgradeEffect>(index);
+    const int count = static_cast<int>(ActiveLootEffects.size());
+    const auto found=std::ranges::find(ActiveLootEffects,effect);
+    const int old=found==ActiveLootEffects.end()?0:static_cast<int>(found-ActiveLootEffects.begin());
+    return ActiveLootEffects[static_cast<std::size_t>((old+direction+count)%count)];
 }
 
-[[nodiscard]] LootRarity adjacentLootRarity(
-    LootRarity rarity, int direction) {
-    constexpr int Count = 4;
-    const int index = (static_cast<int>(rarity) + direction + Count) % Count;
-    return static_cast<LootRarity>(index);
-}
 
 } // namespace
 
 void App::drawItemGrantMenu() {
+    const ScopedUiCanvas canvas;
     if (!itemGrantMenuVisible_) {
         return;
     }
@@ -40,9 +37,9 @@ void App::drawItemGrantMenu() {
     constexpr float ButtonHeight = 62.0F;
     constexpr float ArrowWidth = 76.0F;
     const float x =
-        (static_cast<float>(GetScreenWidth()) - Width) * 0.5F;
+        (static_cast<float>(uiScreenWidth()) - Width) * 0.5F;
     const float y =
-        (static_cast<float>(GetScreenHeight()) - Height) * 0.5F;
+        (static_cast<float>(uiScreenHeight()) - Height) * 0.5F;
     const float contentWidth = Width - Padding * 2.0F;
 
     ui_.drawPanel({x, y, Width, Height}, 250);
@@ -87,25 +84,9 @@ void App::drawItemGrantMenu() {
         "RARITY", {x + Padding, y + 316.0F},
         17.0F, {245, 220, 174, 255});
     const float rarityY = y + 348.0F;
-    if (ui_.drawButton(
-            {x + Padding, rarityY, ArrowWidth, ButtonHeight}, "<")) {
-        debugGrantLootRarity_ = adjacentLootRarity(
-            debugGrantLootRarity_, -1);
-    }
-    ui_.drawInsetPanel(
-        {x + Padding + ArrowWidth + 12.0F, rarityY,
-         contentWidth - ArrowWidth * 2.0F - 24.0F, ButtonHeight},
-        240);
-    ui_.drawLabel(
-        {x + Padding + ArrowWidth + 12.0F, rarityY,
-         contentWidth - ArrowWidth * 2.0F - 24.0F, ButtonHeight},
-        lootRarityName(debugGrantLootRarity_), 1);
-    if (ui_.drawButton(
-            {x + Width - Padding - ArrowWidth, rarityY,
-             ArrowWidth, ButtonHeight}, ">")) {
-        debugGrantLootRarity_ = adjacentLootRarity(
-            debugGrantLootRarity_, 1);
-    }
+    debugGrantLootRarity_=lootUpgradeRarity(debugGrantLootEffect_);
+    ui_.drawInsetPanel({x+Padding,rarityY,contentWidth,ButtonHeight},240);
+    ui_.drawLabel({x+Padding,rarityY,contentWidth,ButtonHeight},lootRarityName(debugGrantLootRarity_),1);
 
     drawUiText(
         TextFormat("COUNT: %d", debugGrantLootCount_),
@@ -134,7 +115,7 @@ void App::drawItemGrantMenu() {
             {x + Padding + contentWidth * 0.66F + 7.0F,
              actionY, contentWidth * 0.34F - 7.0F,
              ButtonHeight},
-            "CLOSE [F5]")) {
+            "CLOSE")) {
         itemGrantMenuVisible_ = false;
         if (simulation_.snapshot().state != RunState::Paused) {
             DisableCursor();
@@ -142,141 +123,28 @@ void App::drawItemGrantMenu() {
     }
 }
 
-void App::drawSandboxCardMenu(
-    const SimulationSnapshot& snapshot) {
-    if (!sandboxCardMenuVisible_) {
-        return;
+void App::drawSandboxCardMenu(const SimulationSnapshot& snapshot) {
+    const ScopedUiCanvas canvas;
+    if (!sandboxCardMenuVisible_) return;
+    DebugUpgradeMenuInput input;
+    input.pointer = uiMousePosition();
+    input.click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    input.wheel = GetMouseWheelMove();
+    input.backspace = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE);
+    input.enter = IsKeyPressed(KEY_ENTER);
+    for (int code = GetCharPressed(); code > 0; code = GetCharPressed()) {
+        if (code < 32) continue;
+        int bytes = 0;
+        const char* text = CodepointToUTF8(code, &bytes);
+        input.text.append(text, static_cast<std::size_t>(bytes));
     }
-
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float width = std::min(1120.0F, screenWidth - 48.0F);
-    const float height = std::min(880.0F, screenHeight - 48.0F);
-    const float x = (screenWidth - width) * 0.5F;
-    const float y = (screenHeight - height) * 0.5F;
-    constexpr float Padding = 28.0F;
-    constexpr float RowHeight = 70.0F;
-    constexpr float RowGap = 8.0F;
-    constexpr float GrantWidth = 144.0F;
-
-    ui_.drawPanel({x, y, width, height}, 252);
-    drawUiText(
-        "GRANT UPGRADES",
-        {x + Padding, y + 22.0F}, 25.0F,
-        {250, 224, 151, 255});
-    drawUiText(
-        "CLICK A CARD TO ADD ONE STACK",
-        {x + Padding, y + 54.0F}, 10.0F,
-        {202, 198, 181, 225});
-
-    const float viewportY = y + 96.0F;
-    const float footerHeight = 76.0F;
-    const float viewportHeight = height - 96.0F - footerHeight;
-    const Rectangle viewport{
-        x + Padding, viewportY,
-        width - Padding * 2.0F, viewportHeight};
-    std::array<std::size_t, RunUpgradeEffectCount> activeCards{};
-    std::size_t cardCount = 0U;
-    for (std::size_t index = 0;
-         index < RunUpgradeDefinitions.size(); ++index) {
-        if (!retiredRunUpgrade(RunUpgradeDefinitions[index].effect)) {
-            activeCards[cardCount++] = index;
-        }
-    }
-    const float contentHeight = static_cast<float>(cardCount) *
-        (RowHeight + RowGap) - RowGap;
-    const float maximumScroll = std::max(
-        0.0F, contentHeight - viewport.height);
-    if (CheckCollisionPointRec(GetMousePosition(), viewport)) {
-        sandboxCardMenuScroll_ -= GetMouseWheelMove() * 72.0F;
-    }
-    sandboxCardMenuScroll_ = std::clamp(
-        sandboxCardMenuScroll_, 0.0F, maximumScroll);
-
-    BeginScissorMode(
-        static_cast<int>(viewport.x),
-        static_cast<int>(viewport.y),
-        static_cast<int>(viewport.width),
-        static_cast<int>(viewport.height));
-    for (std::size_t index = 0; index < cardCount; ++index) {
-        const float rowY = viewport.y +
-            static_cast<float>(index) * (RowHeight + RowGap) -
-            sandboxCardMenuScroll_;
-        if (rowY + RowHeight < viewport.y ||
-            rowY > viewport.y + viewport.height) {
-            continue;
-        }
-        const Rectangle row{
-            viewport.x, rowY, viewport.width, RowHeight};
-        ui_.drawInsetPanel(row, 238);
-
-        std::string title;
-        std::string description;
-        std::string stateLabel;
-        RunUpgradeEffect card{};
-        bool grantable = true;
-        const RunUpgradeDefinition& definition =
-            RunUpgradeDefinitions[activeCards[index]];
-        card = definition.effect;
-        title = std::string(definition.name);
-        description = std::string(definition.description);
-        const int level = snapshot.runUpgradeStacks[
-            runUpgradeIndex(definition.effect)];
-        const int maximumLevel = runUpgradeMaximumLevel(
-            definition.effect);
-        grantable = level < maximumLevel;
-        stateLabel = "LVL " + std::to_string(level) + " / " +
-            std::to_string(maximumLevel);
-
-        const float textWidth = row.width - GrantWidth - 64.0F;
-        drawUiText(
-            title + "  •  " + stateLabel,
-            {row.x + 18.0F, row.y + 10.0F},
-            14.0F,
-            grantable
-                ? Color{250, 231, 185, 255}
-                : Color{119, 214, 151, 255});
-        const float descriptionSize = fitUiTextSize(
-            description, 10.0F, 7.0F, textWidth);
-        drawUiText(
-            description,
-            {row.x + 18.0F, row.y + 39.0F},
-            descriptionSize, {198, 195, 181, 225});
-        if (ui_.drawButton(
-                {row.x + row.width - GrantWidth - 12.0F,
-                 row.y + 10.0F, GrantWidth, RowHeight - 20.0F},
-                grantable ? "GRANT" : "ACTIVE") && grantable) {
-            pendingSandboxCardGrant_ = card;
-        }
-    }
-    EndScissorMode();
-
-    if (maximumScroll > 0.0F) {
-        const float fraction = sandboxCardMenuScroll_ / maximumScroll;
-        const float trackHeight = viewport.height;
-        const float thumbHeight = std::max(
-            42.0F, trackHeight * viewport.height / contentHeight);
-        DrawRectangleRounded(
-            {viewport.x + viewport.width + 7.0F,
-             viewport.y + fraction * (trackHeight - thumbHeight),
-             5.0F, thumbHeight},
-            1.0F, 4, {231, 203, 128, 210});
-    }
-
-    if (ui_.drawButton(
-            {x + width - Padding - 220.0F,
-             y + height - 58.0F, 220.0F, 42.0F},
-            snapshot.sandboxMode
-                ? "CLOSE [F5]" : "CLOSE [SHIFT+F5]")) {
+    const auto result = drawDebugUpgradeMenu(ui_, snapshot, sandboxCardMenuState_,
+        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
+    if (result.grant) pendingSandboxCardGrant_ = result.grant;
+    if (result.close) {
         sandboxCardMenuVisible_ = false;
-        if (snapshot.state != RunState::Paused) {
-            DisableCursor();
-        }
+        if (snapshot.state != RunState::Paused) DisableCursor();
     }
-    drawUiText(
-        "MOUSE WHEEL  SCROLL",
-        {x + Padding, y + height - 45.0F},
-        10.0F, {202, 198, 181, 220});
 }
 
 } // namespace ian

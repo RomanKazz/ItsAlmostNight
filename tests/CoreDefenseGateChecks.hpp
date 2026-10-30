@@ -5,17 +5,19 @@
 
 inline void checkCoreDefenseGateAndRepairs() {
     using namespace ian;
-    require(runDefenseLevelLimit(0) == 1 && runDefenseLevelLimit(4) == 4 &&
-        runDefenseLevelLimit(8) == 8, "defense card ceiling is core level, with a pre-core floor of one");
+    require(runWeaponLevelLimit(0) == 1 && runWeaponLevelLimit(4) == 4 &&
+        runWeaponLevelLimit(8) == 8, "player weapon upgrades retain their core-level limit");
     auto map = MapDefinition::defaults();
     map.resources.clear();
     map.obstacles.clear();
     auto world = WorldConfig::defaults();
     world.terrainAmplitude = 0;
     auto run = std::make_unique<Simulation>(GameBalance::defaults(), map, world);
+    MetaRunBonuses bonuses; bonuses.additionalBuildingSlots=2;
+    require(run->configureNextRunBonuses(bonuses), "core-gate fixture expands defense slots");
     run->startRunFromSeed(PlayerClass::Vanguard, 53218);
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
-        "pre-core starter cannot gain level two");
+    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
+        "starter defense gains level two independently of the core");
     for (const auto card : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::UnlockTurret,
             RunUpgradeEffect::UnlockSpikeTrap})
         require(run->grantDebugRunUpgrade(card), "pre-core new combat types can be acquired at level one");
@@ -34,37 +36,31 @@ inline void checkCoreDefenseGateAndRepairs() {
     saved.runUpgradeSelectionsRemaining = 1;
     saved.runUpgradeChoices[0] = RunUpgradeEffect::UnlockGunTurret;
     run->returnToMainMenu();
-    require(run->loadSuspendedRunState(saved), "core-gated stale offer resumes");
+    require(run->loadSuspendedRunState(saved), "higher-level defense offer resumes");
+    bool gunOffered = false;
     for (std::size_t i = 0; i < run->snapshot().runUpgradeChoiceCount; ++i) {
         const auto card = run->snapshot().runUpgradeChoices[i];
-        require(card != RunUpgradeEffect::UnlockGunTurret, "capped defense is removed from pending level offers");
-        if (runDefenseCard(card)) require(run->snapshot().runUpgradeStacks[runUpgradeIndex(card)] < 4,
-            "level rewards cannot upgrade past the core ceiling");
+        gunOffered |= card == RunUpgradeEffect::UnlockGunTurret;
     }
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
-        "normal application rejects an already core-capped defense");
-    auto shopping = run->saveSuspendedRunState();
-    shopping.runUpgradeChoicePending = false;
-    shopping.runUpgradeChoiceCount = 0;
-    shopping.runUpgradeSelectionsRemaining = 0;
-    shopping.coins = 10;
-    shopping.runShop.pending = true;
-    shopping.runShop.generation = 1;
-    shopping.runShop.offers.fill({});
-    shopping.runShop.offers[0] = {.effect = RunUpgradeEffect::UnlockGunTurret,
-        .rarity = RunUpgradeRarity::Common, .price = 1, .present = true};
+    require(gunOffered, "defense card remains eligible above core level");
+    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
+        "normal application raises defense above core level");
+    auto continued = run->saveSuspendedRunState();
+    continued.runUpgradeChoicePending = false;
+    continued.runUpgradeChoiceCount = 0;
+    continued.runUpgradeSelectionsRemaining = 0;
     run->returnToMainMenu();
-    require(run->loadSuspendedRunState(shopping) && !run->snapshot().runShopBuyable[0] &&
-        !run->buyRunShopOffer(0) && run->snapshot().coins == 10,
-        "shop cannot charge for a card blocked by core level");
-    shopping.buildings[0].level = 5;
-    run->returnToMainMenu();
-    require(run->loadSuspendedRunState(shopping) && run->snapshot().runShopBuyable[0] &&
-        run->buyRunShopOffer(0) && run->snapshot().runUpgradeStacks[gun] == 5 &&
-        run->snapshot().coins == 9, "upgrading the core reopens the same defense card");
+    require(run->loadSuspendedRunState(continued) &&
+        run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret) &&
+        run->snapshot().runUpgradeStacks[gun] == 6,
+        "defense progression continues above core level without the disabled shop");
+    for (int level = 7; level <= 9; ++level)
+        require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
+            "defense continues beyond the eighth visual tier independently of the core");
+    require(run->grantDebugRunUpgradeBatch(RunUpgradeEffect::UnlockGunTurret, 1000),
+        "bulk upgrade reaches the building storage limit");
     require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockGunTurret),
-        "next core ceiling blocks another normal upgrade");
-    require(run->closeRunShop(), "repair fixture closes the shop");
+        "building level does not overflow its saved representation");
     const auto coreId = *run->snapshot().coreId;
     const auto coreHealth = std::ranges::find(run->snapshot().buildings, coreId, &BuildingInstance::id)->health;
     const auto stock = std::array{run->snapshot().wood, run->snapshot().stone, run->snapshot().crystals};

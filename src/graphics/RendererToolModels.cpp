@@ -37,6 +37,34 @@ Matrix transformMatrix(const Transform& transform) {
                         transform.translation.z));
 }
 
+constexpr float AuthoredChildScale = 5.307597F;
+constexpr float LegacySwingScale = .74F;
+constexpr Vector3 LegacySwingRotation{22.0F, -60.0F, 7.0F};
+
+Matrix authoredSwingOuterTransform(
+    FirstPersonToolVisual visual, const FirstPersonToolTuning& tuning,
+    float movementPhase, float movementAmount) {
+    const Vector3 legacyPosition = visual == FirstPersonToolVisual::Pickaxe
+        ? Vector3{.55401313F, -.349843F, -.7427701F}
+        : Vector3{.39473686F, -.349843F, -.7427701F};
+    const float bob = std::clamp(movementAmount, 0.0F, 1.0F) *
+        std::max(tuning.movementBob, 0.0F);
+    const Vector3 offset{
+        tuning.position.x - legacyPosition.x + std::sin(movementPhase) * .012F * bob,
+        tuning.position.y - legacyPosition.y - std::abs(std::cos(movementPhase)) * .014F * bob,
+        tuning.position.z - legacyPosition.z,
+    };
+    const float scale = tuning.scale / LegacySwingScale;
+    Matrix outer = MatrixScale(scale, scale, scale);
+    outer = MatrixMultiply(outer, MatrixRotateZ(
+        (tuning.rotation.z - LegacySwingRotation.z) * DEG2RAD));
+    outer = MatrixMultiply(outer, MatrixRotateY(
+        (tuning.rotation.y - LegacySwingRotation.y) * DEG2RAD));
+    outer = MatrixMultiply(outer, MatrixRotateX(
+        (tuning.rotation.x - LegacySwingRotation.x) * DEG2RAD));
+    return MatrixMultiply(outer, MatrixTranslate(offset.x, offset.y, offset.z));
+}
+
 } // namespace
 
 bool Renderer::hasAlternateHarvestSwingAnimation() const {
@@ -54,11 +82,8 @@ bool Renderer::drawFirstPersonTool(
     const bool fireWand = visual == FirstPersonToolVisual::FireWand;
     const bool wand = iceWand || fireWand;
     const bool bomb = visual == FirstPersonToolVisual::Bomb;
-    const bool axe = visual == FirstPersonToolVisual::Axe;
     const bool pickaxe = visual == FirstPersonToolVisual::Pickaxe;
-    const bool club = visual == FirstPersonToolVisual::Club;
-    const bool axeLike = axe || club;
-    const bool authoredHarvestSwing = axeLike || pickaxe;
+    const bool authoredHarvestSwing = usesAuthoredToolSwing(visual);
     switch (visual) {
     case FirstPersonToolVisual::None:
         break;
@@ -76,9 +101,6 @@ bool Renderer::drawFirstPersonTool(
         break;
     case FirstPersonToolVisual::FireWand:
         resource = &resources_.fireWandModel();
-        break;
-    case FirstPersonToolVisual::Hammer:
-        resource = &resources_.hammerModel();
         break;
     case FirstPersonToolVisual::Bomb:
         break;
@@ -126,57 +148,27 @@ bool Renderer::drawFirstPersonTool(
         std::abs(std::cos(movementPhase)) * 0.014F * bob;
     const auto cast = wand_presentation::pose(fireWand, iceChargeProgress, iceRecoilProgress);
     rlPushMatrix();
-    constexpr Vector3 LegacyPickaxePosition{
-        0.55401313F, -0.349843F, -0.7427701F};
-    constexpr Vector3 LegacyAxePosition{
-        0.39473686F, -0.349843F, -0.7427701F};
-    constexpr Vector3 LegacyPickaxeRotation{22.0F, -60.0F, 7.0F};
-    constexpr float LegacyPickaxeScale = 0.74F;
-    const Vector3 authoredPosition = axeLike
-        ? LegacyAxePosition : LegacyPickaxePosition;
-    const float wandX = authoredHarvestSwing
-        ? tuning.position.x - authoredPosition.x + bobX
-        : (wand ? tuning.position.x - .12F + cast.offset.x + bobX
-                : tuning.position.x + bobX);
-    const float wandY = authoredHarvestSwing
-        ? tuning.position.y - authoredPosition.y - bobY
-        : (wand ? tuning.position.y - bobY + cast.offset.y
-                : tuning.position.y - bobY);
-    const float wandZ = authoredHarvestSwing
-        ? tuning.position.z - authoredPosition.z
-        : (wand ? tuning.position.z + cast.offset.z
-                : tuning.position.z + swingPush);
-    rlTranslatef(wandX, wandY, wandZ);
-    if (wand) {
-        rlRotatef(cast.rotation.x, 1, 0, 0);
-        rlRotatef(cast.rotation.y, 0, 1, 0);
-        rlRotatef(cast.rotation.z, 0, 0, 1);
+    if (authoredHarvestSwing) {
+        const Matrix outer = authoredSwingOuterTransform(
+            visual, tuning, movementPhase, movementAmount);
+        rlMultMatrixf(MatrixToFloatV(outer).v);
+    } else {
+        rlTranslatef(
+            tuning.position.x + bobX + (wand ? -.12F + cast.offset.x : 0.0F),
+            tuning.position.y - bobY + (wand ? cast.offset.y : 0.0F),
+            tuning.position.z + (wand ? cast.offset.z : swingPush));
+        if (wand) {
+            rlRotatef(cast.rotation.x, 1, 0, 0);
+            rlRotatef(cast.rotation.y, 0, 1, 0);
+            rlRotatef(cast.rotation.z, 0, 0, 1);
+        }
+        rlRotatef(swingPitch, 1, 0, 0);
+        rlRotatef(tuning.rotation.x, 1, 0, 0);
+        rlRotatef(tuning.rotation.y, 0, 1, 0);
+        rlRotatef(tuning.rotation.z, 0, 0, 1);
+        const float scale = bomb ? tuning.scale / 1.5F : tuning.scale;
+        rlScalef(scale, scale, scale);
     }
-    // Swing in camera space. Applying this before the model's local pose
-    // keeps the strike aimed forward even when the tool is yawed in-hand.
-    if (!authoredHarvestSwing) {
-        rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
-    }
-    // Blender exports the handle along local +Y. With the origin at the
-    // grip, these rotations move the head without making the hand slide.
-    rlRotatef(authoredHarvestSwing
-                  ? tuning.rotation.x - LegacyPickaxeRotation.x
-                  : tuning.rotation.x,
-              1.0F, 0.0F, 0.0F);
-    rlRotatef(authoredHarvestSwing
-                  ? tuning.rotation.y - LegacyPickaxeRotation.y
-                  : tuning.rotation.y,
-              0.0F, 1.0F, 0.0F);
-    rlRotatef(authoredHarvestSwing
-                  ? tuning.rotation.z - LegacyPickaxeRotation.z
-                  : tuning.rotation.z,
-              0.0F, 0.0F, 1.0F);
-    const float modelScale = bomb
-        ? tuning.scale / 1.5F
-        : (authoredHarvestSwing
-               ? tuning.scale / LegacyPickaxeScale
-               : tuning.scale);
-    rlScalef(modelScale, modelScale, modelScale);
     Shader* viewModelShader = resources_.viewModelShader().valid()
         ? &resources_.viewModelShader().get()
         : nullptr;
@@ -213,14 +205,13 @@ bool Renderer::drawFirstPersonTool(
                 animation.sample(progress));
             if (pickaxe) {
                 const Matrix base = transformMatrix(
-                    animation.baseTransform());
+                    resources_.pickaxeAnimation().baseTransform());
                 model.transform = MatrixMultiply(
                     MatrixInvert(base), animated);
             } else {
                 // The pickaxe mesh has this Blender child-object scale baked
                 // into its vertices. Apply it to the standalone axe mesh so
                 // both tools share the authored pivot and camera space.
-                constexpr float AuthoredChildScale = 5.307597F;
                 model.transform = MatrixMultiply(
                     MatrixScale(AuthoredChildScale,
                                 AuthoredChildScale,
@@ -290,11 +281,8 @@ void Renderer::drawFirstPersonSwingTrail(
     const FirstPersonToolTuning& tuning,
     const Camera3D& viewModelCamera,
     bool alternateHarvestSwing) {
-    const bool axe = visual == FirstPersonToolVisual::Axe;
-    const bool club = visual == FirstPersonToolVisual::Club;
     const bool pickaxe = visual == FirstPersonToolVisual::Pickaxe;
-    const bool axeLike = axe || club;
-    if (!axeLike && !pickaxe) return;
+    if (!usesAuthoredToolSwing(visual)) return;
     const bool useAlternateAnimation =
         alternateHarvestSwing &&
         resources_.pickaxeAlternateAnimation().valid();
@@ -302,10 +290,6 @@ void Renderer::drawFirstPersonSwingTrail(
         ? resources_.pickaxeAlternateAnimation()
         : resources_.pickaxeAnimation();
     if (!animation.valid()) return;
-    const GlbNodeAnimation& trailAnimation = useAlternateAnimation
-        ? resources_.pickaxeAnimation()
-        : animation;
-    if (!trailAnimation.valid()) return;
 
     const float progress = std::clamp(swingProgress, 0.0F, 1.0F);
     // The primary clip contacts on frame 20; the alternate on frame 27 and
@@ -325,54 +309,35 @@ void Renderer::drawFirstPersonSwingTrail(
         (1.0F - smoothStep((progress - trailFadeOutStart) /
                            (trailEnd - trailFadeOutStart)));
     if (visibility <= 0.001F) return;
+    // Start with a faint ribbon and build its opacity through the stroke;
+    // retain the final fade so the trail disappears without a hard cut.
+    const float strokeOpacity = 0.45F + 0.55F * smoothStep(
+        (progress - trailStart) / (trailFadeOutStart - trailStart));
 
     // Match the outer transform used by drawFirstPersonTool. The sampled
     // pivot moves the blade; its recent positions form the translucent arc.
-    const Vector3 legacyPosition = axeLike
-        ? Vector3{0.39473686F, -0.349843F, -0.7427701F}
-        : Vector3{0.55401313F, -0.349843F, -0.7427701F};
-    constexpr Vector3 LegacyRotation{22.0F, -60.0F, 7.0F};
-    constexpr float ChildScale = 5.307597F;
-    constexpr float LegacyScale = 0.74F;
-    const float bob = std::clamp(movementAmount, 0.0F, 1.0F) *
-        std::max(tuning.movementBob, 0.0F);
-    const Vector3 offset{
-        tuning.position.x - legacyPosition.x +
-            std::sin(movementPhase) * 0.012F * bob,
-        tuning.position.y - legacyPosition.y -
-            std::abs(std::cos(movementPhase)) * 0.014F * bob,
-        tuning.position.z - legacyPosition.z,
-    };
-    const float scale = tuning.scale / LegacyScale;
-    Matrix outer = MatrixScale(scale, scale, scale);
-    outer = MatrixMultiply(outer, MatrixRotateZ(
-        (tuning.rotation.z - LegacyRotation.z) * DEG2RAD));
-    outer = MatrixMultiply(outer, MatrixRotateY(
-        (tuning.rotation.y - LegacyRotation.y) * DEG2RAD));
-    outer = MatrixMultiply(outer, MatrixRotateX(
-        (tuning.rotation.x - LegacyRotation.x) * DEG2RAD));
-    outer = MatrixMultiply(outer, MatrixTranslate(
-        offset.x, offset.y, offset.z));
-
-    const Vector3 bladeEdge = axeLike
-        ? Vector3{-0.21F, 0.35F, 0.0F}
-        : Vector3{-0.36F, 0.52F, 0.0F};
-    const Vector3 bladeInsideFullWidth = axeLike
-        ? Vector3{-0.02F, 0.24F, 0.0F}
-        : Vector3{-0.13F, 0.37F, 0.0F};
+    const Matrix outer = authoredSwingOuterTransform(
+        visual, tuning, movementPhase, movementAmount);
+    const Vector3 bladeEdge = pickaxe
+        ? Vector3{-.36F, .52F, 0}
+        : Vector3{-.21F, .35F, 0};
+    const Vector3 bladeInsideFullWidth = pickaxe
+        ? Vector3{-.13F, .37F, 0}
+        : Vector3{-.02F, .24F, 0};
     const Vector3 bladeInside = Vector3Lerp(
         bladeEdge, bladeInsideFullWidth, 0.5F);
-    const auto colorFor = [visibility, useAlternateAnimation](float age) {
+    const auto colorFor = [visibility, strokeOpacity, useAlternateAnimation](float age) {
         const float fade = std::pow(
             std::clamp(1.0F - age, 0.0F, 1.0F), 1.25F);
         const float shade = 1.0F - std::clamp(age, 0.0F, 1.0F);
-        const float headAlpha = useAlternateAnimation ? 138.0F : 92.0F;
+        const float headAlpha = (useAlternateAnimation ? 138.0F : 92.0F) * 0.8F;
         return Color{
             static_cast<unsigned char>(std::lround(246.0F - 80.0F * shade)),
             static_cast<unsigned char>(std::lround(237.0F - 78.0F * shade)),
             static_cast<unsigned char>(std::lround(221.0F - 72.0F * shade)),
             static_cast<unsigned char>(std::lround(
-                std::clamp(visibility * fade * headAlpha, 0.0F, 255.0F))),
+                std::clamp(visibility * strokeOpacity * fade * headAlpha,
+                           0.0F, 255.0F))),
         };
     };
     const auto emit = [](Vector2 point, Color color) {
@@ -395,28 +360,21 @@ void Renderer::drawFirstPersonSwingTrail(
         const Matrix pivot = transformMatrix(
             clip.sample(sampleProgress));
         const Vector3 point = Vector3Transform(
-            Vector3Scale(localPoint, ChildScale), pivot);
-        Vector2 projected = GetWorldToScreen(
+            Vector3Scale(localPoint, AuthoredChildScale), pivot);
+        return GetWorldToScreen(
             Vector3Transform(point, outer), viewModelCamera);
-        if (useAlternateAnimation) {
-            projected.x = static_cast<float>(GetScreenWidth()) - projected.x;
-        }
-        return projected;
     };
-    const float shapeProgress = useAlternateAnimation
-        ? progress - 7.0F / 60.0F
-        : progress;
     int pointCount = 0;
     for (int pointIndex = 0; pointIndex <= Segments; ++pointIndex) {
         const float age =
             static_cast<float>(pointIndex) / Segments;
         const float sampleProgress =
-            shapeProgress - HeadLag - age * History;
+            progress - HeadLag - age * History;
         if (sampleProgress < 0.0F) break;
         const Vector2 edgePoint = projectedPoint(
-            trailAnimation, sampleProgress, bladeEdge);
+            animation, sampleProgress, bladeEdge);
         const Vector2 insidePoint = projectedPoint(
-            trailAnimation, sampleProgress, bladeInside);
+            animation, sampleProgress, bladeInside);
         edgePoints[static_cast<std::size_t>(pointIndex)] = edgePoint;
         insidePoints[static_cast<std::size_t>(pointIndex)] = insidePoint;
         colors[static_cast<std::size_t>(pointIndex)] = colorFor(age);
@@ -446,6 +404,9 @@ void Renderer::drawFirstPersonSwingTrail(
         emit(edge1, color1);
     }
     rlEnd();
+    // The reverse swing reverses ribbon winding. Submit both sides while
+    // culling is disabled; rlEnd only queues vertices for the next batch.
+    rlDrawRenderBatchActive();
     rlEnableBackfaceCulling();
     EndBlendMode();
 }

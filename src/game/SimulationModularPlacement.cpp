@@ -138,9 +138,9 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
         [this](double x, double z, double radius) {
             return resourceGroundPositionIsSafe(x, z, radius);
         });
-    resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
+    resources_.setWoodYieldMultiplier(woodYieldMultiplier_ * classLevelBonuses().woodYield);
     resources_.setGatheringYieldMultiplier(
-        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
+        classLevelBonuses().gatheringYield *
         (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
@@ -154,6 +154,7 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
         chestOpeningCostMultiplier_);
     resetWorldLandmarks();
     resetChallengeColumns();
+    resetWorldScenery();
     foundations_.reset();
     syncModularStructures();
     syncWorldStructures();
@@ -387,10 +388,6 @@ Simulation::validateFloorPlatformPlacement(
     const double cellSize = worldConfig_.cellSize;
     const CollisionBox floorBox =
         platformFloorCollisionBox(placement, cellSize);
-    if (placement.valid() &&
-        collisionWorld_.overlapsRampBox(floorBox)) {
-        placement.error = ModularPlacementError::Occupied;
-    }
     if (placement.valid() &&
         resourceOverlapsBox(resources_.nodes(), floorBox)) {
         placement.error =

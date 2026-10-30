@@ -32,6 +32,7 @@ struct UnlockMenuResult {
     bool interaction{};
     bool toggled{};
     std::string questId;
+    std::string shopUnlockId;
 };
 
 [[nodiscard]] Rectangle unlockMenuPanelBounds(Vector2 viewport);

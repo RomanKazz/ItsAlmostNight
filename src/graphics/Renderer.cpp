@@ -27,6 +27,20 @@ PerformanceMetric& gpuMetricForStage(
     switch (stage) {
     case RendererGpuStage::World:
         return stats.gpuWorld;
+    case RendererGpuStage::Shadow:
+        return stats.gpuShadow;
+    case RendererGpuStage::Selection:
+        return stats.gpuSelection;
+    case RendererGpuStage::Scene:
+        return stats.gpuScene;
+    case RendererGpuStage::Terrain:
+        return stats.gpuTerrain;
+    case RendererGpuStage::Objects:
+        return stats.gpuObjects;
+    case RendererGpuStage::Environment:
+        return stats.gpuEnvironment;
+    case RendererGpuStage::Overlays:
+        return stats.gpuOverlays;
     case RendererGpuStage::PostProcess:
         return stats.gpuPostProcess;
     case RendererGpuStage::ViewModelTarget:
@@ -39,6 +53,28 @@ PerformanceMetric& gpuMetricForStage(
         break;
     }
     return stats.gpuUi;
+}
+
+RendererGpuStage gpuStageForWorldPart(RendererGpuWorldPart part) {
+    switch (part) {
+    case RendererGpuWorldPart::Shadow:
+        return RendererGpuStage::Shadow;
+    case RendererGpuWorldPart::Selection:
+        return RendererGpuStage::Selection;
+    case RendererGpuWorldPart::Scene:
+        return RendererGpuStage::Scene;
+    case RendererGpuWorldPart::Terrain:
+        return RendererGpuStage::Terrain;
+    case RendererGpuWorldPart::Objects:
+        return RendererGpuStage::Objects;
+    case RendererGpuWorldPart::Environment:
+        return RendererGpuStage::Environment;
+    case RendererGpuWorldPart::Overlays:
+        return RendererGpuStage::Overlays;
+    case RendererGpuWorldPart::Count:
+        break;
+    }
+    return RendererGpuStage::Scene;
 }
 
 const std::array<std::array<Vector2, 25>, 3>& blobShadowUnitCircles() {
@@ -127,6 +163,10 @@ void Renderer::initialize() {
     rampSupportBeamModel_ = LoadModelFromMesh(
         rampSupportBeamMesh);
     resources_.initialize(settings_);
+    if (worldUiOcclusionShader_.load(nullptr, "assets/shaders/world_ui_occlusion.fs")) {
+        worldUiDepthLocation_ = GetShaderLocation(worldUiOcclusionShader_.get(), "sceneDepth");
+        worldUiViewportLocation_ = GetShaderLocation(worldUiOcclusionShader_.get(), "viewportSize");
+    }
     initializePlatformTopPartMeshes();
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
@@ -145,16 +185,33 @@ void Renderer::beginFrame() {
     performanceStats_.presentNotRunningMs = 0.0;
     performanceStats_.presentThreadCpuValid = false;
     pollGpuTimers();
+    sampledGpuWorldPart_.reset();
     sampledGpuStage_.reset();
     if (gpuProfilingEnabled_) {
-        // One non-nested elapsed query every eight frames. CPU timings still
-        // record every frame, without forcing extra batch submissions.
+        // One non-nested elapsed query every eight frames. Profiling must not
+        // force six extra batch submissions on every frame being measured.
+        // Rotate totals and subpasses; CPU timings still record every frame.
         constexpr std::uint64_t SampleInterval = 8U;
         const std::uint64_t frame = gpuProfilingFrameCount_++;
         if (frame % SampleInterval == 0U) {
             sampledGpuStage_ = static_cast<RendererGpuStage>(
                 (frame / SampleInterval) %
                 static_cast<std::uint64_t>(RendererGpuStage::Count));
+            switch (*sampledGpuStage_) {
+            case RendererGpuStage::Shadow:
+            case RendererGpuStage::Selection:
+            case RendererGpuStage::Scene:
+            case RendererGpuStage::Terrain:
+            case RendererGpuStage::Objects:
+            case RendererGpuStage::Environment:
+            case RendererGpuStage::Overlays:
+                sampledGpuWorldPart_ = static_cast<RendererGpuWorldPart>(
+                    static_cast<std::size_t>(*sampledGpuStage_) -
+                    static_cast<std::size_t>(RendererGpuStage::Shadow));
+                break;
+            default:
+                break;
+            }
         }
     }
     instanceBuffers_.beginFrame();
@@ -257,6 +314,7 @@ void Renderer::shutdown() {
     terrainRenderer_.shutdown();
     selectionEffectCoverage_.unload();
     selectionEffectCoverageReady_ = false;
+    worldUiOcclusionShader_.unload();
     resources_.shutdown();
 }
 
@@ -305,6 +363,7 @@ void Renderer::shutdownGpuTimers() {
     gpuQueryWriteIndices_ = {};
     activeGpuStage_.reset();
     activeGpuQueryIndex_ = 0U;
+    sampledGpuWorldPart_.reset();
     sampledGpuStage_.reset();
     gpuProfilingFrameCount_ = 0U;
     gpuProfilingEnabled_ = false;
@@ -320,7 +379,8 @@ void Renderer::beginGpuTimer(RendererGpuStage stage) {
 #if defined(__APPLE__)
     if (!gpuProfilingEnabled_ || sampledGpuStage_ != stage || activeGpuStage_ ||
         performanceStats_.gpuQueriesIssued != 0U ||
-        stage == RendererGpuStage::Count) {
+        stage == RendererGpuStage::Count ||
+        (stage == RendererGpuStage::World && sampledGpuWorldPart_)) {
         return;
     }
     const std::size_t stageIndex = static_cast<std::size_t>(stage);
@@ -363,6 +423,18 @@ void Renderer::endGpuTimer(RendererGpuStage stage) {
 #else
     (void)stage;
 #endif
+}
+
+void Renderer::beginGpuWorldPart(RendererGpuWorldPart part) {
+    if (sampledGpuWorldPart_ == part) {
+        beginGpuTimer(gpuStageForWorldPart(part));
+    }
+}
+
+void Renderer::endGpuWorldPart(RendererGpuWorldPart part) {
+    if (sampledGpuWorldPart_ == part) {
+        endGpuTimer(gpuStageForWorldPart(part));
+    }
 }
 
 void Renderer::pollGpuTimers() {
@@ -413,13 +485,10 @@ void Renderer::processInput() {
     const bool controlDown =
         IsKeyDown(KEY_LEFT_CONTROL) ||
         IsKeyDown(KEY_RIGHT_CONTROL);
-    if (IsKeyPressed(KEY_F2)) {
-        showDebugPanel_ = !showDebugPanel_;
-    }
     if (IsKeyPressed(KEY_F1)) {
         showShadowMap_ = !showShadowMap_;
     }
-    if (IsKeyPressed(KEY_F3)) {
+    if (controlDown && IsKeyPressed(KEY_F3)) {
         settings_.shadows = !settings_.shadows;
     }
     if (IsKeyPressed(KEY_F4)) {
@@ -462,146 +531,8 @@ void Renderer::setGraphicsPanelVisible(bool visible) {
     showDebugPanel_ = visible;
 }
 
-bool Renderer::shadowMapVisible() const {
-    return showShadowMap_;
-}
-
 void Renderer::setShadowMapVisible(bool visible) {
     showShadowMap_ = visible;
-}
-
-void Renderer::drawUpgradeEffect(Vector3 position, float progress,
-                                 float scale) {
-    progress = std::clamp(progress, 0.0F, 1.0F);
-    scale = std::max(scale, 0.1F);
-    const float radius = 0.82F * scale;
-    const float height = 3.2F * scale;
-    const Vector3 top{
-        position.x,
-        position.y + height,
-        position.z,
-    };
-    rlDrawRenderBatchActive();
-    BeginBlendMode(BLEND_ADDITIVE);
-    rlDisableDepthMask();
-    if (resources_.upgradeEffectShader().valid()) {
-        Shader& shader = resources_.upgradeEffectShader().get();
-        const float timeSeconds =
-            static_cast<float>(GetTime());
-        SetShaderValue(
-            shader, upgradeEffectOriginLocation_, &position,
-            SHADER_UNIFORM_VEC3);
-        SetShaderValue(
-            shader, upgradeEffectHeightLocation_, &height,
-            SHADER_UNIFORM_FLOAT);
-        SetShaderValue(
-            shader, upgradeEffectProgressLocation_, &progress,
-            SHADER_UNIFORM_FLOAT);
-        SetShaderValue(
-            shader, upgradeEffectTimeLocation_, &timeSeconds,
-            SHADER_UNIFORM_FLOAT);
-        BeginShaderMode(shader);
-        DrawCylinderEx(position, top, radius, radius, 48,
-                       WHITE);
-        EndShaderMode();
-    } else {
-        const float cylinderEnvelope =
-            std::sin(progress * PI);
-        const auto alpha = static_cast<unsigned char>(
-            std::lround(
-                std::max(cylinderEnvelope, 0.0F) * 70.0F));
-        DrawCylinderEx(
-            position, top, radius, radius, 48,
-            {255, 172, 48, alpha});
-    }
-
-    const float appear =
-        std::clamp(progress / 0.12F, 0.0F, 1.0F);
-    const float disappear =
-        1.0F -
-        std::clamp((progress - 0.62F) / 0.38F, 0.0F, 1.0F);
-    const float envelope =
-        appear * appear * (3.0F - 2.0F * appear) *
-        disappear * disappear *
-        (3.0F - 2.0F * disappear);
-    constexpr int RingCount = 7;
-    for (int index = 0; index < RingCount; ++index) {
-        const float phase = std::fmod(
-            progress * 1.65F +
-                static_cast<float>(index) /
-                    static_cast<float>(RingCount),
-            1.0F);
-        const float ringFade =
-            std::sin(phase * PI) * envelope;
-        const auto alpha = static_cast<unsigned char>(
-            std::lround(ringFade * 185.0F));
-        constexpr int RingLayers = 7;
-        for (int layer = 0; layer < RingLayers; ++layer) {
-            const float centeredLayer =
-                static_cast<float>(layer) -
-                static_cast<float>(RingLayers - 1) * 0.5F;
-            const float layerFade =
-                1.0F -
-                std::abs(centeredLayer) /
-                    (static_cast<float>(RingLayers) * 0.5F);
-            const auto layerAlpha =
-                static_cast<unsigned char>(
-                    std::lround(
-                        static_cast<float>(alpha) *
-                        layerFade));
-            DrawCircle3D(
-                {position.x,
-                 position.y + phase * height +
-                     centeredLayer * 0.012F * scale,
-                 position.z},
-                radius *
-                    (1.015F + ringFade * 0.045F +
-                     centeredLayer * 0.012F),
-                {1.0F, 0.0F, 0.0F}, 90.0F,
-                {255, 205, 82, layerAlpha});
-        }
-    }
-
-    constexpr int StarCount = 14;
-    for (int index = 0; index < StarCount; ++index) {
-        const float seed =
-            static_cast<float>(index) /
-            static_cast<float>(StarCount);
-        const float angle =
-            seed * 2.0F * PI + progress * 2.4F;
-        const float phase = std::fmod(
-            seed * 3.731F + progress * 1.28F, 1.0F);
-        const float pulse =
-            (0.55F +
-             0.45F *
-                 std::sin(progress * 31.0F +
-                          static_cast<float>(index) * 2.17F)) *
-            envelope * std::sin(phase * PI);
-        const auto alpha = static_cast<unsigned char>(
-            std::lround(std::max(pulse, 0.0F) * 235.0F));
-        const Vector3 center{
-            position.x + std::cos(angle) * radius * 1.04F,
-            position.y + phase * height,
-            position.z + std::sin(angle) * radius * 1.04F,
-        };
-        const float starSize =
-            scale * (0.045F + pulse * 0.075F);
-        const Vector3 tangent{
-            -std::sin(angle), 0.0F, std::cos(angle)};
-        DrawLine3D(
-            {center.x - tangent.x * starSize, center.y,
-             center.z - tangent.z * starSize},
-            {center.x + tangent.x * starSize, center.y,
-             center.z + tangent.z * starSize},
-            {255, 242, 190, alpha});
-        DrawLine3D(
-            {center.x, center.y - starSize, center.z},
-            {center.x, center.y + starSize, center.z},
-            {255, 242, 190, alpha});
-    }
-    rlDrawRenderBatchActive();
-    rlEnableDepthMask();
-    EndBlendMode();
 }
 
 void Renderer::drawRepairShockwave(

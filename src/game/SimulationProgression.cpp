@@ -1,4 +1,7 @@
 #include "game/Simulation.hpp"
+#include "progression/DefenseAttackModifiers.hpp"
+#include "progression/RunUpgradeOfferSelection.hpp"
+#include "progression/CoreCardUpgrades.hpp"
 
 #include "buildings/CoreProgression.hpp"
 #include "core/DeterministicRandom.hpp"
@@ -6,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 namespace ian {
 
@@ -14,16 +18,15 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
         weapon == PlayerWeapon::Pickaxe) {
         return true;
     }
-    if (weapon == PlayerWeapon::LegacyBareHands) {
+    if (weapon == PlayerWeapon::LegacyBareHands ||
+        weapon == PlayerWeapon::LegacyHammer) {
         return false;
     }
     if (unlimitedResources_) {
         return true;
     }
-    const bool classUnlock =
-        (playerClass_ == PlayerClass::Alchemist &&
-         weapon == PlayerWeapon::FireWand);
-    if (classUnlock) return true;
+    const auto* character = playerClassDefinition(playerClass_);
+    if (character && character->startingWeapon == weapon) return true;
     const auto unlock = weaponRunUpgrade(weapon);
     return unlock && runUpgradeStacks_[runUpgradeIndex(*unlock)] > 0;
 }
@@ -49,13 +52,6 @@ std::uint64_t insightIntegerEvent(std::uint64_t tag, std::uint64_t value) {
     return value == 0 ? tag + 1 : value;
 }
 
-std::uint64_t insightStringEvent(std::uint64_t tag, std::string_view text, int cycle) {
-    std::uint64_t value = tag ^ static_cast<std::uint64_t>(std::max(0, cycle));
-    for (const char character : text)
-        value = (value ^ static_cast<unsigned char>(character)) * 1099511628211ULL;
-    return value == 0 ? tag + 1 : value;
-}
-
 } // namespace
 
 int Simulation::playerWeaponLevel(PlayerWeapon weapon) const {
@@ -66,7 +62,6 @@ int Simulation::playerWeaponLevel(PlayerWeapon weapon) const {
 }
 
 const InsightSystem& Simulation::insightSystem() const { return insight_; }
-const ObjectiveSystem& Simulation::objectiveSystem() const { return objectives_; }
 
 std::uint64_t Simulation::structuralRevision() const {
     return structuralRevision_;
@@ -82,7 +77,9 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
     ObjectiveSystem loadedObjectives = objectives_;
     if (!loadedInsight.loadState(state.insight) ||
         !loadedObjectives.loadState(state.objectives)) return false;
+    const int previousLevels = insight_.progress().totalLevelsEarned;
     insight_ = std::move(loadedInsight);
+    applyPlayerClassLevelGrowth(insight_.progress().totalLevelsEarned - previousLevels);
     objectives_ = std::move(loadedObjectives);
     std::fill(insightRewardedEnemyIds_.begin(),
               insightRewardedEnemyIds_.end(), EntityId{});
@@ -94,12 +91,17 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 void Simulation::refreshRunUpgradeRuntimeEffects() {
     buildings_.setBuildingLimitBonus(runUpgradeCount(RunUpgradeEffect::BuildingCapacity) +
         runUpgradeCount(RunUpgradeEffect::ExtraBuilding) +
-        shrineBonusCount(shrines_, ShrineKind::Buildings, RunUpgradeEffect::BuildingCapacity));
+        static_cast<int>(std::floor(shrineBonusPower(shrines_, ShrineKind::Buildings, RunUpgradeEffect::BuildingCapacity) + 1e-9)));
+    runNightlyBombBonus_ = runUpgradeCount(RunUpgradeEffect::NightlyBomb);
+    const bool lens = lootStacks_[lootUpgradeIndex(LootUpgradeEffect::TargetingLens)] > 0;
+    towers_.setPreferMarkedTargets(lens);
+    cannons_.setPreferMarkedTargets(lens);
     const bool cardProgression = !sandboxMode_ && !unlimitedResources_;
     buildings_.setCombatCardProgressionEnabled(cardProgression);
     bool defenseLevelsChanged = false;
     if (cardProgression) {
         for (const auto type : RunBuildingTypes) {
+            if (type == BuildingType::Wall && !ownsRunBuilding(type)) continue;
             const auto card = buildingRunUpgrade(type);
             const auto level = static_cast<std::uint8_t>(std::clamp(
                 runUpgradeStacks_[runUpgradeIndex(*card)], 1, static_cast<int>(MaxStructureLevel)));
@@ -107,42 +109,65 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
                 type == BuildingType::Wall ? runUpgradePower(*card) : 0.0) || defenseLevelsChanged;
         }
     }
+    resources_.setWoodYieldMultiplier(woodYieldMultiplier_ * classLevelBonuses().woodYield);
     resources_.setGatheringYieldMultiplier(
         activeMetaBonuses_.resourceYield *
-        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0));
+        classLevelBonuses().gatheringYield);
     resources_.setNodeCapacityMultiplier(
-        1.0 + .20 * runUpgradePower(RunUpgradeEffect::ResourceCapacity));
+        1.0 + .20 * playerPassivePower(RunUpgradeEffect::ResourceCapacity));
     crystalMines_.setProductionSpeedMultiplier(
-        productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
+        productionSpeedMultiplier_ * runProductionSpeedMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::ProductionSpeed) * classLevelBonuses().productionSpeed);
     crystalMines_.setTypeProductionSpeedMultipliers(
-        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::LumberMillProduction),
-        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::QuarryProduction),
-        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::CrystalMineProduction));
+        (1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::LumberMillProduction)) * relicProductionMultiplier(ResourceType::Wood),
+        (1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::QuarryProduction)) * relicProductionMultiplier(ResourceType::Stone),
+        (1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::CrystalMineProduction)) * relicProductionMultiplier(ResourceType::Crystal));
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
     buildings_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_);
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::BuildingHealth));
     foundations_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_);
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ * shrineMultiplier(shrines_, RunUpgradeEffect::BuildingHealth));
 
+    // Rebuild defense stats from persisted powers and base meta/class data.
+    // The legacy aggregate fields remain in saves for backwards compatibility.
     const auto* defenseClass = playerClassDefinition(playerClass_);
     const double classDamage = defenseClass ? defenseClass->defenseDamageMultiplier : 1.0;
+    auto attackModifiers = shrineDefenseAttackModifiers(runUpgradePower_,shrines_);
+    attackModifiers[AttackStat::Damage].multiplier *= activeMetaBonuses_.defenseDamage *
+        classDamage * classLevelBonuses().defenseDamage * powerups_.defenseDamageMultiplier();
+    attackModifiers[AttackStat::AttackSpeed].multiplier *= activeMetaBonuses_.defenseFireRate * powerups_.defenseSpeedMultiplier();
+    std::array<AttackModifiers, GameBalance::BuildingTypeCount> buildingModifiers{};
+    for (std::size_t index = 0; index < buildingModifiers.size(); ++index) {
+        const auto type = static_cast<BuildingType>(index);
+        buildingModifiers[index] = buildingStatUpgradeModifiers(type, buildingUpgradePowers_);
+        // Pre-retirement shrine blessings belong only to weapons that can use
+        // the stat. Preserve suspended runs without offering them again.
+        for (const auto [effect, stat] : {std::pair{RunUpgradeEffect::Bounces, AttackStat::Bounces},
+                std::pair{RunUpgradeEffect::Pierce, AttackStat::Pierce}}) {
+            if (supportsAttackStat(type, stat))
+                buildingModifiers[index][stat].flat +=
+                    shrineBonusPower(shrines_, ShrineKind::Buildings, effect);
+        }
+    }
     defenseDamageMultiplier_ = activeMetaBonuses_.defenseDamage * classDamage *
-        (1.0 + 0.12 * runUpgradePower(RunUpgradeEffect::DefenseDamage));
+        (1.0 + 0.12 * runUpgradePower(RunUpgradeEffect::DefenseDamage)) * shrineMultiplier(shrines_, RunUpgradeEffect::DefenseDamage);
     defenseFireRateMultiplier_ = activeMetaBonuses_.defenseFireRate *
-        (1.0 + 0.10 * runUpgradePower(RunUpgradeEffect::DefenseFireRate));
-    const double defenseDamage = defenseDamageMultiplier_;
-    towers_.setModifiers(
-        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
-        runUpgradeCount(RunUpgradeEffect::TwinBatteries),
-        runUpgradeCount(RunUpgradeEffect::GunPiercing));
+        (1.0 + 0.10 * runUpgradePower(RunUpgradeEffect::DefenseFireRate)) * shrineMultiplier(shrines_, RunUpgradeEffect::DefenseFireRate);
+    attackModifiers[AttackStat::Damage].multiplier *= 1.0 + 0.10 * relics_.safeDeposits * relicStacks(LootUpgradeEffect::CrystalSafe);
+    towers_.setSirenStacks(relicStacks(LootUpgradeEffect::Siren));
+    cannons_.setSirenStacks(relicStacks(LootUpgradeEffect::Siren));
+    towers_.setAttackModifiers(attackModifiers);
+    towers_.setBuildingUpgradeModifiers(buildingModifiers);
+    towers_.setShrapnelCount(runUpgradeCount(RunUpgradeEffect::GunShrapnel));
     cannons_.setAttackStyle(runCannonAttackStyle(runUpgradeStacks_));
-    cannons_.setModifiers(
-        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
+    cannons_.setModifiers(1.0, 1.0, 1.0, 1.0,
         runUpgradeCount(RunUpgradeEffect::ClusterPayload));
-    traps_.setModifiers(
-        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
+    cannons_.setAttackModifiers(attackModifiers);
+    cannons_.setBuildingUpgradeModifiers(buildingModifiers);
+    traps_.setModifiers(1.0, 1.0, 1.0, 1.0,
         6.0 * runUpgradePower(RunUpgradeEffect::ReactiveTraps));
+    traps_.setAttackModifiers(attackModifiers);
+    traps_.setBuildingUpgradeModifiers(buildingModifiers);
     const auto* character = playerClassDefinition(playerClass_);
     const auto starting = character ? character->startingBuilding : BuildingType::GunTurret;
     const double startingDamage = character ? character->startingBuildingDamageMultiplier : 1.0;
@@ -154,15 +179,19 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     playerWeapons_.setRifleModifiers(
         1.0, 1.0,
         playerAttackSpeedMultiplier_ *
-            temporaryAttackSpeedMultiplier(),
+            temporaryAttackSpeedMultiplier() * classLevelBonuses().rangedSpeed,
         0);
+    const auto* currentClass = playerClassDefinition(playerClass_);
+    const double rangedClassDamage = classLevelBonuses().rangedDamage *
+        (isSelectablePlayerClass(playerClass_) && currentClass ? currentClass->damageMultiplier : 1.0);
+    bombs_.setModifiers(rangedClassDamage, classLevelBonuses().rangedSpeed);
     iceWand_.setModifiers(
-        playerWeaponLevelDamage(PlayerWeapon::IceWand, playerWeaponLevel(PlayerWeapon::IceWand)),
+        rangedClassDamage * playerWeaponLevelDamage(PlayerWeapon::IceWand,playerWeaponLevel(PlayerWeapon::IceWand)),
         1.0, 1.0, 1.0, 0.0);
     fireWand_.setModifiers(
-        playerWeaponLevelDamage(PlayerWeapon::FireWand, playerWeaponLevel(PlayerWeapon::FireWand)),
-        1.0, 1.0, playerWeaponLevelDamage(PlayerWeapon::FireWand, playerWeaponLevel(PlayerWeapon::FireWand)), 0.0);
-    const double castSpeed = playerAttackSpeedMultiplier_ *
+        rangedClassDamage * playerWeaponLevelDamage(PlayerWeapon::FireWand,playerWeaponLevel(PlayerWeapon::FireWand)),
+        1.0, 1.0, rangedClassDamage * playerWeaponLevelDamage(PlayerWeapon::FireWand,playerWeaponLevel(PlayerWeapon::FireWand)), 0.0);
+    const double castSpeed = classLevelBonuses().rangedSpeed * playerAttackSpeedMultiplier_ *
         temporaryAttackSpeedMultiplier() *
         (battlePotionBerserkRemaining_ > 0.0
              ? BattlePotionAttackSpeedMultiplier
@@ -174,6 +203,12 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
 
 void Simulation::prepareRunUpgradeChoices(int selections) {
     if (selections <= 0) return;
+    if (shrines_.offer != ShrineKind::None) {
+        runUpgradeSelectionsRemaining_ += selections+bonusSelectionsNextReward_;
+        bonusSelectionsNextReward_=0;
+        invalidateSnapshotCache();
+        return;
+    }
     runUpgradeSelectionsRemaining_ += selections +
         bonusSelectionsNextReward_;
     bonusSelectionsNextReward_ = 0;
@@ -211,17 +246,16 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
             static_cast<std::size_t>(runWeaponSlotLimit(activeMetaBonuses_))) return false;
         const auto core=buildings_.core();
         return runWeaponLevelCard(effect)
-            ? playerWeaponLevel(*weapon) < runDefenseLevelLimit(core?core->level:0U)
+            ? playerWeaponLevel(*weapon) < runWeaponLevelLimit(core?core->level:0U)
             : !playerWeaponUnlocked(*weapon);
     }
     if (const auto building = runUpgradeBuilding(effect)) {
         if (sandboxMode_ || unlimitedResources_) return false;
-        const auto core = buildings_.core();
-        if (runSlottedBuilding(*building) && runUpgradeStacks_[runUpgradeIndex(effect)] >=
-            runDefenseLevelLimit(core ? core->level : 0U)) return false;
+        if (std::ranges::find(RunEconomyBuildingTypes, *building) != RunEconomyBuildingTypes.end())
+            return runUpgradeStacks_[runUpgradeIndex(effect)] > 0;
         return runSlottedBuilding(*building)
             ? ownsRunBuilding(*building) || runBuildingArsenalCount() < static_cast<std::size_t>(runBuildingSlotLimit(activeMetaBonuses_))
-            : !ownsRunBuilding(*building);
+            : ownsRunBuilding(*building);
     }
     if (runUpgradeCannonStyle(effect)) {
         return runCannonAttackStyle(runUpgradeStacks_) == CannonAttackStyle::Standard &&
@@ -232,16 +266,19 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     switch (effect) {
     case RunUpgradeEffect::ProductionSpeed:
         return std::ranges::any_of(RunEconomyBuildingTypes,
-            [this](BuildingType type) { return ownsRunBuilding(type); });
+            [this](BuildingType type) {
+                return runUpgradeStacks_[runUpgradeIndex(*buildingRunUpgrade(type))] > 0;
+            });
     case RunUpgradeEffect::NightlyBomb:
         return playerWeaponUnlocked(PlayerWeapon::Bomb);
     case RunUpgradeEffect::ClusterPayload:
         return ownsRunBuilding(BuildingType::Cannon) || ownsRunBuilding(BuildingType::Catapult);
     case RunUpgradeEffect::ReactiveTraps:
         return ownsRunBuilding(BuildingType::SpikeTrap) || ownsRunBuilding(BuildingType::SlowTrap);
-    case RunUpgradeEffect::TwinBatteries:
-        return ownsRunBuilding(BuildingType::GunTurret) || ownsRunBuilding(BuildingType::Turret);
-    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::ProjectileCount:
+        return std::ranges::any_of(RunBuildingTypes, [this](BuildingType type) { return runCombatBuilding(type) && ownsRunBuilding(type); });
+    case RunUpgradeEffect::Pierce:
+        return std::ranges::any_of(RunBuildingTypes, [this](BuildingType type) { return runCombatBuilding(type) && ownsRunBuilding(type); });
     case RunUpgradeEffect::GunShrapnel:
         return ownsRunBuilding(BuildingType::GunTurret);
     default:
@@ -250,82 +287,69 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
 }
 
 void Simulation::generateRunUpgradeChoices() {
-    const std::size_t extraChoices = std::min<std::size_t>(
-        MaximumRunUpgradeChoices - MinimumRunUpgradeChoices,
-        static_cast<std::size_t>(std::max(
-            0, runUpgradeStacks_[runUpgradeIndex(
-                   RunUpgradeEffect::WiderChoice)])));
-    runUpgradeChoiceCount_ = MinimumRunUpgradeChoices + extraChoices;
-
-    if (lockedRunUpgrade_ &&
-        (retiredRunUpgrade(*lockedRunUpgrade_) ||
-         runUpgradeStacks_[runUpgradeIndex(*lockedRunUpgrade_)] >=
-             runUpgradeMaximumLevel(*lockedRunUpgrade_) ||
-         (*lockedRunUpgrade_ == RunUpgradeEffect::WiderChoice &&
-          runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices))) {
-        lockedRunUpgrade_.reset();
-    }
+    if (shrines_.offer != ShrineKind::None) return;
+    runUpgradePaidChoicePrice_ = 0;
+    runUpgradeChoiceCount_ = LevelUpRunUpgradeChoices;
     std::vector<RunUpgradeEffect> pool;
     pool.reserve(RunUpgradeEffectCount);
     for (const RunUpgradeDefinition& definition : RunUpgradeDefinitions) {
-        if (definition.effect == RunUpgradeEffect::ExtraBuilding || !runUpgradeAvailable(definition.effect)) continue;
-        if (definition.effect == RunUpgradeEffect::WiderChoice &&
-            runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) continue;
-        if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) continue;
-        pool.push_back(definition.effect);
+        // Extra capacity is a slot-free shop purchase, not another level-up card.
+        const auto effect = definition.effect;
+        if (effect != RunUpgradeEffect::ExtraBuilding && effect != RunUpgradeEffect::UpgradeCore &&
+            runUpgradeAvailable(effect))
+            pool.push_back(effect);
     }
-    if (pool.empty()) {
+    std::uint64_t randomState = mixBits64(
+        static_cast<std::uint64_t>(terrain_.seed()) ^
+        (static_cast<std::uint64_t>(wave_) * 0x9e3779b97f4a7c15ULL) ^
+        (static_cast<std::uint64_t>(++runUpgradeOfferGeneration_) * 0xd1b54a32d192ed03ULL));
+    randomState = mixBits64(randomState + 0x4918ecdd7f5a1701ULL);
+    const bool coreEligible = runUpgradeAvailable(RunUpgradeEffect::UpgradeCore);
+    const bool coreSelected = coreEligible && (pool.empty() || randomState % 100ULL < 25ULL);
+    if (pool.empty() && !coreSelected) {
         runUpgradeChoiceCount_ = 0;
         runUpgradeChoicePending_ = false;
         runUpgradeSelectionsRemaining_ = 0;
         return;
     }
-    std::uint64_t randomState = mixBits64(
-        static_cast<std::uint64_t>(terrain_.seed()) ^
-        (static_cast<std::uint64_t>(wave_) *
-         0x9e3779b97f4a7c15ULL) ^
-        (static_cast<std::uint64_t>(++runUpgradeOfferGeneration_) *
-         0xd1b54a32d192ed03ULL));
-    const auto cardWeight = runUpgradeOfferWeight;
-    const auto chooseWeighted =
-        [&randomState, &cardWeight](
-            const std::vector<RunUpgradeEffect>& candidates) {
-            int totalWeight = 0;
-            for (const RunUpgradeEffect effect : candidates) {
-                totalWeight += std::max(1, cardWeight(effect));
-            }
-            randomState = mixBits64(
-                randomState + 0x9e3779b97f4a7c15ULL);
-            int roll = static_cast<int>(
-                randomState % static_cast<std::uint64_t>(
-                                  std::max(1, totalWeight)));
-            for (std::size_t index = 0;
-                 index < candidates.size(); ++index) {
-                roll -= std::max(1, cardWeight(candidates[index]));
-                if (roll < 0) return index;
-            }
-            return candidates.size() - 1U;
-        };
-    std::size_t firstRandomIndex = 0U;
-    if (lockedRunUpgrade_) {
-        runUpgradeChoices_[0] = *lockedRunUpgrade_;
-        std::erase(pool, runUpgradeChoices_[0]);
-        firstRandomIndex = 1U;
+    auto ownedLevels = runUpgradeStacks_;
+    for (const auto effect : pool) {
+        if (const auto weapon = runUpgradeWeapon(effect);
+            weapon && playerWeaponUnlocked(*weapon))
+            ownedLevels[runUpgradeIndex(effect)] = std::max(1, ownedLevels[runUpgradeIndex(effect)]);
+        if (const auto building = runUpgradeBuilding(effect);
+            building && ownsRunBuilding(*building))
+            ownedLevels[runUpgradeIndex(effect)] = std::max(1, ownedLevels[runUpgradeIndex(effect)]);
     }
-    runUpgradeChoiceCount_ = std::min(
-        runUpgradeChoiceCount_, firstRandomIndex + pool.size());
-    for (std::size_t index = firstRandomIndex;
+    const auto chooseWeighted = [&ownedLevels, &randomState](const std::vector<RunUpgradeEffect>& candidates) {
+        return chooseRunUpgradeOffer(candidates, ownedLevels, randomState);
+    };
+    runUpgradeChoiceCount_ = std::min(runUpgradeChoiceCount_, pool.size() + (coreSelected ? 1U : 0U));
+    randomState = mixBits64(randomState + 0xced4e824f2941b37ULL);
+    const std::size_t coreSlot = coreSelected
+        ? static_cast<std::size_t>(randomState % runUpgradeChoiceCount_) : runUpgradeChoiceCount_;
+    for (std::size_t index = 0U;
          index < runUpgradeChoiceCount_; ++index) {
-        const std::size_t selected = chooseWeighted(pool);
-        runUpgradeChoices_[index] = pool[selected];
+        const bool coreHere = index == coreSlot;
+        const std::size_t selected = coreHere ? 0 : chooseWeighted(pool);
+        const auto effect = coreHere ? RunUpgradeEffect::UpgradeCore : pool[selected];
+        runUpgradeChoices_[index] = effect;
         randomState = mixBits64(randomState + 0xa0761d6478bd642fULL);
         const double roll = static_cast<double>(randomState >> 11U) *
             (1.0 / 9007199254740992.0);
-        runUpgradeRarities_[index] = fixedRunUpgradePower(pool[selected])
-            ? fixedRunUpgradeRarity(pool[selected])
-            : rollRunUpgradeRarity(activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck), roll);
-        pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(selected));
+        const auto building = runUpgradeBuilding(effect);
+        const bool upgradingWeaponBuilding = building && runCombatBuilding(*building) &&
+            runUpgradeStacks_[runUpgradeIndex(effect)] > 0;
+        runUpgradeRarities_[index] = fixedRunUpgradePower(effect) && effect != RunUpgradeEffect::UpgradeCore && !upgradingWeaponBuilding
+            ? fixedRunUpgradeRarity(effect)
+            : rollRunUpgradeRarity(activeMetaBonuses_.luck + 0.10 * playerPassivePower(RunUpgradeEffect::Luck), roll);
+        runUpgradeRollSeeds_[index] = mixBits64(randomState ^
+            (static_cast<std::uint64_t>(effect) << 32U) ^
+            (static_cast<std::uint64_t>(index) * 0xe7037ed1a0b428dbULL));
+        if (!coreHere) pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(selected));
     }
+    if (runUpgradeChoiceCount_ > DefaultRunUpgradeChoices)
+        runUpgradePaidChoicePrice_ = PaidRunUpgradeChoicePrice;
 }
 
 double Simulation::runUpgradePower(RunUpgradeEffect effect) const {
@@ -336,48 +360,110 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
     return runUpgradeDiscreteAmount(effect, runUpgradePower(effect));
 }
 
-bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity,
+    int copies, bool debug, std::uint64_t rollSeed) {
     if (effect == RunUpgradeEffect::RiskyInvestment) return false;
+    if (effect == RunUpgradeEffect::UpgradeCore &&
+        (!buildings_.core() || buildings_.core()->level >= MaxStructureLevel)) return false;
     if (const auto building = runUpgradeBuilding(effect)) {
-        if (runSlottedBuilding(*building)) {
-            const auto core = buildings_.core();
-            if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
-                runDefenseLevelLimit(core ? core->level : 0U)) return false;
-            if (!ownsRunBuilding(*building) &&
+        if (runSlottedBuilding(*building) &&
+            std::ranges::find(RunEconomyBuildingTypes, *building) == RunEconomyBuildingTypes.end()) {
+            if (!ownsRunBuilding(*building) && !debug &&
                 runBuildingArsenalCount() >= static_cast<std::size_t>(runBuildingSlotLimit(activeMetaBonuses_))) return false;
-        } else if (ownsRunBuilding(*building)) return false;
+        } else if (!runSlottedBuilding(*building) && ownsRunBuilding(*building)) return false;
     }
     if (const auto weapon=runUpgradeWeapon(effect)) {
-        if (!playerWeaponUnlocked(*weapon) && runWeaponArsenalCount() >=
+        if (!debug && !playerWeaponUnlocked(*weapon) && runWeaponArsenalCount() >=
             static_cast<std::size_t>(runWeaponSlotLimit(activeMetaBonuses_))) return false;
         if (!runWeaponLevelCard(effect) && playerWeaponUnlocked(*weapon)) return false;
         const auto core=buildings_.core();
-        if (runWeaponLevelCard(effect) &&
-            playerWeaponLevel(*weapon)>=runDefenseLevelLimit(core?core->level:0U)) return false;
+        if (runWeaponLevelCard(effect) && !debug &&
+            playerWeaponLevel(*weapon)>=runWeaponLevelLimit(core?core->level:0U)) return false;
     }
-    // Explicit legacy grants keep their ownership/exclusivity rules.
-    if (runUpgradeCannonStyle(effect) &&
+    // Explicit legacy grants keep their ownership/exclusivity rules, while
+    // normal card eligibility rejects these retired building branches.
+    if (!debug && runUpgradeCannonStyle(effect) &&
         (runCannonAttackStyle(runUpgradeStacks_) != CannonAttackStyle::Standard ||
          !(sandboxMode_ || unlimitedResources_ || ownsRunBuilding(BuildingType::Cannon)))) return false;
+    const bool unique = (runUpgradeBuilding(effect) && !runDefenseCard(effect)) ||
+        (runUpgradeWeapon(effect) && !runWeaponLevelCard(effect)) || runUpgradeCannonStyle(effect);
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
-    const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
-    if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
+    if (unique && stacks > 0) return false;
+    const int amount = effect == RunUpgradeEffect::UpgradeCore
+        ? std::min({copies, runUpgradeMaximumLevel(effect) - stacks,
+            static_cast<int>(MaxStructureLevel) - buildings_.core()->level})
+        : unique ? 1 : (runDefenseCard(effect) || runWeaponLevelCard(effect))
+        ? std::min(copies, runUpgradeMaximumLevel(effect) - stacks) : copies;
+    if (amount <= 0 || amount > std::numeric_limits<int>::max() - stacks) return false;
+    const double power = debug ? runUpgradePowerGain(effect, rarity) * amount
+        : runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
+    if ((!debug && stacks >= runUpgradeMaximumLevel(effect)) || power <= 0.0) return false;
+    // Protect numeric storage, not gameplay-level caps. Bulk application remains
+    // O(1) regardless of copy count and refreshes runtime effects once.
+    if (!std::isfinite(power) || runUpgradePower(effect) + power >
+        static_cast<double>(std::numeric_limits<int>::max()) / 16.0) return false;
+    if (debug && runUpgradeCannonStyle(effect)) {
+        for (const auto& definition : RunUpgradeDefinitions) {
+            if (definition.effect != effect && runUpgradeCannonStyle(definition.effect)) {
+                runUpgradeStacks_[runUpgradeIndex(definition.effect)] = 0;
+                runUpgradePower_[runUpgradeIndex(definition.effect)] = 0.0;
+            }
+        }
+    }
     if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
         const auto defenseHalf = effect == RunUpgradeEffect::Damage ? RunUpgradeEffect::DefenseDamage : RunUpgradeEffect::DefenseFireRate;
         double& defensePower = runUpgradePower_[runUpgradeIndex(defenseHalf)];
         if (defensePower + power > static_cast<double>(std::numeric_limits<int>::max()) / 16.0) return false;
         defensePower += power;
     }
-    ++stacks;
+    const int oldLevel = stacks;
+    stacks += amount;
     runUpgradePower_[runUpgradeIndex(effect)] += power;
+    if (const auto building = runUpgradeBuilding(effect);
+        building && runCombatBuilding(*building)) {
+        for (int level = std::max(2, oldLevel + 1); level <= stacks; ++level) {
+            const auto seed = !debug && level == oldLevel + 1
+                ? rollSeed
+                : mixBits64(static_cast<std::uint64_t>(terrain_.seed()) ^
+                    (static_cast<std::uint64_t>(*building) << 32U) ^
+                    (static_cast<std::uint64_t>(level) * 0x9e3779b97f4a7c15ULL));
+            applyBuildingStatUpgrade(buildingUpgradePowers_, *building,
+                rollBuildingStatUpgrade(*building, rarity, seed), rarity);
+        }
+    }
+    const auto addCount = [](int value, double increment) {
+        return static_cast<int>(std::min(static_cast<double>(std::numeric_limits<int>::max()),
+            static_cast<double>(value) + increment));
+    };
     switch (effect) {
+    case RunUpgradeEffect::UpgradeCore:
+        for (int copy = 0; copy < amount; ++copy) {
+            const auto seed = !debug && copy == 0 ? rollSeed :
+                mixBits64(static_cast<std::uint64_t>(terrain_.seed()) ^
+                    (static_cast<std::uint64_t>(oldLevel + copy + 1) * 0xd1b54a32d192ed03ULL));
+            const auto roll = rollCoreCardUpgrade(rarity, seed);
+            for (std::size_t statIndex = 0; statIndex < roll.count; ++statIndex) {
+                const auto stat = static_cast<std::size_t>(roll.stats[statIndex]);
+                const double oldPower = coreCardPowers_[stat];
+                coreCardPowers_[stat] += roll.power;
+                if (roll.stats[statIndex] == CoreCardStat::BuildRadius) {
+                    const double gained = std::floor(coreCardPowers_[stat]) - std::floor(oldPower);
+                    buildings_.setCoreBuildRadius(addCount(buildings_.coreBuildRadius(), gained));
+                }
+            }
+            static_cast<void>(buildings_.upgradeCoreWithCard());
+        }
+        buildings_.setCoreCardBonuses(coreHealthBaseLevel_, coreCardPowers_[0],
+            coreBuildingBaseLevel_, coreCardPowers_[2]);
+        break;
     case RunUpgradeEffect::Damage:
         runPlayerDamageMultiplier_ += 0.10 * power;
         break;
     case RunUpgradeEffect::AttackSpeed:
+    case RunUpgradeEffect::ExperienceGain:
         break;
     case RunUpgradeEffect::MoveSpeed:
-        runPlayerMoveSpeedMultiplier_ += 0.07 * power;
+        runPlayerMoveSpeedMultiplier_ += 0.08 * power;
         break;
     case RunUpgradeEffect::MaximumHealth:
         playerBonusMaxHealth_ += 12.0 * power;
@@ -393,33 +479,41 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::ExtraBuilding:
         break;
     case RunUpgradeEffect::BuildingHealth:
-        runBuildingMaxHealthMultiplier_ += 0.12 * power;
+        runBuildingMaxHealthMultiplier_ += 0.15 * power;
         break;
     case RunUpgradeEffect::BuildRadius:
         buildings_.setCoreBuildRadius(
-            buildings_.coreBuildRadius() + static_cast<int>(std::round(3.0 * power)));
+            addCount(buildings_.coreBuildRadius(), std::floor(3.0 * runUpgradePower(effect)) -
+                std::floor(3.0 * (runUpgradePower(effect) - power))));
         break;
     case RunUpgradeEffect::DefenseDamage:
         break;
     case RunUpgradeEffect::DefenseFireRate:
         break;
     case RunUpgradeEffect::ProductionSpeed:
-        runProductionSpeedMultiplier_ += 0.15 * power;
+        runProductionSpeedMultiplier_ += 0.12 * power;
         break;
     case RunUpgradeEffect::NightlyBomb:
-        runNightlyBombBonus_ += static_cast<int>(power);
+        runNightlyBombBonus_ = runUpgradeCount(RunUpgradeEffect::NightlyBomb);
         break;
     case RunUpgradeEffect::WiderChoice:
+    case RunUpgradeEffect::LockChoice:
         break;
-    case RunUpgradeEffect::PoisonChance:
     case RunUpgradeEffect::BloodHarvest:
     case RunUpgradeEffect::Overkill:
-    case RunUpgradeEffect::Ricochet:
+    case RunUpgradeEffect::Bounces:
+    case RunUpgradeEffect::ProjectileSpeed:
+    case RunUpgradeEffect::AttackDuration:
+    case RunUpgradeEffect::AttackSize:
+    case RunUpgradeEffect::CriticalChance:
+    case RunUpgradeEffect::CriticalDamage:
+    case RunUpgradeEffect::AttackKnockback:
+    case RunUpgradeEffect::PoisonChance:
     case RunUpgradeEffect::Salvager:
-    case RunUpgradeEffect::TwinBatteries:
+    case RunUpgradeEffect::ProjectileCount:
     case RunUpgradeEffect::ClusterPayload:
     case RunUpgradeEffect::ReactiveTraps:
-    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::Pierce:
     case RunUpgradeEffect::GunShrapnel:
     case RunUpgradeEffect::GatheringSpeed:
     case RunUpgradeEffect::RichResources:
@@ -438,6 +532,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockFlamethrower:
     case RunUpgradeEffect::UnlockSpikeTrap:
     case RunUpgradeEffect::UnlockSlowTrap:
+    case RunUpgradeEffect::UnlockWall:
     case RunUpgradeEffect::CannonHeavyShell:
     case RunUpgradeEffect::CannonScattershot:
     case RunUpgradeEffect::CannonClusterShell:
@@ -456,7 +551,6 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UpgradePickaxe:
         break;
     case RunUpgradeEffect::UnlockBomb:
-        bombs_.addBombs(economy_.bombPurchaseAmount);
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {
@@ -465,18 +559,21 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         }
         break;
     case RunUpgradeEffect::DoubleDown:
-        bonusSelectionsNextReward_ += 2;
-        break;
-    case RunUpgradeEffect::LockChoice:
-        runUpgradeLockUnlocked_ = true;
+        bonusSelectionsNextReward_ = addCount(bonusSelectionsNextReward_, 2.0 * amount);
         break;
     case RunUpgradeEffect::RerollToken:
-        ++runUpgradeRerollTokens_;
+        runUpgradeRerollTokens_ = addCount(runUpgradeRerollTokens_, amount);
         break;
     case RunUpgradeEffect::RiskyInvestment:
         break; // Reserved save ID; this card is retired.
     }
     refreshRunUpgradeRuntimeEffects();
+    if (effect == RunUpgradeEffect::UpgradeCore) {
+        const auto core = buildings_.core();
+        if (core) events_.push_back({.type = GameEventType::BuildingUpgraded,
+            .entityId = core->id, .buildingType = BuildingType::Core,
+            .position = buildingWorldPosition(*core)});
+    }
     if (const auto weapon=runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect) && playerWeaponLevel(*weapon)>1) {
         events_.push_back({.type=GameEventType::WeaponUpgraded,.position=playerPosition_,.amount=playerWeaponLevel(*weapon)});
     }
@@ -499,12 +596,36 @@ bool Simulation::grantDebugRunUpgrade(
     const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
         rawEffect >= static_cast<int>(RunUpgradeEffectCount) ||
-        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect) && !legacyBuildingBranchUpgrade(effect)) ||
-        static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) {
+        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect) && !legacyBuildingBranchUpgrade(effect)) || static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) {
         return false;
     }
     invalidateSnapshotCache();
-    return applyRunUpgradeEffect(effect, rarity);
+    std::uint64_t rollSeed = 0;
+    if (const auto building = runUpgradeBuilding(effect); building && runCombatBuilding(*building)) {
+        const auto nextLevel = runUpgradeStacks_[runUpgradeIndex(effect)] + 1;
+        rollSeed = mixBits64(static_cast<std::uint64_t>(terrain_.seed()) ^
+            (static_cast<std::uint64_t>(*building) << 32U) ^
+            (static_cast<std::uint64_t>(nextLevel) * 0x9e3779b97f4a7c15ULL));
+    }
+    return applyRunUpgradeEffect(effect, rarity, 1, false, rollSeed);
+}
+
+bool Simulation::grantDebugRunUpgradeBatch(RunUpgradeEffect effect, int count, RunUpgradeRarity rarity) {
+    const int index = static_cast<int>(effect);
+    if (index < 0 || index >= static_cast<int>(RunUpgradeEffectCount) || count <= 0 ||
+        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect) && !legacyBuildingBranchUpgrade(effect)) || static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) return false;
+    const bool granted = applyRunUpgradeEffect(effect, rarity, count, true);
+    if (granted) invalidateSnapshotCache();
+    return granted;
+}
+
+bool Simulation::grantDebugPowerup(PowerupType type) {
+    if (type >= PowerupType::Count || state_ == RunState::MainMenu ||
+        state_ == RunState::Victory || state_ == RunState::Defeat) return false;
+    powerups_.activate(type);
+    if (type == PowerupType::Fury) refreshRunUpgradeRuntimeEffects();
+    invalidateSnapshotCache();
+    return true;
 }
 
 bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
@@ -512,16 +633,24 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
         choiceIndex >= runUpgradeChoiceCount_) {
         return false;
     }
+    if (shrines_.offer != ShrineKind::None) return selectShrineBlessing(choiceIndex);
+    const int price = runUpgradeChoicePrice(choiceIndex, runUpgradePaidChoicePrice_);
+    if (!unlimitedResources_ && coins_ < price) return false;
     invalidateSnapshotCache();
     const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
-    if (lockedRunUpgrade_ == effect) lockedRunUpgrade_.reset();
     if (!runUpgradeAvailable(effect) ||
-        !applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex])) return false;
+        !applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex], 1, false,
+            runUpgradeRollSeeds_[choiceIndex])) return false;
+    if (mirrorStatCard(effect)) {
+        static_cast<void>(applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex], 1, false, runUpgradeRollSeeds_[choiceIndex]));
+    }
+    if (!unlimitedResources_) coins_ -= price;
     --runUpgradeSelectionsRemaining_;
     if (runUpgradeSelectionsRemaining_ > 0) {
         generateRunUpgradeChoices();
     } else {
         runUpgradeChoicePending_ = false;
+        runUpgradePaidChoicePrice_ = 0;
     }
     if (!runUpgradeChoicePending_ && runShop_.pending &&
         std::ranges::any_of(runShop_.offers, [this](const auto& offer) {
@@ -531,7 +660,7 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
 }
 
 bool Simulation::rerollRunUpgrades() {
-    if (!runUpgradeChoicePending_ || runUpgradeRerollTokens_ <= 0) {
+    if (shrines_.offer != ShrineKind::None || !runUpgradeChoicePending_ || runUpgradeRerollTokens_ <= 0) {
         return false;
     }
     --runUpgradeRerollTokens_;
@@ -624,11 +753,16 @@ void Simulation::salvageDestroyedCost(
 void Simulation::grantConfiguredInsight(
     double amount, InsightSource source, InsightCategory category,
     const InsightGrantContext& context) {
+    auto boostedContext = context;
+    boostedContext.rewardMultiplier *= runExperienceGainMultiplier(
+        playerPassivePower(RunUpgradeEffect::ExperienceGain));
     const InsightGrantResult result = insight_.grantInsight(
-        amount, source, category, context);
+        amount, source, category, boostedContext);
     if (!result.accepted) return;
     invalidateSnapshotCache();
     if (result.levelsGranted > 0) {
+        applyPlayerClassLevelGrowth(result.levelsGranted);
+        refreshRunUpgradeRuntimeEffects();
         prepareRunUpgradeChoices(result.levelsGranted);
     }
     events_.push_back({
@@ -696,48 +830,6 @@ void Simulation::processInsightEvent(const GameEvent& event) {
         insight_.beginNewDiminishingCycle();
         break;
     }
-    case GameEventType::EnemyKilled:
-        if (event.entityId) {
-            auto found = enemies_.enemies().end();
-            if (!event.enemyType) {
-                found = std::ranges::find_if(
-                    enemies_.enemies(), [&event](const EnemyInstance& enemy) {
-                        return enemy.id == *event.entityId;
-                    });
-            }
-            const EnemyType type = event.enemyType.value_or(
-                found != enemies_.enemies().end()
-                    ? found->type : EnemyType::Basic);
-            const bool boss = type == EnemyType::Boss;
-            const bool elite = event.enemyType
-                ? event.enemyEliteAffixes != 0U
-                : found != enemies_.enemies().end() &&
-                    found->eliteAffixes != 0U;
-            const double eliteMultiplier = elite ? 1.7 : 1.0;
-            grantConfiguredInsight(
-                config.enemy[static_cast<std::size_t>(type)] *
-                    eliteMultiplier,
-                boss ? InsightSource::BossKilled : InsightSource::EnemyKilled,
-                InsightCategory::Combat,
-                {.eventId = insightEntityEvent(0x300U, *event.entityId),
-                 .oneTime = false, .bypassDiminishing = boss});
-        }
-        break;
-    case GameEventType::ResourceHit:
-    case GameEventType::ResourceCollected:
-        if (!unlimitedResources_ && event.resourceType &&
-            isHarvestableResource(*event.resourceType) && event.amount > 0) {
-            const auto type = static_cast<std::size_t>(*event.resourceType);
-            grantConfiguredInsight(config.resourcePerUnit[type] * event.amount,
-                InsightSource::ResourceGathered, InsightCategory::Gathering, {});
-            if (event.type == GameEventType::ResourceCollected && event.entityId) {
-                grantConfiguredInsight(config.resourceDepleted[type],
-                    InsightSource::ResourceDepleted, InsightCategory::Gathering,
-                    {.eventId = insightEntityEvent(0x400U, *event.entityId),
-                     .oneTime = true});
-            }
-        }
-        break;
     case GameEventType::BuildingPlaced:
         if (!unlimitedResources_ && event.entityId && event.buildingType) {
             const auto type = static_cast<std::size_t>(*event.buildingType);
@@ -749,12 +841,6 @@ void Simulation::processInsightEvent(const GameEvent& event) {
             for (int stack = 1; stack <= blueprintStacks; ++stack) {
                 grantBlueprintInsightForType(
                     *event.buildingType, stack);
-            }
-            if (*event.buildingType == BuildingType::Core) {
-                grantConfiguredInsight(config.introCoreObjective, InsightSource::Objective,
-                    InsightCategory::Exploration,
-                    {.eventId = insightIntegerEvent(0x502U, 1U), .oneTime = true,
-                     .bypassDiminishing = true});
             }
         }
         break;
@@ -771,190 +857,16 @@ void Simulation::processInsightEvent(const GameEvent& event) {
             grantConfiguredInsight(config.repairPerHealth * event.amount,
                 InsightSource::StructureRepaired, InsightCategory::Repair, {});
         break;
-    case GameEventType::ChestOpened:
-        if (!unlimitedResources_ && event.entityId) {
-            const auto chest = std::ranges::find_if(lootChests_.chests(),
-                [&event](const LootChestInstance& value) { return value.id == *event.entityId; });
-            const std::size_t type = chest != lootChests_.chests().end()
-                ? static_cast<std::size_t>(chest->type) : 0U;
-            grantConfiguredInsight(config.chest[type], InsightSource::ChestOpened,
-                InsightCategory::Exploration,
-                {.eventId = insightEntityEvent(0x600U, *event.entityId),
-                 .oneTime = true, .bypassDiminishing = true});
-        }
-        break;
-    case GameEventType::ObjectiveCompleted:
-        if (event.objectiveId && event.intensity > 0.0) {
-            grantConfiguredInsight(
-                event.intensity, InsightSource::Objective,
-                InsightCategory::Exploration,
-                {.eventId = insightStringEvent(0x700U, *event.objectiveId, event.amount),
-                 .oneTime = true, .bypassDiminishing = true});
-        }
-        break;
     default:
         break;
     }
 }
 
-void Simulation::processObjectiveEvents(std::size_t firstEvent) {
-    if (unlimitedResources_) return;
-    const std::size_t lastGameplayEvent = events_.size();
-    const bool nightNow = state_ == RunState::Sunset || state_ == RunState::Wave;
-    const auto core = buildings_.core();
-    const Vec3 corePosition = core ? buildingWorldPosition(*core) : Vec3{};
-    const auto emitCompletions = [this](std::vector<ObjectiveCompletion> completions) {
-        for (const auto& completion : completions) {
-            events_.push_back({
-                .type = GameEventType::ObjectiveCompleted,
-                .position = playerPosition_,
-                .amount = completion.cycle,
-                .intensity = completion.insightReward,
-                .objectiveId = completion.id,
-            });
-        }
-    };
-    const auto recordGameplayObjective =
-        [this, &emitCompletions](ObjectiveMetric metric, int amount = 1) {
-            emitCompletions(objectives_.onGameplayEvent(
-                metric, amount, elapsedSeconds_));
-        };
-    for (std::size_t index = firstEvent; index < lastGameplayEvent; ++index) {
-        const GameEvent& event = events_[index];
-        if ((event.type == GameEventType::ResourceHit ||
-             event.type == GameEventType::ResourceCollected) &&
-            event.resourceType &&
-            isHarvestableResource(*event.resourceType)) {
-            if (*event.resourceType == ResourceType::Crystal) {
-                emitCompletions(objectives_.onCrystalsGathered(
-                    std::max(0, event.amount), elapsedSeconds_,
-                    event.night || nightNow));
-                continue;
-            }
-            const double distance = core
-                ? std::hypot(event.position.x - corePosition.x,
-                             event.position.z - corePosition.z) : 0.0;
-            emitCompletions(objectives_.onResourceEvent({
-                .wood = *event.resourceType == ResourceType::Wood,
-                .amount = std::max(0, event.amount),
-                .depleted = event.type == GameEventType::ResourceCollected,
-                .largeDeposit = event.largeDeposit,
-                .matchingTool = event.matchingTool,
-                .night = event.night || nightNow,
-                .hasCore = core.has_value(),
-                .distanceFromCore = distance,
-                .elapsedSeconds = elapsedSeconds_,
-            }));
-        } else if (event.type == GameEventType::CrystalProduced) {
-            emitCompletions(objectives_.onCrystalsGathered(
-                std::max(0, event.amount), elapsedSeconds_, event.night || nightNow));
-        } else if (event.type == GameEventType::ResourceGatherMissed) {
-            objectives_.onGatheringMiss();
-        } else if (event.type == GameEventType::WaveCompleted) {
-            recordGameplayObjective(ObjectiveMetric::WavesCompleted);
-            static_cast<void>(objectives_.beginNewDay());
-        } else {
-            switch (event.type) {
-            case GameEventType::EnemyKilled:
-                recordGameplayObjective(ObjectiveMetric::EnemiesKilled);
-                break;
-            case GameEventType::BuildingPlaced:
-                recordGameplayObjective(ObjectiveMetric::BuildingsPlaced);
-                break;
-            case GameEventType::ModularBuildingPlaced:
-                recordGameplayObjective(ObjectiveMetric::ModularPiecesPlaced);
-                break;
-            case GameEventType::BuildingUpgraded:
-                recordGameplayObjective(ObjectiveMetric::BuildingsUpgraded);
-                break;
-            case GameEventType::BuildingRepaired:
-            case GameEventType::ModularBuildingRepaired:
-                recordGameplayObjective(ObjectiveMetric::StructuresRepaired);
-                break;
-            case GameEventType::CoinCollected:
-                recordGameplayObjective(
-                    ObjectiveMetric::CoinsCollected,
-                    std::max(0, event.amount));
-                break;
-            case GameEventType::ChestOpened:
-                recordGameplayObjective(ObjectiveMetric::ChestsOpened);
-                break;
-            case GameEventType::LootCollected:
-                recordGameplayObjective(ObjectiveMetric::LootCollected);
-                break;
-            case GameEventType::PlayerDashed:
-                recordGameplayObjective(ObjectiveMetric::PlayerDashes);
-                break;
-            case GameEventType::WeaponFired:
-                recordGameplayObjective(ObjectiveMetric::RifleShots);
-                break;
-            case GameEventType::IceWandHit:
-            case GameEventType::FireWandHit:
-                recordGameplayObjective(ObjectiveMetric::ElementalHits);
-                break;
-            case GameEventType::TrapHit:
-                recordGameplayObjective(ObjectiveMetric::TrapHits);
-                break;
-            case GameEventType::CannonFired:
-                if (event.buildingType == BuildingType::Cannon) {
-                    recordGameplayObjective(ObjectiveMetric::CannonShots);
-                }
-                break;
-            case GameEventType::ConsumableUsed:
-                recordGameplayObjective(ObjectiveMetric::BombsThrown);
-                break;
-            case GameEventType::EarlyWaveBonusGranted:
-                recordGameplayObjective(ObjectiveMetric::EarlyWavesStarted);
-                break;
-            case GameEventType::BuildingFortified:
-                recordGameplayObjective(ObjectiveMetric::StructuresFortified);
-                break;
-            case GameEventType::GateToggled:
-                recordGameplayObjective(ObjectiveMetric::GatesToggled);
-                break;
-            case GameEventType::BuildingSold:
-                recordGameplayObjective(ObjectiveMetric::BuildingsSold);
-                break;
-            case GameEventType::RopeFallSaved:
-                recordGameplayObjective(ObjectiveMetric::FallsSaved);
-                break;
-            default:
-                break;
-            }
-        }
-    }
-}
-
-void Simulation::processInsightEvents(
-    std::size_t firstEvent, bool suppressEnemyRewards) {
+void Simulation::processInsightEvents(std::size_t firstEvent) {
     const std::size_t lastGameplayEvent = events_.size();
     for (std::size_t index = firstEvent; index < lastGameplayEvent; ++index) {
         const GameEvent event = events_[index];
-        if (event.type == GameEventType::EnemyKilled && event.entityId) {
-            if (!markEnemyRewarded(
-                    insightRewardedEnemyIds_, *event.entityId)) {
-                continue;
-            }
-            if (suppressEnemyRewards) {
-                continue;
-            }
-        }
         processInsightEvent(event);
-    }
-    for (const EnemyInstance& enemy : enemies_.enemies()) {
-        if (enemy.active || enemy.state != EnemyState::Dead) continue;
-        if (!markEnemyRewarded(
-                insightRewardedEnemyIds_, enemy.id)) continue;
-        if (suppressEnemyRewards) {
-            continue;
-        }
-        processInsightEvent({
-            .type = GameEventType::EnemyKilled,
-            .entityId = enemy.id,
-            .enemyType = enemy.type,
-            .enemyEliteAffixes = enemy.eliteAffixes,
-            .position = enemy.position,
-        });
     }
 }
 

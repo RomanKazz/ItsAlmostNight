@@ -34,18 +34,18 @@ void runCannonSystemTests() {
     buildings.upgrade(core->building.id, 0, 0, 150);
     const auto cannon = buildings.place(ian::BuildingType::Cannon, {0, -4}, 0, 40, 30, 25);
     require(cannon.has_value(), "cannon fixture creates cannon");
-    const ian::ResourceCost cannonBlueprintCost =
-        buildings.blueprintUpgradeCost(ian::BuildingType::Cannon);
-    require(buildings.upgradeBlueprint(
-                ian::BuildingType::Cannon,
-                cannonBlueprintCost.wood,
-                cannonBlueprintCost.stone,
-                cannonBlueprintCost.crystals).valid(),
+    const ian::ResourceCost cannonUpgradeCost =
+        buildings.upgradeCost(cannon->building);
+    require(buildings.upgrade(
+                cannon->building.id,
+                cannonUpgradeCost.wood,
+                cannonUpgradeCost.stone,
+                cannonUpgradeCost.crystals).valid(),
             "cannon fixture upgrades cannon");
 
     ian::EnemySystem enemies;
     constexpr std::array<ian::Vec3, 4> Cluster{{
-        {0.0, 0.8, -6.0},
+        {4.0, 0.8, -6.0},
         {-0.6, 0.8, -10.0},
         {0.0, 0.8, -10.0},
         {0.6, 0.8, -10.0},
@@ -69,8 +69,8 @@ void runCannonSystemTests() {
     require(!cannons.projectiles().empty() &&
                 cannons.projectiles().front().id !=
                     firstRunProjectile &&
-                cannons.projectiles().front().explosionDamage == 2.85 &&
-                cannons.projectiles().front().explosionRadius == 2.62,
+                cannons.projectiles().front().explosionDamage == 3.0 &&
+                cannons.projectiles().front().explosionRadius == 2.6,
             "cannon reset preserves ID safety and upgraded shell stats");
     require(cannons.projectiles().front().trailPointCount == 2U,
             "new cannon shell starts its trail at the muzzle with no stale history");
@@ -164,7 +164,7 @@ void runCannonSystemTests() {
             requireNear(shell.explosionRadius, 2.6 * 1.1 * profile.radius, 1e-12,
                 "scatter shells have smaller actual explosion radii");
             require(shell.clusterExplosionCount == 2 + profile.clusterCount &&
-                    shell.visualScale == profile.visualScale,
+                    shell.visualScale == profile.visualScale * 1.1,
                 "shell captures its cluster payload and visible size");
         }
         if (style == ian::CannonAttackStyle::Scatter) {
@@ -187,8 +187,9 @@ void runCannonSystemTests() {
         targets.reset();
         targets.spawnWave(Cluster);
         tickUntilShot(specialized, buildings.buildings(), targets);
-        require(specialized.projectiles().size() == 1 && specialized.projectiles()[0].visualScale == 1.0,
-            "new run resets specialization to a standard single shell");
+        require(std::ranges::count_if(specialized.projectiles(), [](const auto& item) { return item.active; }) == 1 &&
+            std::ranges::find_if(specialized.projectiles(), [](const auto& item) { return item.active; })->visualScale == 1.0,
+            "new run resets specialization while retaining reusable pool storage");
     }
 
     ian::EnemySystem angledEnemies;
@@ -284,7 +285,7 @@ void runCannonSystemTests() {
     }};
     ian::EnemySystem catapultEnemies;
     constexpr std::array<ian::Vec3, 4> CatapultTargets{{
-        {0.0, 0.8, -2.5},
+        {3.0, 0.8, -2.5},
         {-0.5, 0.8, -8.0},
         {0.0, 0.8, -8.0},
         {0.5, 0.8, -8.0},
@@ -363,6 +364,9 @@ void runCannonSystemTests() {
     }
     require(catapultCurvedTrail && catapultWrappedTrail && followedThrough && recovered,
             "catapult follows through, settles and keeps a bounded curved trail");
+    require(std::ranges::any_of(catapultEnemies.enemies(),[](const auto& enemy) {
+            return enemy.movementMultiplier < 1.0 && enemy.slowRemaining > 0.0;
+        }), "catapult impact applies a timed ground stagger");
     bool reusedCatapultBall = false;
     for (int tick = 0; tick < 240 && !reusedCatapultBall; ++tick) {
         catapults.tick(1.0 / 60.0, catapultBuildings, catapultEnemies);

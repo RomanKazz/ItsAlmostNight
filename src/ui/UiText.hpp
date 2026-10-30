@@ -10,6 +10,7 @@
 namespace ian {
 
 inline constexpr Color UiWhite{244, 240, 223, 255};
+inline constexpr Color UiFullStorageTextColor{255, 174, 112, 255};
 
 enum class UiFontRole { Display, Body, BodyBold, MenuBodyBold };
 

@@ -5,13 +5,18 @@
 #include "WeaponCardProgressionChecks.hpp"
 #include "RunUpgradeRetirementChecks.hpp"
 #include "CoreDefenseGateChecks.hpp"
+#include "ExperienceTomeChecks.hpp"
 #include "game/Simulation.hpp"
+#include "progression/RunUpgradeOfferSelection.hpp"
 
 #include <limits>
 #include <memory>
 #include <numeric>
+#include <ranges>
+#include <vector>
 
 void runRunUpgradeTests() {
+    checkExperienceTome();
     checkBuildingCapacityProgression();
     checkDefenseCardProgression();
     checkProducerCardProgression();
@@ -20,6 +25,57 @@ void runRunUpgradeTests() {
     checkRetiredBuildingBranches();
     checkCoreDefenseGateAndRepairs();
     using namespace ian;
+    {
+        auto run = std::make_unique<Simulation>();
+        run->startRunFromSeed(PlayerClass::Vanguard, 71234);
+        auto offer = run->saveSuspendedRunState();
+        offer.runUpgradeChoicePending = true;
+        offer.runUpgradeChoiceCount = LevelUpRunUpgradeChoices;
+        offer.runUpgradePaidChoicePrice = PaidRunUpgradeChoicePrice;
+        offer.runUpgradeSelectionsRemaining = 1;
+        offer.runUpgradeChoices = {RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed,
+            RunUpgradeEffect::AttackSpeed, RunUpgradeEffect::Luck};
+        offer.runUpgradeRarities.fill(RunUpgradeRarity::Rare);
+        const auto restore = [&](int coins) {
+            offer.coins = coins;
+            run->returnToMainMenu();
+            require(run->loadSuspendedRunState(offer), "paid level-up offer loads with its price");
+        };
+        restore(PaidRunUpgradeChoicePrice - 1);
+        const auto beforeRejected = run->saveSuspendedRunState();
+        require(!run->selectRunUpgrade(3), "insufficient coins cannot select the paid alternative");
+        const auto rejected = run->saveSuspendedRunState();
+        require(rejected.coins == offer.coins &&
+            rejected.runUpgradeStacks == beforeRejected.runUpgradeStacks &&
+            rejected.runUpgradePower == beforeRejected.runUpgradePower &&
+            rejected.runUpgradeSelectionsRemaining == 1 && rejected.runUpgradeChoicePending &&
+            rejected.runUpgradeChoices == offer.runUpgradeChoices &&
+            rejected.runUpgradeRarities == offer.runUpgradeRarities &&
+            rejected.runUpgradePaidChoicePrice == PaidRunUpgradeChoicePrice,
+            "rejected purchase preserves coins, upgrade power and the entire offer");
+        restore(PaidRunUpgradeChoicePrice);
+        require(run->selectRunUpgrade(3), "exact coin balance buys the fourth alternative");
+        const auto bought = run->saveSuspendedRunState();
+        require(bought.coins == 0 && !bought.runUpgradeChoicePending &&
+            bought.runUpgradeSelectionsRemaining == 0 && !run->selectRunUpgrade(0),
+            "paid choice spends once and consumes the same single level-up selection");
+        requireNear(bought.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Luck)],
+            runUpgradePowerGain(RunUpgradeEffect::Luck, RunUpgradeRarity::Rare), 1e-12,
+            "paid card applies ordinary rarity power without a premium bonus");
+        for (std::size_t choice = 0; choice < DefaultRunUpgradeChoices; ++choice) {
+            restore(0);
+            require(run->selectRunUpgrade(choice) && run->snapshot().coins == 0,
+                "all three free cards work without coins");
+        }
+        restore(50);
+        require(run->selectRunUpgrade(0) && run->snapshot().coins == 50,
+            "free choice preserves the entire coin balance");
+        offer.runUpgradeChoiceCount = DefaultRunUpgradeChoices;
+        offer.runUpgradePaidChoicePrice = 0;
+        restore(0);
+        require(run->snapshot().runUpgradeChoiceCount == DefaultRunUpgradeChoices &&
+            run->selectRunUpgrade(2), "legacy pending three-card offers stay free");
+    }
     const auto rerollWithSavedToken = [](Simulation& run) {
         auto checkpoint = run.saveSuspendedRunState();
         ++checkpoint.runUpgradeRerollTokens;
@@ -31,7 +87,7 @@ void runRunUpgradeTests() {
             runUpgradeIndex(RunUpgradeEffect::PoisonChance) == 56,
             "poison appends a stable save ID without reordering previous upgrades");
         requireNear(runPoisonChance(1), .10, 1e-12, "common venom gives ten percent proc chance");
-        requireNear(runPoisonChance(3), .30, 1e-12, "legendary venom scales chance");
+        requireNear(runPoisonChance(2), .20, 1e-12, "legendary venom scales chance");
         requireNear(runPoisonChance(10000), 1, 1e-12, "debug venom cannot exceed guaranteed chance");
         auto run = std::make_unique<Simulation>();
         run->startRunFromSeed(PlayerClass::Vanguard, 12345);
@@ -40,17 +96,19 @@ void runRunUpgradeTests() {
         saved.runUpgradeChoiceCount = 4;
         saved.runUpgradeSelectionsRemaining = 1;
         saved.runUpgradeChoices = {RunUpgradeEffect::PoisonChance, RunUpgradeEffect::Damage,
-            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
+            RunUpgradeEffect::BuildingHealth, RunUpgradeEffect::Luck};
         saved.runUpgradeRarities.fill(RunUpgradeRarity::Legendary);
         run->returnToMainMenu();
-        require(run->loadSuspendedRunState(saved) && run->selectRunUpgrade(0),
-            "normal reward selection grants venom");
+        require(run->loadSuspendedRunState(saved), "retired venom offer is repaired on load");
+        for (std::size_t choice = 0; choice < run->snapshot().runUpgradeChoiceCount; ++choice)
+            require(run->snapshot().runUpgradeChoices[choice] != RunUpgradeEffect::PoisonChance,
+                "retired venom cannot appear in normal rewards");
         const auto index = runUpgradeIndex(RunUpgradeEffect::PoisonChance);
-        requireNear(run->snapshot().runUpgradePower[index], 3, 1e-12, "venom applies rarity power");
+        requireNear(run->snapshot().runUpgradePower[index], 0, 1e-12, "retired venom offer grants no power");
         saved = run->saveSuspendedRunState();
         run->returnToMainMenu();
         require(run->loadSuspendedRunState(saved), "venom upgrade survives save/load");
-        requireNear(run->snapshot().runUpgradePower[index], 3, 1e-12, "load preserves venom chance once");
+        requireNear(run->snapshot().runUpgradePower[index], 0, 1e-12, "load keeps retired venom inactive");
         run->returnToMainMenu();
         run->startRunFromSeed(PlayerClass::Vanguard, 12345);
         require(run->snapshot().runUpgradePower[index] == 0, "new runs clear venom");
@@ -89,6 +147,47 @@ void runRunUpgradeTests() {
         for (int i = 0; i < 8; ++i) run->tick(.5, {});
         require(!run->snapshot().enemies.front().active, "poison kills through gameplay updates");
     }
+    for (const auto& tome : RunTomeDefinitions) {
+        if (retiredRunUpgrade(tome.effect)) continue;
+        require(runUpgradeOfferWeight(tome.effect) == 2,
+            "eligible tomes have equal weights, independent of ownership and level");
+    }
+    {
+        const std::array pool{RunUpgradeEffect::Damage, RunUpgradeEffect::AttackSpeed,
+            RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::BuildingHealth, RunUpgradeEffect::Luck};
+        std::array<int,RunUpgradeEffectCount> stacks{};
+        stacks[runUpgradeIndex(RunUpgradeEffect::Damage)]=7;
+        stacks[runUpgradeIndex(RunUpgradeEffect::AttackSpeed)]=1;
+        std::array<int,5> hits{};
+        std::uint64_t random=12345;
+        for (int i=0;i<100000;++i) ++hits[chooseRunUpgradeOffer(pool,stacks,random)];
+        const int owned=hits[0]+hits[1];
+        require(owned>44000 && owned<46000,"two owned tomes share the fixed existing-category chance");
+        require(std::abs(hits[0]-hits[1])<1000,"owned tome level does not bias draws");
+        for (std::size_t i=2;i<5;++i) require(hits[i]>17300 && hits[i]<19400,
+            "new tomes remain available at equal weight to each other");
+        const std::array ownedOnly{pool[0],pool[1]};
+        for (int i=0;i<1000;++i) require(chooseRunUpgradeOffer(ownedOnly,stacks,random)<2,
+            "full tome slots gracefully use only owned group");
+        stacks.fill(0);
+        for (int i=0;i<1000;++i) require(chooseRunUpgradeOffer(pool,stacks,random)<pool.size(),
+            "zero owned tomes gracefully use new group");
+        stacks[runUpgradeIndex(RunUpgradeEffect::Damage)]=7;
+        stacks[runUpgradeIndex(RunUpgradeEffect::AttackSpeed)]=1;
+        std::array<bool,4> seenOwnedCounts{};
+        for (int screen=0;screen<20000;++screen) {
+            std::vector<RunUpgradeEffect> remaining(pool.begin(),pool.end());
+            int ownedChoices=0;
+            for (int card=0;card<3;++card) {
+                const auto selected=chooseRunUpgradeOffer(remaining,stacks,random);
+                ownedChoices+=remaining[selected]==pool[0] || remaining[selected]==pool[1];
+                remaining.erase(remaining.begin()+static_cast<std::ptrdiff_t>(selected));
+            }
+            seenOwnedCounts[static_cast<std::size_t>(ownedChoices)]=true;
+        }
+        require(seenOwnedCounts[0] && seenOwnedCounts[1] && seenOwnedCounts[2],
+            "one shared pool can offer three new, one owned or two owned cards");
+    }
     const auto base = runUpgradeRarityProbabilities(0.0);
     requireNear(base[0], 0.60, 1e-12, "common base chance");
     requireNear(base[4], 0.01, 1e-12, "legendary base chance");
@@ -109,7 +208,7 @@ void runRunUpgradeTests() {
 
     {
         auto legacyRun = std::make_unique<Simulation>();
-        legacyRun->startRunFromSeed(PlayerClass::Engineer, 12345);
+        legacyRun->startRunFromSeed(PlayerClass::Vanguard, 12345);
         PlayerCommand unlimited;
         unlimited.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
         legacyRun->tick(1.0 / 60.0, unlimited);
@@ -150,7 +249,7 @@ void runRunUpgradeTests() {
 
     {
         auto weaponRun = std::make_unique<Simulation>();
-        weaponRun->startRunFromSeed(PlayerClass::Engineer, 13579);
+        weaponRun->startRunFromSeed(PlayerClass::Vanguard, 13579);
         require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Axe)] &&
             weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Pickaxe)],
             "gathering tools remain available without cards or core");
@@ -177,7 +276,7 @@ void runRunUpgradeTests() {
                 offer.runUpgradeChoiceCount = 4;
                 offer.runUpgradeSelectionsRemaining = 1;
                 offer.runUpgradeChoices = {effect, RunUpgradeEffect::Damage,
-                    RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
+                    RunUpgradeEffect::BuildingHealth, RunUpgradeEffect::Luck};
                 offer.runUpgradeRarities.fill(RunUpgradeRarity::Common);
                 weaponRun->returnToMainMenu();
                 require(weaponRun->loadSuspendedRunState(offer) && weaponRun->selectRunUpgrade(0),
@@ -193,8 +292,8 @@ void runRunUpgradeTests() {
             require(weaponRun->snapshot().selectedWeapon == weapon,
                 "newly acquired weapon can be equipped without upgrading the core");
         }
-        require(weaponRun->snapshot().bombsRemaining > 0,
-            "bomb blueprint provides its first usable bundle");
+        require(weaponRun->snapshot().bombsRemaining == std::numeric_limits<int>::max(),
+            "bomb blueprint unlocks unlimited throws");
         auto acquired = weaponRun->saveSuspendedRunState();
         require(acquired.playerWeaponArsenalVersion == 2, "weapon ownership uses the new save version");
         weaponRun->returnToMainMenu();
@@ -220,32 +319,34 @@ void runRunUpgradeTests() {
     }
 
     auto simulation = std::make_unique<Simulation>();
+    MetaRunBonuses rarityBonuses; rarityBonuses.additionalTomeSlots=2;
+    require(simulation->configureNextRunBonuses(rarityBonuses), "rarity fixture has four purchased tome slots");
     simulation->returnToMainMenu();
     simulation->startRunFromSeed(PlayerClass::Vanguard, 12345);
     const double baseDamage = simulation->snapshot().playerDamageMultiplier;
     require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage,
         RunUpgradeRarity::Legendary), "legendary numeric upgrade granted");
     const auto& upgraded = simulation->snapshot();
-    requireNear(upgraded.playerDamageMultiplier / baseDamage, 1.3, 1e-12,
-        "legendary upgrade triples the usual damage increment");
+    requireNear(upgraded.playerDamageMultiplier / baseDamage, 1.2, 1e-12,
+        "legendary upgrade doubles the usual damage increment");
     require(upgraded.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Damage)] == 1,
         "rarity power is independent from upgrade level");
     require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::Luck,
         RunUpgradeRarity::Legendary), "luck upgrade granted");
-    requireNear(simulation->snapshot().upgradeStats.luck, 0.3, 1e-12,
+    requireNear(simulation->snapshot().upgradeStats.luck, 0.2, 1e-12,
         "luck stat exposes the actual rarity modifier");
-    require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::TwinBatteries,
+    require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::ProjectileCount,
         RunUpgradeRarity::Common), "common discrete upgrade granted");
-    require(simulation->snapshot().upgradeStats.sideShots == 1,
-        "discrete effects use integer rarity bonuses");
-    require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::TwinBatteries,
+    require(simulation->snapshot().upgradeStats.projectileCountBonus == 1,
+        "a common count upgrade grants one floating-point power unit");
+    require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::ProjectileCount,
         RunUpgradeRarity::Legendary), "last partial bonus granted");
-    require(simulation->snapshot().upgradeStats.sideShots == 3 &&
-        !simulation->grantDebugRunUpgrade(RunUpgradeEffect::TwinBatteries),
-        "discrete bonuses respect combat caps without empty offers");
+    require(simulation->snapshot().upgradeStats.projectileCountBonus == 3 &&
+        simulation->grantDebugRunUpgrade(RunUpgradeEffect::ProjectileCount),
+        "quantity keeps accumulating beyond three additional projectiles");
 
-    constexpr std::array expectedDamageBonus{0.10, 0.15, 0.20, 0.25, 0.30};
-    constexpr std::array expectedHealthBonus{12.0, 18.0, 24.0, 30.0, 36.0};
+    constexpr std::array expectedDamageBonus{0.10, 0.12, 0.14, 0.16, 0.20};
+    constexpr std::array expectedHealthBonus{12.0, 14.4, 16.8, 19.2, 24.0};
     auto tierSimulation = std::make_unique<Simulation>();
     for (std::size_t tierIndex = 0; tierIndex < RunUpgradeRarityCount; ++tierIndex) {
         tierSimulation->returnToMainMenu();
@@ -274,12 +375,12 @@ void runRunUpgradeTests() {
     tierSimulation->startRunFromSeed(PlayerClass::Vanguard, 6789);
     require(tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::ClusterPayload,
         RunUpgradeRarity::Uncommon), "uncommon cluster upgrade granted");
-    require(tierSimulation->snapshot().upgradeStats.clusterExplosions == 3,
-        "uncommon +2 explosion card grants exactly +3, not +4 from rounded power");
+    require(tierSimulation->snapshot().upgradeStats.clusterExplosions == 2.4,
+        "uncommon cluster card retains 2.4 stored explosions");
     const auto clusterSave = tierSimulation->saveSuspendedRunState();
     auto clusterRestored = std::make_unique<Simulation>();
     require(clusterRestored->loadSuspendedRunState(clusterSave) &&
-        clusterRestored->snapshot().upgradeStats.clusterExplosions == 3,
+        clusterRestored->snapshot().upgradeStats.clusterExplosions == 2.4,
         "reload preserves fractional power for integral explosion counts");
     requireNear(runUpgradeAppliedPowerGain(RunUpgradeEffect::ClusterPayload,
         RunUpgradeRarity::Legendary, 1.5), 0.5, 1e-12,
@@ -291,8 +392,8 @@ void runRunUpgradeTests() {
     require(tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::GunShrapnel,
         RunUpgradeRarity::Uncommon), "uncommon shrapnel granted");
     require(runUpgradeDiscreteAmount(RunUpgradeEffect::GunShrapnel,
-        tierSimulation->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GunShrapnel)]) == 5,
-        "uncommon +3 shards rounds actual shards to +5");
+        tierSimulation->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GunShrapnel)]) == 3,
+        "uncommon +3 shards floors 3.6 stored shards to three");
     require(tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Legendary) &&
         tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Legendary) &&
         tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Legendary) &&
@@ -300,7 +401,7 @@ void runRunUpgradeTests() {
         tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Legendary),
         "all five legendary levels retain their full bonus");
     requireNear(tierSimulation->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Damage)],
-        15.0, 1e-12, "numeric power cap matches the highest rarity");
+        10.0, 1e-12, "numeric power cap matches the highest rarity");
 
     require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon),
         "checkpoint fixture owns its cannon specialization options");
@@ -312,7 +413,7 @@ void runRunUpgradeTests() {
     auto saved = simulation->saveSuspendedRunState();
     saved.runUpgradeChoiceCount = 4;
     saved.runUpgradeChoices = {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
-        RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::MoveSpeed};
+        RunUpgradeEffect::ProjectileCount, RunUpgradeEffect::MoveSpeed};
     auto restored = std::make_unique<Simulation>();
     require(restored->loadSuspendedRunState(saved), "rarity checkpoint restores");
     require(restored->snapshot().runUpgradeRarities == saved.runUpgradeRarities &&
@@ -355,9 +456,11 @@ void runRunUpgradeTests() {
         arsenal->returnToMainMenu();
         arsenal->startRunFromSeed(character.type, 4321);
         require(arsenal->snapshot().buildingArsenalCount == 1 &&
-            !arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)) &&
             arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(character.startingBuilding))] == 1,
-            "every character starts at level one and needs core level two before upgrading");
+            "every character starts with one building at level one");
+        require(arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)) &&
+            arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(character.startingBuilding))] == 2,
+            "starting building can advance without a core level gate");
     }
     arsenal->returnToMainMenu();
     arsenal->startRunFromSeed(PlayerClass::Vanguard, 4321);
@@ -377,7 +480,7 @@ void runRunUpgradeTests() {
     const auto arsenalSave = arsenal->saveSuspendedRunState();
     restored->returnToMainMenu();
     require(arsenalSave.buildingArsenalVersion == 5 && restored->loadSuspendedRunState(arsenalSave) &&
-        restored->snapshot().buildingArsenalCount == 4 &&
+        restored->snapshot().buildingArsenalCount == BaseRunBuildingSlots &&
         restored->snapshot().runUpgradeStacks == arsenal->snapshot().runUpgradeStacks,
         "unbuilt blueprints survive save and resume");
     auto invalidArsenal = arsenalSave;
@@ -385,8 +488,8 @@ void runRunUpgradeTests() {
     restored->returnToMainMenu();
     require(!restored->loadSuspendedRunState(invalidArsenal), "future arsenal formats rejected");
     invalidArsenal = arsenalSave;
-    invalidArsenal.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 9;
-    require(!restored->loadSuspendedRunState(invalidArsenal), "defense levels above eight rejected");
+    invalidArsenal.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = MaxStructureLevel + 1;
+    require(!restored->loadSuspendedRunState(invalidArsenal), "building levels above stored range rejected");
 
     auto balance = GameBalance::defaults();
     balance.buildings[static_cast<std::size_t>(BuildingType::Core)].wood = 0;
@@ -406,35 +509,44 @@ void runRunUpgradeTests() {
     normal->tick(1.0 / 60.0, placeCore);
     const auto unlocked = normal->snapshot().unlockedBuildings;
     for (auto type : RunBuildingTypes) {
-        require(unlocked[static_cast<std::size_t>(type)] == (type == BuildingType::Cannon),
-            "construction catalog uses the character starter");
+        require(unlocked[static_cast<std::size_t>(type)] ==
+            (type == BuildingType::Cannon || type == BuildingType::Wall ||
+             std::ranges::find(RunEconomyBuildingTypes, type) != RunEconomyBuildingTypes.end()),
+            "construction catalog includes the starter, walls and all producers");
     }
     require(normal->previewPlacement(BuildingType::Turret, {4, 0}).error == PlacementError::BlueprintRequired &&
-        normal->previewPlacement(BuildingType::LumberMill, {4, 0}).error == PlacementError::BlueprintRequired,
-        "combat and economy placement require their blueprint");
+        normal->previewPlacement(BuildingType::LumberMill, {4, 0}).error != PlacementError::BlueprintRequired,
+        "combat needs a card, while producers are placeable immediately");
     require(normal->snapshot().runUpgradeChoicePending,
         "normal construction XP produces level-up cards");
     const auto offer = normal->snapshot();
-    require(offer.runUpgradeChoiceCount > 0,
-        "level-up offers eligible cards without forcing a building first");
+    require(offer.runUpgradeChoiceCount == LevelUpRunUpgradeChoices,
+        "level-up presents three free choices and a paid alternative");
     for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
         const auto offeredEffect = offer.runUpgradeChoices[index];
-        require(offeredEffect != RunUpgradeEffect::GunPiercing && offeredEffect != RunUpgradeEffect::GunShrapnel &&
-            offeredEffect != RunUpgradeEffect::TwinBatteries && offeredEffect != RunUpgradeEffect::ReactiveTraps,
+        require(offeredEffect != RunUpgradeEffect::GunShrapnel && offeredEffect != RunUpgradeEffect::ReactiveTraps,
             "family-specific cards require a compatible owned building");
-        if (const auto building = runUpgradeBuilding(offeredEffect)) {
+        if (const auto building = runUpgradeBuilding(offeredEffect);
+            building && (!runCombatBuilding(*building) ||
+                offer.runUpgradeStacks[runUpgradeIndex(offeredEffect)] == 0)) {
             require(offer.runUpgradeRarities[index] == RunUpgradeRarity::Common,
-                "defense acquisitions and shared upgrades have fixed one-level power");
+                "new building acquisitions keep fixed one-level power");
         }
     }
 
     for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
         require(!runUpgradeProductionBuilding(offer.runUpgradeChoices[index]) &&
-            offer.runUpgradeChoices[index] != RunUpgradeEffect::ProductionSpeed,
-            "production improvements are absent before owning a producer");
+            offer.runUpgradeChoices[index] != RunUpgradeEffect::ProductionSpeed &&
+            (!runUpgradeBuilding(offer.runUpgradeChoices[index]) ||
+             std::ranges::find(RunEconomyBuildingTypes,
+                 *runUpgradeBuilding(offer.runUpgradeChoices[index])) == RunEconomyBuildingTypes.end()),
+            "production improvements are absent until a producer is built");
     }
     auto pendingArsenal = normal->saveSuspendedRunState();
-    pendingArsenal.runUpgradeChoices[0] = RunUpgradeEffect::UnlockTurret;
+    pendingArsenal.runUpgradeChoiceCount = DefaultRunUpgradeChoices;
+    pendingArsenal.runUpgradePaidChoicePrice = 0;
+    pendingArsenal.runUpgradeChoices = {RunUpgradeEffect::UnlockTurret,
+        RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed};
     pendingArsenal.runUpgradeRarities[0] = RunUpgradeRarity::Common;
     auto normalRestored = std::make_unique<Simulation>(balance, map, world, fastInsight);
     normalRestored->returnToMainMenu();
@@ -446,6 +558,48 @@ void runRunUpgradeTests() {
     normal->returnToMainMenu();
     require(normal->loadSuspendedRunState(pendingArsenal) && normal->selectRunUpgrade(0),
         "normal acquisition selected");
+    auto mixedRun = std::make_unique<Simulation>(balance, map, world, fastInsight);
+    mixedRun->returnToMainMenu();
+    require(mixedRun->loadSuspendedRunState(normal->saveSuspendedRunState()) &&
+        mixedRun->grantDebugRunUpgrade(RunUpgradeEffect::Damage) &&
+        mixedRun->grantDebugRunUpgrade(RunUpgradeEffect::AttackSpeed),
+        "mixed offer fixture owns repeatable tomes");
+    auto mixedOffer = mixedRun->saveSuspendedRunState();
+    mixedOffer.runUpgradeChoicePending = true;
+    mixedOffer.runUpgradeChoiceCount = 3;
+    mixedOffer.runUpgradeSelectionsRemaining = 1;
+    mixedOffer.runUpgradeRerollTokens = 48;
+    mixedOffer.runUpgradeChoices = {RunUpgradeEffect::UnlockTurret,
+        RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed};
+    mixedRun->returnToMainMenu();
+    require(mixedRun->loadSuspendedRunState(mixedOffer), "mixed offer fixture resumes");
+    bool sawAllNew = false, sawMixed = false, sawNonBuildingFirst = false;
+    for (int roll = 0; roll < 48; ++roll) {
+        require(mixedRun->rerollRunUpgrades(), "mixed level-up rerolls");
+        const auto choices = mixedRun->snapshot();
+        std::size_t newCount = 0;
+        for (std::size_t index = 0; index < choices.runUpgradeChoiceCount; ++index) {
+            const auto choiceEffect = choices.runUpgradeChoices[index];
+            const auto building = runUpgradeBuilding(choiceEffect);
+            const auto weapon = runUpgradeWeapon(choiceEffect);
+            const bool owned = building
+                ? choices.unlockedBuildings[static_cast<std::size_t>(*building)]
+                : weapon
+                    ? choices.unlockedWeapons[static_cast<std::size_t>(*weapon)]
+                    : (runTomeDefinition(choiceEffect)
+                        ? runTomeLevel(choiceEffect, choices.runUpgradeStacks) > 0
+                        : choices.runUpgradeStacks[runUpgradeIndex(choiceEffect)] > 0);
+            newCount += !owned;
+            for (std::size_t other = 0; other < index; ++other)
+                require(choices.runUpgradeChoices[other] != choiceEffect,
+                    "level-up choices are unique");
+        }
+        sawAllNew |= newCount == 3;
+        sawMixed |= newCount < 3;
+        sawNonBuildingFirst |= !runUpgradeBuilding(choices.runUpgradeChoices[0]);
+    }
+    require(sawAllNew && sawMixed && sawNonBuildingFirst,
+        "shared pool permits all-new or mixed screens without a forced first building");
     for (auto blueprintEffect : {RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret,
                         RunUpgradeEffect::UnlockSpikeTrap, RunUpgradeEffect::UnlockSlowTrap,
                         RunUpgradeEffect::UnlockCatapult}) {
@@ -462,13 +616,12 @@ void runRunUpgradeTests() {
 
     for (auto type : RunEconomyBuildingTypes) {
         const auto producerCard = *buildingRunUpgrade(type);
-        const bool owned = normal->snapshot().runUpgradeStacks[runUpgradeIndex(producerCard)] > 0;
         const auto slotsBefore = normal->snapshot().buildingArsenalCount;
         require(normal->grantDebugRunUpgradeBatch(producerCard, 2),
-            "debug can acquire and raise producers even beyond normal slot limits");
-        require(normal->snapshot().buildingArsenalCount == slotsBefore + (owned ? 0U : 1U) &&
+            "debug can raise producers even beyond normal slot limits");
+        require(normal->snapshot().buildingArsenalCount == slotsBefore &&
             normal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
-            "each economic type consumes one shared slot independent of its level");
+            "producer cards never consume a defense slot");
     }
     // Already-acquired cards remain valid in old runs after being retired.
     auto legacyNumericCards = normal->saveSuspendedRunState();
@@ -500,20 +653,22 @@ void runRunUpgradeTests() {
     normalRestored->startRunFromSeed(PlayerClass::Engineer, 4321);
     for (auto type : RunEconomyBuildingTypes) require(!normalRestored->snapshot().unlockedBuildings[static_cast<std::size_t>(type)] &&
         normalRestored->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(type))] == 0,
-        "new runs clear economic acquisitions");
+        "new runs hide producer placement until Core construction, without granting producer cards");
 
     normalRestored->returnToMainMenu();
     auto producerPending = pendingArsenal;
+    producerPending.buildings.push_back({.id = {1001, 1},
+        .type = BuildingType::LumberMill, .gridPosition = {4, 0},
+        .level = 1, .health = 150, .maxHealth = 150});
     producerPending.runUpgradeChoices = {RunUpgradeEffect::UnlockLumberMill,
         RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed};
     require(normalRestored->loadSuspendedRunState(producerPending) && normalRestored->selectRunUpgrade(0),
-        "normal card selection acquires an economic type");
+        "normal card selection upgrades a constructed producer");
     auto oneProducer = normalRestored->saveSuspendedRunState();
     oneProducer.runUpgradeRerollTokens = 32;
     normalRestored->returnToMainMenu();
     require(normalRestored->loadSuspendedRunState(oneProducer), "single-producer offer fixture resumes");
 
-    bool sawGlobalProduction = false;
     for (int roll = 0; roll < 32; ++roll) {
         require(normalRestored->rerollRunUpgrades(), "single-producer choices rerolled");
         const auto candidates = normalRestored->snapshot();
@@ -521,11 +676,18 @@ void runRunUpgradeTests() {
             const auto producerEffect = candidates.runUpgradeChoices[index];
             require(!retiredRunUpgrade(producerEffect) && !runUpgradeProductionBuilding(producerEffect),
                 "retired cards stay absent across repeated normal offers");
-            sawGlobalProduction = sawGlobalProduction || producerEffect == RunUpgradeEffect::ProductionSpeed;
         }
     }
-    require(sawGlobalProduction,
-        "acquiring a producer retains the shared production hammer in normal offers");
+    // Verify eligibility directly: an expanded weighted deck need not draw a
+    // particular card within a fixed number of random offers.
+    auto productionOffer = normalRestored->saveSuspendedRunState();
+    productionOffer.runUpgradeChoices[0] = RunUpgradeEffect::ProductionSpeed;
+    productionOffer.runUpgradeRarities[0] = RunUpgradeRarity::Common;
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(productionOffer) &&
+        normalRestored->snapshot().runUpgradeChoices[0] == RunUpgradeEffect::ProductionSpeed &&
+        normalRestored->selectRunUpgrade(0),
+        "acquiring a producer retains eligibility for the shared production hammer");
     auto retiredPending = pendingArsenal;
     retiredPending.runUpgradeChoices = {RunUpgradeEffect::RerollToken, RunUpgradeEffect::DoubleDown,
         RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction};
@@ -551,9 +713,9 @@ void runRunUpgradeTests() {
     legacyEconomy.resumeState = RunState::BuildPhase;
     restored->returnToMainMenu();
     require(restored->loadSuspendedRunState(legacyEconomy), "legacy economic fixture resumes");
-    require(restored->snapshot().buildingArsenalCount == 5 &&
+    require(restored->snapshot().buildingArsenalCount == BaseRunBuildingSlots &&
         restored->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::Quarry)],
-        "old checkpoints retain every built producer even above the new shared slot limit");
+        "old checkpoints retain built producers without using defense slots");
 
     auto legacyArsenal = arsenalSave;
     legacyArsenal.buildingArsenalVersion = 0;
@@ -642,7 +804,7 @@ void runRunUpgradeTests() {
         for (std::size_t index = 0; index < choices.size(); ++index) {
             auto checkpoint = run->saveSuspendedRunState();
             checkpoint.runUpgradeChoicePending = true;
-            checkpoint.runUpgradeChoiceCount = 4;
+            checkpoint.runUpgradeChoiceCount = choices.size();
             checkpoint.runUpgradeSelectionsRemaining = 1;
             std::copy(choices.begin(), choices.end(), checkpoint.runUpgradeChoices.begin());
             checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
@@ -653,7 +815,7 @@ void runRunUpgradeTests() {
         }
         auto checkpoint = run->saveSuspendedRunState();
         checkpoint.runUpgradeChoicePending = true;
-        checkpoint.runUpgradeChoiceCount = 4;
+        checkpoint.runUpgradeChoiceCount = choices.size();
         checkpoint.runUpgradeSelectionsRemaining = 1;
         std::copy(choices.begin(), choices.end(), checkpoint.runUpgradeChoices.begin());
         checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
@@ -669,7 +831,7 @@ void runRunUpgradeTests() {
         checkpoint.runUpgradeChoiceCount = 4;
         checkpoint.runUpgradeSelectionsRemaining = 1;
         checkpoint.runUpgradeChoices = {RunUpgradeEffect::Luck, RunUpgradeEffect::Damage,
-            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::MoveSpeed};
+            RunUpgradeEffect::BuildingHealth, RunUpgradeEffect::MoveSpeed};
         run->returnToMainMenu();
         require(run->loadSuspendedRunState(checkpoint), "full tome inventory resumes");
         for (int reroll = 0; reroll < 4; ++reroll) {
@@ -699,7 +861,7 @@ void runRunUpgradeTests() {
         checkpoint.runUpgradeChoiceCount = 4;
         checkpoint.runUpgradeSelectionsRemaining = 1;
         checkpoint.runUpgradeChoices = {RunUpgradeEffect::Luck, RunUpgradeEffect::Damage,
-            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::MoveSpeed};
+            RunUpgradeEffect::BuildingHealth, RunUpgradeEffect::MoveSpeed};
         run->returnToMainMenu();
         require(run->loadSuspendedRunState(checkpoint), "stale offer fixture loads");
         for (const auto tomeEffect : choices) require(run->grantDebugRunUpgrade(tomeEffect), "debug fills slots behind open offers");
@@ -732,7 +894,7 @@ void runRunUpgradeTests() {
                 checkpoint.runUpgradeChoicePending = true;
                 checkpoint.runUpgradeChoiceCount = 1;
                 checkpoint.runUpgradeSelectionsRemaining = 1;
-                checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::Ricochet;
+                checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::AttackSize;
                 run->returnToMainMenu();
                 require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(0) &&
                     run->snapshot().tomeCount == 5, "second meta rank allows a fifth distinct tome");
@@ -744,7 +906,7 @@ void runRunUpgradeTests() {
         auto exhausted = std::make_unique<Simulation>();
         exhausted->startRunFromSeed(PlayerClass::Engineer, 12345);
         for (const auto owned : {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
-                RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::MaximumHealth})
+                RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::BuildingHealth})
             require(exhausted->grantDebugRunUpgradeBatch(owned, 5, RunUpgradeRarity::Legendary),
                 "exhaustion fixture maximizes four owned tomes");
         for (const auto acquiredEffect : {RunUpgradeEffect::UnlockTurret, RunUpgradeEffect::UnlockGunTurret,
@@ -758,9 +920,11 @@ void runRunUpgradeTests() {
                     : exhausted->grantDebugRunUpgrade(acquiredEffect),
                 "exhaustion fixture explicitly fills weapon slots beyond the normal limit");
         for (const auto card : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::UnlockTurret,
-                RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockSpikeTrap})
-            require(exhausted->grantDebugRunUpgradeBatch(card, MaxBuildingLevel),
-                "exhaustion fixture maximizes the four owned combat types");
+                RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockSpikeTrap,
+                RunUpgradeEffect::UnlockLumberMill, RunUpgradeEffect::UnlockQuarry,
+                RunUpgradeEffect::UnlockCrystalMine})
+            require(exhausted->grantDebugRunUpgradeBatch(card, MaxStructureLevel),
+                "exhaustion fixture maximizes all owned building types");
         for (const auto weapon : {PlayerWeapon::Axe,PlayerWeapon::Pickaxe,PlayerWeapon::Club,
                 PlayerWeapon::Rifle,PlayerWeapon::IceWand,PlayerWeapon::FireWand})
             require(exhausted->grantDebugRunUpgradeBatch(*weaponRunUpgrade(weapon),MaxBuildingLevel),
@@ -778,11 +942,16 @@ void runRunUpgradeTests() {
         checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::RiskyInvestment;
         checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
         exhausted->returnToMainMenu();
-        require(exhausted->loadSuspendedRunState(checkpoint) && !exhausted->selectRunUpgrade(0),
-            "a retired offer in an exhausted pool disappears on resume");
-        require(!exhausted->snapshot().runUpgradeChoicePending && exhausted->snapshot().runUpgradeChoiceCount == 0 &&
-            exhausted->snapshot().runUpgradeSelectionsRemaining == 0,
-            "exhausted reward pool closes instead of trapping the run behind an empty chooser");
+        require(exhausted->loadSuspendedRunState(checkpoint),
+            "a save with a retired card resumes");
+        while (exhausted->snapshot().runUpgradeChoicePending) {
+            require(exhausted->snapshot().runUpgradeChoiceCount > 0 &&
+                !retiredRunUpgrade(exhausted->snapshot().runUpgradeChoices[0]) &&
+                exhausted->selectRunUpgrade(0),
+                "retired card is replaced by a valid offer while the current pool has options");
+        }
+        require(exhausted->snapshot().runUpgradeSelectionsRemaining == 0,
+            "restored reward choices resolve without trapping the run");
         checkpoint = exhausted->saveSuspendedRunState();
         exhausted->returnToMainMenu();
         require(exhausted->loadSuspendedRunState(checkpoint), "exhausted reward state remains resumable");
@@ -794,21 +963,21 @@ void runRunUpgradeTests() {
         const auto baseStats = shared->snapshot();
         require(shared->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Rare),
             "shared might tome grants both halves");
-        requireNear(shared->snapshot().playerDamageMultiplier, baseStats.playerDamageMultiplier * 1.20, 1e-12,
+        requireNear(shared->snapshot().playerDamageMultiplier, baseStats.playerDamageMultiplier * 1.14, 1e-12,
             "might retains original player damage scaling");
-        requireNear(shared->snapshot().upgradeStats.defenseDamage, baseStats.upgradeStats.defenseDamage * 1.24, 1e-12,
+        requireNear(shared->snapshot().upgradeStats.defenseDamage, baseStats.upgradeStats.defenseDamage * 1.168, 1e-12,
             "might adds defense damage at the same rarity");
         require(shared->grantDebugRunUpgrade(RunUpgradeEffect::AttackSpeed, RunUpgradeRarity::Rare),
             "rapid tome upgrades defense speed");
         requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
             "rapid leaves player weapon speed unchanged");
-        requireNear(shared->snapshot().upgradeStats.defenseFireRate, baseStats.upgradeStats.defenseFireRate * 1.20, 1e-12,
-            "rapid speeds up defenses too");
+        requireNear(shared->snapshot().upgradeStats.defenseFireRate, baseStats.upgradeStats.defenseFireRate * 1.14, 1e-12,
+            "rapid speeds up defenses");
         requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed, 1e-12,
             "combat speed no longer accelerates gathering tools");
         require(shared->grantDebugRunUpgrade(RunUpgradeEffect::GatheringSpeed, RunUpgradeRarity::Rare),
             "separate gathering tome is grantable");
-        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed * 1.30, 1e-12,
+        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed * 1.21, 1e-12,
             "gathering speed uses rarity power rather than copy count");
         requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
             "gathering speed leaves combat unchanged");
@@ -819,8 +988,8 @@ void runRunUpgradeTests() {
         require(shared->snapshot().tomeCount == beforePerks.tomeCount,
             "weapon perks never consume tome capacity");
         auto checkpoint = shared->saveSuspendedRunState();
-        checkpoint.playerAttackSpeedMultiplier += 0.30;
-        checkpoint.toolAttackSpeedMultiplier += 0.30;
+        checkpoint.playerAttackSpeedMultiplier += 0.21;
+        checkpoint.toolAttackSpeedMultiplier += 0.21;
         shared->returnToMainMenu();
         require(shared->loadSuspendedRunState(checkpoint), "shared power and separate tool baseline resume");
         requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed, 1e-12,
@@ -887,32 +1056,32 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 50 && activeHammers == 23,
-        "pool keeps tomes and building/weapon cards while excluding all six building branches");
+    require(activeCount == 41 && activeHammers == 15,
+        "active progression contains forty-one cards and fifteen tomes");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
             retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight, overkill and high stakes are retired");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::LongerDay, RunUpgradeRarity::Rare),
         "daylight hammer grants the existing day bonus");
-    requireNear(hammers->snapshot().phaseTimeRemaining, phaseBeforeHammer + 10.0, 1e-9,
+    requireNear(hammers->snapshot().phaseTimeRemaining, phaseBeforeHammer + 7.0, 1e-9,
         "daylight rarity still scales the day extension");
     require(!hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager),
         "retired salvage hammer cannot be newly granted");
     const double originalDefense = hammers->snapshot().upgradeStats.defenseDamage;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Rare),
         "first might hammer acquired");
-    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense + 0.24, 1e-12,
+    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense * 1.168, 1e-12,
         "hammer acquisition applies its rarity bonus exactly once");
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Common),
         "repeat might hammer advances its level");
-    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense + 0.36, 1e-12,
+    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense * 1.288, 1e-12,
         "hammer upgrades add only the new card bonus");
     require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)] == 2 &&
         hammers->snapshot().buildingArsenalCount == 1,
         "passive hammers have levels independently of the combat arsenal");
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::Regeneration, RunUpgradeRarity::Uncommon),
         "regen hammer accepts rarity scaling");
-    requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.75, 1e-12,
+    requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.6, 1e-12,
         "uncommon regen hammer grants fractional HP per second");
     auto woundedHammerSave = hammers->saveSuspendedRunState();
     woundedHammerSave.playerHealth = 20.0;
@@ -922,10 +1091,10 @@ void runRunUpgradeTests() {
     require(hammers->loadSuspendedRunState(woundedHammerSave), "hammer levels and power resume");
     require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Salvager)] == 2 &&
             hammers->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Salvager)] == 3.0 &&
-            hammers->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::LongerDay)] == 2.0,
+            hammers->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::LongerDay)] == 1.4,
         "converted numeric cards resume on their original IDs without extra bonuses");
     for (int tick = 0; tick < 120; ++tick) hammers->tick(1.0 / 60.0);
-    requireNear(hammers->snapshot().playerHealth, 21.5, 1e-9,
+    requireNear(hammers->snapshot().playerHealth, 21.2, 1e-9,
         "regen hammer heals during fixed-step gameplay");
     const double pausedHealth = hammers->snapshot().playerHealth;
     hammers->togglePause();
@@ -944,5 +1113,57 @@ void runRunUpgradeTests() {
             "new run clears owned hammers");
     requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.0, 1e-12,
         "new run resets passive regen");
+
+    {
+        auto debug = std::make_unique<Simulation>();
+        debug->startRunFromSeed(PlayerClass::Vanguard, 12345);
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::DefenseDamage, 10000,
+            RunUpgradeRarity::Legendary), "bulk debug grants exceed ordinary hammer levels");
+        requireNear(debug->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)],
+            20000, 1e-9, "bulk rarity gain is applied once per copy");
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::ProjectileCount, 2000),
+            "debug quantity exceeds ordinary cap");
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::ProjectileCount, 7),
+            "debug grants remain repeatable after reaching normal limits");
+        require(debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::ProjectileCount)] == 2007,
+            "repeated bulk grants retain exact count");
+        for (const auto& definition : RunUpgradeDefinitions) {
+            if (const auto building = runUpgradeBuilding(definition.effect);
+                building && *building != playerClassDefinition(PlayerClass::Vanguard)->startingBuilding)
+                require(debug->grantDebugRunUpgradeBatch(definition.effect, 100), "debug unlocks all blueprints");
+        }
+        require(debug->snapshot().buildingArsenalCount == RunBuildingTypes.size() - 1U - RunEconomyBuildingTypes.size(),
+            "debug bypasses four combat blueprint slots");
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::UnlockCannon, 100) &&
+            debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] == 200,
+            "combat cards continue beyond the eighth model tier");
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::CannonHeavyShell, 100),
+            "debug cannon specialization stays unique regardless of copy count");
+        require(debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::CannonScattershot, 100),
+            "debug switches cannon specialization");
+        require(debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::CannonHeavyShell)] == 0 &&
+            debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::CannonScattershot)] == 1,
+            "debug specialization switching cannot stack incompatible styles");
+        require(!debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::ProjectileCount, 0) &&
+            !debug->grantDebugRunUpgradeBatch(static_cast<RunUpgradeEffect>(-1), 1) &&
+            !debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::ProjectileCount, 1, static_cast<RunUpgradeRarity>(99)) &&
+            !debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::ProjectileCount, std::numeric_limits<int>::max()),
+            "bulk debug rejects invalid input and numeric overflow");
+        require(!debug->grantDebugRunUpgradeBatch(RunUpgradeEffect::BuildRadius, 1000),
+            "retired upgrades cannot be granted through the debug catalog");
+        const auto savedDebug = debug->saveSuspendedRunState();
+        debug->returnToMainMenu();
+        require(debug->loadSuspendedRunState(savedDebug), "unlimited debug stats and arsenal survive save/load");
+        require(debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::ProjectileCount)] == 2007 &&
+            debug->snapshot().buildingArsenalCount == RunBuildingTypes.size() - 1U - RunEconomyBuildingTypes.size(), "debug save retains counts and all blueprints");
+        debug->returnToMainMenu();
+        debug->startRunFromSeed(PlayerClass::Vanguard, 12345);
+        require(debug->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::ProjectileCount)] == 0,
+            "new run resets unlimited debug grants");
+        for (int i=0;i<5;++i) require(debug->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage),
+            "ordinary grant keeps its existing progression");
+        require(!debug->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage),
+            "unlimited debug API does not remove ordinary gameplay caps");
+    }
 
 }

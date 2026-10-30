@@ -86,21 +86,39 @@ void runChestItemCombatTests() {
             "rare fractional tome can follow an epic tome");
         requireNear(simulation->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::ProjectileCount)],3,1e-12,
             "awards accumulate 1.6 plus 1.4 without rounding");
-        require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::Bounces,RunUpgradeRarity::Epic),
-            "fractional bounce remainder can be saved");
-        const auto saved=simulation->saveSuspendedRunState();
+        auto saved=simulation->saveSuspendedRunState();
+        saved.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Bounces)]=1;
+        saved.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Bounces)]=1.6;
+        saved.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Pierce)]=1;
+        saved.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Pierce)]=1.4;
         auto restored=std::make_unique<Simulation>();
         require(restored->loadSuspendedRunState(saved),"new items restore through run checkpoints");
         for(std::size_t n=19;n<LootUpgradeEffectCount;++n)
             require(restored->snapshot().lootStacks[n]==1,"new item stacks survive restore");
         requireNear(restored->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::ProjectileCount)],3,1e-12,
             "fractional tome accumulation survives save/load");
-        requireNear(restored->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Bounces)],1.6,1e-12,
-            "save/load retains an unused 0.6 bounce remainder");
-        require(restored->grantDebugRunUpgrade(RunUpgradeEffect::Bounces,RunUpgradeRarity::Rare),
-            "a loaded remainder accepts another fractional upgrade");
-        requireNear(restored->snapshot().upgradeStats.bounces,3,1e-12,
-            "loaded fractional bounces accumulate to three");
+        requireNear(restored->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Bounces)],0,1e-12,
+            "legacy bounce tome no longer occupies a global stat");
+        requireNear(restored->snapshot().buildingUpgradePowers[static_cast<std::size_t>(BuildingType::GunTurret)]
+                [static_cast<std::size_t>(AttackStat::Bounces)],1.6,1e-12,
+            "legacy bounce power migrates to compatible weapons");
+        requireNear(restored->snapshot().buildingUpgradePowers[static_cast<std::size_t>(BuildingType::TeslaTower)]
+                [static_cast<std::size_t>(AttackStat::Bounces)],1.6,1e-12,
+            "legacy bounce power survives for chain weapons");
+        requireNear(restored->snapshot().buildingUpgradePowers[static_cast<std::size_t>(BuildingType::GunTurret)]
+                [static_cast<std::size_t>(AttackStat::Pierce)],1.4,1e-12,
+            "legacy pierce power migrates to direct projectiles");
+        requireNear(restored->snapshot().buildingUpgradePowers[static_cast<std::size_t>(BuildingType::TeslaTower)]
+                [static_cast<std::size_t>(AttackStat::Pierce)],0,1e-12,
+            "chain lightning never gains pierce");
+        requireNear(restored->snapshot().buildingUpgradePowers[static_cast<std::size_t>(BuildingType::Cannon)]
+                [static_cast<std::size_t>(AttackStat::Bounces)],0,1e-12,
+            "legacy bounce power does not migrate to cannon");
+        const auto migrated=restored->saveSuspendedRunState();
+        restored->returnToMainMenu();
+        require(restored->loadSuspendedRunState(migrated) &&
+            restored->snapshot().buildingUpgradePowers==migrated.buildingUpgradePowers,
+            "legacy stat migration is idempotent");
         restored->restartRun();
         for(std::size_t n=19;n<LootUpgradeEffectCount;++n)
             require(restored->snapshot().lootStacks[n]==0,"new item stacks clear on reset");

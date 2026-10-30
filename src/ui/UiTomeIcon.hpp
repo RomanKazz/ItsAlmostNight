@@ -9,7 +9,8 @@
 namespace ian {
 // Generated tomes share the building icons' chunky illustrated style. Kept
 // separate from upgrade IDs: saved runs and gameplay metadata stay unchanged.
-inline constexpr std::array<std::pair<RunUpgradeEffect, const char*>, 23> RunTomeIconPaths{{
+inline constexpr std::array<std::pair<RunUpgradeEffect, const char*>, 24> RunTomeIconPaths{{
+    {RunUpgradeEffect::ExperienceGain, "assets/ui/tomes/experience.svg"},
     {RunUpgradeEffect::BuildingHealth, "assets/ui/tomes/fortitude.png"},
     {RunUpgradeEffect::BuildingCapacity, "assets/ui/tomes/expansion.png"},
     {RunUpgradeEffect::ProductionSpeed, "assets/ui/tomes/industry.png"},

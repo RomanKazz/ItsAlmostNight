@@ -77,9 +77,9 @@ void countersAndWaves() {
     require(projectileDefenseCanTarget(BuildingType::TeslaTower,enemy,0) &&
         projectileDefenseCanTarget(BuildingType::MissileLauncher,enemy,0),"anti-air weapons retain bee eligibility");
     const auto balance=GameBalance::defaults();WaveDirector waves(balance.waves);
-    require(waves.composition(5).bee==0 && waves.composition(6).bee>0,"bees enter after the ordinary flying tutorial");
+    require(waves.composition(6).bee==0 && waves.composition(7).bee>0,"bees enter after the ordinary flying tutorial");
     for(auto pattern:{NightPattern::Horde,NightPattern::AirRaid,NightPattern::Crossfire,NightPattern::RoyalCourt}) {
-        const auto wave=nightComposition(waves.composition(6),pattern,1);
+        const auto wave=nightComposition(waves.composition(7),pattern,1);
         const auto counts=waveEnemyCounts(wave);int budget=0;
         for(std::size_t i=0;i<counts.size();++i)if(i!=3)budget+=counts[i]*enemyBudgetCost(static_cast<EnemyType>(i));
         require(budget==wave.budget,"new airborne role stays within each night threat budget");

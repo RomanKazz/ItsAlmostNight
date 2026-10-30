@@ -69,6 +69,17 @@ struct PlatformEdgeSnap {
     Vec3 marker;
 };
 
+[[nodiscard]] inline GridCoord rampSupportAnchorAlongEdge(
+    GridCoord frameAnchor, Rotation rotation, Vec3 floorAim,
+    double cellSize) {
+    if (rotation == Rotation::Deg0 || rotation == Rotation::Deg180) {
+        frameAnchor.x = platformAnchorAxisFromCenter(floorAim.x, cellSize);
+    } else {
+        frameAnchor.z = platformAnchorAxisFromCenter(floorAim.z, cellSize);
+    }
+    return frameAnchor;
+}
+
 [[nodiscard]] inline std::optional<PlatformEdgeSnap>
 platformEdgeSnapAtAim(
     GridCoord frameAnchor, double floorHeight,
@@ -129,6 +140,7 @@ platformEdgeSnapAtAim(
         extension.x += positive
             ? PlatformFrameWidthCells
             : -PlatformFrameWidthCells;
+        extension.z = platformAnchorAxisFromCenter(hitZ, cellSize);
         marker.x += positive ? halfWidth : -halfWidth;
         marker.z += std::clamp(
             localZ, -halfWidth, halfWidth);
@@ -137,6 +149,7 @@ platformEdgeSnapAtAim(
         extension.z += positive
             ? PlatformFrameWidthCells
             : -PlatformFrameWidthCells;
+        extension.x = platformAnchorAxisFromCenter(hitX, cellSize);
         marker.z += positive ? halfWidth : -halfWidth;
         marker.x += std::clamp(
             localX, -halfWidth, halfWidth);

@@ -57,33 +57,34 @@ void runGameBalanceTests() {
     {
         ian::BuildingSystem economyBuildings{
             assetBalance.balance.buildings, assetBalance.balance.economy};
-        constexpr std::array CorePrices{30, 50, 75, 110, 150, 200, 260};
         constexpr std::array CannonPrices{15, 25, 40, 55, 80, 110, 145};
         constexpr std::array CatapultPrices{20, 35, 55, 80, 115, 150, 200};
         constexpr std::array BasicPrices{5, 10, 15, 20, 30, 40, 55};
-        constexpr std::array CrossbowPrices{10, 15, 25, 35, 50, 65, 85};
-        require(economyBuildings.configuredCost(ian::BuildingType::Turret) == ian::ResourceCost{25, 15, 5},
-                "crossbow construction requires wood, stone and crystals");
+        require(economyBuildings.configuredCost(ian::BuildingType::Turret) == ian::ResourceCost{25, 15, 0} &&
+                    economyBuildings.configuredCost(ian::BuildingType::SlowTrap) == ian::ResourceCost{15, 20, 0} &&
+                    economyBuildings.configuredCost(ian::BuildingType::SpikeTrap) == ian::ResourceCost{20, 25, 0},
+                "starter defenses require only wood and stone");
         for (std::uint8_t level = 1; level < ian::MaxBuildingLevel; ++level) {
             const auto priceAt = [&](ian::BuildingType type) {
                 return economyBuildings.upgradeCost({.type = type, .level = level});
             };
             const auto corePrice = priceAt(ian::BuildingType::Core);
-            require(corePrice == ian::ResourceCost{0, 0, CorePrices[level - 1]} &&
-                        corePrice.crystals <= ian::coreResourceCapacity(
-                            ian::ResourceCapacityType::Crystal, level),
-                    "each Core upgrade uses the affordable full crystal curve");
+            require(corePrice == ian::ResourceCost{},
+                    "Core progression has no resource upgrade price");
             require(priceAt(ian::BuildingType::Cannon).crystals == CannonPrices[level - 1] &&
                         priceAt(ian::BuildingType::Catapult).crystals == CatapultPrices[level - 1],
                     "heavy weapon upgrades retain progressively higher crystal prices");
-            require(priceAt(ian::BuildingType::Turret).crystals == CrossbowPrices[level - 1],
-                    "crossbow upgrade prices include its crystal construction cost");
-            for (const auto type : {ian::BuildingType::CrystalMine,
-                                    ian::BuildingType::Quarry,
+            require(priceAt(ian::BuildingType::Turret).crystals == 0 &&
+                        priceAt(ian::BuildingType::SlowTrap).crystals == 0 &&
+                        priceAt(ian::BuildingType::SpikeTrap).crystals == 0,
+                    "starter defense upgrades do not require crystals");
+            for (const auto type : {ian::BuildingType::Quarry,
                                     ian::BuildingType::LumberMill}) {
                 require(priceAt(type).crystals == BasicPrices[level - 1],
-                        "basic defense and production share the lower upgrade curve");
+                        "stone and wood producers retain the lower crystal upgrade curve");
             }
+            require(priceAt(ian::BuildingType::CrystalMine).crystals > BasicPrices[level - 1],
+                    "crystal mine upgrades account for its crystal construction cost");
             require(priceAt(ian::BuildingType::Wall).crystals == 0 &&
                         priceAt(ian::BuildingType::Gate).crystals == 0,
                     "perimeter upgrades do not compete for progression crystals");
@@ -115,22 +116,22 @@ void runGameBalanceTests() {
                 "a crystal-funded defense can be repaired with zero crystals available");
         const int firstWaveReward = defaults.economy.waveRewardBase +
                                     defaults.economy.waveRewardPerWave;
-        require(firstWaveReward + ian::coreResourceCapacity(
-                    ian::ResourceCapacityType::Crystal, 0) >= CorePrices[0] &&
-                    firstWaveReward >= ian::buildingCost(ian::BuildingType::Cannon).crystals,
-                "first wave and starter deposit allow progression or a heavy defense");
+        require(firstWaveReward >= ian::buildingCost(ian::BuildingType::Cannon).crystals,
+                "first wave can fund a heavy defense without paying for Core levels");
         ian::CrystalMineSystem dayIncome{assetBalance.balance.economy};
         const ian::BuildingInstance earlyMine{
             .id = {1001, 0}, .type = ian::BuildingType::CrystalMine,
             .health = 140.0, .maxHealth = 140.0,
         };
         dayIncome.syncBuildings({earlyMine});
-        static_cast<void>(dayIncome.tick(assetBalance.balance.gameplay.firstBuildPhaseSeconds));
-        const int collected = dayIncome.collect(earlyMine.id, 100);
-        require(collected == 8, "first-day mine output reflects two-thirds production speed");
-        static_cast<void>(dayIncome.tick(assetBalance.balance.gameplay.nightDurationSeconds));
-        require(collected + dayIncome.collect(earlyMine.id, 100) + firstWaveReward >= CorePrices[0],
-                "day and night production fund the first Core upgrade after wave one");
+        const auto firstDay = dayIncome.tick(assetBalance.balance.gameplay.firstBuildPhaseSeconds);
+        const int produced = firstDay.empty() ? 0 : firstDay.front().amount;
+        require(produced == 4, "first-day mine output reflects four crystals per minute");
+        const auto firstNight = dayIncome.tick(assetBalance.balance.gameplay.nightDurationSeconds);
+        const int nightProduction = firstNight.empty() ? 0 : firstNight.front().amount;
+        require(produced + nightProduction + firstWaveReward >=
+                    ian::buildingCost(ian::BuildingType::Cannon).crystals,
+                "day and night production can fund a heavy defense after wave one");
     }
     require(
         assetBalance.balance.buildings[static_cast<std::size_t>(
@@ -291,10 +292,12 @@ void runGameBalanceTests() {
             customBalance.balance.buildings, customBalance.balance.economy};
         for (std::uint8_t level = 1; level < ian::MaxBuildingLevel; ++level) {
             require(customBuildings.upgradeCost({.type = ian::BuildingType::Core,
-                                                .level = level}).crystals == customCore[level - 1] &&
+                                                .level = level}).crystals == 0 &&
+                        customBuildings.upgradeCost({.type = ian::BuildingType::CrystalMine,
+                                                     .level = level}).crystals == customBonus[level - 1] &&
                         customBuildings.upgradeCost({.type = ian::BuildingType::Turret,
-                                                     .level = level}).crystals == customBonus[level - 1],
-                    "runtime honors configured prices through the final upgrade");
+                                                     .level = level}).crystals == 0,
+                    "Core and starter defense upgrades ignore legacy crystal prices while producers honor them");
         }
         for (const auto field : {"coreUpgradeCrystals", "buildingUpgradeCrystalBonus"}) {
             auto invalidEconomy = fullEconomy;
@@ -391,8 +394,8 @@ void runGameBalanceTests() {
             "sale consumes loaded economy fraction");
     const auto coreUpgrade =
         buildings.upgrade(configuredCore->building.id, 0, 0, 20);
-    require(coreUpgrade.valid() && coreUpgrade.cost.crystals == 20,
-            "core upgrade consumes loaded economy price");
+    require(coreUpgrade.valid() && coreUpgrade.cost == ian::ResourceCost{},
+            "Core levels do not consume the legacy crystal price");
 
     const auto mine =
         buildings.place(ian::BuildingType::CrystalMine, {4, 0}, 0, 20, 10);
@@ -408,7 +411,7 @@ void runGameBalanceTests() {
                 rifle.magazineSize() == 4 && rifle.upgradeCrystalCost() == 5,
             "rifle consumes loaded weapon definition");
     ian::BombSystem bombs{loaded.balance.weapons.bomb};
-    require(bombs.remainingBombs() == 5 &&
+    require(bombs.cooldownRemaining() == 0.0 &&
                 bombs.throwBomb({0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}) &&
                 bombs.projectiles()[0].fuseRemaining == 0.1,
             "bomb consumes loaded weapon definition");

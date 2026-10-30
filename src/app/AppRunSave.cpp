@@ -6,6 +6,7 @@
 #include <fstream>
 #include <limits>
 #include <system_error>
+#include <stdexcept>
 
 namespace ian {
 namespace {
@@ -13,7 +14,7 @@ namespace {
 using Json = nlohmann::json;
 constexpr std::string_view SuspendedRunPath =
     "user_settings/suspended_run.json";
-constexpr int SuspendedRunVersion = 7;
+constexpr int SuspendedRunVersion = 9;
 constexpr std::uintmax_t MaximumSuspendedRunBytes = 4U * 1024U * 1024U;
 
 Json entityJson(EntityId id) {
@@ -89,6 +90,25 @@ Json buildingJson(const BuildingInstance& building) {
         {"foundationBottomHeight", building.foundationBottomHeight},
         {"anvilEnhanced", building.anvilEnhanced},
         {"anvilStacks", building.anvilStacks},
+    };
+}
+
+Json producerRuntimeJson(const CrystalMineRuntime& runtime) {
+    return {
+        {"id", entityJson(runtime.buildingId)},
+        {"type", static_cast<int>(runtime.buildingType)},
+        {"progress", runtime.productionProgress},
+        {"stored", runtime.stored},
+    };
+}
+
+CrystalMineRuntime readProducerRuntime(const Json& value) {
+    return {
+        .buildingId = readEntity(value.at("id")),
+        .buildingType = static_cast<BuildingType>(
+            value.at("type").get<int>()),
+        .productionProgress = value.at("progress").get<double>(),
+        .stored = value.at("stored").get<int>(),
     };
 }
 
@@ -373,6 +393,7 @@ Json worldLandmarkJson(const WorldLandmarkInstance& landmark) {
         {"collisionRadius", landmark.collisionRadius},
         {"activationCoinCost", landmark.activationCoinCost},
         {"activated", landmark.activated},
+        {"level", landmark.level},
         {"productionProgress", landmark.productionProgress},
     };
 }
@@ -387,6 +408,7 @@ WorldLandmarkInstance readWorldLandmark(const Json& value) {
         .activationCoinCost = value.at("activationCoinCost").get<int>(),
         .activated = value.at("activated").get<bool>(),
         .productionProgress = value.at("productionProgress").get<double>(),
+        .level = value.value("level",1),
     };
 }
 
@@ -507,6 +529,28 @@ ObjectiveRunState readObjectives(const Json& value) {
     return objectives;
 }
 
+Json relicStateJson(const RelicState& state) {
+    Json graves=Json::array(), ghosts=Json::array(), clocks=Json::array();
+    for (const auto& b:state.destroyedTowers) graves.push_back(buildingJson(b));
+    for (const auto& g:state.ghosts) ghosts.push_back({{"building",buildingJson(g.building)},{"remaining",g.remaining}});
+    for (const auto& c:state.towerHitClocks) clocks.push_back({{"id",entityJson(c.id)},{"time",c.lastAttackSeconds},{"armed",c.springArmed}});
+    return {{"depleted",state.depletedResources},{"serial",state.manualRollSerial},{"cards",state.chosenStatCards},
+        {"boots",state.bootRemaining},{"stasis",state.coreStasisRemaining},{"safe",state.safeDeposits},
+        {"fuseUsed",state.fuseUsed},{"tokenReady",state.weaponTokenReady},
+        {"graves",graves},{"ghosts",ghosts},{"clocks",clocks}};
+}
+RelicState readRelicState(const Json& value) {
+    RelicState s;
+    s.depletedResources=value.at("depleted").get<std::array<int,3>>();
+    s.manualRollSerial=value.at("serial").get<std::uint64_t>(); s.chosenStatCards=value.at("cards").get<int>();
+    s.bootRemaining=value.at("boots").get<double>();s.coreStasisRemaining=value.at("stasis").get<double>();
+    s.safeDeposits=value.at("safe").get<int>();s.fuseUsed=value.at("fuseUsed").get<bool>();s.weaponTokenReady=value.at("tokenReady").get<bool>();
+    for (const auto& b:value.at("graves")) s.destroyedTowers.push_back(readBuilding(b));
+    for (const auto& g:value.at("ghosts")) s.ghosts.push_back({readBuilding(g.at("building")),g.at("remaining").get<double>()});
+    for (const auto& c:value.at("clocks")) s.towerHitClocks.push_back({readEntity(c.at("id")),c.at("time").get<double>(),c.value("armed",false)});
+    return s;
+}
+
 Json suspendedRunJson(const SuspendedRunState& saved) {
     Json buildings = Json::array();
     for (const BuildingInstance& building : saved.buildings) {
@@ -544,6 +588,10 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
     for (const RunUpgradeEffect choice : saved.runUpgradeChoices) {
         upgradeChoices.push_back(static_cast<int>(choice));
     }
+    Json producerRuntimes = Json::array();
+    for (const CrystalMineRuntime& runtime : saved.producerRuntimes) {
+        producerRuntimes.push_back(producerRuntimeJson(runtime));
+    }
     return {
         {"version", SuspendedRunVersion},
         {"buildingArsenalVersion", saved.buildingArsenalVersion},
@@ -570,13 +618,17 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"wood", saved.wood}, {"stone", saved.stone},
         {"crystals", saved.crystals}, {"coins", saved.coins},
         {"bombs", saved.bombs},
+        {"bombCooldownRemaining", saved.bombCooldownRemaining},
         {"selectedWeapon", static_cast<int>(saved.selectedWeapon)},
         {"rifleLevel", saved.rifleLevel},
         {"lootStacks", saved.lootStacks},
+        {"relics", relicStateJson(saved.relics)},
         {"runUpgradeStacks", saved.runUpgradeStacks},
         {"runUpgradePower", saved.runUpgradePower},
+        {"buildingUpgradePowers", saved.buildingUpgradePowers},
         {"repairStationCycleRemaining", saved.repairStationCycleRemaining},
         {"buildings", std::move(buildings)},
+        {"producerRuntimes", std::move(producerRuntimes)},
         {"modularStructures", {
             {"platformFrames", std::move(platformFrames)},
             {"walls", std::move(walls)},
@@ -591,6 +643,10 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"buildingBlueprintLevels", saved.buildingBlueprintLevels},
         {"coreBuildRadius", saved.coreBuildRadius},
         {"coreBuildRadiusLevel", saved.coreBuildRadiusLevel},
+        {"coreCardPowers", saved.coreCardPowers},
+        {"coreHealthBaseLevel", saved.coreHealthBaseLevel},
+        {"coreBuildingBaseLevel", saved.coreBuildingBaseLevel},
+        {"coreStorageBaseLevel", saved.coreStorageBaseLevel},
         {"playerWeaponArsenalVersion", saved.playerWeaponArsenalVersion},
         {"resourceNodeCapacityVersion", saved.resourceNodeCapacityVersion},
         {"multipliers", {
@@ -610,6 +666,30 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"defenseFireRate", saved.defenseFireRateMultiplier},
             {"woodYield", saved.woodYieldMultiplier},
             {"chestOpeningCost", saved.chestOpeningCostMultiplier},
+            {"openedPaidChests", saved.openedPaidChestCount},
+        }},
+        {"powerupTimers", saved.powerups.remaining},
+        {"metaSilverPickups", [&saved] {
+            Json pickups = Json::array();
+            for (const auto& p : saved.metaSilverPickups)
+                pickups.push_back({{"id",p.id},
+                    {"position",{p.position.x,p.position.y,p.position.z}},
+                    {"velocity",{p.velocity.x,p.velocity.y,p.velocity.z}},
+                    {"age",p.age},{"magnetTime",p.magnetTime},
+                    {"spinPhase",p.spinPhase},{"magnetized",p.magnetized}});
+            return pickups;
+        }()},
+        {"powerupPickups", [&saved] {
+            Json pickups = Json::array();
+            for (const auto& p : saved.powerups.pickups) if (p.active)
+                pickups.push_back({{"position", {p.position.x, p.position.y, p.position.z}},
+                    {"type", static_cast<int>(p.type)}, {"age", p.age}});
+            return pickups;
+        }()},
+        {"classAbility", {
+            {"rage", saved.classAbilityState.rageRemaining},
+            {"exhaustion", saved.classAbilityState.exhaustionRemaining},
+            {"stumpCombo", saved.classAbilityState.stumpCombo},
         }},
         {"runtime", {
             {"playerBonusMaxHealth", saved.playerBonusMaxHealth},
@@ -619,6 +699,9 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"appleAvailable", saved.appleAvailable},
             {"breadWellFed", saved.breadWellFed},
             {"battlePotionAvailable", saved.battlePotionAvailable},
+            {"battlePotionBerserkRemaining", saved.battlePotionBerserkRemaining},
+            {"battlePotionBerserkDuration", saved.battlePotionBerserkDuration},
+            {"battlePotionLifestealRemaining", saved.battlePotionLifestealRemaining},
             {"freeChestOpeningAvailable", saved.freeChestOpeningAvailable},
             {"freeChestRerollsRemaining", saved.freeChestRerollsRemaining},
             {"runNightlyBombBonus", saved.runNightlyBombBonus},
@@ -634,19 +717,26 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"riskyInvestmentPending", saved.riskyInvestmentPending},
             {"bloodHarvestKillProgress", saved.bloodHarvestKillProgress},
         }},
+        {"shrines", {{"activations",saved.shrines.activations}, {"playerBonuses",saved.shrines.playerBonuses}, {"buildingBonuses",saved.shrines.buildingBonuses},
+            {"playerPowers",saved.shrines.playerPowers}, {"buildingPowers",saved.shrines.buildingPowers},
+            {"offer",static_cast<int>(saved.shrines.offer)},
+            {"source",saved.shrines.source ? entityJson(*saved.shrines.source) : Json(nullptr)}}},
         {"runShop", [&saved] {
             Json offers = Json::array();
             for (const auto& offer : saved.runShop.offers) offers.push_back({
                 {"effect", static_cast<int>(offer.effect)}, {"rarity", static_cast<int>(offer.rarity)},
-                {"price", offer.price}, {"present", offer.present}, {"locked", offer.locked}});
+                {"price", offer.price}, {"present", offer.present}, {"locked", offer.locked},
+                {"rollSeed", offer.rollSeed}});
             return Json{{"pending", saved.runShop.pending}, {"wave", saved.runShop.wave},
                 {"rerolls", saved.runShop.rerolls}, {"generation", saved.runShop.generation}, {"offers", std::move(offers)}};
         }()},
         {"runUpgradeOffer", {
             {"pending", saved.runUpgradeChoicePending},
             {"count", saved.runUpgradeChoiceCount},
+            {"paidChoicePrice", saved.runUpgradePaidChoicePrice},
             {"choices", std::move(upgradeChoices)},
             {"rarities", saved.runUpgradeRarities},
+            {"rollSeeds", saved.runUpgradeRollSeeds},
             {"selectionsRemaining", saved.runUpgradeSelectionsRemaining},
             {"generation", saved.runUpgradeOfferGeneration},
         }},
@@ -710,11 +800,14 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.crystals = document.at("crystals").get<int>();
     saved.coins = document.at("coins").get<int>();
     saved.bombs = document.at("bombs").get<int>();
+    saved.bombCooldownRemaining = document.value("bombCooldownRemaining", 0.0);
     saved.selectedWeapon = static_cast<PlayerWeapon>(
         document.at("selectedWeapon").get<int>());
     saved.rifleLevel = document.at("rifleLevel").get<int>();
     saved.repairStationCycleRemaining = document.value("repairStationCycleRemaining", RepairStationInterval);
-    if (!readFixedArray(document, "lootStacks", saved.lootStacks) ||
+    if (document.contains("relics")) saved.relics = readRelicState(document.at("relics"));
+    if (!readExpandableFixedArray(document, "lootStacks", saved.lootStacks) ||
+        document.at("lootStacks").size() < 19U ||
         !readExpandableFixedArray(
             document, "runUpgradeStacks",
             saved.runUpgradeStacks) ||
@@ -727,8 +820,30 @@ SuspendedRunState readSuspendedRun(const Json& document) {
             document, "runUpgradePower", saved.runUpgradePower)) {
         throw Json::type_error::create(302, "invalid run upgrade power", &document);
     }
+    if (const auto powers = document.find("buildingUpgradePowers");
+        powers != document.end()) {
+        if (!powers->is_array() || powers->size() != saved.buildingUpgradePowers.size())
+            throw Json::type_error::create(302, "invalid building upgrade powers", &document);
+        for (std::size_t i = 0; i < powers->size(); ++i) {
+            const auto& row = powers->at(i);
+            // Slow Strength was appended after the original stat columns.
+            // Older checkpoints keep their previous columns and default the new one to zero.
+            if (!row.is_array() || row.size() + 1 < saved.buildingUpgradePowers[i].size() ||
+                row.size() > saved.buildingUpgradePowers[i].size())
+                throw Json::type_error::create(302, "invalid building upgrade stats", &document);
+            for (std::size_t j = 0; j < row.size(); ++j)
+                saved.buildingUpgradePowers[i][j] = row.at(j).get<double>();
+        }
+    }
     for (const Json& building : document.at("buildings")) {
         saved.buildings.push_back(readBuilding(building));
+    }
+    if (const auto runtimes = document.find("producerRuntimes");
+        runtimes != document.end()) {
+        for (const Json& runtime : *runtimes) {
+            saved.producerRuntimes.push_back(
+                readProducerRuntime(runtime));
+        }
     }
     const Json& structures = document.at("modularStructures");
     for (const Json& frame : structures.at("platformFrames")) {
@@ -755,6 +870,19 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     }
     saved.coreBuildRadius = document.at("coreBuildRadius").get<int>();
     saved.coreBuildRadiusLevel = document.value("coreBuildRadiusLevel", 1);
+    if (document.contains("coreCardPowers")) {
+        saved.coreCardPowers = document.at("coreCardPowers").get<std::array<double, 4>>();
+        saved.coreHealthBaseLevel = document.value("coreHealthBaseLevel", 1);
+        saved.coreBuildingBaseLevel = document.value("coreBuildingBaseLevel", 1);
+        saved.coreStorageBaseLevel = document.value("coreStorageBaseLevel", 1);
+    } else {
+        const auto core = std::ranges::find(saved.buildings, BuildingType::Core, &BuildingInstance::type);
+        const int legacyLevel = core == saved.buildings.end() ? 1 : core->level;
+        saved.coreCardPowers = {};
+        saved.coreHealthBaseLevel = legacyLevel;
+        saved.coreBuildingBaseLevel = legacyLevel;
+        saved.coreStorageBaseLevel = legacyLevel;
+    }
     saved.playerWeaponArsenalVersion = document.value("playerWeaponArsenalVersion", 0);
     saved.resourceNodeCapacityVersion = document.value("resourceNodeCapacityVersion", 0);
     const Json& multipliers = document.at("multipliers");
@@ -774,6 +902,45 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.defenseFireRateMultiplier = multipliers.at("defenseFireRate");
     saved.woodYieldMultiplier = multipliers.at("woodYield");
     saved.chestOpeningCostMultiplier = multipliers.at("chestOpeningCost");
+    saved.openedPaidChestCount = multipliers.value("openedPaidChests", 0);
+    if (document.contains("powerupTimers"))
+        saved.powerups.remaining = document.at("powerupTimers").get<std::array<double, PowerupTypeCount>>();
+    if (document.contains("metaSilverPickups")) {
+        const auto& pickups = document.at("metaSilverPickups");
+        if (!pickups.is_array() || pickups.size() > CoinPickupSystem::MaximumPickups)
+            throw std::runtime_error("Invalid silver pickups");
+        for (const auto& p : pickups) {
+            const auto pos = p.at("position").get<std::array<double,3>>();
+            const auto vel = p.at("velocity").get<std::array<double,3>>();
+            saved.metaSilverPickups.push_back({.id=p.at("id"),
+                .position={pos[0],pos[1],pos[2]},.velocity={vel[0],vel[1],vel[2]},
+                .age=p.at("age"),.magnetTime=p.at("magnetTime"),.spinPhase=p.at("spinPhase"),
+                .type=CoinType::Silver,.kind=PickupKind::MetaSilver,.value=1,
+                .magnetized=p.at("magnetized")});
+        }
+    }
+    if (!CoinPickupSystem::validMetaSilverState(saved.metaSilverPickups))
+        throw std::runtime_error("Invalid silver pickups");
+    if (document.contains("powerupPickups")) {
+        const auto& pickups = document.at("powerupPickups");
+        if (!pickups.is_array() || pickups.size() > saved.powerups.pickups.size()) throw std::runtime_error("Invalid powerup pickups");
+        std::size_t i = 0;
+        for (const auto& p : pickups) {
+            const auto xyz = p.at("position").get<std::array<double, 3>>();
+            const int type = p.at("type").get<int>();
+            if (type < 0 || type >= static_cast<int>(PowerupType::Count)) throw std::runtime_error("Invalid powerup type");
+            saved.powerups.pickups[i++] = {{xyz[0], xyz[1], xyz[2]}, static_cast<PowerupType>(type), p.at("age"), true};
+        }
+    }
+    if (!PowerupSystem::validState(saved.powerups)) throw std::runtime_error("Invalid powerup state");
+    if (document.contains("classAbility")) {
+        const Json& ability = document.at("classAbility");
+        saved.classAbilityState = {
+            .rageRemaining = ability.value("rage",0.0),
+            .exhaustionRemaining = ability.value("exhaustion",0.0),
+            .stumpCombo = ability.value("stumpCombo",0),
+        };
+    }
     const Json& runtime = document.at("runtime");
     saved.playerBonusMaxHealth = runtime.at("playerBonusMaxHealth");
     saved.playerTemporaryHealth = runtime.at("playerTemporaryHealth");
@@ -782,6 +949,9 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.appleAvailable = runtime.at("appleAvailable");
     saved.breadWellFed = runtime.at("breadWellFed");
     saved.battlePotionAvailable = runtime.at("battlePotionAvailable");
+    saved.battlePotionBerserkRemaining = runtime.value("battlePotionBerserkRemaining",0.0);
+    saved.battlePotionBerserkDuration = runtime.value("battlePotionBerserkDuration",0.0);
+    saved.battlePotionLifestealRemaining = runtime.value("battlePotionLifestealRemaining",0.0);
     saved.freeChestOpeningAvailable = runtime.at("freeChestOpeningAvailable");
     saved.freeChestRerollsRemaining = runtime.at("freeChestRerollsRemaining");
     saved.runNightlyBombBonus = runtime.at("runNightlyBombBonus");
@@ -797,6 +967,26 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.bonusSelectionsNextReward = runtime.at("bonusSelectionsNextReward");
     saved.riskyInvestmentPending = runtime.at("riskyInvestmentPending");
     saved.bloodHarvestKillProgress = runtime.at("bloodHarvestKillProgress");
+    if (document.contains("shrines")) {
+        const auto& shrine=document.at("shrines");
+        saved.shrines.activations=shrine.at("activations").get<int>();
+        if (!readExpandableFixedArray(shrine,"playerBonuses",saved.shrines.playerBonuses) ||
+            !readExpandableFixedArray(shrine,"buildingBonuses",saved.shrines.buildingBonuses))
+            throw Json::type_error::create(302,"invalid shrine bonus array",&shrine);
+        if (shrine.contains("playerPowers") && shrine.contains("buildingPowers")) {
+            if (!readExpandableFixedArray(shrine,"playerPowers",saved.shrines.playerPowers) ||
+                !readExpandableFixedArray(shrine,"buildingPowers",saved.shrines.buildingPowers))
+                throw Json::type_error::create(302,"invalid shrine power array",&shrine);
+        } else {
+            for (std::size_t i=0;i<RunUpgradeEffectCount;++i) {
+                saved.shrines.playerPowers[i]=saved.shrines.playerBonuses[i];
+                saved.shrines.buildingPowers[i]=saved.shrines.buildingBonuses[i];
+            }
+            saved.shrines.buildingPowers[runUpgradeIndex(RunUpgradeEffect::UpgradeCore)]=0.0;
+        }
+        saved.shrines.offer=static_cast<ShrineKind>(shrine.at("offer").get<int>());
+        if (!shrine.at("source").is_null()) saved.shrines.source=readEntity(shrine.at("source"));
+    }
     if (document.contains("runShop")) {
         const auto& shop = document.at("runShop");
         saved.runShop.pending = shop.at("pending");
@@ -809,11 +999,13 @@ SuspendedRunState readSuspendedRun(const Json& document) {
         for (std::size_t i = 0; i < offers.size(); ++i) saved.runShop.offers[i] = {
             .effect = static_cast<RunUpgradeEffect>(offers[i].at("effect").get<int>()),
             .rarity = static_cast<RunUpgradeRarity>(offers[i].at("rarity").get<int>()),
+            .rollSeed = offers[i].value("rollSeed", std::uint64_t{0}),
             .price = offers[i].at("price"), .present = offers[i].at("present"), .locked = offers[i].at("locked")};
     }
     const Json& upgradeOffer = document.at("runUpgradeOffer");
     saved.runUpgradeChoicePending = upgradeOffer.at("pending").get<bool>();
     saved.runUpgradeChoiceCount = upgradeOffer.at("count").get<std::size_t>();
+    saved.runUpgradePaidChoicePrice = upgradeOffer.value("paidChoicePrice", 0);
     if (!readFixedArray(
             upgradeOffer, "choices", saved.runUpgradeChoices)) {
         throw Json::type_error::create(
@@ -824,6 +1016,10 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     if (upgradeOffer.contains("rarities") && !readFixedArray(
             upgradeOffer, "rarities", saved.runUpgradeRarities)) {
         throw Json::type_error::create(302, "invalid run upgrade rarities", &upgradeOffer);
+    }
+    if (upgradeOffer.contains("rollSeeds") && !readFixedArray(
+            upgradeOffer, "rollSeeds", saved.runUpgradeRollSeeds)) {
+        throw Json::type_error::create(302, "invalid run upgrade roll seeds", &upgradeOffer);
     }
     saved.runUpgradeOfferGeneration =
         upgradeOffer.at("generation").get<std::uint32_t>();
@@ -890,7 +1086,7 @@ std::optional<SuspendedRunState> readSuspendedRunFile(
         stream >> document;
         const int version = document.value("version", 0);
         if (!stream || !document.is_object() ||
-            (version != 5 && version != 6 && version != SuspendedRunVersion)) {
+            (version != 5 && version != 6 && version != 7 && version != 8 && version != SuspendedRunVersion)) {
             return std::nullopt;
         }
         return readSuspendedRun(document);
@@ -1049,6 +1245,7 @@ bool App::loadSuspendedRun() {
         const SuspendedRunState& saved = *stored;
         const bool terrainGraphicsAlreadyMatch =
             simulation_.terrain().seed() == saved.terrainSeed;
+        simulation_.configureNextRunContent(runContentAccess(metaProgression_));
         if (!simulation_.loadSuspendedRunState(saved)) return false;
         if (!simulation_.snapshot().sandboxMode) {
             questSystem_.resumeRun(metaProgression_);

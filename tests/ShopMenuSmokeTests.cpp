@@ -13,9 +13,31 @@ int main(int argc,char** argv) {
     if(!IsWindowReady()) return 77;
     initializeLocalization();initializeUiText();
     GameUi ui;ui.initialize();
+    for(std::size_t index=19;index<LootUpgradeEffectCount;++index)
+        require(IsTextureValid(ui.lootTexture(static_cast<LootUpgradeEffect>(index))),
+            "new chest items load distinct cartoon icons");
+    if(const char* output=std::getenv("IAN_CAPTURE_CHEST_ICONS")) {
+        auto canvas=LoadRenderTexture(896,128);
+        BeginTextureMode(canvas);ClearBackground({61,82,66,255});
+        for(std::size_t index=19;index<LootUpgradeEffectCount;++index) {
+            const auto texture=ui.lootTexture(static_cast<LootUpgradeEffect>(index));
+            DrawTexturePro(texture,{0,0,float(texture.width),float(texture.height)},
+                {float(index-19)*128,0,128,128},{},0,WHITE);
+        }
+        EndTextureMode();
+        auto image=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&image);
+        ExportImage(image,output);UnloadImage(image);UnloadRenderTexture(canvas);
+    }
+    for(const auto& definition:MetaShopDefinitions) {
+        const auto texture=ui.metaShopTexture(definition.upgrade);
+        require(IsTextureValid(texture) && texture.width==256 && texture.height==256,
+            "each permanent shop upgrade has a matching icon");
+    }
+    for(const auto action:{ShopActionIcon::Purchase,ShopActionIcon::Reroll})
+        require(IsTextureValid(ui.shopActionTexture(action)),"purchase and reroll icons load once with the UI");
     for(auto language:{Language::English,Language::Russian}) {
         setLanguage(language);
-        for(Vector2 viewport:{Vector2{1920,1080},Vector2{1280,720},Vector2{1280,800}}) {
+        for(Vector2 viewport:{Vector2{1920,1080},Vector2{1280,720},Vector2{1280,800}, Vector2{1024,768}, Vector2{1280,1024}, Vector2{800,1200}, Vector2{640,360}, Vector2{2560,720}}) {
             SetWindowSize(static_cast<int>(viewport.x),static_cast<int>(viewport.y));PollInputEvents();
             const auto panel=shopMenuPanelBounds(viewport);
             require(panel.x>0&&panel.y>0&&panel.x+panel.width<viewport.x&&panel.y+panel.height<viewport.y,"shop fits all tested aspect ratios");
@@ -23,7 +45,7 @@ int main(int argc,char** argv) {
             const Vector2 origin{(viewport.x-1920*scale)*.5F,(viewport.y-1080*scale)*.5F};
             const auto point=[&](float x,float y){return Vector2{origin.x+x*scale,origin.y+y*scale};};
             auto target=LoadRenderTexture(static_cast<int>(viewport.x),static_cast<int>(viewport.y));
-            MetaProgression profile;profile.silver=50;
+            MetaProgression profile;profile.silver=50;profile.quests.ownedUnlocks.insert("meta.silver_gain");
             ShopMenuState state;
             BeginTextureMode(target);
             ClearBackground({61,82,66,255});
@@ -49,6 +71,7 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(860,620),.click=true});
             require(state.selected==MetaShopUpgrade::TomeSlots,"ninth shop tile selects tome slots");
             profile.silver=50;
+            profile.quests.ownedUnlocks.insert(std::string(MetaShopDefinitions[static_cast<std::size_t>(state.selected)].requiredUnlock));
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(result.purchase&&profile.silver==40&&metaRunBonuses(profile).additionalTomeSlots==1,
                 "first tome slot costs ten silver");
@@ -63,6 +86,7 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(500,620),.click=true});
             require(state.selected==MetaShopUpgrade::WeaponSlots,"tenth shop tile selects equipment slots");
             profile.silver=50;
+            profile.quests.ownedUnlocks.insert(std::string(MetaShopDefinitions[static_cast<std::size_t>(state.selected)].requiredUnlock));
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(result.purchase&&profile.silver==40&&metaRunBonuses(profile).additionalWeaponSlots==1,
                 "first equipment slot costs ten silver");
@@ -74,6 +98,7 @@ int main(int argc,char** argv) {
             result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1100,620),.click=true});
             require(state.selected==MetaShopUpgrade::BuildingSlots,"eleventh tile selects shared structure slots");
             profile.silver=50;
+            profile.quests.ownedUnlocks.insert(std::string(MetaShopDefinitions[static_cast<std::size_t>(state.selected)].requiredUnlock));
             result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
             require(result.purchase&&profile.silver==40&&metaRunBonuses(profile).additionalBuildingSlots==1,
                 "first structure slot costs ten silver");

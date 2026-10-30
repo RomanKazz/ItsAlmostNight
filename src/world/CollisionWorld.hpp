@@ -61,6 +61,9 @@ class CollisionWorld {
         std::span<const PondLilyPlacement> lilies);
     void syncWorldLandmarks(
         std::span<const CollisionBox> landmarks);
+    void syncWorldScenery(std::span<const CollisionBox> scenery);
+    [[nodiscard]] Vec3 scenerySteeringDirection(
+        Vec3 position, Vec3 direction, double radius) const;
 
     [[nodiscard]] Vec3 moveCircle(
         Vec3 position, Vec3 delta, double radius,
@@ -166,6 +169,9 @@ class CollisionWorld {
     std::vector<CollisionBox> buildingColliders_;
     std::vector<CollisionBox> modularColliders_;
     std::vector<CollisionBox> worldLandmarkColliders_;
+    std::vector<CollisionBox> worldSceneryColliders_;
+    BroadphaseGrid sceneryBroadphase_;
+    std::size_t sceneryColliderBegin_{};
     std::vector<CollisionBox> rampPlacementColliders_;
     std::vector<PhysicalCylinder> resourceCylinders_;
     std::vector<CollisionBox> colliders_;

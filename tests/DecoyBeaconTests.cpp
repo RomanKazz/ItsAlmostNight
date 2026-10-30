@@ -163,7 +163,6 @@ void progression() {
     auto map=MapDefinition::defaults();map.obstacles.clear();auto world=WorldConfig::defaults();world.terrainAmplitude=0;world.pondMinimumCount=world.pondMaximumCount=0;
     auto run=std::make_unique<Simulation>(GameBalance::defaults(),map,world);run->startRunFromSeed(PlayerClass::Vanguard,73421);
     require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockDecoyBeacon),"decoy acquired through shared card pool");
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockDecoyBeacon),"core-less decoy level capped at one");
     require(run->snapshot().buildingArsenalCount==2,"decoy takes one defense type slot");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};run->tick(0,god);
     PlayerCommand core;core.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};run->tick(0,core);
@@ -182,7 +181,9 @@ void progression() {
     }
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto hotbar=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(hotbar.count==15 && hotbar.indexOf(BuildingType::DecoyBeacon)==10 && hotbar.types[14]==BuildingType::SlowTrap,"beacon appears after station and before walls/traps");
+    require(hotbar.count==DefenseBuildingOrder.size() && hotbar.indexOf(BuildingType::DecoyBeacon)==10 &&
+        hotbar.types[13]==BuildingType::SlowTrap && !hotbar.indexOf(BuildingType::Wall),
+        "beacon follows the repair station and precedes traps; walls are modular");
 }
 }
 int main(){selectionAndExpiry();targetingAndAttacks();overlapAndElite();staggeredPulsesAndFreeze();reachablePaths();structuralAndStaticBarriers();progression();}

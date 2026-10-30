@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     profile.silver = 12;
     for (const auto language : {ian::Language::English, ian::Language::Russian}) {
         ian::setLanguage(language);
-        for (const Vector2 viewport : {Vector2{1920, 1080}, Vector2{1280, 720}, Vector2{1280, 800}}) {
+        for (const Vector2 viewport : {Vector2{1920, 1080}, Vector2{1280, 720}, Vector2{1280, 800}, Vector2{1024, 768}, Vector2{1280, 1024}, Vector2{800, 1200}, Vector2{640, 360}, Vector2{2560, 720}}) {
             SetWindowSize(static_cast<int>(viewport.x), static_cast<int>(viewport.y));
             PollInputEvents();
             const auto panel = ian::questMenuPanelBounds(viewport);
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
                 "opening a featured quest retains the same catalog ID and details in the full screen");
             result = ian::drawQuestMenu(ui, quests, profile, state, viewport,
                 {.pointer = {panel.x + 100, panel.y + panel.height * 0.5F}, .wheel = -1000});
-            require(state.scroll > 0 && state.scroll < 2500, "wheel scroll clamps to list content");
+            require(state.scroll > 0 && state.scroll <= static_cast<float>(quests.definitions().size()) * 66, "wheel scroll clamps to list content");
             state.category = ian::QuestCategory::Cosmetics;
             state.selectedId = "obsolete.id";
             result = ian::drawQuestMenu(ui, quests, profile, state, viewport);
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     buyer.silver = 20;
     ian::QuestMenuState buying;
     buying.category = ian::QuestCategory::General;
-    buying.selectedId = "quests_10";
+    buying.selectedId = "unlock_meta_refresh";
     ian::setLanguage(ian::Language::English);
     SetWindowSize(1280, 720);
     PollInputEvents();
@@ -120,11 +120,11 @@ int main(int argc, char** argv) {
     BeginTextureMode(purchaseTarget);
     auto purchased = ian::drawQuestMenu(ui, quests, buyer, buying, {1280, 720},
         {.pointer = {1042, 600}, .click = true});
-    require(purchased.purchase && quests.ownsUnlock(buyer, "meta.refresh") && buyer.silver == 10,
+    require(purchased.purchase && quests.ownsUnlock(buyer, "meta.refresh") && buyer.silver == 15,
             "eligible purchase button deducts actual silver and grants permanent ownership");
     purchased = ian::drawQuestMenu(ui, quests, buyer, buying, {1280, 720},
         {.pointer = {1042, 600}, .click = true});
-    require(!purchased.purchase && buyer.silver == 10, "owned unlock has no repeat purchase button");
+    require(!purchased.purchase && buyer.silver == 15, "owned unlock has no repeat purchase button");
     EndTextureMode();
     UnloadRenderTexture(purchaseTarget);
 

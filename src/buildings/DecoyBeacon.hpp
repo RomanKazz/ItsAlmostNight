@@ -9,10 +9,10 @@ inline constexpr double DecoyBeaconInterval = 8.0;
 inline constexpr double DecoyBeaconDuration = 5.0;
 inline constexpr double DecoyBeaconPulseDuration = 1.4;
 [[nodiscard]] inline double decoyBeaconRadius(int level) {
-    return 6.0 + .25 * (std::clamp(level, 1, 8) - 1);
+    return 6.0 + .25 * (std::max(level, 1) - 1);
 }
 [[nodiscard]] inline int decoyBeaconTargets(int level) {
-    return 8 + (std::clamp(level, 1, 8) - 1);
+    return 8 + (std::max(level, 1) - 1);
 }
 struct DecoyBeaconRuntime {
     EntityId buildingId;

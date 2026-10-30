@@ -32,23 +32,35 @@ inline void draw(const GameUi& ui,Kind kind,double seconds,Vector2 viewport,floa
     const float scale=std::min(viewport.x/1920.0F,viewport.y/1080.0F);
     // Reduced flashes dims decorations; it must not disable continuous motion.
     const double time=seconds;
+    const float settle = kind == Kind::Experience
+        ? 0.55F + 0.45F * std::exp(-3.0F * static_cast<float>(std::max(0.0, seconds))) : 1.0F;
     const auto texture=ui.resourceTexture(UiResourceIcon::Coin);
-    for(int i=0;i<36;++i) {
+    const int count = kind == Kind::Experience ? 48 : 36;
+    for(int i=0;i<count;++i) {
         const float depth=.45F+.55F*unit(i,0);
         const float size=(24+28*depth)*scale;
         const double phase=time*(.50+depth*.55)+unit(i,3)*6.28;
         const float x=viewport.x*unit(i,1)+
-            static_cast<float>(std::sin(phase*.62))*4*scale;
+            static_cast<float>(std::sin(phase*.62))*(kind == Kind::Experience ? 14 : 4)*scale;
         const float travel=static_cast<float>(std::fmod(unit(i,2)+time*(.16+depth*.12),1.0));
         const float y=viewport.y*travel;
         const float edge=std::min(1.0F,std::min(travel,1-travel)*12);
-        const auto alpha=static_cast<unsigned char>(std::clamp(opacity*edge*(.25F+.35F*depth)*(reduceFlashes?.7F:1.0F),0.0F,1.0F)*255);
+        const auto alpha=static_cast<unsigned char>(std::clamp(opacity*settle*edge*(.25F+.35F*depth)*(reduceFlashes?.7F:1.0F),0.0F,1.0F)*255);
         if(kind==Kind::Coins && IsTextureValid(texture)) {
             const float face=std::max(.10F,std::abs(static_cast<float>(std::cos(phase))));
             DrawTexturePro(texture,{0,0,static_cast<float>(texture.width),static_cast<float>(texture.height)},
                 {x,y,size*face,size},{size*face*.5F,size*.5F},static_cast<float>(std::sin(phase*.35))*18,{255,255,255,alpha});
         } else if(kind==Kind::Experience) {
             crystal({x,y},size,static_cast<float>(std::sin(phase))*.22F,{255,255,255,alpha});
+            const float glint = std::pow(std::max(0.0F,
+                static_cast<float>(std::sin(phase * 0.7))), 6.0F);
+            const auto glintAlpha = static_cast<unsigned char>(alpha * glint *
+                (reduceFlashes ? 0.3F : 0.75F));
+            const float reach = (5 + 4 * glint) * scale;
+            DrawLineEx({x - reach, y}, {x + reach, y}, 2 * scale,
+                {244, 255, 231, glintAlpha});
+            DrawLineEx({x, y - reach}, {x, y + reach}, 2 * scale,
+                {244, 255, 231, glintAlpha});
         }
     }
 }

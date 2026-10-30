@@ -1,13 +1,18 @@
 #include "graphics/WandPresentation.hpp"
 #include "ui/BossHealthBar.hpp"
-#include "ui/UiRenderLayer.hpp"
-#include "app/App.hpp"
 #include "ui/PlayerDeathOverlay.hpp"
+#include "ui/UiRenderLayer.hpp"
+#include "ui/UiViewport.hpp"
+#include "app/App.hpp"
+#include "app/PowerupDrawing.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
+#include "app/TutorialPresentation.hpp"
 #include "graphics/WorldTransforms.hpp"
 #include "ui/HudFormatting.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiHintStyle.hpp"
+#include "ui/UiPromptKeycap.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -61,23 +66,48 @@ const char* modularPlacementMessage(
 void drawModularPlacementError(
     std::optional<ModularPlacementError> error,
     float y, float fontSize, float horizontalOffset) {
-    const char* message = modularPlacementMessage(error);
-    SdfUiTextStyle style{};
-    style.fillColor = {255, 112, 94, 255};
-    style.outlineColor = {76, 40, 33, 255};
-    style.shadowColor = {43, 25, 21, 225};
-    style.shadowOffsetPixels = {0.0F, 3.0F};
-    style.outlinePixels = 2.0F;
-    style.softness = 0.65F;
-    const float messageWidth = measureUiText(
-        message, fontSize).x;
-    drawStyledSdfUiText(
-        message,
-        {(static_cast<float>(GetScreenWidth()) - messageWidth) *
-                 0.5F +
-             horizontalOffset,
-         y},
-        fontSize, style);
+    hintStyle::notice(modularPlacementMessage(error),y,fontSize,hintStyle::Warning,horizontalOffset);
+}
+
+void drawPlacementControls(Vector2 cursor) {
+    const ScopedUiFontRole font(UiFontRole::Display);
+    constexpr float KeyHeight = 38.0F;
+    constexpr float KeyWidth = 62.0F;
+    constexpr float KeyGap = 7.0F;
+    constexpr float GroupGap = 15.0F;
+    constexpr float FontSize = 21.0F;
+    constexpr float Padding = 13.0F;
+    constexpr float PillHeight = 42.0F;
+    const auto groupWidth = [](std::string_view action) {
+        return KeyWidth + KeyGap +
+            measureUiText(action, FontSize).x + Padding * 2.0F;
+    };
+    float x = cursor.x -
+        (groupWidth("PLACE") + GroupGap + groupWidth("CANCEL")) * 0.5F;
+    const float y = cursor.y + 35.0F;
+    const auto drawAction = [&](std::string_view key,
+                                std::string_view action, bool pressed) {
+        const float pillWidth = measureUiText(action, FontSize).x +
+            Padding * 2.0F;
+        const Rectangle pill{x + KeyWidth + KeyGap, y,
+                             pillWidth, PillHeight};
+        DrawRectangleRounded(pill, 1.0F, 16, {0, 0, 0, 132});
+        drawPromptKeycap({x, y + (PillHeight - KeyHeight) * 0.5F,
+                          KeyWidth, KeyHeight}, key, pressed, 1.0F);
+        SdfUiTextStyle style{};
+        style.fillColor = {255, 255, 255, 255};
+        style.outlineColor = {20, 24, 20, 255};
+        style.outlinePixels = 1.6F;
+        style.shadowColor = {0, 0, 0, 140};
+        style.shadowOffsetPixels = {0, 2.0F};
+        const Vector2 size = measureUiText(action, FontSize);
+        drawStyledSdfUiText(action,
+            {pill.x + Padding, pill.y + (pill.height - size.y) * 0.5F},
+            FontSize, style);
+        x += KeyWidth + KeyGap + pillWidth + GroupGap;
+    };
+    drawAction("LMB", "PLACE", IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+    drawAction("RMB", "CANCEL", IsMouseButtonDown(MOUSE_BUTTON_RIGHT));
 }
 
 void drawDragPlacementSummary(
@@ -112,7 +142,7 @@ void drawDragPlacementSummary(
     const float costWidth = hud_detail::resourceCostRowWidth(
         totalCost, CostFontSize, CostIconSize);
     const float screenCenter =
-        static_cast<float>(GetScreenWidth()) * 0.5F;
+        static_cast<float>(uiScreenWidth()) * 0.5F;
     float x = screenCenter - piecesWidth * 0.5F;
 
     SdfUiTextStyle countStyle{};
@@ -167,7 +197,7 @@ const float arrivalHudOpacity = playerArrival_.hudOpacity();
 const bool showGameplayHud = !hudHidden_ && arrivalHudOpacity > 0.0F;
 const bool tuningPreview =
     renderer_->graphicsPanelVisible() &&
-    graphicsPanelTab_ == ToolSettingsTab;
+    debugSettings_ && graphicsPanelTab_ == ToolSettingsTab;
 const bool showFirstPersonTool =
     (tuningPreview ||
      displayedToolVisual_ != FirstPersonToolVisual::None) &&
@@ -211,24 +241,7 @@ if (showFirstPersonTool) {
                   iceWandRecoilRemaining_ /
                       iceWandRecoilDuration_), 0.0F, 1.0F)
             : 0.0F;
-    Camera3D viewModelCamera{
-        .position = {},
-        .target = {0.0F, 0.0F, -1.0F},
-        .up = {0.0F, 1.0F, 0.0F},
-        .fovy = 58.0F,
-        .projection = CAMERA_PERSPECTIVE,
-    };
-    if (toolVisual == FirstPersonToolVisual::Axe ||
-        toolVisual == FirstPersonToolVisual::Pickaxe ||
-        toolVisual == FirstPersonToolVisual::Club) {
-        // Blender camera transform converted from Z-up to glTF/raylib Y-up.
-        // The GLB was exported without its camera, so keep the authored pose
-        // here while the tool and swing pivot come directly from the asset.
-        viewModelCamera.position = {1.30710F, 0.83238F, 0.36867F};
-        viewModelCamera.target = {0.39416F, 0.43122F, 0.29472F};
-        viewModelCamera.up = {-0.40002F, 0.91585F, -0.03238F};
-        viewModelCamera.fovy = 25.4F;
-    }
+    const Camera3D viewModelCamera = firstPersonToolCamera(toolVisual);
     FirstPersonToolTuning renderTuning = activeToolTuning();
     // Apply only to the viewmodel pose (including its swing ribbon), never
     // world camera/aim. Existing motion settings can disable the effect.
@@ -243,7 +256,9 @@ if (showFirstPersonTool) {
         renderTuning.rotation.z -= yaw * RAD2DEG * .45F;
     }
 
-
+    // Use the same lowered pose as an equipment swap, revealing the starting
+    // weapon from below while the HUD fades in. No invisible timer can expire
+    // before the weapon's first visible frame.
     renderTuning.position.y -= activeToolTuning().swapDrop *
         (1.0F - arrivalHudOpacity);
     if (toolSwapRemaining_ > 0.0 &&
@@ -268,18 +283,17 @@ if (showFirstPersonTool) {
             activeToolTuning().swapDrop * smooth;
     }
     if (!prepareTarget) {
-        if (timings.viewModelPrepared) {
-        renderer_->beginGpuTimer(
-            RendererGpuStage::ViewModelComposite);
-        renderer_->compositeFirstPersonTool(activeToolTuning());
+        // Keep the ribbon under the tool and its outline, as before.
         renderer_->drawFirstPersonSwingTrail(
             toolVisual, swingProgress,
             static_cast<float>(cameraBobPhase_),
             static_cast<float>(cameraBobAmount_),
             renderTuning, viewModelCamera,
             toolSwingAlternateAnimation_);
-        renderer_->endGpuTimer(
-            RendererGpuStage::ViewModelComposite);
+        if (timings.viewModelPrepared) {
+            renderer_->beginGpuTimer(RendererGpuStage::ViewModelComposite);
+            renderer_->compositeFirstPersonTool(activeToolTuning());
+            renderer_->endGpuTimer(RendererGpuStage::ViewModelComposite);
         }
     } else if (renderer_->beginFirstPersonToolPass(&lighting, &camera)) {
         timings.viewModelPrepared = true;
@@ -359,7 +373,6 @@ interactionSnapshot.aimedModularBuilding.reset();
 if (pinnedModularBuilding) {
     interactionSnapshot.aimedEnemy.reset();
     interactionSnapshot.aimedResource.reset();
-    interactionSnapshot.aimedModularBuilding = pinnedModularBuilding;
 }
 const auto interactionPrompt = showGameplayHud && !removalHeld
     ? buildInteractionPrompt(interactionSnapshot, camera) : std::nullopt;
@@ -397,7 +410,9 @@ if (showWorldHud) {
                 : std::nullopt;
         }, upgradePromptTarget, [this](const BuildingInstance& building) {
             return renderer_->buildingVisualHeight(building.type, building.level);
-        }, pinnedOrdinaryBuilding);
+        }, pinnedOrdinaryBuilding,renderer_->worldUiOcclusion());
+    drawFloatingDamageNumbers(camera);
+    drawProducerResourceGainVisuals(camera, snapshot.playerPosition);
     // Submit every world-space overlay while depth testing is still disabled.
     // Individual bars and production rewards intentionally share this flush.
     rlDrawRenderBatchActive();
@@ -407,6 +422,10 @@ if (showWorldHud) {
 worldUiMilliseconds =
     performanceMilliseconds(worldUiStart);
 
+const auto targetHealthStart = PerformanceClock::now();
+if (showWorldHud) targetHealthBar_.drawScreenOverlay();
+hudTargetHealthMilliseconds = performanceMilliseconds(targetHealthStart);
+const ScopedUiCanvas canvas;
 std::optional<ScopedUiRenderLayer> arrivalHudPass;
 if (showGameplayHud && arrivalHudOpacity < 1.0F) {
     const int width = GetScreenWidth();
@@ -417,7 +436,9 @@ if (showGameplayHud && arrivalHudOpacity < 1.0F) {
         static_cast<void>(arrivalHudLayer_.load(width, height));
     }
     if (arrivalHudLayer_.valid()) {
+        suspendUiCanvas();
         arrivalHudPass.emplace(arrivalHudLayer_.get());
+        resumeUiCanvas();
     }
 } else if (arrivalHudLayer_.valid()) {
     arrivalHudLayer_.unload();
@@ -428,14 +449,12 @@ if (iceImpactFlashRemaining_ > 0.0 &&
     const auto alpha = static_cast<unsigned char>(
         std::clamp(95.0 * iceImpactFlashRemaining_ / 0.10,
                    0.0, 95.0));
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+    DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(),
                   {142, 229, 255, alpha});
 }
-if (showGameplayHud) {
-    beginSdfUiTextBatch();
-    drawFloatingDamageNumbers(camera);
-    endSdfUiTextBatch();
-}
+if (showGameplayHud) powerup_drawing::drawHud(snapshot.powerups,
+    static_cast<float>(snapshot.elapsedSeconds), uiScreenWidth(), uiScreenHeight(),
+    userSettings_.accessibility.reduceFlashes);
 if (showTerrainWireframe_) {
     drawUiText(
         TextFormat(
@@ -443,7 +462,7 @@ if (showTerrainWireframe_) {
             snapshot.terrainSeed),
         {24.0F,
          static_cast<float>(
-             GetScreenHeight()) -
+             uiScreenHeight()) -
              44.0F},
         16.0F, {245, 224, 154, 235});
 }
@@ -454,7 +473,7 @@ if (showColliders_) {
             continue;
         }
         const Vector2 screen =
-            GetWorldToScreen(
+            uiWorldToScreen(
                 {
                     static_cast<float>(
                         support.top.x),
@@ -468,10 +487,10 @@ if (showColliders_) {
             screen.y < 0.0F ||
             screen.x >
                 static_cast<float>(
-                    GetScreenWidth()) ||
+                    uiScreenWidth()) ||
             screen.y >
                 static_cast<float>(
-                    GetScreenHeight())) {
+                    uiScreenHeight())) {
             continue;
         }
         drawUiText(
@@ -496,6 +515,14 @@ interactionPromptMilliseconds +=
     performanceMilliseconds(interactionPromptStart);
 
 auto hudSnapshot = presentationSnapshot;
+hudSnapshot.tutorialObjective = presentedTutorialObjective(
+    hudSnapshot.tutorialObjective, actionMode_, metaProgression_.runsPlayed);
+if (wallDragStart_ && !placementDragPreviews_.empty()) {
+    const auto rejected = std::ranges::find_if(placementDragPreviews_,
+        [](const BuildingPreview& preview) { return !preview.placement.valid(); });
+    hudSnapshot.buildingPreview = rejected != placementDragPreviews_.end()
+        ? *rejected : placementDragPreviews_.back();
+}
 bool showBuildingContextCard =
     pinnedOrdinaryBuilding.has_value() || pinnedModularBuilding.has_value();
 if (pinnedOrdinaryBuilding) {
@@ -508,12 +535,11 @@ if (pinnedOrdinaryBuilding) {
 const auto hudCoreStart = PerformanceClock::now();
 if (showGameplayHud) {
     beginSdfUiTextBatch();
-    const auto targetHealthStart = PerformanceClock::now();
-    targetHealthBar_.drawScreenOverlay();
-    hudTargetHealthMilliseconds =
-        performanceMilliseconds(targetHealthStart);
     drawHud(ui_, hudSnapshot,
     {
+            .silver = metaProgression_.silver,
+            .silverOpacity = static_cast<float>(
+                std::clamp(silverHudRemaining_ / 0.45, 0.0, 1.0)),
             .damageIndicators = damageIndicators_,
             .statusMessage = statusMessage_,
             .statusMessageRemaining = statusMessageRemaining_,
@@ -614,9 +640,8 @@ if (showGameplayHud) {
             .displayedStone = stoneHudCounter_.displayed,
             .displayedCrystals = crystalHudCounter_.displayed,
             .displayedCoins = coinHudCounter_.displayed,
-            .displayedInsight = displayedInsight_,
-            .insightPulse = insightPulseRemaining_ > 0.0
-                ? insightPulseRemaining_ / insightPulseDuration_ : 0.0,
+            .displayedInsightFraction = displayedInsightFraction_,
+            .insightPulse = insightBarGlow_,
             .treePointPulse = insightPointSequenceRemaining_ > 0.0
                 ? std::sin((1.0 - insightPointSequenceRemaining_ /
                     insightPointSequenceDuration_) * PI) : 0.0,
@@ -636,11 +661,6 @@ if (showGameplayHud) {
                     ? 1.0 - objectiveCompletionRemaining_ /
                           objectiveCompletionDuration_
                     : 0.0,
-            .insightGainAmount = insightGainAmount_,
-            .insightGainProgress = insightGainRemaining_ > 0.0
-                ? 1.0 - insightGainRemaining_ /
-                      insightGainDuration_
-                : 0.0,
             .crosshairHitRemaining =
                 crosshairHitRemaining_,
             .crosshairHitDuration =
@@ -686,6 +706,15 @@ if (showGameplayHud) {
 }
 hudCoreMilliseconds =
     performanceMilliseconds(hudCoreStart);
+const bool placementUiAvailable = showGameplayHud &&
+    minimapExpansion_ <= 0.01F &&
+    !hudSnapshot.runUpgradeChoicePending &&
+    !renderer_->graphicsPanelVisible();
+bool showPlacementControls = placementUiAvailable &&
+    actionMode_ == ActionMode::Buildings &&
+    !foundationBuildMode_ &&
+    hudSnapshot.buildingPreview &&
+    hudSnapshot.buildingPreview->placement.valid();
 if (showGameplayHud && foundationBuildMode_) {
     const float modularErrorShake =
         invalidActionRemaining_ > 0.0
@@ -794,13 +823,19 @@ if (showGameplayHud && foundationBuildMode_) {
             foundationCost.stone * automaticFoundationCount;
         totalCost.crystals +=
             foundationCost.crystals * automaticFoundationCount;
+        const bool affordable = snapshot.unlimitedResources ||
+            (snapshot.wood >= totalCost.wood &&
+             snapshot.stone >= totalCost.stone &&
+             snapshot.crystals >= totalCost.crystals);
+        showPlacementControls = placementUiAvailable &&
+            previewValid && affordable;
         const Texture2D pieceIcon =
             modularBuildPiece_ == ModularBuildPiece::Wall
                 ? ui_.buildingTexture(BuildingType::Wall)
                 : ui_.modularBuildingTexture(
                       modularBuildPiece_);
         const float y =
-            static_cast<float>(GetScreenHeight()) *
+            static_cast<float>(uiScreenHeight()) *
                 0.5F +
             84.0F;
         if (previewError != ModularPlacementError::Occupied) {
@@ -810,10 +845,7 @@ if (showGameplayHud && foundationBuildMode_) {
                     ModularBuildPiece::Foundation),
                 automaticFoundationCount,
                 totalCost, y,
-                snapshot.unlimitedResources ||
-                    (snapshot.wood >= totalCost.wood &&
-                     snapshot.stone >= totalCost.stone &&
-                     snapshot.crystals >= totalCost.crystals));
+                affordable);
         }
         if (previewError &&
             *previewError != ModularPlacementError::None &&
@@ -840,13 +872,19 @@ if (showGameplayHud && foundationBuildMode_) {
             for (int index = 0; index < automaticFoundationCount; ++index)
                 totalCost = addResourceCosts(totalCost, foundationCost);
         }
+        const bool affordable = snapshot.unlimitedResources ||
+            (snapshot.wood >= totalCost.wood &&
+             snapshot.stone >= totalCost.stone &&
+             snapshot.crystals >= totalCost.crystals);
+        showPlacementControls = placementUiAvailable &&
+            previewValid && affordable;
         const Texture2D pieceIcon =
             *modularDragPiece_ == ModularBuildPiece::Wall
                 ? ui_.buildingTexture(BuildingType::Wall)
                 : ui_.modularBuildingTexture(
                       *modularDragPiece_);
         const float y =
-            static_cast<float>(GetScreenHeight()) *
+            static_cast<float>(uiScreenHeight()) *
                 0.5F +
             84.0F;
         if (previewError != ModularPlacementError::Occupied) {
@@ -856,10 +894,7 @@ if (showGameplayHud && foundationBuildMode_) {
                     ModularBuildPiece::Foundation),
                 automaticFoundationCount,
                 totalCost, y,
-                snapshot.unlimitedResources ||
-                    (snapshot.wood >= totalCost.wood &&
-                     snapshot.stone >= totalCost.stone &&
-                     snapshot.crystals >= totalCost.crystals));
+                affordable);
         }
         if (!previewValid &&
             previewError !=
@@ -887,16 +922,27 @@ if (showGameplayHud && wallDragStart_ && wallDragEnd_ &&
         buildingCost.stone * count,
         buildingCost.crystals * count,
     };
+    const bool affordable = snapshot.unlimitedResources ||
+        (snapshot.wood >= totalCost.wood &&
+         snapshot.stone >= totalCost.stone &&
+         snapshot.crystals >= totalCost.crystals);
+    showPlacementControls = showPlacementControls && affordable &&
+        !placementDragPreviews_.empty() &&
+        std::ranges::all_of(placementDragPreviews_,
+            [](const BuildingPreview& preview) {
+                return preview.placement.valid();
+            });
     const float y =
-        static_cast<float>(GetScreenHeight()) * 0.5F +
+        static_cast<float>(uiScreenHeight()) * 0.5F +
         84.0F;
     drawDragPlacementSummary(
         ui_, ui_.buildingTexture(*placementDragType_),
         count, {}, 0, totalCost, y,
-        snapshot.unlimitedResources ||
-            (snapshot.wood >= totalCost.wood &&
-             snapshot.stone >= totalCost.stone &&
-             snapshot.crystals >= totalCost.crystals));
+        affordable);
+}
+if (showPlacementControls && metaProgression_.placementControlHintsUsed < 2) {
+    drawPlacementControls({static_cast<float>(uiScreenWidth()) * 0.5F,
+                           static_cast<float>(uiScreenHeight()) * 0.5F});
 }
 const auto resourceGainStart = PerformanceClock::now();
 if (showGameplayHud) drawResourceGainVisuals(camera);
@@ -905,7 +951,7 @@ resourceGainMilliseconds =
 
 const auto minimapStart = PerformanceClock::now();
 if (showGameplayHud) {
-    drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_, MinimapHudPass::Composite);
+    drawMinimapHud(ui_, hudSnapshot, minimapExpansion_, MinimapHudPass::Composite);
     const auto& minimapTimings =
         minimapRenderPerformanceStats();
     minimapSetupMilliseconds += minimapTimings.setupMs;
@@ -918,7 +964,9 @@ minimapMilliseconds +=
     performanceMilliseconds(minimapStart);
 
 if (arrivalHudPass) {
+    suspendUiCanvas();
     arrivalHudPass.reset();
+    resumeUiCanvas();
     const Texture2D texture = arrivalHudLayer_.get().texture;
     const auto alpha = static_cast<unsigned char>(std::lround(arrivalHudOpacity * 255.0F));
     // The transparent layer stores premultiplied RGB. Fade RGB and alpha
@@ -926,7 +974,7 @@ if (arrivalHudPass) {
     BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
     DrawTexturePro(texture,
         {0, 0, static_cast<float>(texture.width), -static_cast<float>(texture.height)},
-        {0, 0, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())},
+        {0, 0, static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())},
         {}, 0.0F, {alpha, alpha, alpha, alpha});
     EndBlendMode();
 }
@@ -934,13 +982,13 @@ if (arrivalHudPass) {
 const auto uiOverlaysStart = PerformanceClock::now();
 const bool unobscuredColorPreview =
     renderer_->graphicsPanelVisible() &&
-    graphicsPanelTab_ == ColorSettingsTab;
+    debugSettings_ && graphicsPanelTab_ == ColorSettingsTab;
 // Run-state and level-up overlays contain several animated SDF labels. Draw
 // them as one atlas batch: rendering every label separately is especially
 // expensive while the level-up cards animate and their scale/alpha changes
 // every frame, preventing the per-label texture cache from being reused.
 beginSdfUiTextBatch();
-if (showWorldHud && !unobscuredColorPreview) {
+if (showWorldHud && !unobscuredColorPreview && snapshot.state != RunState::Paused) {
     drawRunStateOverlay(snapshot);
 }
 if (!snapshot.playerRespawning) {
@@ -960,59 +1008,38 @@ if (showGameplayHud && !unobscuredColorPreview) {
         userSettings_.accessibility.reduceFlashes);
 }
 endSdfUiTextBatch();
+if ((snapshot.state == RunState::Defeat || snapshot.state == RunState::Victory) &&
+    !renderer_->graphicsPanelVisible()) {
+    const auto navigation = readMenuNavigationInput();
+    const int previousFocus = runSummaryState_.focused;
+    const auto action = drawRunSummaryMenu(snapshot, runSummaryState_,
+        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, navigation);
+    if (previousFocus != runSummaryState_.focused &&
+        (navigation.tabStep || navigation.horizontalStep || navigation.verticalStep)) audio_.playUiSelect();
+    if (action == RunSummaryAction::Restart) pendingRestartFromUi_ = true;
+    if (action == RunSummaryAction::MainMenu) pendingReturnToMenuFromUi_ = true;
+}
 if (snapshot.state == RunState::Paused &&
     !renderer_->graphicsPanelVisible()) {
-    const float centerX =
-        static_cast<float>(GetScreenWidth()) * 0.5F;
-    const float centerY =
-        static_cast<float>(GetScreenHeight()) * 0.5F;
-    ui_.drawPanel(
-        {centerX - 260.0F, centerY - 252.0F,
-         520.0F, 504.0F}, 250);
-    float menuY = centerY - 144.0F;
-    pendingResumeFromUi_ =
-        ui_.drawButton(
-            {centerX - 190.0F, menuY,
-             380.0F, 58.0F},
-            "RESUME") ||
-        pendingResumeFromUi_;
-    menuY += 70.0F;
-    if (ui_.drawButton(
-            {centerX - 190.0F, menuY,
-             380.0F, 58.0F},
-            "SETTINGS")) {
-        renderer_->setGraphicsPanelVisible(true);
-    }
-    menuY += 70.0F;
-    pendingRestartFromUi_ =
-        ui_.drawButton(
-            {centerX - 190.0F, menuY,
-             380.0F, 58.0F},
-            "RESTART RUN") ||
-        pendingRestartFromUi_;
-    menuY += 70.0F;
-    pendingReturnToMenuFromUi_ =
-        ui_.drawButton(
-            {centerX - 190.0F, menuY,
-             380.0F, 58.0F},
-            snapshot.sandboxMode
-                ? "MAIN MENU"
-                : "SAVE & MAIN MENU") ||
-        pendingReturnToMenuFromUi_;
-    menuY += 70.0F;
-    if (ui_.drawButton(
-            {centerX - 190.0F, menuY,
-             380.0F, 58.0F},
-            snapshot.sandboxMode
-                ? "EXIT"
-                : "SAVE & EXIT")) {
-        if (snapshot.sandboxMode || saveSuspendedRun()) {
-            exitRequested_ = true;
-        } else {
-            audio_.playUiError();
-        }
+    const auto navigation = readMenuNavigationInput();
+    const int previousFocus = pauseMenuState_.focused;
+    const auto action = drawPauseMenu(pauseMenuState_, snapshot.sandboxMode,
+        {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, navigation);
+    if (previousFocus != pauseMenuState_.focused &&
+        (navigation.tabStep || navigation.horizontalStep || navigation.verticalStep)) audio_.playUiSelect();
+    switch (action) {
+    case PauseMenuAction::None: break;
+    case PauseMenuAction::Resume: pendingResumeFromUi_ = true; break;
+    case PauseMenuAction::Settings: openSettings(); break;
+    case PauseMenuAction::Restart: pendingRestartFromUi_ = true; break;
+    case PauseMenuAction::MainMenu: pendingReturnToMenuFromUi_ = true; break;
+    case PauseMenuAction::Exit:
+        if (snapshot.sandboxMode || saveSuspendedRun()) exitRequested_ = true;
+        else audio_.playUiError();
+        break;
     }
 }
+
 uiOverlaysMilliseconds +=
     performanceMilliseconds(uiOverlaysStart);
 }

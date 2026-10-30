@@ -86,7 +86,7 @@ void statsAndPooling() {
         cannons.tick(Step,{Mortar},enemies);
         if(cannons.shots().empty())continue;
         require(cannons.projectiles().size()==3,"fractional quantity creates three distinct pooled shells");
-        for(const auto& shell:cannons.projectiles())require(shell.active && shell.runtime.remainingBounces==1,"each shell gets floored independent bounces");
+        for(const auto& shell:cannons.projectiles())require(shell.active && shell.runtime.remainingBounces==0,"mortar ignores global bounce modifiers");
         fired=true;
     }
     require(fired,"upgraded mortar fires");
@@ -114,8 +114,8 @@ void statsAndPooling() {
         require(after.damage>before.damage && after.range>before.range && after.attackInterval<before.attackInterval,"eight progression levels");
     }
     require(supportsAttackStat(BuildingType::Mortar,AttackStat::Quantity) &&
-        supportsAttackStat(BuildingType::Mortar,AttackStat::Bounces) &&
-        supportsAttackStat(BuildingType::Mortar,AttackStat::Pierce),"mortar reuses physical projectile compatibility");
+        !supportsAttackStat(BuildingType::Mortar,AttackStat::Bounces) &&
+        !supportsAttackStat(BuildingType::Mortar,AttackStat::Pierce),"mortar has only meaningful attack stats");
     cannons.reset();require(cannons.cannons().empty() && std::ranges::none_of(cannons.projectiles(),[](const auto& p){return p.active;}),"run reset clears mortar combat");
 }
 void bounce() {
@@ -132,7 +132,7 @@ void bounce() {
         explosions+=static_cast<int>(cannons.tick(Step,{Mortar},enemies).size());
         for(const auto& hit:cannons.hits())targets.push_back(hit.result.id);
     }
-    require(explosions==2 && targets.size()==2 && targets[0]!=targets[1],"one pooled mortar shell bounces in a new arc and hits each group once: explosions="+std::to_string(explosions)+", hits="+std::to_string(targets.size()));
+    require(explosions==1 && targets.size()==1,"mortar cannot acquire a bounce from obsolete global modifiers");
 }
 void progression() {
     static_assert(static_cast<int>(BuildingType::Mortar)==19 && static_cast<int>(RunUpgradeEffect::UnlockMortar)==64);
@@ -140,7 +140,6 @@ void progression() {
     world.pondMinimumCount=world.pondMaximumCount=0;
     auto game=std::make_unique<Simulation>(GameBalance::defaults(),map,world);game->startRunFromSeed(PlayerClass::Vanguard,702314);
     require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMortar),"mortar unlocks through shared card/debug system");
-    require(!game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMortar),"mortar obeys core upgrade cap");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};game->tick(0,god);
     PlayerCommand core;core.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};game->tick(0,core);
     PlayerCommand up;up.upgradeBuilding=UpgradeBuildingCommand{*game->snapshot().coreId,false};game->tick(0,up);game->tick(0,up);

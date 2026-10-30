@@ -12,6 +12,7 @@
 #include "localization/Localization.hpp"
 
 #include <raymath.h>
+#include <rlgl.h>
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -118,7 +119,9 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            EnemyBoundsProvider enemyBoundsProvider,
                            std::optional<EntityId> upgradePromptTarget,
                            BuildingHeightProvider buildingHeightProvider,
-                           std::optional<EntityId> buildingLevelTarget) {
+                           std::optional<EntityId> buildingLevelTarget,
+                           WorldUiOcclusion enemyOcclusion) {
+    enemyOcclusion_ = enemyOcclusion;
     const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
     screenHealthText_.reset();
     ++healthAnimationFrame_;
@@ -190,89 +193,88 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
     };
 
     ++resourceHealthFrame_;
-    for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active) {
-            continue;
+    if (!resourceHealthVisibility_.empty()) {
+        for (const ResourceNode& resource : snapshot.resourceNodes) {
+            if (!resource.active) {
+                continue;
+            }
+            const auto entry = resourceHealthVisibility_.find(
+                entityKey(resource.id));
+            if (entry != resourceHealthVisibility_.end()) {
+                entry->second.lastSeenFrame = resourceHealthFrame_;
+                entry->second.remaining = std::max(
+                    0.0, entry->second.remaining - frameSeconds);
+            }
         }
-        auto [entry, inserted] = resourceHealthVisibility_.try_emplace(
-            entityKey(resource.id),
-            HealthVisibility{
-                .remaining = 0.0,
-                .lastSeenFrame = resourceHealthFrame_,
+        std::erase_if(
+            resourceHealthVisibility_,
+            [this](const auto& entry) {
+                return entry.second.lastSeenFrame != resourceHealthFrame_;
             });
-        entry->second.lastSeenFrame = resourceHealthFrame_;
-        entry->second.remaining = std::max(
-            0.0, entry->second.remaining - frameSeconds);
-        (void)inserted;
     }
-    std::erase_if(
-        resourceHealthVisibility_,
-        [this](const auto& entry) {
-            return entry.second.lastSeenFrame != resourceHealthFrame_;
-        });
 
     // Power Swing can damage several resources while only one remains under
     // the crosshair. Each hit gets the same finite visibility timer.
     constexpr double ResourceHealthBarRange = 18.0;
     constexpr std::size_t MaximumWoundedResourceBars = 32;
     std::size_t woundedResourceBars = 0;
-    for (const ResourceNode& resource : snapshot.resourceNodes) {
-        const auto visibility = resourceHealthVisibility_.find(
-            entityKey(resource.id));
-        if (!resource.active || isDestructibleProp(resource.type) ||
-            visibility == resourceHealthVisibility_.end() ||
-            visibility->second.remaining <= 0.0 ||
-            (snapshot.aimedResource &&
-             resource.id == *snapshot.aimedResource)) {
-            continue;
-        }
-        const double deltaX =
-            resource.position.x - snapshot.playerPosition.x;
-        const double deltaZ =
-            resource.position.z - snapshot.playerPosition.z;
-        if (deltaX * deltaX + deltaZ * deltaZ >
-            ResourceHealthBarRange * ResourceHealthBarRange) {
-            continue;
-        }
-        const float opacity = static_cast<float>(std::clamp(
-            visibility->second.remaining / EnemyHealthBarFadeSeconds,
-            0.0, 1.0));
-        drawBillboard(
-            {TargetKind::Resource, resource.id},
-            resourceAnchor(resource),
-            resource.health, resource.maxHealth,
-            resourceHealthColor(resource, biomes),
-            camera, 0, opacity);
-        if (++woundedResourceBars >= MaximumWoundedResourceBars) {
-            break;
+    if (!resourceHealthVisibility_.empty()) {
+        for (const ResourceNode& resource : snapshot.resourceNodes) {
+            const auto visibility = resourceHealthVisibility_.find(
+                entityKey(resource.id));
+            if (!resource.active || isDestructibleProp(resource.type) ||
+                visibility == resourceHealthVisibility_.end() ||
+                visibility->second.remaining <= 0.0 ||
+                (snapshot.aimedResource &&
+                 resource.id == *snapshot.aimedResource)) {
+                continue;
+            }
+            const double deltaX =
+                resource.position.x - snapshot.playerPosition.x;
+            const double deltaZ =
+                resource.position.z - snapshot.playerPosition.z;
+            if (deltaX * deltaX + deltaZ * deltaZ >
+                ResourceHealthBarRange * ResourceHealthBarRange) {
+                continue;
+            }
+            const float opacity = static_cast<float>(std::clamp(
+                visibility->second.remaining / EnemyHealthBarFadeSeconds,
+                0.0, 1.0));
+            drawBillboard(
+                {TargetKind::Resource, resource.id},
+                resourceAnchor(resource),
+                resource.health, resource.maxHealth,
+                resourceHealthColor(resource, biomes),
+                camera, 0, opacity);
+            if (++woundedResourceBars >= MaximumWoundedResourceBars) {
+                break;
+            }
         }
     }
 
     // Player hit events drive visibility. Automated defenses do not leave
     // bars covering every wounded enemy on the battlefield.
     ++enemyHealthFrame_;
-    for (const EnemyInstance& enemy : snapshot.enemies) {
-        if (!enemy.active) {
-            continue;
+    if (!enemyHealthVisibility_.empty()) {
+        for (const EnemyInstance& enemy : snapshot.enemies) {
+            if (!enemy.active) {
+                continue;
+            }
+            const std::uint64_t key = entityKey(enemy.id);
+            const auto entry = enemyHealthVisibility_.find(key);
+            if (entry != enemyHealthVisibility_.end()) {
+                HealthVisibility& visibility = entry->second;
+                visibility.lastSeenFrame = enemyHealthFrame_;
+                visibility.remaining = std::max(
+                    0.0, visibility.remaining - frameSeconds);
+            }
         }
-        const std::uint64_t key = entityKey(enemy.id);
-        auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
-            key,
-            HealthVisibility{
-                .remaining = 0.0,
-                .lastSeenFrame = enemyHealthFrame_,
+        std::erase_if(
+            enemyHealthVisibility_,
+            [this](const auto& entry) {
+                return entry.second.lastSeenFrame != enemyHealthFrame_;
             });
-        HealthVisibility& visibility = entry->second;
-        visibility.lastSeenFrame = enemyHealthFrame_;
-        visibility.remaining = std::max(
-            0.0, visibility.remaining - frameSeconds);
-        (void)inserted;
     }
-    std::erase_if(
-        enemyHealthVisibility_,
-        [this](const auto& entry) {
-            return entry.second.lastSeenFrame != enemyHealthFrame_;
-        });
 
     // Recently hit enemies keep their own bars, even when the crosshair
     // targets a different enemy, resource, or building.
@@ -378,6 +380,33 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             });
         if (frame != snapshot.platformFrames.end()) {
             const double cellSize = snapshot.worldCellSize;
+            double barHeight = frame->floorHeight + 0.38;
+            for (const BuildingInstance& building : snapshot.buildings) {
+                if (std::abs(building.baseHeight -
+                             frame->floorHeight) > 0.05) {
+                    continue;
+                }
+                const bool spansTwoCells =
+                    buildingFootprintHalfExtent(building.type) > 0.75;
+                const int buildingMinX = building.gridPosition.x -
+                    (spansTwoCells ? 1 : 0);
+                const int buildingMinZ = building.gridPosition.z -
+                    (spansTwoCells ? 1 : 0);
+                const int buildingWidth = spansTwoCells ? 2 : 1;
+                const bool overlapsFrame =
+                    buildingMinX < frame->anchor.x +
+                        PlatformFrameWidthCells &&
+                    buildingMinX + buildingWidth > frame->anchor.x &&
+                    buildingMinZ < frame->anchor.z +
+                        PlatformFrameWidthCells &&
+                    buildingMinZ + buildingWidth > frame->anchor.z;
+                if (overlapsFrame) {
+                    barHeight = std::max(
+                        barHeight,
+                        buildingHealthBarWorldAnchor(building, buildingHeightProvider
+                            ? std::optional<double>{buildingHeightProvider(building)} : std::nullopt).y);
+                }
+            }
             candidate = Visual{
                 .target = {TargetKind::Foundation, frame->id},
                 .anchorPosition = {
@@ -385,7 +414,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                         (frame->anchor.x +
                          PlatformFrameWidthCells * 0.5) *
                         cellSize),
-                    static_cast<float>(frame->floorHeight + 0.38),
+                    static_cast<float>(barHeight),
                     static_cast<float>(
                         (frame->anchor.z +
                          PlatformFrameWidthCells * 0.5) *
@@ -673,6 +702,18 @@ void TargetHealthBar::drawBillboard(
         : ColorLerp(fillColor, WHITE, 0.32F);
     const Color trailColor = ColorLerp(fillColor, WHITE, 0.68F);
 
+    const bool depthClipped = target.kind == TargetKind::Enemy &&
+        (enemyOcclusion_.valid() || enemyOcclusion_.nativeDepth);
+    if (depthClipped && enemyOcclusion_.valid()) {
+        BeginShaderMode(enemyOcclusion_.shader);
+        SetShaderValueTexture(enemyOcclusion_.shader, enemyOcclusion_.depthLocation, enemyOcclusion_.depth);
+        SetShaderValue(enemyOcclusion_.shader, enemyOcclusion_.viewportLocation, &enemyOcclusion_.viewport, SHADER_UNIFORM_VEC2);
+    }
+    if (depthClipped && enemyOcclusion_.nativeDepth) {
+        rlDrawRenderBatchActive();
+        rlEnableDepthTest();
+        rlDisableDepthMask();
+    }
     const Vector3 barAnchor = anchorPosition;
     const Vector3 outerCenter = Vector3Add(
         barAnchor,
@@ -744,7 +785,13 @@ void TargetHealthBar::drawBillboard(
         const float fontSize = std::clamp(
             pixelHeight * (24.0F / 36.0F) / 1.68F,
             7.0F, 22.0F);
-        if (visibleScreenPoint(screenCenter)) {
+        if (depthClipped) {
+            drawWorldBillboardOutlinedText(healthText,
+                Vector3Add(barAnchor, Vector3Scale(towardCamera, layerOffset * 5.0F)),
+                outerHeight * .65F, camera, cameraRight, cameraUp,
+                withOpacity(WHITE, opacity), withOpacity({30, 24, 20, 255}, opacity),
+                withOpacity({20, 16, 14, 180}, opacity));
+        } else if (visibleScreenPoint(screenCenter)) {
             screenHealthText_ = ScreenHealthText{
                 .text = healthText,
                 .center = screenCenter,
@@ -769,6 +816,12 @@ void TargetHealthBar::drawBillboard(
         drawWorldBillboardOutlinedText(label,labelCenter,.19F,
             camera,cameraRight,cameraUp,withOpacity({255,235,174,255},opacity),
             withOpacity({49,36,28,255},opacity),withOpacity({20,16,14,210},opacity));
+    }
+    if (depthClipped && enemyOcclusion_.valid()) EndShaderMode();
+    if (depthClipped && enemyOcclusion_.nativeDepth) {
+        rlDrawRenderBatchActive();
+        rlEnableDepthMask();
+        rlDisableDepthTest();
     }
 }
 

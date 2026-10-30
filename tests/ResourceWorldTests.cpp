@@ -107,6 +107,11 @@ void runResourceWorldTests() {
                     std::hypot(node.position.x - map.playerSpawn.x,
                                node.position.z - map.playerSpawn.z) <= 11;
             }), "spawn clearing preserves the guaranteed nearby starter crystals");
+            require(std::any_of(definitions.begin(), definitions.end(), [&](const auto& node) {
+                return node.type == ian::ResourceType::Wood && node.yield >= 20 &&
+                    std::abs(node.position.x - map.playerSpawn.x) < 1e-6 &&
+                    std::abs(node.position.z - (map.playerSpawn.z - 3.5)) < 1e-6;
+            }), "a 20-wood tree stays directly ahead of the player for every seed");
         }
     }
     const auto clustered =

@@ -338,17 +338,35 @@ void App::drawChestLootGlow(
         if (intensity <= 0.005F) continue;
 
         constexpr float ChestGlowHeight = 0.58F;
+        // Loose crate drops store their anchor below the visible item. Using
+        // that anchor for the billboards clips the glow against the terrain
+        // and leaves a straight, bright edge on the ground.
+        const Vec3 glowOrigin = chest.looseLoot
+            ? lootVisualPosition(chest)
+            : Vec3{
+                  chest.position.x +
+                      chest.surfaceNormal.x * ChestGlowHeight,
+                  chest.position.y +
+                      chest.surfaceNormal.y * ChestGlowHeight,
+                  chest.position.z +
+                      chest.surfaceNormal.z * ChestGlowHeight,
+              };
         const Vector3 origin{
-            static_cast<float>(
-                chest.position.x +
-                chest.surfaceNormal.x * ChestGlowHeight),
-            static_cast<float>(
-                chest.position.y +
-                chest.surfaceNormal.y * ChestGlowHeight),
-            static_cast<float>(
-                chest.position.z +
-                chest.surfaceNormal.z * ChestGlowHeight),
+            static_cast<float>(glowOrigin.x),
+            static_cast<float>(glowOrigin.y),
+            static_cast<float>(glowOrigin.z),
         };
+        if (chest.looseLoot) {
+            emitSoftBillboardDisc(
+                origin, cameraRight, cameraUp, 0.54F,
+                {255, 205, 95, atmosphereAlpha(intensity * 0.11F)},
+                18);
+            emitSoftBillboardDisc(
+                origin, cameraRight, cameraUp, 0.31F,
+                {255, 230, 145, atmosphereAlpha(intensity * 0.13F)},
+                18);
+            continue;
+        }
 
         constexpr int GlowLayers = 9;
         constexpr int GlowSegments = 18;

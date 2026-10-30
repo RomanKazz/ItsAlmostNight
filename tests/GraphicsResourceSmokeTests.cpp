@@ -7,15 +7,9 @@
 #include "WindBlowerGraphicsChecks.hpp"
 #include "MissileLauncherGraphicsChecks.hpp"
 #include "ToolLevelGraphicsChecks.hpp"
-#include "graphics/CrystalMineModel.hpp"
-#include "graphics/QuarryModel.hpp"
-#include "graphics/CoreCrystalModel.hpp"
-#include "graphics/CannonModel.hpp"
-#include "graphics/CrossbowModel.hpp"
-#include "graphics/CatapultModel.hpp"
-#include "graphics/GateModel.hpp"
-#include "graphics/SpikeTrapModel.hpp"
 #include "WandGraphicsChecks.hpp"
+#include "ChestItemGraphicsChecks.hpp"
+#include "ShrineGraphicsChecks.hpp"
 #include "EnemyCylinderGraphicsChecks.hpp"
 #include "WizardGraphicsChecks.hpp"
 #include "RoyalBossGraphicsChecks.hpp"
@@ -24,6 +18,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "FlamethrowerGraphicsChecks.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
+#include "PowerupGraphicsChecks.hpp"
 #include "PowerupPickupModelChecks.hpp"
 #include "BombGraphicsChecks.hpp"
 #include "IceProjectileGraphicsChecks.hpp"
@@ -35,14 +30,25 @@
 #include "app/AppFreezeDrawing.hpp"
 #include "app/AppPoisonDrawing.hpp"
 #include "graphics/FireWandEffect.hpp"
+#include "graphics/CrystalMineModel.hpp"
+#include "graphics/QuarryModel.hpp"
+#include "graphics/CoreCrystalModel.hpp"
+#include "graphics/CannonModel.hpp"
+#include "graphics/CrossbowModel.hpp"
+#include "graphics/CatapultModel.hpp"
+#include "graphics/GateModel.hpp"
+#include "graphics/SpikeTrapModel.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "graphics/EnemyPresentation.hpp"
 #include "graphics/SplitterPresentation.hpp"
+#include "graphics/BuildingFeedbackEffect.hpp"
+#include "ui/UiRoundedRect.hpp"
 #include "world/VisualBiomes.hpp"
 
 #include <raylib.h>
+#include <raymath.h>
 #include <rlgl.h>
 #include <cstdlib>
 
@@ -50,14 +56,11 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <filesystem>
 #include <vector>
 
 namespace {
-
-bool checkCartoonCoins(ian::Renderer& renderer) {
-    const auto target = LoadRenderTexture(640, 360);
-    const Camera3D camera{{0, .7F, 6}, {0, 0, 0}, {0, 1, 0},
 
 bool checkEnemyPresentation(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(960, 600);
@@ -95,7 +98,7 @@ bool checkEnemyPresentation(ian::Renderer& renderer) {
             material.enemyWhiteFlashAmount = enemy.whiteFlashAmount;
             renderer.setWorldMaterial(material);
             static_cast<void>(renderer.drawEnemy(enemy.modelVisual, enemy.animationVisual,
-                enemy.animationSeconds, enemy.position, enemy.yawRadians, WHITE, 1, true, true, true));
+                enemy.animationSeconds, enemy.position, enemy.yawRadians, WHITE, 1, true, true, false));
         }
         // Drawing enemies must not brighten unrelated geometry afterward.
         material.enemyWhiteFlashAmount = 0;
@@ -428,6 +431,10 @@ bool checkCartoonHearts(ian::Renderer& renderer) {
     UnloadRenderTexture(target);
     return valid;
 }
+
+bool checkCartoonCoins(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(640, 360);
+    const Camera3D camera{{0, .7F, 6}, {0, 0, 0}, {0, 1, 0},
                           2.3F, CAMERA_ORTHOGRAPHIC};
     const auto render = [&](ian::CoinType type, float yaw, bool cover = false,
                             bool night = false, bool crowd = false) {
@@ -835,7 +842,6 @@ bool checkCartoonPoison(ian::Renderer& renderer) {
     if (!result) std::cerr << "poison visual: green=" << green << " highlights=" << highlights << '\n';
     return result;
 }
-
 
 bool checkCartoonFreeze(ian::Renderer& renderer) {
     using namespace ian::app_freeze_drawing;
@@ -1338,7 +1344,9 @@ bool checkProjectileDepth(ian::Renderer& renderer) {
     };
     const auto shot = [&](int kind, bool tail) {
         beginProjectileBatch(tail);
-        if (kind < 2 || tail) {
+        if (kind == 4) {
+            emitTurretMuzzleFlash({0, 1, 0}, {1, 0, 0}, camera, 1);
+        } else if (kind < 2 || tail) {
             emitDefenseShotGeometry({.5F, 1, 0}, {1, 0, 0}, camera.position,
                                     3, 1, 1, {255, 80, 30, 255}, tail, kind == 1);
         } else {
@@ -1382,7 +1390,7 @@ bool checkProjectileDepth(ian::Renderer& renderer) {
     }
     // Ribbons respect opaque foreground depth, blend over the background,
     // and cannot leave invisible depth that cuts out later transparent effects.
-    for (int kind = 0; kind < 2; ++kind) {
+    for (const int kind : {0, 1, 4}) {
         begin(); obstacle(1); Image cover = end();
         begin(); obstacle(1); shot(kind, true); Image hidden = end();
         begin(); obstacle(-1); Image backdrop = end();
@@ -1428,6 +1436,74 @@ bool checkProjectileDepth(ian::Renderer& renderer) {
         UnloadImage(backdrop); UnloadImage(noDepth);
     }
     renderer.settings().particles = particles;
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkDefenseProjectileAppearance() {
+    using namespace ian::app_projectile_drawing;
+    const auto target = LoadRenderTexture(384, 192);
+    const Camera3D camera{{0, 1, 8}, {0, 1, 0}, {0, 1, 0}, 4, CAMERA_ORTHOGRAPHIC};
+    const auto capture = [&](ian::BuildingType type, double damage, float size,
+                             bool shrapnel, bool tail, bool reference, float speed = 22) {
+        const auto appearance = ian::presentation::bulletAppearance(damage);
+        const float scale = appearance.scale * size * (shrapnel ? .56F : 1.0F);
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        beginProjectileBatch(tail);
+        if (reference) {
+            Color color{appearance.color.r, appearance.color.g, appearance.color.b, 255};
+            const bool bolt = type == ian::BuildingType::Turret;
+            if (bolt) color = ColorLerp(color, {132, 210, 255, 255}, .65F);
+            emitDefenseShotGeometry({.5F, 1, 0}, {1, 0, 0}, camera.position,
+                8 + .41F * scale, scale, 1, color, tail, bolt);
+        } else {
+            ian::AttackProjectile projectile{};
+            projectile.active = true;
+            projectile.type = type;
+            projectile.shrapnel = shrapnel;
+            projectile.position = projectile.previousPosition = {.5 - .41 * scale, 1, 0};
+            projectile.configuration.stats.damage = damage;
+            projectile.configuration.stats.size = size;
+            projectile.runtime.velocity = {speed, 0, 0};
+            projectile.runtime.previousTravelledDistance = projectile.runtime.travelledDistance = 8;
+            emitDefenseProjectileGeometry(projectile, camera.position, 1, tail);
+        }
+        endProjectileBatch();
+        EndMode3D(); EndTextureMode();
+        Image result = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&result);
+        return result;
+    };
+    bool valid = true;
+    for (const auto type : {ian::BuildingType::GunTurret, ian::BuildingType::Turret}) {
+        for (const double damage : {1.0, 4.0, 16.0}) {
+            for (const bool tail : {false, true}) {
+                Image expected = capture(type, damage, 1.3F, false, tail, true);
+                Image actual = capture(type, damage, 1.3F, false, tail, false);
+                valid = valid && changedPixels(expected, actual) == 0;
+                if (const char* directory = std::getenv("IAN_CAPTURE_ATTACK_VISUALS")) {
+                    std::filesystem::create_directories(directory);
+                    ExportImage(actual, (std::filesystem::path{directory} /
+                        (std::string{type == ian::BuildingType::GunTurret ? "gun-" : "bolt-"} +
+                         std::to_string(int(damage)) + (tail ? "-tail.png" : "-head.png"))).string().c_str());
+                }
+                UnloadImage(expected); UnloadImage(actual);
+            }
+        }
+    }
+    for (const auto type : {ian::BuildingType::GunTurret, ian::BuildingType::Turret}) {
+        const auto base = capture(type, 1, 1, false, false, false);
+        const auto powerful = capture(type, 10000, 1, false, false, false, 180);
+        const auto larger = capture(type, 1, 2, false, false, false);
+        valid = valid && changedPixels(base, powerful) == 0 && changedPixels(base, larger) > 32;
+        UnloadImage(base); UnloadImage(powerful); UnloadImage(larger);
+    }
+    Image fragment = capture(ian::BuildingType::GunTurret, 4, 1, true, false, false);
+    Image expectedFragment = capture(ian::BuildingType::GunTurret, 4, 1, true, false, true);
+    valid = valid && changedPixels(fragment, expectedFragment) == 0;
+    UnloadImage(fragment); UnloadImage(expectedFragment);
     UnloadRenderTexture(target);
     return valid;
 }
@@ -2594,6 +2670,192 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
     return true;
 }
 
+bool checkBuildingFeedbackEffects() {
+    constexpr int Size = 384;
+    const RenderTexture2D target = LoadRenderTexture(Size, Size);
+    if (!IsRenderTextureValid(target)) return false;
+    const Camera3D camera{{0, 2.5F, 8}, {0, 1.5F, 0}, {0, 1, 0},
+                          48, CAMERA_PERSPECTIVE};
+    const auto capture = [&](ian::BuildingFeedbackKind kind, float progress,
+                             bool occluded = false, bool decorate = false) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        if (decorate) {
+            DrawPlane({0, -.03F, 0}, {20, 20}, {62, 94, 47, 255});
+            DrawCube({0, .4F, 0}, 1.6F, .8F, 1.6F, {149, 91, 40, 255});
+            DrawCube({0, .85F, 0}, 1.8F, .15F, 1.8F, {186, 124, 60, 255});
+        }
+        if (occluded) DrawCube({0, 1.5F, 3}, 20, 20, .2F, RED);
+        ian::drawBuildingFeedbackEffect({}, camera.position, progress, 1, kind, 42);
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto measure = [](Image image, bool repair) {
+        Color* pixels = LoadImageColors(image);
+        std::array<double, 3> result{};
+        if (pixels) {
+            for (int y = 0; y < image.height; ++y) {
+                for (int x = 0; x < image.width; ++x) {
+                    const Color color = pixels[y * image.width + x];
+                    const bool symbol = repair
+                        ? color.g > 90 && color.g > color.r * 2 && color.g > color.b * 1.5
+                        : color.r > 110 && color.g > 90 && color.r > color.g && color.g > color.b * 2;
+                    if (symbol) {
+                        result[0] += 1; result[1] += y;
+                        if (color.a < 245) result[2] += 1;
+                    }
+                }
+            }
+            UnloadImageColors(pixels);
+        }
+        if (result[0] > 0) result[1] /= result[0];
+        UnloadImage(image);
+        return result;
+    };
+    using Kind = ian::BuildingFeedbackKind;
+    const auto early = measure(capture(Kind::Repair, .38F), true);
+    const auto later = measure(capture(Kind::Repair, .56F), true);
+    const auto upgrade = measure(capture(Kind::Upgrade, .38F), false);
+    const bool valid = early[0] > 100 && later[0] > 100 && upgrade[0] > 100 &&
+        early[2] > early[0] * .95 && upgrade[2] > upgrade[0] * .95 &&
+        later[1] < early[1] - 5 &&
+        measure(capture(Kind::Repair, 0), true)[0] == 0 &&
+        measure(capture(Kind::Upgrade, 1), false)[0] == 0 &&
+        measure(capture(Kind::Repair, .38F, true), true)[0] == 0 &&
+        measure(capture(Kind::Upgrade, .38F, true), false)[0] == 0;
+    if (const char* directory = std::getenv("IAN_CAPTURE_BUILDING_FEEDBACK")) {
+        std::filesystem::create_directories(directory);
+        for (int frame = 0; frame <= 30; ++frame) {
+            for (const Kind kind : {Kind::Repair, Kind::Upgrade}) {
+                Image image = capture(kind, static_cast<float>(frame) / 30.0F, false, true);
+                const auto path = std::filesystem::path{directory} /
+                    ((kind == Kind::Repair ? "repair_" : "upgrade_") +
+                     std::to_string(frame) + ".png");
+                ExportImage(image, path.string().c_str());
+                UnloadImage(image);
+            }
+        }
+    }
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkBuildingFeedbackHighlight(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(384, 384);
+    if (!IsRenderTextureValid(target)) return false;
+    const Camera3D camera{{0, 1, 6}, {0, 1, 0}, {0, 1, 0},
+                          3.4F, CAMERA_ORTHOGRAPHIC};
+    const auto capture = [&](ian::BuildingFeedbackKind kind, float progress,
+                             bool decorate = false, Color surface = {116, 116, 116, 255}) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        lighting.cloudShadowStrength = 0;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.buildingFeedback = ian::sampleBuildingFeedbackHighlight(progress, 0, 2, kind);
+        renderer.setWorldMaterial(material);
+        DrawCube({0, 1, 0}, 1.6F, 2, 1.6F, surface);
+        renderer.setBuildingFeedbackHighlight({});
+        // A following object must never inherit the preceding sweep.
+        DrawCube({1.3F, 1, 0}, .3F, 2, 1, {116, 116, 116, 255});
+        renderer.endWorldShader();
+        if (decorate) ian::drawBuildingFeedbackEffect(
+            {}, camera.position, progress, 1, kind, 42);
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto measure = [&](ian::BuildingFeedbackKind kind, float progress) {
+        Image image = capture(kind, progress);
+        Color* pixels = LoadImageColors(image);
+        std::array<double, 3> measured{};
+        if (pixels) {
+            for (int y = 0; y < image.height; ++y) {
+                for (int x = 0; x < image.width; ++x) {
+                    const Color color = pixels[y * image.width + x];
+                    const bool highlighted = kind == ian::BuildingFeedbackKind::Repair
+                        ? color.g > color.r + 16 && color.g > color.b + 12
+                        : color.r > color.b + 20 && color.g > color.b + 16;
+                    if (highlighted) {
+                        ++measured[0]; measured[1] += y;
+                        if (x > image.width * .8) ++measured[2];
+                    }
+                }
+            }
+            UnloadImageColors(pixels);
+        }
+        if (measured[0] > 0) measured[1] /= measured[0];
+        UnloadImage(image);
+        return measured;
+    };
+    using Kind = ian::BuildingFeedbackKind;
+    const auto bottom = measure(Kind::Repair, .3F);
+    const auto top = measure(Kind::Repair, .7F);
+    const auto gold = measure(Kind::Upgrade, .5F);
+    const auto centerColor = [&](Color surface) {
+        Image image = capture(Kind::Repair, .5F, false, surface);
+        const Color color = GetImageColor(image, image.width / 2, image.height / 2);
+        UnloadImage(image);
+        return color;
+    };
+    const Color warm = centerColor({192, 99, 49, 255});
+    const Color cool = centerColor({49, 99, 192, 255});
+    const bool originalColorsVisible = warm.r > warm.b + 60 && cool.b > cool.r + 60;
+    Image shineImage = capture(Kind::Repair, .5F);
+    const Color core = GetImageColor(shineImage, 192, 192);
+    const Color shoulder = GetImageColor(shineImage, 192, 230);
+    UnloadImage(shineImage);
+    const bool brightCore = core.g > 166 && core.g > shoulder.g + 25;
+    const bool valid = originalColorsVisible && brightCore && top[0] > 500 && bottom[0] > 500 && gold[0] > 500 &&
+        bottom[1] > top[1] + 40 && top[2] == 0 && bottom[2] == 0 && gold[2] == 0 &&
+        measure(Kind::Repair, 0)[0] == 0 && measure(Kind::Upgrade, 1)[0] == 0;
+    if (!valid) {
+        std::cerr << "feedback sweep metrics: top " << top[0] << ", " << top[1]
+            << "; bottom " << bottom[0] << ", " << bottom[1] << "; gold " << gold[0]
+            << "; colors " << originalColorsVisible << "; core " << int(core.g)
+            << "; shoulder " << int(shoulder.g) << "\n";
+    }
+    if (const char* directory = std::getenv("IAN_CAPTURE_BUILDING_FEEDBACK")) {
+        for (int frame = 0; frame <= 30; ++frame) {
+            for (const Kind kind : {Kind::Repair, Kind::Upgrade}) {
+                Image image = capture(kind, static_cast<float>(frame) / 30, true);
+                const auto path = std::filesystem::path{directory} /
+                    ((kind == Kind::Repair ? "repair_sweep_" : "upgrade_sweep_") +
+                     std::to_string(frame) + ".png");
+                ExportImage(image, path.string().c_str());
+                UnloadImage(image);
+            }
+        }
+    }
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkRoundedPanelFill() {
+    const RenderTexture2D target = LoadRenderTexture(64, 64);
+    if (!IsRenderTextureValid(target)) return false;
+    BeginTextureMode(target);
+    ClearBackground(BLANK);
+    ian::drawSolidRoundedRect(
+        {8.0F, 8.0F, 48.0F, 48.0F}, 0.5F, WHITE);
+    EndTextureMode();
+    const Image image = LoadImageFromTexture(target.texture);
+    const Color center = GetImageColor(image, 32, 32);
+    UnloadImage(image);
+    UnloadRenderTexture(target);
+    return center.a == 255 && center.r == 255;
+}
+
 bool checkMissingResources() {
     ian::ShaderResource shader;
     ian::TextureResource texture;
@@ -2658,11 +2920,13 @@ bool checkPlatformVisibilityMasks() {
          .anchor = {2, 0, 0}},
     }};
     const auto edges = ian::platformEdgeVisibilityMasks(frames);
+    constexpr std::array<bool, 2> Visible{true, true};
+    constexpr std::array<bool, 2> Hidden{false, false};
     if (edges.size() != frames.size() ||
-        !edges[0][0] || edges[0][1] ||
-        edges[1][0] || !edges[1][1] ||
-        !edges[0][2] || !edges[0][3] ||
-        !edges[1][2] || !edges[1][3]) {
+        edges[0][0] != Visible || edges[0][1] != Hidden ||
+        edges[1][0] != Hidden || edges[1][1] != Visible ||
+        edges[0][2] != Visible || edges[0][3] != Visible ||
+        edges[1][2] != Visible || edges[1][3] != Visible) {
         return false;
     }
 
@@ -2693,6 +2957,208 @@ bool checkPlatformVisibilityMasks() {
         posts[0][1] && posts[1][0] &&
         std::abs(lengths[0][1] - 3.0) < 1e-9 &&
         std::abs(lengths[1][0] - 4.0) < 1e-9;
+}
+
+bool checkStaggeredPlatformVisibilityMasks() {
+    const std::array<ian::GridCoord, 6> anchors{{
+        {-2, 0, 0}, {0, 0, 0}, {2, 0, 0},
+        {-1, 0, 2}, {1, 0, 2}, {3, 0, 2},
+    }};
+    const std::array<ian::PlatformEdgeVisibilityMask, 6> expectedEdges{{
+        {{{true, true}, {false, false}, {true, true}, {true, false}}},
+        {{{false, false}, {false, false}, {true, true}, {false, false}}},
+        {{{false, false}, {true, true}, {true, true}, {false, false}}},
+        {{{true, true}, {false, false}, {false, false}, {true, true}}},
+        {{{false, false}, {false, false}, {false, false}, {true, true}}},
+        {{{false, false}, {true, true}, {false, true}, {true, true}}},
+    }};
+    const std::array<std::array<bool, 4>, 6> expectedPosts{{
+        {true, true, true, false}, {true, true, false, false}, {true, true, false, true},
+        {true, false, true, true}, {false, false, true, true}, {false, true, true, true},
+    }};
+    // Check both row orientations, negative coordinates, and another floor.
+    for (const bool transpose : {false, true}) {
+        std::array<ian::PlatformFrameInstance, 6> frames{};
+        for (std::size_t index = 0; index < frames.size(); ++index) {
+            const auto anchor = anchors[index];
+            frames[index].anchor = {
+                (transpose ? anchor.z : anchor.x) - 7, 8,
+                (transpose ? anchor.x : anchor.z) - 5,
+            };
+        }
+        const auto edges = ian::platformEdgeVisibilityMasks(frames);
+        const auto posts = ian::platformSupportVisibilityMasks(frames, {});
+        constexpr std::array<std::size_t, 4> TransposedEdges{2, 3, 0, 1};
+        constexpr std::array<std::size_t, 4> TransposedPosts{0, 2, 1, 3};
+        for (std::size_t frame = 0; frame < frames.size(); ++frame) {
+            for (std::size_t part = 0; part < 4U; ++part) {
+                if (edges[frame][part] != expectedEdges[frame][transpose ? TransposedEdges[part] : part] ||
+                    posts[frame][part] != expectedPosts[frame][transpose ? TransposedPosts[part] : part]) {
+                    return false;
+                }
+            }
+        }
+        // A platform on a different level must not close a perimeter gap.
+        frames[3].anchor.yLevel += 1;
+        frames[4].anchor.yLevel += 1;
+        frames[5].anchor.yLevel += 1;
+        const auto separatedEdges = ian::platformEdgeVisibilityMasks(frames);
+        const auto separatedPosts = ian::platformSupportVisibilityMasks(frames, {});
+        if (separatedEdges[1][transpose ? 1U : 3U] != std::array<bool, 2>{true, true} ||
+            separatedPosts[1] != ian::AllPlatformSupportsVisible) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool checkPlatformRailRendering(ian::Renderer& renderer) {
+    const RenderTexture2D target = LoadRenderTexture(256, 128);
+    if (!IsRenderTextureValid(target)) return false;
+    bool passed = true;
+    constexpr float RailY = -0.418F;
+    constexpr std::array<bool, 4> NoPosts{};
+    for (std::size_t edge = 0; edge < 4U; ++edge) {
+        const bool alongX = edge >= 2U;
+        const float side = edge % 2U == 0U ? -1.0F : 1.0F;
+        const Camera3D camera{
+            .position = alongX ? Vector3{0, RailY, side * 4} : Vector3{side * 4, RailY, 0},
+            .target = {0, RailY, 0}, .up = {0, 1, 0},
+            .fovy = 1.0F, .projection = CAMERA_ORTHOGRAPHIC,
+        };
+        for (const std::array<bool, 2> visible : {
+                 std::array<bool, 2>{true, false}, {false, true}, {true, true}, {false, false}}) {
+            ian::PlatformEdgeVisibilityMask edges{};
+            edges[edge] = visible;
+            BeginTextureMode(target);
+            ClearBackground(BLACK);
+            BeginMode3D(camera);
+            ian::WorldLighting lighting{};
+            lighting.cameraPosition = camera.position;
+            renderer.beginWorldShader(lighting);
+            ian::WorldMaterialState material{};
+            material.unlitAmount = 1.0F;
+            renderer.setWorldMaterial(material);
+            passed = renderer.drawPlatformFrameModel({0, 0, 0}, WHITE, 1.0F, {}, NoPosts, edges) && passed;
+            renderer.endWorldShader();
+            EndMode3D();
+            EndTextureMode();
+            Image image = LoadImageFromTexture(target.texture);
+            ImageFlipVertical(&image);
+            for (std::size_t segment = 0; segment < 2U; ++segment) {
+                const float coordinate = segment == 0U ? -0.4F : 0.4F;
+                const Vector3 probe = alongX ? Vector3{coordinate, RailY, side * 0.89F}
+                    : Vector3{side * 0.89F, RailY, coordinate};
+                const Vector2 pixel = GetWorldToScreenEx(probe, camera, image.width, image.height);
+                const Color color = GetImageColor(image,
+                    static_cast<int>(pixel.x), static_cast<int>(pixel.y));
+                const bool drawn = std::max({color.r, color.g, color.b}) > 10;
+                passed = passed && drawn == visible[segment];
+            }
+            UnloadImage(image);
+        }
+    }
+    UnloadRenderTexture(target);
+    return passed;
+}
+
+bool checkEnemyAnimationInterpolation(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 256);
+    if (!IsRenderTextureValid(target)) return false;
+    const Camera3D camera{{0, .7F, 4}, {0, .7F, 0}, {0, 1, 0}, 2.2F, CAMERA_ORTHOGRAPHIC};
+    bool passed = true;
+    const auto capture = [&](ian::EnemyModelVisual model, bool batched, bool smooth, float phase, int count,
+                             Color tint = WHITE) {
+        renderer.beginFrame();
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        renderer.setWorldMaterial(material);
+        std::array<ian::EnemyDrawInstance, 2> enemies{{
+            {.modelVisual = model, .animationVisual = ian::EnemyAnimationVisual::Walk,
+             .animationSeconds = (10 + phase) / 30, .position = {-.8F, 0, 0}, .smoothAnimation = smooth},
+            {.modelVisual = model, .animationVisual = ian::EnemyAnimationVisual::Walk,
+             .animationSeconds = (10 + (1 - phase)) / 30, .position = {.8F, 0, 0}, .smoothAnimation = smooth},
+        }};
+        for (auto& enemy : enemies) enemy.tint = tint;
+        if (batched) {
+            passed = renderer.drawEnemiesInstanced(std::span(enemies).first(static_cast<std::size_t>(count))) && passed;
+        } else {
+            for (int i = 0; i < count; ++i) {
+                const auto& enemy = enemies[static_cast<std::size_t>(i)];
+                passed = renderer.drawEnemy(model, enemy.animationVisual, enemy.animationSeconds,
+                    enemy.position, 0, tint, 1, true, true, !smooth) && passed;
+            }
+        }
+        // A static mesh following a smooth batch must not inherit its second pose.
+        passed = renderer.drawLootChest(ian::LootChestType::Wooden, {0, 0, -.3F}, 0, .4F) && passed;
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        Color* colors = LoadImageColors(image);
+        std::vector<Color> pixels(colors, colors + image.width * image.height);
+        UnloadImageColors(colors);
+        UnloadImage(image);
+        return pixels;
+    };
+    const auto mismatches = [](const auto& a, const auto& b, int tolerance) {
+        std::size_t count = 0;
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            if (std::max({std::abs(int(a[i].r) - int(b[i].r)),
+                std::abs(int(a[i].g) - int(b[i].g)), std::abs(int(a[i].b) - int(b[i].b))}) > tolerance) ++count;
+        }
+        return count;
+    };
+    for (const auto model : {ian::EnemyModelVisual::Minion, ian::EnemyModelVisual::Rogue,
+            ian::EnemyModelVisual::Warrior, ian::EnemyModelVisual::Mage, ian::EnemyModelVisual::Sapper,
+            ian::EnemyModelVisual::Flying, ian::EnemyModelVisual::Boss,
+            ian::EnemyModelVisual::Splitter, ian::EnemyModelVisual::Splitling}) {
+        const auto normalBefore = capture(model, false, true, .2F, 1);
+        const auto burning = capture(model, false, true, .2F, 1, {255, 118, 42, 255});
+        const auto normalAfter = capture(model, false, true, .2F, 1);
+        const auto crowdAfter = capture(model, true, true, .2F, 1);
+        if (mismatches(normalBefore, normalAfter, 0) != 0 ||
+            mismatches(normalAfter, crowdAfter, 8) > crowdAfter.size() / 200) {
+            std::cerr << "enemy retains a temporary tint when crosshair rendering changes: model "
+                << int(model) << '\n';
+            passed = false;
+        }
+        if (mismatches(normalBefore, burning, 8) < 5) {
+            std::cerr << "enemy status tint is missing: model " << int(model) << '\n';
+            passed = false;
+        }
+        for (const int count : {1, 2}) {
+            const auto gpu = capture(model, true, true, .2F, count);
+            const auto reference = capture(model, false, true, .2F, count);
+            const auto difference = mismatches(gpu, reference, 8);
+            const auto visible = std::count_if(gpu.begin(), gpu.end(), [](Color c) { return c.r > 8 || c.g > 8 || c.b > 8; });
+            if (difference > gpu.size() / 200 || visible < 100) {
+                std::cerr << "enemy interpolation mismatch: model " << int(model)
+                    << " count " << count << " pixels " << difference << " visible " << visible << '\n';
+                passed = false;
+            }
+        }
+    }
+    const auto before = capture(ian::EnemyModelVisual::Minion, true, true, .2F, 1);
+    const auto after = capture(ian::EnemyModelVisual::Minion, true, true, .8F, 1);
+    if (mismatches(before, after, 1) < 5) {
+        std::cerr << "nearby animation still holds a discrete source pose\n";
+        passed = false;
+    }
+    const auto farBefore = capture(ian::EnemyModelVisual::Minion, true, false, .2F, 2);
+    const auto farAfter = capture(ian::EnemyModelVisual::Minion, true, false, .8F, 2);
+    if (mismatches(farBefore, farAfter, 0) != 0) {
+        std::cerr << "distant crowd lost pose reuse\n";
+        passed = false;
+    }
+    UnloadRenderTexture(target);
+    return passed;
 }
 
 bool hasTexturedRenderableMesh(
@@ -2756,6 +3222,126 @@ bool animationMovesSkeleton(
     return false;
 }
 
+bool checkFirstPersonSwingTrails(ian::Renderer& renderer) {
+    const int previousWidth = GetScreenWidth();
+    const int previousHeight = GetScreenHeight();
+    SetWindowSize(640, 480);
+    const auto target = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+    if (!IsRenderTextureValid(target)) {
+        SetWindowSize(previousWidth, previousHeight);
+        return false;
+    }
+    constexpr Color Background{27, 44, 67, 255};
+    bool valid = true;
+    const char* directory = std::getenv("IAN_CAPTURE_TOOL_SWINGS");
+    if (directory) std::filesystem::create_directories(directory);
+    const auto capture = [&](ian::FirstPersonToolVisual visual, float progress,
+                             bool alternate, bool tool, bool trail) {
+        const auto camera = ian::firstPersonToolCamera(visual);
+        const auto tuning = ian::defaultFirstPersonToolTuning(visual);
+        // Initialize the real viewmodel lighting, then capture into a target
+        // matching logical screen size so Retina scaling cannot skew masks.
+        if (renderer.beginFirstPersonToolPass()) {
+            renderer.endFirstPersonToolPass(tuning);
+        } else valid = false;
+        BeginTextureMode(target);
+        ClearBackground(Background);
+        if (trail) renderer.drawFirstPersonSwingTrail(
+            visual, progress, .6F, .5F, tuning, camera, alternate);
+        BeginMode3D(camera);
+        if (tool) valid = renderer.drawFirstPersonTool(
+            visual, progress, .6F, .5F, tuning, 0, 0, alternate) && valid;
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto isTool = [](Color pixel) {
+        return std::abs(int(pixel.r) - Background.r) > 15 ||
+            std::abs(int(pixel.g) - Background.g) > 15 ||
+            std::abs(int(pixel.b) - Background.b) > 15;
+    };
+    for (const auto visual : {ian::FirstPersonToolVisual::Axe,
+                             ian::FirstPersonToolVisual::Pickaxe}) {
+        Image idle = capture(visual, 0, false, true, false);
+        for (const bool alternate : {false, true}) {
+            const std::array<float, 3> progressSamples = alternate
+                ? std::array{.49F, .54F, .58F}
+                : std::array{.33F, .36F, .39F};
+            for (const float progress : progressSamples) {
+                Image tool = capture(visual, progress, alternate, true, false);
+                Image trail = capture(visual, progress, alternate, false, true);
+                Color* toolPixels = LoadImageColors(tool);
+                Color* trailPixels = LoadImageColors(trail);
+                float maximumBrightness = 0;
+                for (int pixel = 0; pixel < trail.width * trail.height; ++pixel) {
+                    maximumBrightness = std::max(maximumBrightness,
+                        static_cast<float>(trailPixels[pixel].r) - Background.r);
+                }
+                // The brightest portion is the recent head of the ribbon. It
+                // must touch the real tool silhouette in both authored clips.
+                double headX = 0, headY = 0;
+                int headCount = 0, visibleTool = 0;
+                for (int y = 0; y < trail.height; ++y) {
+                    for (int x = 0; x < trail.width; ++x) {
+                        const int pixel = y * trail.width + x;
+                        if (isTool(toolPixels[pixel])) ++visibleTool;
+                        if (maximumBrightness > 5 &&
+                            trailPixels[pixel].r - Background.r >= maximumBrightness * .92F) {
+                            headX += x; headY += y; ++headCount;
+                        }
+                    }
+                }
+                float nearestTool = std::numeric_limits<float>::infinity();
+                if (headCount > 0) {
+                    headX /= headCount; headY /= headCount;
+                    for (int y = 0; y < tool.height; ++y) {
+                        for (int x = 0; x < tool.width; ++x) {
+                            if (isTool(toolPixels[y * tool.width + x])) {
+                                nearestTool = std::min(nearestTool,
+                                    static_cast<float>(std::hypot(x - headX, y - headY)));
+                            }
+                        }
+                    }
+                }
+                const bool attached = visibleTool > 100 && headCount > 5 &&
+                    nearestTool < static_cast<float>(tool.width) * .035F;
+                if (!attached) std::cerr << "swing trail attachment: visual " << int(visual)
+                    << "; alternate " << alternate << "; progress " << progress
+                    << "; tool pixels " << visibleTool
+                    << "; trail head pixels " << headCount << "; distance " << nearestTool << "\n";
+                valid = valid && attached;
+                UnloadImageColors(toolPixels); UnloadImageColors(trailPixels);
+                UnloadImage(tool); UnloadImage(trail);
+            }
+            if (directory) {
+                for (int frame = 0; frame <= 30; ++frame) {
+                    Image image = capture(visual, static_cast<float>(frame) / 30,
+                                          alternate, true, true);
+                    const auto path = std::filesystem::path{directory} /
+                        (std::to_string(int(visual)) + (alternate ? "_alternate_" : "_primary_") +
+                         std::to_string(frame) + ".png");
+                    ExportImage(image, path.string().c_str());
+                    UnloadImage(image);
+                }
+            }
+        }
+        Image restoredIdle = capture(visual, 0, false, true, false);
+        Color* before = LoadImageColors(idle);
+        Color* after = LoadImageColors(restoredIdle);
+        for (int pixel = 0; pixel < idle.width * idle.height; ++pixel) {
+            valid = valid && before[pixel].r == after[pixel].r &&
+                before[pixel].g == after[pixel].g && before[pixel].b == after[pixel].b;
+        }
+        UnloadImageColors(before); UnloadImageColors(after);
+        UnloadImage(idle); UnloadImage(restoredIdle);
+    }
+    UnloadRenderTexture(target);
+    SetWindowSize(previousWidth, previousHeight);
+    return valid;
+}
+
 bool pickaxePivotAnimationMoves(
     const ian::GlbNodeAnimation& animation) {
     if (!animation.valid()) return false;
@@ -2812,9 +3398,25 @@ int main() {
         std::cerr << "defense inventory icons or row spacing failed\n";
         result = 1;
     }
+    if (!checkWorldUiOcclusion()) {
+        std::cerr << "World-space enemy health bars leak through foreground geometry\n";
+        result = 1;
+    }
     {
+        if (!checkBuildingFeedbackEffects()) {
+            std::cerr << "building feedback visibility, rise or depth occlusion failed\n";
+            result = 1;
+        }
+        if (!checkRoundedPanelFill()) {
+            std::cerr << "rounded panel fill failed\n";
+            result = 1;
+        }
         if (!checkPlatformVisibilityMasks()) {
             std::cerr << "platform visibility masks failed\n";
+            result = 1;
+        }
+        if (!checkStaggeredPlatformVisibilityMasks()) {
+            std::cerr << "staggered platform visibility masks failed\n";
             result = 1;
         }
         std::cerr << "graphics smoke: missing resources\n";
@@ -2829,6 +3431,11 @@ int main() {
         ian::GraphicsResources resources;
         std::cerr << "graphics smoke: initialize 1\n";
         resources.initialize(settings);
+        for (const auto effect:ian::ActiveLootEffects) {
+            const auto* relic=resources.relicLootModel(effect);
+            require(relic && relic->valid(),"all eighteen authored relic GLBs load through the game loader");
+            require(relic->get().meshCount==1 && relic->get().materialCount>=1 && relic->get().meshMaterial[0]<relic->get().materialCount,"relic props retain one draw mesh with a valid material binding");
+        }
         if (!checkWeaponBaseNormals(resources)) {
             std::cerr << "weapon pedestal cap/side normal seam failed\n";
             result = 1;
@@ -2843,6 +3450,7 @@ int main() {
             !IsTextureValid(resources.sceneNormalTexture()) ||
             !resources.ssaoTargetValid() ||
             !resources.ssaoShader().valid() ||
+            !resources.postProcessShader().valid() ||
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
             !resources.viewModelCompositeShader().valid() ||
@@ -2900,12 +3508,9 @@ int main() {
             !pickaxePivotAnimationMoves(
                 resources.pickaxeAlternateAnimation()) ||
             !resources.clubModel().valid() ||
-            !resources.hammerModel().valid() ||
             !resources.iceWandModel().valid() ||
             !resources.fireWandModel().valid() ||
             !resources.iceMagicShader().valid() ||
-            !resources.coinOutlineShader().valid() ||
-            !resources.heartOutlineShader().valid() ||
             !resources.portalMatterTexture().valid() ||
             !resources.portalMatterShader().valid() ||
             !resources.enemyPortalModel().valid() ||
@@ -2970,6 +3575,25 @@ int main() {
             std::cerr << "item model has no valid albedo texture\n";
             result = 1;
         }
+        for (std::size_t i = 0; i < ian::WorldSceneryModelCount; ++i) {
+            const auto& model = resources.worldSceneryModel(i);
+            if (!model.valid() || !hasTexturedRenderableMesh(model)) {
+                std::cerr << "world scenery model or its embedded texture failed to load\n";
+                result = 1;
+                continue;
+            }
+            const BoundingBox box = GetModelBoundingBox(model.get());
+            const auto& definition = ian::WorldSceneryDefinitions[i];
+            if (std::abs(box.min.y) > .002F ||
+                std::abs(box.max.y-definition.height) > .002 ||
+                std::abs(box.max.x+box.min.x) > .002F ||
+                std::abs(box.max.z+box.min.z) > .002F ||
+                box.max.x-box.min.x > definition.width+.002 ||
+                box.max.z-box.min.z > definition.depth+.002) {
+                std::cerr << "world scenery collision bounds differ from the imported mesh\n";
+                result = 1;
+            }
+        }
         settings.ssao = false;
         resources.updateFramebuffer(settings);
         if (!resources.sceneTargetValid() ||
@@ -3029,6 +3653,13 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        auto shrineTerrainConfig=ian::WorldConfig::defaults();
+        shrineTerrainConfig.terrainResolution=65;shrineTerrainConfig.terrainWorldSize=64;
+        shrineTerrainConfig.coreFlatRadius=0;shrineTerrainConfig.terrainAmplitude=8;
+        shrineTerrainConfig.terrainBoundaryRiseHeight=0;
+        shrineTerrainConfig.pondMinimumCount=shrineTerrainConfig.pondMaximumCount=0;
+        ian::TerrainHeightfield shrineTerrain{shrineTerrainConfig};shrineTerrain.generate(551);
+        if (!checkShrineRendering(renderer,shrineTerrain)) result=1;
         if (!checkWindBlowerGraphics(renderer)) {std::cerr<<"wind blower model/rotor/icon/gust/raycast failed\n";return 1;}
         if (!checkDecoyBeaconGraphics(renderer)) {std::cerr<<"decoy beacon model/icon/effect/raycast failed\n";return 1;}
         if (!checkRepairStationGraphics(renderer)) {std::cerr<<"repair station model/icon/effect/raycast failed\n";return 1;}
@@ -3048,6 +3679,10 @@ int main() {
             std::cerr << "cartoon ice projectile presentation failed\n";
             result = 1;
         }
+        if (!checkPowerupPresentation(renderer)) {
+            std::cerr << "Powerup tokens, aura or HUD are not visible\n";
+            result = 1;
+        }
         if (!checkEnemyCylinderModels(renderer)) return 1;
         if (!checkWizardMagic(renderer)) return 1;
         if (!checkRoyalBossGraphics(renderer)) return 1;
@@ -3059,6 +3694,18 @@ int main() {
         }
         if (!checkSplitterPresentation(renderer)) {
             std::cerr << "splitter squash, hop and instanced pose mismatch\n";
+            return 1;
+        }
+        if (!checkEnemyPresentation(renderer)) {
+            std::cerr << "cartoon enemy presentation failed\n";
+            result = 1;
+        }
+        if (!checkElitePresentation(renderer)) {
+            std::cerr << "elite geometry, animation, batch parity or depth failed\n";
+            result = 1;
+        }
+        if (!checkCartoonHearts(renderer)) {
+            std::cerr << "cartoon heart silhouette, highlights or depth failed\n";
             return 1;
         }
         if (!checkCartoonCoins(renderer)) {
@@ -3091,6 +3738,10 @@ int main() {
         }
         if (!checkCartoonBurn(renderer)) {
             std::cerr << "cartoon burn palette, animation, fade, LOD or occlusion failed\n";
+            result = 1;
+        }
+        if (!checkDefenseProjectileAppearance()) {
+            std::cerr << "defense projectile damage palette/scale or trail style changed\n";
             result = 1;
         }
         if (!checkTacticalSectorGradient(renderer)) {
@@ -3160,10 +3811,6 @@ int main() {
             std::cerr << "gun turret levels, material restoration or rotated armor aiming failed\n";
             result = 1;
         }
-        if (!checkToolLevelRendering(renderer)) {
-            std::cerr << "tool upgrade levels or rigid swing restoration failed\n";
-            result = 1;
-        }
         if (!checkCannonLevelRendering(renderer)) {
             std::cerr << "cannon levels, pitched collar aiming or material restoration failed\n";
             result = 1;
@@ -3194,6 +3841,26 @@ int main() {
         }
         if (!checkVisualBiomeRendering(renderer)) {
             std::cerr << "biome palettes fail to recolor the ground or leak onto ordinary props\n";
+            result = 1;
+        }
+        if (!checkToolLevelRendering(renderer)) {
+            std::cerr << "tool upgrade levels or rigid swing restoration failed\n";
+            result = 1;
+        }
+        if (!checkFirstPersonSwingTrails(renderer)) {
+            std::cerr << "first person swing trail or pose reset failed\n";
+            result = 1;
+        }
+        if (!checkBuildingFeedbackHighlight(renderer)) {
+            std::cerr << "building feedback sweep or material reset failed\n";
+            result = 1;
+        }
+        if (!checkEnemyAnimationInterpolation(renderer)) {
+            std::cerr << "enemy animation interpolation rendering failed\n";
+            result = 1;
+        }
+        if (!checkPlatformRailRendering(renderer)) {
+            std::cerr << "platform rail segment rendering failed\n";
             result = 1;
         }
         const ian::BuildingInstance core{
@@ -3231,7 +3898,10 @@ int main() {
             .fovy = 60.0F,
             .projection = CAMERA_PERSPECTIVE,
         };
+        renderer.setGpuProfilingEnabled(true);
         renderer.beginFrame();
+        renderer.beginGpuTimer(ian::RendererGpuStage::World);
+        renderer.beginGpuWorldPart(ian::RendererGpuWorldPart::Scene);
         renderer.beginWorldPass(BLACK, smokeCamera);
         renderer.drawSky(ian::SkyState{});
         BeginMode3D(smokeCamera);
@@ -3259,21 +3929,15 @@ int main() {
             // Reproduce a transparent world particle crossing outlined
             // geometry. It changes scene color/alpha but intentionally does
             // not replace the normal attachment behind it.
-            rlDrawRenderBatchActive();
-            rlSetBlendFactorsSeparate(
-                RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
-                RL_ZERO, RL_ZERO,
-                RL_FUNC_ADD, RL_FUNC_ADD);
-            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-            rlDisableDepthMask();
-            DrawSphereEx(
-                {0.32F, 2.22F, 1.05F}, 0.22F, 6, 6,
-                {255, 182, 55, 150});
-            rlDrawRenderBatchActive();
-            rlEnableDepthMask();
-            EndBlendMode();
+            renderer.beginColorOnlyWorldEffects();
+            ian::drawBuildingFeedbackEffect(
+                {0, 0, 1.1F}, smokeCamera.position, .38F, 1,
+                ian::BuildingFeedbackKind::Repair, 42);
+            renderer.endColorOnlyWorldEffects();
         }
         EndMode3D();
+        renderer.endGpuWorldPart(ian::RendererGpuWorldPart::Scene);
+        renderer.endGpuTimer(ian::RendererGpuStage::World);
         renderer.endWorldPass();
         if (captureOutlines) {
             rlDrawRenderBatchActive();
@@ -3328,6 +3992,7 @@ int main() {
             smokeLighting, 0.35F);
         EndMode3D();
         EndDrawing();
+        checkChestItemModels(renderer);
         renderer.shutdown();
         if (!rampSurfaceRaycast || !rampEmptyVolumeRejected ||
             !instancedTreesDrawn || !woodenDrawn || !stoneDrawn ||
@@ -3341,15 +4006,3 @@ int main() {
     CloseWindow();
     return result;
 }
-        if (!checkEnemyPresentation(renderer)) {
-            std::cerr << "cartoon enemy presentation failed\n";
-            result = 1;
-        }
-        if (!checkElitePresentation(renderer)) {
-            std::cerr << "elite geometry, animation, batch parity or depth failed\n";
-            result = 1;
-        }
-        if (!checkCartoonHearts(renderer)) {
-            std::cerr << "cartoon heart silhouette, highlights or depth failed\n";
-            return 1;
-        }

@@ -204,8 +204,8 @@ void arenaPlayer() {
 }
 void wavesAndCompatibility() {
     WaveDirector director;
-    require(director.composition(4).airTank==0 && director.composition(5).airTank>0,
-        "heavy flyers unlock after the opening nights");
+    require(director.composition(8).airTank==0 && director.composition(9).airTank>0,
+        "heavy flyers unlock after the first boss night");
     for (int night=1;night<=24;++night) for (int act=0;act<3;++act) {
         const auto base=director.composition(night);
         const auto wave=nightComposition(base,NightPattern::AirRaid,act);

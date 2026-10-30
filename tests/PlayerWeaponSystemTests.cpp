@@ -43,10 +43,16 @@ void runPlayerWeaponSystemTests() {
     require(
         legacySelection.selectedWeapon() == ian::PlayerWeapon::Axe,
         "old suspended runs migrate removed Hands selection to Axe");
-    legacySelection.restoreState(ian::PlayerWeapon::Hammer, 1);
+    legacySelection.restoreState(ian::PlayerWeapon::LegacyHammer, 1);
     require(
         legacySelection.selectedWeapon() == ian::PlayerWeapon::Axe,
         "old suspended runs migrate removed Hammer selection to Axe");
+    require(
+        !ian::isPlayerTool(ian::PlayerWeapon::LegacyHammer) &&
+            static_cast<int>(ian::PlayerWeapon::LegacyHammer) == 6 &&
+            static_cast<int>(ian::PlayerWeapon::Rifle) == 7 &&
+            static_cast<int>(ian::PlayerWeapon::Bomb) == 8,
+        "removed hammer keeps saved weapon indices without remaining a tool");
 
     ian::EnemySystem enemies;
     constexpr std::array<ian::Vec3, 1> Spawn{{{0.0, 0.8, -10.0}}};

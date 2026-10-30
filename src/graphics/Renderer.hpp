@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/WorldUiOcclusion.hpp"
 
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
@@ -6,8 +7,10 @@
 #include "core/PerformanceStats.hpp"
 #include "economy/CoinPickupSystem.hpp"
 #include "graphics/DecorationExclusionMap.hpp"
+#include "graphics/BuildingFeedbackEffect.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/InstanceBufferPool.hpp"
+#include "graphics/UniformValueCache.hpp"
 #include "game/LootChestSystem.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "graphics/TerrainRenderer.hpp"
@@ -105,6 +108,7 @@ struct WorldMaterialState {
     float enemyPresentationAmount{};
     Vector3 hitFlashPosition{};
     float hitFlashRadius{};
+    BuildingFeedbackHighlight buildingFeedback{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
     float ghostAmount{};
@@ -125,6 +129,13 @@ struct WorldMaterialState {
 struct RendererPerformanceStats {
     PerformanceMetric instancedEnemyDraw;
     PerformanceMetric gpuWorld;
+    PerformanceMetric gpuShadow;
+    PerformanceMetric gpuSelection;
+    PerformanceMetric gpuScene;
+    PerformanceMetric gpuTerrain;
+    PerformanceMetric gpuObjects;
+    PerformanceMetric gpuEnvironment;
+    PerformanceMetric gpuOverlays;
     PerformanceMetric gpuPostProcess;
     PerformanceMetric gpuViewModel;
     PerformanceMetric gpuViewModelTarget;
@@ -148,10 +159,28 @@ struct RendererPerformanceStats {
 
 enum class RendererGpuStage : std::size_t {
     World,
+    Shadow,
+    Selection,
+    Scene,
+    Terrain,
+    Objects,
+    Environment,
+    Overlays,
     PostProcess,
     ViewModelTarget,
     ViewModelComposite,
     Ui,
+    Count,
+};
+
+enum class RendererGpuWorldPart : std::size_t {
+    Shadow,
+    Selection,
+    Scene,
+    Terrain,
+    Objects,
+    Environment,
+    Overlays,
     Count,
 };
 
@@ -202,7 +231,6 @@ enum class EnemyAnimationVisual {
     RangedAttack,
     SapperAttack,
     Hit,
-    Death,
     Spawn,
 };
 
@@ -213,9 +241,24 @@ enum class FirstPersonToolVisual {
     Club,
     IceWand,
     FireWand,
-    Hammer,
     Bomb,
 };
+
+[[nodiscard]] inline bool usesAuthoredToolSwing(FirstPersonToolVisual visual) {
+    return visual == FirstPersonToolVisual::Axe ||
+        visual == FirstPersonToolVisual::Pickaxe ||
+        visual == FirstPersonToolVisual::Club;
+}
+
+[[nodiscard]] inline Camera3D firstPersonToolCamera(FirstPersonToolVisual visual) {
+    if (usesAuthoredToolSwing(visual)) {
+        // Blender camera converted from Z-up to glTF/raylib Y-up.
+        return {{1.30710F, 0.83238F, 0.36867F},
+                {0.39416F, 0.43122F, 0.29472F},
+                {-0.40002F, 0.91585F, -0.03238F}, 25.4F, CAMERA_PERSPECTIVE};
+    }
+    return {{}, {0, 0, -1}, {0, 1, 0}, 58, CAMERA_PERSPECTIVE};
+}
 
 struct FirstPersonToolTuning {
     Vector3 position{0.55401313F, -0.349843F, -0.7427701F};
@@ -244,9 +287,7 @@ defaultFirstPersonToolTuning(FirstPersonToolVisual visual) {
         visual == FirstPersonToolVisual::Club) {
         tuning.position.x = 0.39473686F;
     }
-    if (visual == FirstPersonToolVisual::Axe ||
-        visual == FirstPersonToolVisual::Pickaxe ||
-        visual == FirstPersonToolVisual::Club) {
+    if (usesAuthoredToolSwing(visual)) {
         constexpr float AnimationFrames = 60.0F;
         constexpr float ImpactFrame = 20.0F;
         constexpr float PlaybackSpeed = 1.8F;
@@ -268,6 +309,7 @@ struct EnemyDrawInstance {
     bool loop{true};
     bool lowDetail{};
     bool inkOutlineEligible{true};
+    bool smoothAnimation{true};
     std::uint8_t eliteAffixes{};
     Vector3 bodyStretch{1, 1, 1};
     float bodyRoll{};
@@ -311,7 +353,6 @@ class Renderer {
     void processInput();
     [[nodiscard]] bool graphicsPanelVisible() const;
     void setGraphicsPanelVisible(bool visible);
-    [[nodiscard]] bool shadowMapVisible() const;
     void setShadowMapVisible(bool visible);
     void cycleAoStrength();
     void cycleQuality();
@@ -326,14 +367,15 @@ class Renderer {
                              float focusRange = 3.0F,
                              float maximumBlurPixels = 7.0F);
 
+    // Present a frozen modal without rendering the world or rebuilding targets.
+    void beginOverlayPass();
     void beginWorldPass(Color clearColor, const Camera3D& camera);
     void drawSky(const SkyState& sky);
     void drawClouds(const Camera3D& camera, float nightAmount,
                     const WorldLighting& lighting);
     void endWorldPass();
-    void beginUiOnlyFrame(Color clearColor);
-    void endFrame();
-    void drawScenePreview(Rectangle bounds);
+    [[nodiscard]] WorldUiOcclusion worldUiOcclusion() const;
+    void endFrame(bool includeDebugOverlays = true);
     [[nodiscard]] bool beginFirstPersonToolPass(
         const WorldLighting* lighting = nullptr,
         const Camera3D* worldCamera = nullptr);
@@ -354,7 +396,6 @@ class Renderer {
     void setSelectionMaskColor(Color color);
     void setSelectionOutlineTint(Color tint);
     void setSelectionOutlineRadius(float radiusPixels);
-    void setSelectionOutlineDepthOcclusion(bool enabled);
     void setSelectionOutlineBounds(BoundingBox worldBounds);
     void endSelectionMaskPass();
     void clearSelectionOutline();
@@ -364,6 +405,7 @@ class Renderer {
 
     void beginWorldShader(const WorldLighting& lighting);
     void setWorldMaterial(const WorldMaterialState& material);
+    void setBuildingFeedbackHighlight(const BuildingFeedbackHighlight& feedback);
     [[nodiscard]] float buildingVisualHeight(BuildingType type, int level = 1);
     void drawTacticalGroundSector(
         Vector3 center, float radius, float yawRadians,
@@ -440,7 +482,10 @@ class Renderer {
         float scale = 1.0F, float pitchRadians = 0.0F,
         std::optional<float> headYaw = std::nullopt, int level = 1);
     [[nodiscard]] bool drawFlamethrower(Vector3 position, float yawRadians,
-                                              Color tint = WHITE, float scale = 1.0F);
+                                              Color tint = WHITE, float scale = 1.0F,
+                                              float pitchRadians = 0.0F,
+                                              std::optional<float> headYaw = std::nullopt,
+                                              int level = 1);
     [[nodiscard]] bool drawCatapult(
         Vector3 position, float yawRadians, float armPitchRadians,
         bool loaded = true, Color tint = WHITE,
@@ -458,9 +503,6 @@ class Renderer {
         float barrelYawRadians, Color tint = WHITE,
         float scale = 1.0F,
         Vec3 barrelRecoilOffset = {}, int level = 1);
-    [[nodiscard]] bool drawTurretBullet(
-        Vector3 position, Vector3 direction,
-        Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] Vec3 gunTurretMuzzlePosition(
         Vec3 position, float yawRadians,
         std::size_t muzzleIndex);
@@ -481,6 +523,8 @@ class Renderer {
         float matterRotationRadians, const WorldLighting& lighting,
         float scale = 1.0F, float arrivalProgress = -1.0F,
         float openingProgress = 1.0F, bool detailedArrival = true);
+    void drawWorldScenery(std::span<const WorldSceneryInstance> instances,
+                          Vector3 cameraPosition, float maximumDistance);
     [[nodiscard]] bool drawWorldLandmark(
         std::size_t variant, Vector3 position,
         float yawRadians = 0.0F, Color tint = WHITE,
@@ -554,7 +598,7 @@ class Renderer {
         const std::array<float, 4>& supportLengths = {},
         const std::array<bool, 4>& supportVisibility =
             AllPlatformSupportsVisible,
-        const std::array<bool, 4>& edgeVisibility =
+        const PlatformEdgeVisibilityMask& edgeVisibility =
             AllPlatformEdgesVisible);
     [[nodiscard]] bool drawRampModel(
         Vector3 footprintCenter, float yawRadians = 0.0F,
@@ -562,10 +606,6 @@ class Renderer {
     [[nodiscard]] bool drawRampSupportBeam(
         Vector3 baseCenter, float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);
-    [[nodiscard]] bool drawMine(Vector3 position,
-                                float yawRadians = 0.0F,
-                                Color tint = WHITE,
-                                float scale = 1.0F);
     [[nodiscard]] bool drawResourceProducer(
         BuildingType type, Vector3 position,
         float yawRadians = 0.0F,
@@ -642,8 +682,6 @@ class Renderer {
                         float elapsedSeconds);
     [[nodiscard]] float worldRevealScaleAt(
         Vector2 position) const;
-    void drawUpgradeEffect(Vector3 position, float progress,
-                           float scale = 1.0F);
     void drawRepairShockwave(Vector3 position, Vector3 cameraPosition,
                              float progress, float radius);
     [[nodiscard]] bool beginBlobShadowBatch(Vector3 cameraPosition);
@@ -659,6 +697,8 @@ class Renderer {
     void setGpuProfilingEnabled(bool enabled);
     void beginGpuTimer(RendererGpuStage stage);
     void endGpuTimer(RendererGpuStage stage);
+    void beginGpuWorldPart(RendererGpuWorldPart part);
+    void endGpuWorldPart(RendererGpuWorldPart part);
 
   private:
     struct EnemyBatchKey {
@@ -670,6 +710,7 @@ class Renderer {
         bool loop{};
         bool lowDetail{};
         bool inkOutlineEligible{};
+        bool smoothAnimation{};
 
         auto operator<=>(const EnemyBatchKey&) const = default;
     };
@@ -684,6 +725,7 @@ class Renderer {
 
     struct EnemyBatch {
         EnemyDrawInstance representative{};
+        float animationBlend{};
         std::vector<Matrix> transforms{};
         std::uint64_t lastUsedFrame{};
     };
@@ -693,6 +735,13 @@ class Renderer {
         Vector2 position{};
         float scale{};
         float groundHeight{};
+    };
+
+    struct CachedGrassInstance {
+        Matrix transform{};
+        Vector2 position{};
+        BoundingBox bounds{};
+        float densityNoise{};
     };
 
     void ensureGrassClearAreaIndex(
@@ -789,6 +838,8 @@ class Renderer {
         int enemyPresentationAmount{-1};
         int hitFlashPosition{-1};
         int hitFlashRadius{-1};
+        int buildingFeedbackSweep{-1};
+        int buildingFeedbackTint{-1};
         int selectionAmount{-1};
         int selectionTint{-1};
         int ghostAmount{-1};
@@ -837,7 +888,7 @@ class Renderer {
         int brightness{-1};
         int contrast{-1};
         int saturation{-1};
-        int hueDegrees{-1};
+        int hueSinCos{-1};
         int temperature{-1};
         int tint{-1};
         int gamma{-1};
@@ -915,6 +966,8 @@ class Renderer {
     Shader* activeModelShader(bool selectionEligible = true);
     Shader* prepareModelShader(Model& model, bool selectionEligible = true);
     void drawEliteEnemyDetails(const EnemyDrawInstance& instance);
+    [[nodiscard]] const std::vector<Matrix>& enemyBonePose(
+        EnemyModelVisual visual, EnemyAnimationVisual animation, int frame);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
         const std::array<const char*, 23>& sourceBones);
@@ -933,7 +986,11 @@ class Renderer {
     float postProcessFogStart_{30.0F};
     float postProcessFogEnd_{75.0F};
     GraphicsResources resources_;
+    ShaderResource worldUiOcclusionShader_;
+    int worldUiDepthLocation_{-1};
+    int worldUiViewportLocation_{-1};
     InstanceBufferPool instanceBuffers_;
+    std::array<std::vector<Matrix>, WorldSceneryModelCount> sceneryTransforms_;
     TerrainRenderer terrainRenderer_;
     float lowerMountainGrowth_{1.0F};
     DecorationExclusionMap decorationExclusionMap_;
@@ -943,6 +1000,7 @@ class Renderer {
     PostProcessLocations postProcessLocations_;
     SsaoLocations ssaoLocations_;
     WorldMaterialState worldMaterial_;
+    UniformValueCache worldMaterialUniforms_;
     std::optional<WorldMaterialState>
         ghostPreviewRestoreMaterial_;
     int tacticalSectorShapeLocation_{-1};
@@ -961,6 +1019,8 @@ class Renderer {
     int selectionMaskColorLocation_{-1};
     int worldSkinningEnabledLocation_{-1};
     int worldInstancingEnabledLocation_{-1};
+    int worldBonePoseOffsetLocation_{-1};
+    int worldBonePoseBlendLocation_{-1};
     int shadowSkinningEnabledLocation_{-1};
     int shadowInstancingEnabledLocation_{-1};
     int selectionMaskSkinningEnabledLocation_{-1};
@@ -1025,10 +1085,6 @@ class Renderer {
     int waterPatternSpeedLocation_{-1};
     int waterFresnelStrengthLocation_{-1};
     int waterQualityLocation_{-1};
-    int upgradeEffectOriginLocation_{-1};
-    int upgradeEffectHeightLocation_{-1};
-    int upgradeEffectProgressLocation_{-1};
-    int upgradeEffectTimeLocation_{-1};
     int shockwaveCameraLocation_{-1};
     int shockwaveProgressLocation_{-1};
     int shockwaveTimeLocation_{-1};
@@ -1046,7 +1102,6 @@ class Renderer {
     std::optional<Rectangle> firstPersonCompositeBounds_;
     Color selectionOutlineTint_{WHITE};
     float selectionOutlineRadiusPixels_{6.0F};
-    bool selectionOutlineDepthOcclusion_{true};
     bool showDebugPanel_{};
     bool showShadowMap_{};
     bool frameOpen_{};
@@ -1086,7 +1141,7 @@ class Renderer {
     // Procedural decoration is rebuilt only when the camera crosses a cache
     // cell or when terrain/reveal inputs change. Dynamic exclusions and clear
     // areas are filtered without invalidating candidate generation.
-    std::array<std::vector<CachedInstance>, 3>
+    std::array<std::vector<CachedGrassInstance>, 3>
         grassInstanceCandidates_;
     std::array<std::vector<Matrix>, 3>
         grassInstanceTransforms_;
@@ -1132,6 +1187,7 @@ class Renderer {
     static constexpr std::size_t PlatformTopPartCount = 5U;
     std::array<Mesh, PlatformTopPartCount>
         platformTopPartMeshes_{};
+    std::array<BoundingBox, PlatformTopPartCount> platformTopPartBounds_{};
     bool platformTopPartMeshesReady_{};
     RendererPerformanceStats performanceStats_{};
     static constexpr std::size_t GpuQueryBufferCount = 4U;
@@ -1149,6 +1205,7 @@ class Renderer {
         gpuQueryWriteIndices_{};
     std::optional<RendererGpuStage> activeGpuStage_;
     std::size_t activeGpuQueryIndex_{};
+    std::optional<RendererGpuWorldPart> sampledGpuWorldPart_;
     std::optional<RendererGpuStage> sampledGpuStage_;
     std::uint64_t gpuProfilingFrameCount_{};
     bool gpuProfilingEnabled_{};

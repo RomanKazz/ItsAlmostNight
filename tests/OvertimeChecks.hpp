@@ -12,13 +12,13 @@ inline void checkOvertime() {
     using namespace ian;
     const auto minute = overtimeDifficulty(60.0);
     requireNear(minute.health, 2.0, 1e-12, "overtime doubles health each combat minute");
-    requireNear(minute.damage, std::sqrt(2.0), 1e-12, "damage doubles every two minutes");
+    requireNear(minute.damage, 1.03, 1e-12, "endless damage grows only three percent per minute");
     const auto five = overtimeDifficulty(300.0);
     requireNear(five.health, 32.0, 1e-12, "strong builds face exponential overtime health");
-    requireNear(five.speed, 1.6, 1e-12, "speed rises gradually");
-    requireNear(five.spawnRate, 2.0, 1e-12, "spawn pressure is capped instead of flooding containers");
+    requireNear(five.speed, 1.2, 1e-12, "speed rises gradually");
+    requireNear(five.spawnRate, 3.5, 1e-12, "spawn pressure is capped instead of flooding containers");
     const auto longRun = overtimeDifficulty(1e9);
-    require(std::isfinite(longRun.health) && longRun.speed == 1.75 && longRun.spawnRate == 2.0,
+    require(std::isfinite(longRun.health) && longRun.speed == 1.5 && longRun.spawnRate == 4.0,
         "long runs keep finite health and bounded movement/density");
     require(overtimeDifficulty(0.0) == OvertimeDifficulty{} &&
         overtimeDifficulty(std::numeric_limits<double>::quiet_NaN()) == OvertimeDifficulty{},
@@ -118,7 +118,7 @@ inline void checkOvertime() {
     require(sawCourt && !enemies.projectiles().empty(), "overtime king performs summons and a physical volley");
     const auto shot = enemies.projectiles().front();
     enemies.setOvertimeDifficulty(overtimeDifficulty(120));
-    requireNear(enemies.projectiles().front().damage, shot.damage * std::sqrt(2.0), 1e-8,
+    requireNear(enemies.projectiles().front().damage, shot.damage * 1.06 / 1.03, 1e-8,
         "already flying hostile shots strengthen without being replaced");
     require(enemies.projectiles().front().id==shot.id,
         "pressure never restarts projectile flight");
@@ -157,7 +157,8 @@ inline void checkOvertime() {
         checkpoint.wave = checkpoint.bestWave = wave;
         checkpoint.phaseTimeRemaining = checkpoint.phaseDuration = 75;
         checkpoint.wood = checkpoint.stone = 0;
-        for (auto& landmark : checkpoint.worldLandmarks) landmark.activated = true;
+        for (auto& landmark : checkpoint.worldLandmarks)
+            if (landmarkShrineKind(landmark.type)==ShrineKind::None) landmark.activated = true;
         require(sample->loadSuspendedRunState(checkpoint), "producer day/night fixture loads");
         if (wave == 10) {
             sample->tick(0, god);
@@ -171,16 +172,19 @@ inline void checkOvertime() {
         require(sample->snapshot().producerCards.size()==3, "all three producers remain active");
         require(sample->snapshot().stone > 0 && sample->snapshot().wood > 0,
             "activated world mine and mill work both by day and at night");
-        return std::vector<ProducerCardStatus>(sample->snapshot().producerCards.begin(), sample->snapshot().producerCards.end());
+        const auto& snapshot = sample->snapshot();
+        return std::pair{
+            std::vector<ProducerCardStatus>(snapshot.producerCards.begin(), snapshot.producerCards.end()),
+            ResourceCost{snapshot.wood, snapshot.stone, snapshot.crystals}};
     };
     const auto day = sampleProduction(9);
     const auto night = sampleProduction(10);
-    for (std::size_t i=0; i<day.size(); ++i) {
-        requireNear(*day[i].stats.current.productionInterval, *night[i].stats.current.productionInterval, 1e-12,
+    for (std::size_t i=0; i<day.first.size(); ++i) {
+        requireNear(*day.first[i].stats.current.productionInterval, *night.first[i].stats.current.productionInterval, 1e-12,
             "producer speed is identical in daytime and nighttime");
-        require(day[i].stored > 0 && day[i].stored == night[i].stored,
-            "night production grants the same real output without godmode");
     }
+    require(day.second == night.second,
+        "day and night production reaches global storage at the same rate");
     saved.wave = saved.bestWave = 9;
     saved.overtimeSeconds = 0;
     run->returnToMainMenu();
@@ -194,12 +198,20 @@ inline void checkOvertime() {
     run->tick(1);
     requireNear(run->snapshot().overtimeSeconds, 0.0, 1e-12, "no early overtime during wave ten");
 
+    PlayerCommand defeat;
+    defeat.defeatAllEnemies=DefeatAllEnemiesCommand{};
+    run->tick(1.0/60.0,defeat);
+    require(run->snapshot().state==RunState::Wave && run->snapshot().wave==11 &&
+        run->snapshot().finalNight && run->snapshot().stageCleared,
+        "finishing the tenth night starts endless combat without a choice menu");
+    while(run->snapshot().runUpgradeChoicePending) require(run->selectRunUpgrade(0),"transition rewards remain selectable");
+
     saved.wave = saved.bestWave = 10;
     run->returnToMainMenu();
     require(run->loadSuspendedRunState(saved), "checkpoint reaches wave eleven");
     run->tick(0, god);
     run->tick(0, start);
-    require(run->snapshot().wave==11 && run->snapshot().overtimeActive,
+    require(run->snapshot().wave==11 && run->snapshot().overtimeActive && run->snapshot().phaseDuration==0,
         "timer activates at start of wave eleven");
     const auto first = run->snapshot().enemies.front();
     run->tick(1);
@@ -210,37 +222,29 @@ inline void checkOvertime() {
     run->tick(20);
     requireNear(run->snapshot().overtimeSeconds, 1.0, 1e-12, "pause does not strengthen enemies");
     run->togglePause();
-    require(run->openRunShop(true), "debug shop can pause overtime");
-    run->tick(20);
-    requireNear(run->snapshot().overtimeSeconds, 1.0, 1e-12, "shop stops overtime");
-    require(run->closeRunShop(), "fixture closes shop");
+    require(!run->openRunShop(true), "disabled shop cannot interrupt overtime");
     run->tick(1);
     const auto replay = run->saveSuspendedRunState();
     require(replay.wave==10 && replay.overtimeSeconds==2.0,
         "combat checkpoint rewinds rewards but never pressure time");
     run->returnToMainMenu();
     require(run->loadSuspendedRunState(replay), "pressure survives checkpoint load");
-    run->tick(5);
-    requireNear(run->snapshot().overtimeSeconds, 2.0, 1e-12, "daytime freezes the retained pressure");
-    run->tick(0, god);
-    run->tick(0, start);
+    require(run->snapshot().state==RunState::Wave && run->snapshot().finalNight && run->snapshot().wave==11,
+        "endless checkpoint resumes directly into combat");
     requireNear(run->snapshot().enemies.front().maxHealth,
-        first.maxHealth * overtimeDifficulty(2).health, 1e-8, "replayed night resumes existing pressure");
+        first.maxHealth * overtimeDifficulty(2).health, 1e-8, "replayed tier resumes existing pressure");
     run->tick(1);
     requireNear(run->snapshot().overtimeSeconds, 3.0, 1e-12, "resumed combat continues the clock");
-    saved.wave = saved.bestWave = Simulation::StageClearWave - 1;
+    run->tick(60);
+    require(run->snapshot().state==RunState::Wave && run->snapshot().finalNight &&
+        run->snapshot().wave==12 && run->snapshot().phaseTimeRemaining==0,
+        "minute pressure tiers advance without ending the night");
+    requireNear(run->snapshot().overtimeSeconds, 63.0, 1e-10,
+        "endless pressure keeps advancing past the ordinary night duration");
+    static_cast<void>(run->takeEvents());
+    require(run->snapshot().runStatistics.wavesSurvived>=11,
+        "continuous pressure tiers still credit wave quests");
     saved.overtimeSeconds = 120;
-    run->returnToMainMenu();
-    require(run->loadSuspendedRunState(saved), "boss pressure checkpoint loads");
-    run->tick(0, god);
-    run->tick(0, start);
-    run->tick(61);
-    require(run->snapshot().state == RunState::Wave && run->snapshot().phaseTimeRemaining == 0,
-        "living stage boss keeps combat active after the dawn countdown");
-    requireNear(run->snapshot().overtimeSeconds, 181.0, 1e-12,
-        "boss stall cannot stop the pressure clock at dawn");
-    run->tick(1);
-    requireNear(run->snapshot().overtimeSeconds, 182.0, 1e-12, "boss overtime keeps rising");
     saved.wave = saved.bestWave = Simulation::StageClearWave;
     saved.resumeState = RunState::StageClear;
     saved.stageCleared = true;

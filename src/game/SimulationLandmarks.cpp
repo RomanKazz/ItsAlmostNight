@@ -1,4 +1,6 @@
 #include "game/Simulation.hpp"
+#include "game/ChallengeArena.hpp"
+#include "world/WorldSceneryLoot.hpp"
 
 #include "core/DeterministicRandom.hpp"
 #include "core/Geometry.hpp"
@@ -21,19 +23,8 @@ constexpr double LandmarkVisualScale = 1.30;
 constexpr double LandmarkInteractionDistance = 8.0;
 constexpr double LandmarkRaycastRadius = 3.5;
 
-int landmarkActivationCost(WorldLandmarkType type) {
-    return type == WorldLandmarkType::Mine ? 120 : 90;
-}
-
-int landmarkProductionAmount(WorldLandmarkType type) {
-    return type == WorldLandmarkType::Mine ? 4 : 6;
-}
-
-double landmarkProductionInterval(WorldLandmarkType type) {
-    return type == WorldLandmarkType::Mine ? 15.0 : 12.0;
-}
-
 double landmarkRadius(WorldLandmarkType type) {
+    if (landmarkShrineKind(type) != ShrineKind::None) return 1.6;
     return (type == WorldLandmarkType::Mine ? 3.6 : 4.1) *
         LandmarkVisualScale;
 }
@@ -64,14 +55,56 @@ bool flatLandmarkSurface(
 
 } // namespace
 
-void Simulation::resetWorldLandmarks() {
+void Simulation::resetWorldScenery() {
+    std::vector<WorldSceneryExclusion> exclusions;
+    for (const auto& landmark : worldLandmarks_)
+        exclusions.push_back({landmark.position, landmark.collisionRadius + 3.0});
+    for (const auto& column : challengeColumns_)
+        exclusions.push_back({column.position, challenge_arena::Radius + 4.0});
+    for (const auto& chest : lootChests_.chests())
+        if (!chest.looseLoot) exclusions.push_back({chest.position, 4.0});
+    worldScenery_ = generateWorldScenery(terrain_, map_.worldLimit,
+        map_.playerSpawn, resources_.nodes(), mapCollisionBoxes(map_), exclusions);
+    for (const auto& placement : generateWorldSceneryLoot(
+            terrain_, map_.worldLimit, worldScenery_, resources_.nodes(), lootChests_.chests())) {
+        if (placement.kind == SceneryLootKind::Chest)
+            static_cast<void>(lootChests_.relocateExplorationChest(
+                placement.id, placement.groundPosition, terrain_, placement.yaw));
+        else
+            static_cast<void>(resources_.relocateDestructibleProp(
+                placement.id, placement.groundPosition, placement.yaw));
+    }
+    syncWorldSceneryColliders();
+}
+
+void Simulation::syncWorldSceneryColliders() {
+    std::vector<CollisionBox> colliders;
+    colliders.reserve(worldScenery_.size());
+    for (const auto& instance : worldScenery_) {
+        const auto boxes = worldScenerySolidBoxes(instance);
+        colliders.insert(colliders.end(), boxes.begin(), boxes.end());
+    }
+    collisionWorld_.syncWorldScenery(colliders);
+    auto navigationObstacles = mapCollisionBoxes(map_);
+    navigationObstacles.insert(navigationObstacles.end(), colliders.begin(), colliders.end());
+    flowField_.setStaticObstacles(std::move(navigationObstacles));
+    flowFieldDirty_ = true;
+}
+
+void Simulation::resetWorldLandmarks(bool includeShrines) {
     aimedWorldLandmark_.reset();
     worldLandmarks_.clear();
-    worldLandmarks_.reserve(2);
-    constexpr std::array<WorldLandmarkType, 2> Types{{
-        WorldLandmarkType::Mine,
-        WorldLandmarkType::LumberMill,
-    }};
+    worldLandmarks_.reserve(2 + MaximumShrineActivations);
+    constexpr auto Types=[] {
+        std::array<WorldLandmarkType, 2+MaximumShrineActivations> result{};
+        result[0]=WorldLandmarkType::Mine;
+        result[1]=WorldLandmarkType::LumberMill;
+        for (int i=0;i<ShrineCountPerType;++i) {
+            result[2+static_cast<std::size_t>(i)*2]=WorldLandmarkType::PlayerShrine;
+            result[3+static_cast<std::size_t>(i)*2]=WorldLandmarkType::BuildingShrine;
+        }
+        return result;
+    }();
     constexpr std::size_t MaximumAttemptsPerLandmark = 16384;
     const double maximumRadius = std::max(
         MinimumSpawnDistance + 1.0,
@@ -79,9 +112,10 @@ void Simulation::resetWorldLandmarks() {
     const std::span<const TerrainPathDefinition> compositionRoutes =
         terrain_.paths();
     for (std::size_t typeIndex = 0;
-         typeIndex < Types.size(); ++typeIndex) {
+         typeIndex < (includeShrines ? Types.size() : 2U); ++typeIndex) {
         const WorldLandmarkType type = Types[typeIndex];
         const double footprintRadius = landmarkRadius(type);
+        const double minimumDistance=landmarkShrineKind(type)==ShrineKind::None ? MinimumSpawnDistance : 16.0;
         for (std::size_t attempt = 0;
              attempt < MaximumAttemptsPerLandmark; ++attempt) {
             const std::uint64_t seed = mixBits64(
@@ -89,7 +123,7 @@ void Simulation::resetWorldLandmarks() {
                 (typeIndex + 1U) * 0xd1b54a32d192ed03ULL ^
                 (attempt + 1U) * 0x9e3779b97f4a7c15ULL);
             Vec3 position{};
-            if (attempt < compositionRoutes.size()) {
+            if (typeIndex < 2 && attempt < compositionRoutes.size()) {
                 // First try one of the four authored terrain-flow anchors.
                 // A seed-dependent cyclic offset keeps reruns varied while
                 // ensuring that landmarks have a real worn approach.
@@ -107,10 +141,10 @@ void Simulation::resetWorldLandmarks() {
                 const double angle = unitRandom(
                     seed ^ 0x243f6a8885a308d3ULL) * Tau;
                 const double radius = std::sqrt(
-                    MinimumSpawnDistance * MinimumSpawnDistance +
+                    minimumDistance * minimumDistance +
                     unitRandom(seed ^ 0x13198a2e03707344ULL) *
                         (maximumRadius * maximumRadius -
-                         MinimumSpawnDistance * MinimumSpawnDistance));
+                         minimumDistance * minimumDistance));
                 position = {
                     map_.playerSpawn.x + std::cos(angle) * radius,
                     0.0,
@@ -156,11 +190,11 @@ void Simulation::resetWorldLandmarks() {
                 std::any_of(
                     worldLandmarks_.begin(),
                     worldLandmarks_.end(),
-                    [position](
+                    [position,type](
                         const WorldLandmarkInstance& landmark) {
                         return geometry::distanceSquared(
                                    position, landmark.position) <
-                            LandmarkSeparation * LandmarkSeparation;
+                            (landmarkShrineKind(type) != ShrineKind::None ? 12.0*12.0 : LandmarkSeparation*LandmarkSeparation);
                     })) {
                 continue;
             }
@@ -175,11 +209,13 @@ void Simulation::resetWorldLandmarks() {
                 .yaw = unitRandom(
                     seed ^ 0xa4093822299f31d0ULL) * Tau,
                 .collisionRadius = footprintRadius,
-                .activationCoinCost = landmarkActivationCost(type),
+                .activationCoinCost = landmarkShrineKind(type) == ShrineKind::None
+                    ? economy_.worldProducerRestoreCoins[type == WorldLandmarkType::Mine ? 0 : 1] : 0,
             });
             break;
         }
     }
+    refreshWorldLandmarkEconomy();
     syncWorldLandmarkColliders();
 }
 
@@ -198,6 +234,11 @@ void Simulation::syncWorldLandmarkColliders() {
                 .minimumBlockingEyeY = landmark.position.y - 0.20,
             });
         };
+        if (landmarkShrineKind(landmark.type) != ShrineKind::None) {
+            addBox(landmark.position.x, landmark.position.z, 1.0, 1.0);
+            colliders.back().maximumBlockingEyeY=landmark.position.y+2.8;
+            continue;
+        }
         if (landmark.type == WorldLandmarkType::Mine) {
             // The mine is compact; do not block the empty corners of its
             // much larger visual/placement footprint.
@@ -228,12 +269,13 @@ void Simulation::updateWorldLandmarks(
     const Vec3 direction = lookDirection(playerYaw_, playerPitch_);
     double nearest = LandmarkInteractionDistance;
     for (const WorldLandmarkInstance& landmark : worldLandmarks_) {
-        if (landmark.activated) continue;
+        if (landmark.activated && landmarkShrineKind(landmark.type)!=ShrineKind::None) continue;
         Vec3 center = landmark.position;
-        center.y += 3.4;
+        const bool shrine=landmarkShrineKind(landmark.type)!=ShrineKind::None;
+        center.y += shrine ? 1.4 : 3.4;
         const auto distance = geometry::raySphereDistance(
             playerPosition_, direction, center,
-            LandmarkRaycastRadius);
+            shrine ? 1.6 : LandmarkRaycastRadius);
         if (distance && *distance <= nearest) {
             nearest = *distance;
             aimedWorldLandmark_ = landmark.id;
@@ -248,16 +290,18 @@ void Simulation::updateWorldLandmarks(
             worldLandmarks_, *aimedWorldLandmark_,
             &WorldLandmarkInstance::id);
         if (landmark != worldLandmarks_.end() &&
-            !landmark->activated) {
-            if (unlimitedResources_ ||
-                coins_ >= landmark->activationCoinCost) {
-                if (!unlimitedResources_) {
-                    coins_ -= landmark->activationCoinCost;
-                }
-                landmark->activated = true;
-                landmark->productionProgress = 0.0;
+            (!landmark->activated || (landmarkShrineKind(landmark->type)==ShrineKind::None && landmark->level<5))) {
+            if (landmarkShrineKind(landmark->type) != ShrineKind::None) {
+                static_cast<void>(activateShrine(*landmark));
+            } else if (unlimitedResources_ ||
+                coins_ >= (landmark->activated ? landmark->upgradeCoinCost : landmark->activationCoinCost)) {
+                const bool restoring=!landmark->activated;
+                const int cost=restoring ? landmark->activationCoinCost : landmark->upgradeCoinCost;
+                if (!unlimitedResources_) coins_ -= cost;
+                if (restoring) {landmark->activated=true;landmark->productionProgress=0;}
+                else ++landmark->level;
                 events_.push_back({
-                    .type = GameEventType::WorldLandmarkActivated,
+                    .type = restoring ? GameEventType::WorldLandmarkActivated : GameEventType::WorldLandmarkUpgraded,
                     .entityId = landmark->id,
                     .resourceType =
                         landmark->type == WorldLandmarkType::Mine
@@ -268,44 +312,46 @@ void Simulation::updateWorldLandmarks(
                             ? BuildingType::Quarry
                             : BuildingType::LumberMill,
                     .position = landmark->position,
-                    .amount = landmark->activationCoinCost,
+                    .amount = cost,
                 });
-                aimedWorldLandmark_.reset();
             } else {
                 events_.push_back({
                     .type = GameEventType::EconomyPurchaseRejected,
                     .entityId = landmark->id,
                     .position = landmark->position,
-                    .amount = landmark->activationCoinCost,
+                    .amount = landmark->activated ? landmark->upgradeCoinCost : landmark->activationCoinCost,
                 });
             }
         }
     }
 
-    double productionDeltaSeconds = deltaSeconds;
-    if (challengeActive()) productionDeltaSeconds = 0.0;
-    productionDeltaSeconds *= productionSpeedMultiplier_ *
-        runProductionSpeedMultiplier_;
-    advanceWorldLandmarkProduction(productionDeltaSeconds);
+    advanceWorldLandmarkProduction(deltaSeconds);
+    refreshWorldLandmarkEconomy();
 }
 
 void Simulation::advanceWorldLandmarkProduction(
     double productionDeltaSeconds) {
     if (!std::isfinite(productionDeltaSeconds) ||
-        productionDeltaSeconds <= 0.0) {
+        productionDeltaSeconds <= 0.0 || challengeActive()) {
         return;
     }
+    // World producers level through their own E interaction. Production cards
+    // and shrine building bonuses apply only to player-built producers.
+    productionDeltaSeconds *= productionSpeedMultiplier_ * classLevelBonuses().productionSpeed;
     for (WorldLandmarkInstance& landmark : worldLandmarks_) {
-        if (!landmark.activated) continue;
-        const double interval = landmarkProductionInterval(landmark.type);
-        landmark.productionProgress += productionDeltaSeconds;
+        if (!landmark.activated || landmarkShrineKind(landmark.type)!=ShrineKind::None) continue;
+        const auto index=landmark.type==WorldLandmarkType::Mine ? 0U : 1U;
+        const auto type=landmark.type==WorldLandmarkType::Mine ? ResourceType::Stone : ResourceType::Wood;
+        const double interval=economy_.worldProducerInterval[index];
+        landmark.productionProgress += productionDeltaSeconds * (1+.5*(landmark.level-1)) *
+            relicProductionMultiplier(type);
         const int completed = static_cast<int>(std::floor(
             landmark.productionProgress / interval));
         if (completed <= 0) continue;
         landmark.productionProgress = std::fmod(
             landmark.productionProgress, interval);
         const int attempted = completed *
-            landmarkProductionAmount(landmark.type);
+            economy_.worldProducerBatch[index];
         const int before = landmark.type == WorldLandmarkType::Mine
             ? stone_ : wood_;
         if (landmark.type == WorldLandmarkType::Mine) {
@@ -327,6 +373,21 @@ void Simulation::advanceWorldLandmarkProduction(
             .position = landmark.position,
             .amount = granted,
         });
+    }
+}
+
+void Simulation::refreshWorldLandmarkEconomy() {
+    const double global=productionSpeedMultiplier_ * classLevelBonuses().productionSpeed;
+    for(auto& landmark:worldLandmarks_) {
+        if(landmarkShrineKind(landmark.type)!=ShrineKind::None) continue;
+        const auto index=landmark.type==WorldLandmarkType::Mine ? 0U : 1U;
+        const auto type=index==0 ? ResourceType::Stone : ResourceType::Wood;
+        const double base=60.0*economy_.worldProducerBatch[index]/economy_.worldProducerInterval[index] * global *
+            relicProductionMultiplier(type);
+        landmark.activationCoinCost=economy_.worldProducerRestoreCoins[index];
+        landmark.upgradeCoinCost=landmark.level<5 ? economy_.worldProducerUpgradeCoins[static_cast<std::size_t>(landmark.level-1)] : 0;
+        landmark.incomePerMinute=base*(1+.5*(landmark.level-1));
+        landmark.nextIncomePerMinute=landmark.level<5 ? base*(1+.5*landmark.level) : landmark.incomePerMinute;
     }
 }
 

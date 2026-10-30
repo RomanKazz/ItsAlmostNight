@@ -5,6 +5,7 @@
 #include "ui/InputKeycap.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiHintStyle.hpp"
+#include "ui/UiPromptKeycap.hpp"
 #include "ui/UiItemTooltip.hpp"
 #include "ui/HudFormatting.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
@@ -32,7 +33,6 @@ struct PromptLayout {
     float scale;
     float actionY;
     float costY;
-    float stockY;
     float hintY;
     float progressY;
     std::string action;
@@ -58,8 +58,6 @@ PromptLayout layout(const InteractionPrompt& prompt,Vector2 anchor,Vector2 scree
     PromptLayout out{};out.scale=s;out.actionY=y;out.action=action;y+=42*s;
     out.costY=y;
     if(prompt.cost) y+=34*s;
-    out.stockY=y;
-    if(prompt.producerStock) y+=34*s;
     out.hintY=y;
     if(prompt.hint && !prompt.hint->empty()) {
         out.hintLines=itemTooltipLines(localizeText(*prompt.hint),width-32*s,15*s);
@@ -91,54 +89,6 @@ std::optional<WorldPromptProjection> worldPromptProjection(Vector3 anchor,const 
     return WorldPromptProjection{projected,pixelsPerUnit*BuildingUpgradePromptWorldHeight};
 }
 
-void drawPromptKeycap(Rectangle key,std::string_view label,bool pressed,float opacity) {
-    const ScopedUiFontRole font(UiFontRole::Display);
-    const float height=key.height;
-    const float stroke=height*.055F,depth=height*.13F;
-    // A rounded, raised cream key with a deep chocolate base, as in the reference.
-    constexpr Color keyFrame{61,37,25,255},keyFace{250,239,216,255},keySide{119,75,41,255};
-    constexpr Color keyInk{65,37,23,255};
-    // Fixed base below a travelling cap: the cap's outer outline moves with
-    // its face and letter, so pressing it also lowers the top border.
-    const Rectangle base{key.x,key.y+depth,key.width,key.height-depth};
-    drawSolidRoundedRect(base,.50F,hintStyle::fade(keyFrame,opacity));
-    Rectangle face{base.x+stroke,base.y+stroke,base.width-stroke*2,base.height-stroke*2};
-    drawSolidRoundedRect(face,.48F,hintStyle::fade(keySide,opacity));
-    if(pressed) key.y+=depth*.75F;
-    key.height-=depth;
-    drawSolidRoundedRect(key,.50F,hintStyle::fade(keyFrame,opacity));
-    face={key.x+stroke,key.y+stroke,key.width-stroke*2,key.height-stroke*2};
-    drawSolidRoundedRect(face,.48F,hintStyle::fade(keyFace,opacity));
-    const float keyFont=fitUiTextSize(label,height*.40F,height*.20F,
-        face.width-stroke*2,face.height);
-    const auto letterSize=measureUiText(label,keyFont);
-    // Centre the visible glyphs rather than their line box: this display font
-    // has unequal bearings above and below U, making line-centred keys look high.
-    const Font keyTypeface=uiFont();
-    const float glyphScale=letterSize.y/static_cast<float>(keyTypeface.baseSize);
-    float inkLeft=letterSize.x,inkTop=letterSize.y,inkRight=0,inkBottom=0,advance=0;
-    const std::string displayedLabel=localizeText(label);
-    for(std::size_t offset=0;offset<displayedLabel.size();) {
-        int byteCount=0;
-        const int codepoint=GetCodepointNext(displayedLabel.c_str()+offset,&byteCount);
-        offset+=static_cast<std::size_t>(std::max(byteCount,1));
-        const auto glyph=GetGlyphInfo(keyTypeface,codepoint);
-        const auto rect=GetGlyphAtlasRec(keyTypeface,codepoint);
-        if(codepoint!=' ') {
-            const float x=advance+static_cast<float>(glyph.offsetX)*glyphScale;
-            const float y=static_cast<float>(glyph.offsetY)*glyphScale;
-            inkLeft=std::min(inkLeft,x);inkTop=std::min(inkTop,y);
-            inkRight=std::max(inkRight,x+rect.width*glyphScale);
-            inkBottom=std::max(inkBottom,y+rect.height*glyphScale);
-        }
-        advance+=(glyph.advanceX>0?static_cast<float>(glyph.advanceX):rect.width)*glyphScale+letterSize.y*.02F;
-    }
-    SdfUiTextStyle letterStyle{};letterStyle.fillColor=hintStyle::fade(keyInk,opacity);
-    letterStyle.outlinePixels=0;letterStyle.shadowColor=BLANK;
-    drawStyledSdfUiText(label,{face.x+face.width*.5F-(inkLeft+inkRight)*.5F,
-        face.y+face.height*.5F-(inkTop+inkBottom)*.5F},keyFont,letterStyle);
-}
-
 // The compact world-space upgrade row predates the general interaction cards.
 // Keep its existing arrow, chunky numbers and per-resource affordability colours.
 void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
@@ -158,15 +108,8 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
     float width=size;
     for(const auto& price:prices) if(price.amount>0)
         width+=gap+iconSize+gap*.5F+measureUiText(std::to_string(price.amount),fontSize).x;
-    if(prompt.producerStock) {
-        const auto& stock=*prompt.producerStock;
-        const auto text=std::to_string(stock.stored)+"/"+std::to_string(stock.capacity);
-        const auto key=InputKeycap::size(InputKeycap::label(controls,ControlAction::Interact),size*.60F);
-        width=std::max(width,iconSize+gap+measureUiText(text,fontSize).x+gap*2+key.x);
-    }
     const float paddingX=size*.28F,paddingY=size*.15F;
-    const float stockHeight=prompt.producerStock?size*.9F:0;
-    const float height=size+paddingY*2+stockHeight;
+    const float height=size+paddingY*2;
     // Centre the complete key + gap + price pill on the building's anchor.
     // Single letters stay square; longer rebound key names can widen the cap.
     const auto upgradeKey=InputKeycap::label(controls,ControlAction::Upgrade);
@@ -204,19 +147,6 @@ void drawCompactUpgrade(const InteractionPrompt& prompt,const Camera3D& camera,
         drawStyledSdfUiText(amount,{cursor,centerY-measured.y*.5F},fontSize,style);
         cursor+=measured.x;
     }
-    if(prompt.producerStock) {
-        const auto& stock=*prompt.producerStock;
-        const float y=centerY+size*.90F;
-        ui.drawResourceIcon({left,y-iconSize*.5F,iconSize,iconSize},stock.icon,hintStyle::fade(WHITE,opacity));
-        style.fillColor=hintStyle::fade(UiWhite,opacity);
-        const auto text=std::to_string(stock.stored)+"/"+std::to_string(stock.capacity);
-        const auto measured=measureUiText(text,fontSize);
-        drawStyledSdfUiText(text,{left+iconSize+gap,y-measured.y*.5F},fontSize,style);
-        const auto key=InputKeycap::label(controls,ControlAction::Interact);
-        const auto stockKeySize=InputKeycap::size(key,size*.60F);
-        hintStyle::key({pill.x+pill.width-paddingX-stockKeySize.x,y-stockKeySize.y*.5F,stockKeySize.x,stockKeySize.y},
-            key,false,opacity);
-    }
 }
 void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
     const GameUi& ui,const ControlSettings& controls,float opacity) {
@@ -225,25 +155,69 @@ void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
     if(!projection) return;
     const auto [anchor,size]=*projection;
     const float fontSize=size*.48F,padding=size*.28F,keyHeight=size*1.36F,keyGap=size*.12F;
-    const auto label=InputKeycap::label(controls,ControlAction::Interact);
+    const bool wallDoor = prompt.targetKind == InteractionPromptTargetKind::Building &&
+        prompt.actionText == "DOOR";
+    const bool gateAction = prompt.targetKind == InteractionPromptTargetKind::Building &&
+        (prompt.actionText == "OPEN" || prompt.actionText == "CLOSE");
+    const bool shrine = prompt.targetKind == InteractionPromptTargetKind::Landmark &&
+        prompt.showResourceCost && prompt.cost.has_value();
+    const bool producer=prompt.targetKind==InteractionPromptTargetKind::Landmark && !shrine;
+    const auto label=wallDoor ? std::string{"F"} :
+        InputKeycap::label(controls,ControlAction::Interact);
     const float keyWidth=std::max(keyHeight,measureUiText(label,keyHeight*.40F).x+keyHeight*.22F);
-    const std::string_view action=prompt.targetKind==InteractionPromptTargetKind::Challenge?"CHALLENGE":"Open";
+    const std::string_view action=shrine ? std::string_view{} : wallDoor || gateAction || producer ? std::string_view{prompt.actionText} :
+        prompt.targetKind==InteractionPromptTargetKind::Challenge?"CHALLENGE":"Open";
     const auto textSize=measureUiText(action,fontSize);
-    const bool priced=prompt.targetKind==InteractionPromptTargetKind::Chest && prompt.cost.has_value();
+    const bool priced=(prompt.targetKind==InteractionPromptTargetKind::Chest || producer) && prompt.cost.has_value();
     const std::string price=priced?std::to_string(prompt.cost->crystals):std::string{};
     const float coinSize=size*.76F,priceGap=size*.16F;
     const auto priceSize=measureUiText(price,fontSize);
-    const float priceWidth=priced?priceGap+coinSize+priceGap*.5F+priceSize.x:0;
+    struct ShrinePrice { UiResourceIcon icon; int amount; int available; };
+    const std::array shrinePrices{
+        ShrinePrice{UiResourceIcon::Wood,shrine?prompt.cost->wood:0,prompt.availableResources.wood},
+        ShrinePrice{UiResourceIcon::Stone,shrine?prompt.cost->stone:0,prompt.availableResources.stone},
+        ShrinePrice{UiResourceIcon::Crystal,shrine?prompt.cost->crystals:0,prompt.availableResources.crystals}};
+    float priceWidth=priced?priceGap+coinSize+priceGap*.5F+priceSize.x:0;
+    if(shrine) {
+        bool first=true;
+        for(const auto& resource:shrinePrices) if(resource.amount>0) {
+            if(!first) priceWidth+=priceGap;
+            priceWidth+=coinSize+priceGap*.5F+
+                measureUiText(std::to_string(resource.amount),fontSize).x;
+            first=false;
+        }
+    }
+    const bool showKey=!(producer && prompt.state==InteractionState::Unavailable);
+    const float keySpace=showKey ? keyWidth+keyGap : 0;
     const float pillWidth=textSize.x+priceWidth+padding*2,pillHeight=size*1.3F;
-    const float left=anchor.x-(keyWidth+keyGap+pillWidth)*.5F;
-    const Rectangle pill{left+keyWidth+keyGap,anchor.y-pillHeight*.5F,pillWidth,pillHeight};
+    const float left=anchor.x-(keySpace+pillWidth)*.5F;
+    const Rectangle pill{left+keySpace,anchor.y-pillHeight*.5F,pillWidth,pillHeight};
     DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,102},opacity));
-    drawPromptKeycap({left,anchor.y-keyHeight*.5F,keyWidth,keyHeight},label,
-        InputKeycap::held(controls,ControlAction::Interact),opacity);
+    if(showKey) drawPromptKeycap({left,anchor.y-keyHeight*.5F,keyWidth,keyHeight},label,
+        wallDoor ? IsKeyDown(KEY_F) : InputKeycap::held(controls,ControlAction::Interact),opacity);
     SdfUiTextStyle style{};style.fillColor=hintStyle::fade(UiWhite,opacity);
     style.outlineColor=hintStyle::fade({20,24,20,255},opacity);style.outlinePixels=size*.065F;
     style.shadowColor=hintStyle::fade({0,0,0,140},opacity);style.shadowOffsetPixels={0,size*.055F};
-    drawStyledSdfUiText(action,{pill.x+padding,anchor.y-textSize.y*.5F},fontSize,style);
+    if(!shrine) drawStyledSdfUiText(action,{pill.x+padding,anchor.y-textSize.y*.5F},fontSize,style);
+    if((shrine || producer) && !prompt.objectName.empty()) {
+        const float titleFont=fontSize*1.12F;
+        const std::string title=localizeText(prompt.objectName);
+        const auto titleSize=measureUiText(title,titleFont);
+        SdfUiTextStyle titleStyle=style;
+        titleStyle.fillColor=hintStyle::fade(prompt.accentColor,opacity);
+        drawStyledSdfUiText(title,{anchor.x-titleSize.x*.5F,
+            pill.y-titleSize.y-size*.16F},titleFont,titleStyle);
+    }
+    if (producer && prompt.productionPerMinute && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        std::string income=TextFormat("%.1f / MIN",*prompt.productionPerMinute);
+        if(prompt.nextProductionPerMinute) income+="  >  "+std::string(TextFormat("%.1f / MIN",*prompt.nextProductionPerMinute));
+        const float detailSize=fontSize*.85F;
+        const auto measured=measureUiText(income,detailSize);
+        const Rectangle detail{anchor.x-measured.x*.5F-padding,pill.y+pill.height+size*.20F,
+            measured.x+padding*2,size*.95F};
+        DrawRectangleRounded(detail,1,16,hintStyle::fade({0,0,0,132},opacity));
+        drawStyledSdfUiText(income,{anchor.x-measured.x*.5F,detail.y+(detail.height-measured.y)*.5F},detailSize,style);
+    }
     if(priced) {
         float cursor=pill.x+padding+textSize.x+priceGap;
         ui.drawResourceIcon({cursor,anchor.y-coinSize*.5F-size*.05F,coinSize,coinSize},UiResourceIcon::Coin,
@@ -253,6 +227,22 @@ void drawWorldAction(const InteractionPrompt& prompt,const Camera3D& camera,
             ? *prompt.availableCurrency>=prompt.cost->crystals : prompt.state!=InteractionState::Warning;
         style.fillColor=hintStyle::fade(enough?UiWhite:hintStyle::Warning,opacity);
         drawStyledSdfUiText(price,{cursor,anchor.y-priceSize.y*.5F},fontSize,style);
+    } else if(shrine) {
+        float cursor=pill.x+padding;
+        bool first=true;
+        for(const auto& resource:shrinePrices) {
+            if(resource.amount<=0) continue;
+            if(!first) cursor+=priceGap;
+            ui.drawResourceIcon({cursor,anchor.y-coinSize*.5F,coinSize,coinSize},resource.icon,
+                hintStyle::fade(WHITE,opacity));
+            cursor+=coinSize+priceGap*.5F;
+            const auto amount=std::to_string(resource.amount);
+            const auto measured=measureUiText(amount,fontSize);
+            style.fillColor=hintStyle::fade(resource.available>=resource.amount?UiWhite:hintStyle::Warning,opacity);
+            drawStyledSdfUiText(amount,{cursor,anchor.y-measured.y*.5F},fontSize,style);
+            cursor+=measured.x;
+            first=false;
+        }
     }
 }
 
@@ -313,43 +303,65 @@ void drawWorldLoot(const InteractionPrompt& prompt,const Camera3D& camera,
     const ControlSettings& controls,float opacity) {
     const auto projection=worldPromptProjection(prompt.worldAnchor,camera);
     if(!projection) return;
-    const auto [anchor,size]=*projection;
+    const Vector2 anchor=projection->anchor;
+    // Loot prompts follow their world anchor, but keep a stable on-screen size
+    // while the player approaches or moves away from the item.
+    const float size=48.0F*std::clamp(static_cast<float>(uiScreenHeight())/1200.0F,.7F,1.25F);
     const float padding=size*.28F,keyHeight=size*1.36F,keyGap=size*.12F;
-    const float actionFont=size*.48F,titleFont=size*.39F;
-    const auto keyWidth=[&](std::string_view label) {
-        const ScopedUiFontRole font(UiFontRole::Display);
-        return std::max(keyHeight,measureUiText(label,keyHeight*.40F).x+keyHeight*.22F);
-    };
-    const auto drawLabel=[&](std::string_view label,Vector2 position,float fontSize,Color color,
+    const float actionFont=size*.48F;
+    const float titleFont=actionFont*.72F;
+    const std::string action="PICK UP";
+    const std::string key=InputKeycap::label(controls,ControlAction::Interact);
+    const ScopedUiFontRole display(UiFontRole::Display);
+    const float keyWidth=std::max(keyHeight,measureUiText(key,keyHeight*.40F).x+keyHeight*.22F);
+    const Vector2 actionSize=measureUiText(action,actionFont);
+    const float pillWidth=actionSize.x+padding*2;
+    const float groupWidth=keyWidth+keyGap+pillWidth;
+    const float rowY=anchor.y-size*.45F;
+    const float left=anchor.x-groupWidth*.5F;
+    const Rectangle pill{left+keyWidth+keyGap,rowY-size*.65F,pillWidth,size*1.3F};
+    DrawRectangleRounded(pill,1,16,hintStyle::fade({0,0,0,132},opacity));
+    drawPromptKeycap({left,rowY-keyHeight*.5F,keyWidth,keyHeight},key,
+        InputKeycap::held(controls,ControlAction::Interact),opacity);
+    const auto drawLabel=[&](std::string_view value,Vector2 position,float fontSize,Color color,
         UiFontRole role) {
         const ScopedUiFontRole font(role);
         SdfUiTextStyle style{};
         style.fillColor=hintStyle::fade(color,opacity);
         style.outlineColor=hintStyle::fade({20,24,20,255},opacity);
-        style.outlinePixels=size*.065F;
+        style.outlinePixels=fontSize*.12F;
         style.shadowColor=hintStyle::fade({0,0,0,140},opacity);
-        style.shadowOffsetPixels={0,size*.055F};
-        drawStyledSdfUiText(label,position,fontSize,style);
+        style.shadowOffsetPixels={0,fontSize*.11F};
+        drawStyledSdfUiText(value,position,fontSize,style);
     };
-
-    const ScopedUiFontRole display(UiFontRole::Display);
-    const auto interactKey=InputKeycap::label(controls,ControlAction::Interact);
-    const float interactWidth=keyWidth(interactKey);
-    const Vector2 actionSize=measureUiText(prompt.actionText,actionFont);
-    const float pickupWidth=actionSize.x+padding*2;
-    const float pickupGroupWidth=interactWidth+keyGap+pickupWidth;
-    const float rowY=anchor.y-size*.45F;
-    const float left=anchor.x-pickupGroupWidth*.5F;
-    const Rectangle pickupPill{left+interactWidth+keyGap,rowY-size*.65F,
-        pickupWidth,size*1.3F};
-    DrawRectangleRounded(pickupPill,1,16,hintStyle::fade({0,0,0,102},opacity));
-    drawPromptKeycap({left,rowY-keyHeight*.5F,interactWidth,keyHeight},interactKey,
-        InputKeycap::held(controls,ControlAction::Interact),opacity);
-    drawLabel(prompt.actionText,{pickupPill.x+padding,rowY-actionSize.y*.5F},
-        actionFont,UiWhite,UiFontRole::Display);
+    drawLabel(action,{pill.x+padding,rowY-actionSize.y*.5F},actionFont,UiWhite,UiFontRole::Display);
     const Vector2 titleSize=measureUiText(prompt.objectName,titleFont);
-    drawLabel(prompt.objectName,{anchor.x-titleSize.x*.5F,rowY-size*1.48F-titleSize.y*.5F},
-        titleFont,prompt.accentColor,UiFontRole::MenuBodyBold);
+    drawLabel(prompt.objectName,{anchor.x-titleSize.x*.5F,pill.y-titleSize.y-size*.12F},
+        titleFont,prompt.accentColor,UiFontRole::Display);
+
+    if(prompt.hint && !prompt.hint->empty()) {
+        const float scale=std::clamp(size/40.0F,.72F,1.15F);
+        const float fontSize=16*scale;
+        const float panelWidth=360*scale;
+        const float panelPadding=12*scale;
+        auto lines=itemTooltipLines(localizeText(*prompt.hint),panelWidth-2*panelPadding,fontSize);
+        if(lines.size()>2) lines.resize(2);
+        const float lineHeight=21*scale;
+        const float panelHeight=pill.height;
+        const float screenWidth=static_cast<float>(uiScreenWidth());
+        float panelX=pill.x+pill.width+size*.20F;
+        if(panelX+panelWidth>screenWidth-12*scale)
+            panelX=left-size*.20F-panelWidth;
+        panelX=std::clamp(panelX,12*scale,std::max(12*scale,screenWidth-panelWidth-12*scale));
+        const float panelY=std::clamp(pill.y,12*scale,
+            std::max(12*scale,static_cast<float>(uiScreenHeight())-panelHeight-12*scale));
+        DrawRectangleRounded({panelX,panelY,panelWidth,panelHeight},1,16,
+            hintStyle::fade({0,0,0,132},opacity));
+        const float textTop=panelY+(panelHeight-lineHeight*static_cast<float>(lines.size()))*.5F;
+        for(std::size_t i=0;i<lines.size();++i)
+            drawLabel(lines[i],{panelX+panelPadding,textTop+lineHeight*static_cast<float>(i)},
+                fontSize,UiWhite,UiFontRole::Body);
+    }
 }
 } // namespace
 
@@ -511,7 +523,11 @@ void InteractionPromptRenderer::drawPrompt(
     if(prompt.input==ControlAction::Interact &&
         ((prompt.targetKind==InteractionPromptTargetKind::Resource && !prompt.cost) ||
             prompt.targetKind==InteractionPromptTargetKind::Chest ||
-            prompt.targetKind==InteractionPromptTargetKind::Challenge)) {
+            prompt.targetKind==InteractionPromptTargetKind::Challenge ||
+            prompt.targetKind==InteractionPromptTargetKind::Landmark ||
+            (prompt.targetKind==InteractionPromptTargetKind::Building &&
+                (prompt.actionText=="DOOR" || prompt.actionText=="OPEN" ||
+                    prompt.actionText=="CLOSE")))) {
         if(projectable(prompt,camera)) drawWorldAction(prompt,camera,ui,controls,opacity);
         return;
     }
@@ -528,7 +544,9 @@ void InteractionPromptRenderer::drawPrompt(
     const float x=l.bounds.x+16*s;
     const float width=l.bounds.width-32*s;
     if(!prompt.objectName.empty()) hintStyle::text(prompt.objectName,
-        {x,l.bounds.y+10*s,width,24*s},18*s,menuStyle::Gold,UiFontRole::MenuBodyBold,opacity);
+        {x,l.bounds.y+10*s,width,24*s},18*s,
+        prompt.targetKind==InteractionPromptTargetKind::Loot ? prompt.accentColor : menuStyle::Gold,
+        UiFontRole::MenuBodyBold,opacity);
     const auto label=InputKeycap::label(controls,prompt.input);
     const float keyWidth=InputKeycap::size(label,38*s).x;
     const float actionY=l.bounds.y+l.actionY;
@@ -564,15 +582,6 @@ void InteractionPromptRenderer::drawPrompt(
             }
             if(!any) hintStyle::text("FREE",{x,y,width,25*s},19*s,menuStyle::Green,UiFontRole::MenuBodyBold,opacity);
         }
-    }
-    if(prompt.producerStock) {
-        const auto& stock=*prompt.producerStock;
-        const float y=l.bounds.y+l.stockY;
-        ui.drawResourceIcon({x,y,25*s,25*s},stock.icon,hintStyle::fade(WHITE,opacity));
-        const float kw=InputKeycap::size(InputKeycap::label(controls,ControlAction::Interact),28*s).x;
-        hintStyle::text(std::to_string(stock.stored)+" / "+std::to_string(stock.capacity),
-            {x+31*s,y,width-kw-41*s,28*s},18*s,menuStyle::Cream,UiFontRole::MenuBodyBold,opacity);
-        if(prompt.cost) hintStyle::key({x+width-kw,y,kw,28*s},InputKeycap::label(controls,ControlAction::Interact),false,opacity);
     }
     for(std::size_t i=0;i<l.hintLines.size();++i) hintStyle::text(l.hintLines[i],
         {x,l.bounds.y+l.hintY+20*s*static_cast<float>(i),width,20*s},15*s,

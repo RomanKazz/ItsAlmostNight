@@ -39,13 +39,13 @@ void runTowerSystemTests() {
             "tower fixture unlocks crossbow");
     const auto turret = buildings.place(ian::BuildingType::Turret, {0, -4}, 0, 25, 15, 5);
     require(turret.has_value(), "tower fixture creates turret");
-    const ian::ResourceCost turretBlueprintCost =
-        buildings.blueprintUpgradeCost(ian::BuildingType::Turret);
-    require(buildings.upgradeBlueprint(
-                ian::BuildingType::Turret,
-                turretBlueprintCost.wood,
-                turretBlueprintCost.stone,
-                turretBlueprintCost.crystals).valid(),
+    const ian::ResourceCost turretUpgradeCost =
+        buildings.upgradeCost(turret->building);
+    require(buildings.upgrade(
+                turret->building.id,
+                turretUpgradeCost.wood,
+                turretUpgradeCost.stone,
+                turretUpgradeCost.crystals).valid(),
             "tower fixture upgrades turret");
 
     ian::FlowField flow;
@@ -73,7 +73,7 @@ void runTowerSystemTests() {
         requireNear(perkShots.front().payloadDamage,
             ian::TowerSystem::attackDamage(ian::BuildingType::Turret, 2) * 1.25, 1e-12,
             "tower character perk changes payload damage");
-        requireNear(perkTowers.towers().front().fireCooldownRemaining,
+        requireNear(perkTowers.finalStats(buildings.buildings().back()).attackInterval,
             ian::TowerSystem::fireInterval(ian::BuildingType::Turret, 2) / 1.5, 1e-12,
             "tower character perk changes cooldown");
         perkTowers.reset();
@@ -100,7 +100,7 @@ void runTowerSystemTests() {
             killed = killed || shot.killed;
         }
     }
-    require(shotCount >= 4, "level-two turret deals gradual upgraded damage");
+    require(shotCount >= 2, "level-two turret deals meaningful upgraded damage");
     require(killed, "turret can kill target");
     require(enemies.activeCount() == 0, "tower damage updates enemy system");
 
@@ -130,22 +130,16 @@ void runTowerSystemTests() {
     piercingEnemies.spawnWave(PiercingSpawn);
     ian::TowerSystem piercingTowers;
     piercingTowers.syncBuildings(piercingBuildings.buildings());
-    std::span<const ian::TowerShot> piercingShots;
-    for (int tick = 0; tick < 120 && piercingShots.empty(); ++tick) {
-        piercingShots = piercingTowers.tick(
-            1.0 / 60.0, piercingBuildings.buildings(),
-            piercingEnemies);
+    std::vector<ian::TowerShot> piercingShots;
+    for (int tick = 0; tick < 120 && piercingShots.size() < 3; ++tick) {
+        const auto hits = piercingTowers.tick(1.0 / 60.0, piercingBuildings.buildings(), piercingEnemies);
+        piercingShots.insert(piercingShots.end(), hits.begin(), hits.end());
     }
-    require(
-        piercingShots.size() == 3 &&
-            piercingShots[0].targetId != piercingShots[1].targetId &&
-            piercingShots[1].targetId != piercingShots[2].targetId,
-        "level-one crossbow arrow damages its target and two enemies behind it");
-    require(
-        piercingShots[0].secondaryImpact &&
-            piercingShots[1].secondaryImpact &&
-            !piercingShots[2].secondaryImpact,
-        "one visual arrow travels through all piercing impacts to the final target");
+    require(piercingShots.size() == 3 && piercingShots[0].targetId != piercingShots[1].targetId &&
+        piercingShots[1].targetId != piercingShots[2].targetId,
+        "crossbow bolt physically reaches its target and two enemies behind it");
+    require(!piercingShots[0].secondaryImpact && piercingShots[1].secondaryImpact && piercingShots[2].secondaryImpact,
+        "physical piercing marks subsequent contacts on the same bolt");
 
     constexpr std::array<ian::EnemySpawn, 1> FlyingSpawn{{{
         .type = ian::EnemyType::Flying,
@@ -178,26 +172,26 @@ void runTowerSystemTests() {
             if (tick == 0) firstTurn = lastTurn;
             peakTurn = std::max(peakTurn, lastTurn);
             requireNear(motion.previousYaw, before, 1e-12,
-                        "hitscan tower rendering retains its previous fixed-step pose");
+                        "physical tower rendering retains its previous fixed-step pose");
             require(lastTurn < 0.045,
-                    "hitscan acquisition cannot produce a sudden yaw step");
+                    "physical acquisition cannot produce a sudden yaw step");
         }
         require(firstTurn > 0.0 && firstTurn < 0.02 &&
                     peakTurn > firstTurn * 3.0 && lastTurn < firstTurn && fired,
-                "both hitscan towers ease into aim, settle and still fire");
+                "both physical towers ease into aim, settle and still fire");
         targets.reset();
         const double aimedYaw = smoothTowers.towers().front().yaw;
         const double aimedPitch = smoothTowers.towers().front().pitch;
         smoothTowers.tick(1.0 / 60.0, registry, targets);
         require(std::abs(ian::wrapBuildingAngle(smoothTowers.towers().front().yaw - aimedYaw)) < 0.02,
-                "target loss cannot abruptly spin a hitscan tower back to rest");
+                "target loss cannot abruptly spin a physical tower back to rest");
         for (int tick = 0; tick < 120; ++tick) {
             smoothTowers.tick(1.0 / 60.0, registry, targets);
         }
         requireNear(smoothTowers.towers().front().yaw, aimedYaw, 1e-12,
-                    "idle hitscan tower retains its last yaw indefinitely");
+                    "idle physical tower retains its last yaw indefinitely");
         requireNear(smoothTowers.towers().front().pitch, aimedPitch, 1e-12,
-                    "idle hitscan tower retains its last elevation indefinitely");
+                    "idle physical tower retains its last elevation indefinitely");
     }
 
     {
@@ -304,28 +298,24 @@ void runTowerSystemTests() {
     require(muzzles[0] == 0 && muzzles[1] == 1,
             "gun turret must alternate authored muzzle sockets");
 
-    ian::EnemySystem gunPiercingEnemies;
-    gunPiercingEnemies.spawnWave(PiercingSpawn);
-    ian::TowerSystem gunPiercingTowers;
-    gunPiercingTowers.setModifiers(1.0, 1.0, 1.0, 1.0, 0, 2);
-    gunPiercingTowers.syncBuildings(gunBuildings.buildings());
-    std::span<const ian::TowerShot> gunPiercingShots;
-    for (int tick = 0;
-         tick < 120 && gunPiercingShots.empty(); ++tick) {
-        gunPiercingShots = gunPiercingTowers.tick(
-            1.0 / 60.0, gunBuildings.buildings(),
-            gunPiercingEnemies);
+    ian::EnemySystem pierceEnemies;
+    pierceEnemies.spawnWave(PiercingSpawn);
+    ian::TowerSystem pierceTowers;
+    // Isolate one projectile's pierce path from the new baseline burst.
+    ian::AttackModifiers pierceModifiers;
+    pierceModifiers[ian::AttackStat::Quantity].flat = -2;
+    pierceModifiers[ian::AttackStat::Pierce].flat = 2;
+    pierceTowers.setAttackModifiers(pierceModifiers);
+    pierceTowers.syncBuildings(gunBuildings.buildings());
+    std::vector<ian::TowerShot> pierceShots;
+    for (int tick = 0; tick < 120 && pierceShots.size() < 3; ++tick) {
+        const auto hits = pierceTowers.tick(1.0 / 60.0, gunBuildings.buildings(), pierceEnemies);
+        pierceShots.insert(pierceShots.end(), hits.begin(), hits.end());
     }
-    require(
-        gunPiercingShots.size() == 3 &&
-            gunPiercingShots[0].targetId !=
-                gunPiercingShots[1].targetId &&
-            gunPiercingShots[1].targetId !=
-                gunPiercingShots[2].targetId &&
-            gunPiercingShots[0].secondaryImpact &&
-            gunPiercingShots[1].secondaryImpact &&
-            !gunPiercingShots[2].secondaryImpact,
-        "gun armor piercing hits three lined-up enemies with one bullet");
+    require(pierceShots.size() == 3 && pierceShots[0].targetId != pierceShots[1].targetId &&
+        pierceShots[1].targetId != pierceShots[2].targetId && !pierceShots[0].secondaryImpact &&
+        pierceShots[1].secondaryImpact && pierceShots[2].secondaryImpact,
+        "gun piercing physically passes through three lined-up enemies");
 
     ian::EnemySystem twinBatteryEnemies;
     constexpr std::array<ian::EnemySpawn, 4> TwinBatterySpawn{{
@@ -343,19 +333,14 @@ void runTowerSystemTests() {
     twinBatteryTowers.setModifiers(
         1.0, 1.0, 1.0, 1.0, 1);
     twinBatteryTowers.syncBuildings(gunBuildings.buildings());
-    std::span<const ian::TowerShot> twinShots;
-    for (int tick = 0; tick < 120 && twinShots.empty(); ++tick) {
-        twinShots = twinBatteryTowers.tick(
-            1.0 / 60.0, gunBuildings.buildings(),
-            twinBatteryEnemies);
+    std::vector<ian::TowerShot> twinShots;
+    for (int tick = 0; tick < 120 && twinShots.size() < 2; ++tick) {
+        const auto hits = twinBatteryTowers.tick(1.0 / 60.0, gunBuildings.buildings(), twinBatteryEnemies);
+        twinShots.insert(twinShots.end(), hits.begin(), hits.end());
     }
-    require(
-        twinShots.size() == 2U &&
-            twinShots[0].targetId != twinShots[1].targetId &&
-            !twinShots[1].secondaryImpact &&
-            twinShots[0].hitPosition.z < -4.0 &&
-            twinShots[1].hitPosition.z < -4.0,
-        "Twin Batteries stays inside the turret firing arc");
+    require(twinShots.size() == 2 && twinShots[0].targetId == twinShots[1].targetId &&
+        !twinShots[0].secondaryImpact && !twinShots[1].secondaryImpact,
+        "Quantity adds a second full-damage burst bullet toward the same target");
 
     ian::EnemySystem flyingGunEnemies;
     flyingGunEnemies.spawnWave(FlyingSpawn);
@@ -413,7 +398,7 @@ void runTowerSystemTests() {
     require(!gunTowers.towers().front().targetId,
         "rotation invalidates the old gun target");
     requireNear(gunTowers.towers().front().targetSearchCooldownRemaining,
-        0.25, 1e-9, "rotated hitscan defenses retain their search interval");
+        0.25, 1e-9, "rotated physical defenses retain their search interval");
     requireNear(
         gunTowers.towers().front().baseYaw,
         baseYawBeforeRotation,

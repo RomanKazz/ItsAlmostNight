@@ -12,10 +12,10 @@ inline constexpr double RepairStationVisualDuration = 1.8;
 inline constexpr std::size_t MaximumRepairStationVisualLinks = 64;
 
 [[nodiscard]] inline double repairStationRadius(int level) {
-    return 5.0 + .25 * (std::clamp(level, 1, 8) - 1);
+    return 5.0 + .25 * (std::max(level, 1) - 1);
 }
 [[nodiscard]] inline double repairStationRate(int level) {
-    return 2.0 + .5 * (std::clamp(level, 1, 8) - 1);
+    return 2.0 + .5 * (std::max(level, 1) - 1);
 }
 [[nodiscard]] inline bool repairStationTarget(BuildingType type) {
     switch (type) {

@@ -165,6 +165,10 @@ Simulation::Simulation(
     playerTemporaryHealth_ = 0.0;
     playerRecoverableArmor_ = 0.0;
     playerMaxRecoverableArmor_ = 0.0;
+    classAbilityState_ = {};
+    stumpRootWaves_.clear();
+    activeRunContent_ = sandboxMode_ ? RunContentAccess{} : nextRunContent_;
+    lootChests_.setAllowedLoot(activeRunContent_.items);
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
@@ -172,6 +176,7 @@ Simulation::Simulation(
         chestOpeningCostMultiplier_);
     resetWorldLandmarks();
     resetChallengeColumns();
+    resetWorldScenery();
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
     rewardedEnemyCoins_.resize(EnemySystem::MaxEnemies);
     insightRewardedEnemyIds_.resize(EnemySystem::MaxEnemies);
@@ -193,6 +198,10 @@ bool Simulation::configureNextRunBonuses(const MetaRunBonuses& bonuses) {
     if (!validMetaRunBonuses(bonuses)) return false;
     nextRunMetaBonuses_ = bonuses;
     return true;
+}
+
+void Simulation::configureNextRunContent(const RunContentAccess& access) {
+    nextRunContent_ = access;
 }
 
 void Simulation::startRun(PlayerClass playerClass) {
@@ -245,6 +254,12 @@ bool Simulation::resourceGroundPositionIsSafe(
     if (terrain_.waterSignedDistance(x, z) < radius + 0.8) {
         return false;
     }
+    for (const auto& instance : worldScenery_) {
+        const auto box = worldSceneryCollisionBox(instance);
+        const double dx = std::max({box.minX-x, 0.0, x-box.maxX});
+        const double dz = std::max({box.minZ-z, 0.0, z-box.maxZ});
+        if (dx*dx+dz*dz < (radius+.5)*(radius+.5)) return false;
+    }
     return std::none_of(
         map_.obstacles.begin(), map_.obstacles.end(),
         [=](const MapObstacle& obstacle) {
@@ -274,7 +289,7 @@ void Simulation::returnToMainMenu() {
     events_.push_back({.type = GameEventType::PauseChanged});
 }
 
-void Simulation::resetRun(GameEventType eventType) {
+void Simulation::resetRun(GameEventType eventType, bool includeShrines) {
     invalidateSnapshotCache();
     ++structuralRevision_;
     if (forcedRunTerrainSeed_) {
@@ -316,9 +331,6 @@ void Simulation::resetRun(GameEventType eventType) {
     jumpBufferRemaining_ = 0.0;
     flightTapRemaining_ = 0.0;
     playerFlying_ = false;
-    dashRemaining_ = 0.0;
-    dashCooldownRemaining_ = 0.0;
-    dashDirection_ = {};
     autoJumpAssistRemaining_ = 0.0;
     autoJumpAssistDirection_ = {};
     edgeSupportGraceRemaining_ = 0.0;
@@ -340,6 +352,7 @@ void Simulation::resetRun(GameEventType eventType) {
     crystalStorageFullNotified_ = false;
     coins_ = 0;
     coinPickups_.reset();
+    powerups_.reset();
     std::fill(rewardedEnemyCoins_.begin(),
               rewardedEnemyCoins_.end(), EntityId{});
     pendingResourceGrants_.clear();
@@ -348,17 +361,19 @@ void Simulation::resetRun(GameEventType eventType) {
     playerInvulnerable_ = sandboxMode_;
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
-    nailHitCounter_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
     pickaxeInputBufferRemaining_ = 0.0;
     aimedResource_.reset();
     resources_.reset();
     resources_.setWoodYieldMultiplier(1.0);
+    activeRunContent_ = sandboxMode_ ? RunContentAccess{} : nextRunContent_;
+    lootChests_.setAllowedLoot(activeRunContent_.items);
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
-    resetWorldLandmarks();
+    resetWorldLandmarks(includeShrines);
     resetChallengeColumns();
+    resetWorldScenery();
     aimedChest_.reset();
     aimedLoot_.reset();
     playerDamageMultiplier_ = 1.0;
@@ -381,6 +396,8 @@ void Simulation::resetRun(GameEventType eventType) {
     playerTemporaryHealth_ = 0.0;
     playerRecoverableArmor_ = 0.0;
     playerMaxRecoverableArmor_ = 0.0;
+    classAbilityState_ = {};
+    stumpRootWaves_.clear();
     secondsSincePlayerDamage_ = 0.0;
     appleAvailable_ = false;
     breadWellFed_ = false;
@@ -391,12 +408,26 @@ void Simulation::resetRun(GameEventType eventType) {
     freeChestOpeningAvailable_ = false;
     freeChestRerollsRemaining_ = 0;
     lootStacks_.fill(0);
+    relics_ = {};
+    relicTowerClockIndices_.clear();
+    relicCombatBuildings_.clear();
+    chestItems_.reset();
     runUpgradeChoicePending_ = false;
     runShop_ = {};
+    shrines_ = {};
     runUpgradeChoiceCount_ = 0U;
+    runUpgradePaidChoicePrice_ = 0;
     runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
     runUpgradeStacks_.fill(0);
+    coreCardPowers_ = {};
+    coreHealthBaseLevel_ = 1;
+    coreBuildingBaseLevel_ = 1;
+    coreStorageBaseLevel_ = 1;
     runUpgradePower_.fill(0.0);
+    runUpgradeStacks_[runUpgradeIndex(RunUpgradeEffect::UnlockWall)] = 1;
+    runUpgradePower_[runUpgradeIndex(RunUpgradeEffect::UnlockWall)] = 1.0;
+    buildingUpgradePowers_ = {};
+    runUpgradeRollSeeds_.fill(0);
     const auto* startingClass = playerClassDefinition(playerClass_);
     for (const auto weapon : {PlayerWeapon::Axe, PlayerWeapon::Pickaxe,
             startingClass ? startingClass->startingWeapon : PlayerWeapon::Axe}) {
@@ -480,35 +511,13 @@ void Simulation::resetRun(GameEventType eventType) {
             playerClass->defenseDamageMultiplier;
         productionSpeedMultiplier_ *=
             playerClass->productionSpeedMultiplier;
-        switch (playerClass_) {
-        case PlayerClass::Vanguard:
+        playerWeapons_.selectWeapon(playerClass->startingWeapon);
+        if (playerClass_ == PlayerClass::Vanguard) {
             playerMaxRecoverableArmor_ = 25.0;
             playerRecoverableArmor_ = 25.0;
-            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-            break;
-        case PlayerClass::Ranger:
-        case PlayerClass::Engineer:
-            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-            break;
-        case PlayerClass::Prospector:
-            playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
-            break;
-        case PlayerClass::Berserker:
-        case PlayerClass::Vampire:
-            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-            break;
-        case PlayerClass::Alchemist:
-            playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
-            grantLootUpgrade(LootUpgradeEffect::Apple);
-            grantLootUpgrade(LootUpgradeEffect::Potion);
-            break;
-        case PlayerClass::Chronomancer:
-            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-            grantLootUpgrade(LootUpgradeEffect::Hourglass);
-            grantLootUpgrade(LootUpgradeEffect::Rope);
-            break;
-        case PlayerClass::None:
-            break;
+        }
+        for (const auto item : playerClass->startingItems) {
+            if (item) grantLootUpgrade(*item);
         }
         playerHealth_ = playerPermanentMaxHealth();
     }
@@ -544,6 +553,7 @@ void Simulation::resetRun(GameEventType eventType) {
     collisionWorld_.syncPondLilySurfaces(
         generatePondLilyPlacements(terrain_));
     syncWorldLandmarkColliders();
+    syncWorldSceneryColliders();
     events_.clear();
     events_.push_back({.type = eventType});
 }
@@ -578,11 +588,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             saveSuspendedRunState());
     }
     invalidateSnapshotCache();
-    lootChests_.setOpeningCostSurcharge(
-        saturatingMultiplyNonNegative(
-            economy_.chestOpeningCoinCostPerWave, wave_));
     const std::size_t firstInsightEvent = events_.size();
 
+    tickRelics(deltaSeconds);
     updatePlayerRespawn(deltaSeconds);
     updateFortifications(deltaSeconds);
     if (!playerRespawning_) updatePlayer(deltaSeconds, command);
@@ -599,6 +607,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
+        powerups_.reset();
         std::fill(rewardedEnemyCoins_.begin(),
                   rewardedEnemyCoins_.end(), EntityId{});
         ++tick_;
@@ -629,12 +638,14 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         removeUnsupportedPlatformBuildings();
         if (coreWasSupported && !buildings_.hasCore()) {
             enemies_.clearProjectiles();
+            towers_.clearProjectiles();
             cannons_.clearProjectiles();
             bombs_.clearProjectiles();
             state_ = RunState::Defeat;
             crystals_ = 0;
             coins_ = 0;
             coinPickups_.reset();
+            powerups_.reset();
             std::fill(rewardedEnemyCoins_.begin(),
                       rewardedEnemyCoins_.end(), EntityId{});
             events_.push_back({
@@ -659,6 +670,18 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             resources_.nodes(), treeCollisionAssets_,
             stoneCollisionAssets_, crystalCollisionAssets_);
     }
+    if (runUpgradeChoicePending_ && !playerRespawning_) {
+        // Complete rewards from actions already performed this frame before
+        // pausing combat. A paid shrine offer queues level rewards instead of
+        // losing the last hit's drops or replacing its three paid choices.
+        updatePlayerClassEffects(firstInsightEvent,command.defeatAllEnemies.has_value());
+        updateLootEffects(0,firstInsightEvent);
+        updateCoinPickups(0,command.defeatAllEnemies.has_value());
+        processInsightEvents(firstInsightEvent);
+        ++tick_;
+        elapsedSeconds_+=deltaSeconds;
+        return;
+    }
     if (playerRespawning_) {
         aimedResource_.reset();
         aimedEnemy_.reset();
@@ -669,6 +692,11 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     updateRunPhase(
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
+    const bool furyBefore = powerups_.active(PowerupType::Fury);
+    static_cast<void>(powerups_.tick(deltaSeconds,
+        {playerPosition_.x, playerPosition_.y - gameplay_.eyeHeight, playerPosition_.z},
+        !playerRespawning_));
+    if (furyBefore != powerups_.active(PowerupType::Fury)) refreshRunUpgradeRuntimeEffects();
     updateCombat(deltaSeconds);
     updateEliteEffects(deltaSeconds);
     if (state_ != RunState::Defeat) updateRepairStations(deltaSeconds);
@@ -678,6 +706,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
+        powerups_.reset();
         std::fill(rewardedEnemyCoins_.begin(),
                   rewardedEnemyCoins_.end(), EntityId{});
         ++tick_;
@@ -696,9 +725,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     updatePlayerClassEffects(
         firstInsightEvent, command.defeatAllEnemies.has_value());
     updateLootEffects(deltaSeconds, firstInsightEvent);
-    updateCoinPickups(deltaSeconds);
-    processObjectiveEvents(firstInsightEvent);
-    processInsightEvents(firstInsightEvent, command.defeatAllEnemies.has_value());
+    updateCoinPickups(deltaSeconds, command.defeatAllEnemies.has_value());
+    processInsightEvents(firstInsightEvent);
 
     ++tick_;
     elapsedSeconds_ += deltaSeconds;
@@ -788,12 +816,13 @@ void Simulation::recordRunStatistics(
                 std::max(0.0, event.damage);
             break;
         case GameEventType::PoisonHit:
+        case GameEventType::FlamethrowerBurnHit:
             if (event.buildingType) runStatistics_.defenseDamageDealt += std::max(0.0, event.damage);
             else runStatistics_.playerDamageDealt += std::max(0.0, event.damage);
             break;
         case GameEventType::ProjectileHit:
             // Tower projectiles identify their source building. Player rifle
-            // and dash hits do not. Enemy-on-enemy volatile explosions carry
+            // hits do not. Enemy-on-enemy volatile explosions carry
             // a source id without a building type and are intentionally not
             // credited to the player.
             if (event.buildingType) {

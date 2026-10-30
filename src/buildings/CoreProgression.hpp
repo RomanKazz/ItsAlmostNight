@@ -32,7 +32,7 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 1;
         return 5;
     case PlayerWeapon::FireWand:
     case PlayerWeapon::LegacyBareHands:
-    case PlayerWeapon::Hammer:
+    case PlayerWeapon::LegacyHammer:
         return MaxBuildingLevel + 1;
     }
     return MaxBuildingLevel + 1;

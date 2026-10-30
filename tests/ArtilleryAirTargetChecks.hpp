@@ -8,7 +8,7 @@ inline void run() {
     using namespace ian;
     constexpr double Step = 1.0 / 60.0;
     for (const auto type : {BuildingType::Catapult, BuildingType::Mortar, BuildingType::Cannon}) {
-        const bool groundOnly = type != BuildingType::Cannon;
+        const bool groundOnly = true;
         const std::vector<BuildingInstance> buildings{{.id={9100,1},.type=type,.gridPosition={0,0}}};
         for (bool marked : {false, true}) {
             EnemySystem air;

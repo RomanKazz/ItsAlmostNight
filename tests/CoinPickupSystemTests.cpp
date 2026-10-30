@@ -4,7 +4,9 @@
 #include "world/TerrainHeightfield.hpp"
 #include "world/WorldConfig.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <ranges>
 
 void runCoinPickupSystemTests() {
     ian::WorldConfig config = ian::WorldConfig::defaults();
@@ -130,6 +132,70 @@ void runCoinPickupSystemTests() {
         "destructible prop coins use half lateral burst distance");
 
     coins.reset();
+    require(coins.spawnExperience(
+        {0.0, 0.0, 0.0}, 10, 4, 616U, terrain, 0.0) == 10,
+        "experience reward is accepted by the pickup system");
+    require(coins.pickups().size() == 4 &&
+            std::ranges::all_of(coins.pickups(),
+                [](const ian::CoinPickup& pickup) {
+                    return pickup.kind == ian::PickupKind::Experience;
+                }),
+        "experience reward bursts into several separate orbs");
+    int experienceCollected = 0;
+    int orbCount = 0;
+    for (int frame = 0; frame < 240 && !coins.pickups().empty(); ++frame) {
+        const ian::CoinCollection result = coins.tick(
+            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain, collision);
+        experienceCollected += result.experience;
+        orbCount += result.experienceCount;
+        require(result.value == 0,
+            "experience collection does not award coins");
+    }
+    require(experienceCollected == 10 && orbCount == 4 &&
+            coins.pickups().empty(),
+        "magnet collects the full split experience reward");
+
+    coins.reset();
+    require(coins.spawnExperience(
+        {0.0, 0.0, 2.0}, 8, 8, 617U, terrain) == 8,
+        "experience burst spawns every crystal");
+    require(std::ranges::all_of(coins.pickups(),
+            [](const ian::CoinPickup& pickup) {
+                return pickup.position.x == 0.0 &&
+                    pickup.position.z == 2.0;
+            }),
+        "experience crystals spawn at the reward source");
+    for (int frame = 0; frame < 30; ++frame) {
+        static_cast<void>(coins.tick(
+            1.0 / 60.0, {20.0, 1.7, 20.0}, terrain, collision));
+    }
+    require(std::ranges::any_of(coins.pickups(),
+                [](const ian::CoinPickup& pickup) {
+                    return pickup.position.x < -0.3;
+                }) &&
+            std::ranges::any_of(coins.pickups(),
+                [](const ian::CoinPickup& pickup) {
+                    return pickup.position.x > 0.3;
+                }),
+        "experience crystals fan out to both sides of the source");
+    require(std::ranges::any_of(coins.pickups(),
+                [](const ian::CoinPickup& pickup) {
+                    return pickup.position.z < 1.7;
+                }) &&
+            std::ranges::any_of(coins.pickups(),
+                [](const ian::CoinPickup& pickup) {
+                    return pickup.position.z > 2.3;
+                }),
+        "experience burst spreads independently of the player's view");
+    require(std::ranges::all_of(coins.pickups(),
+            [&](const ian::CoinPickup& pickup) {
+                const double ground = terrain.getHeight(
+                    pickup.position.x, pickup.position.z) + 0.30;
+                return pickup.position.y <= ground + 0.12;
+            }),
+        "experience burst lands within half a second");
+
+    coins.reset();
     coins.spawn(
         {0.0, 0.0, 0.0},
         static_cast<int>(ian::CoinPickupSystem::MaximumPickups + 20U),
@@ -201,4 +267,21 @@ void runCoinPickupSystemTests() {
     }
     require(coins.pickups().empty(),
             "unneeded heart expires after the coin pickup lifetime");
+    require(coins.spawnMetaSilver({0,0,0},199,terrain),"gold crate can spawn a dedicated meta silver pickup");
+    auto savedSilver=coins.metaSilverState();
+    require(savedSilver.size()==1 && savedSilver.front().value==1 &&
+            savedSilver.front().kind==ian::PickupKind::MetaSilver,
+            "one silver is distinct from five-value run coins");
+    ian::CoinPickupSystem resumedSilver;
+    require(resumedSilver.loadMetaSilverState(savedSilver),"uncollected silver restores after save/load");
+    for(int frame=0;frame<510;++frame) static_cast<void>(resumedSilver.tick(.1,{15,1.7,15},terrain,collision));
+    require(resumedSilver.pickups().size()==1,"meta silver does not expire like ordinary loot");
+    int silver=0,gold=0;
+    for(int frame=0;frame<240 && silver==0;++frame) {
+        const auto reward=resumedSilver.tick(1.0/60,{0,1.7,0},terrain,collision);
+        silver+=reward.silver;gold+=reward.value;
+    }
+    require(silver==1 && gold==0 && resumedSilver.pickups().empty(),"silver collection never credits the run coin balance");
+    savedSilver.push_back(savedSilver.front());
+    require(!resumedSilver.loadMetaSilverState(savedSilver),"duplicate silver pickup IDs are rejected");
 }

@@ -47,6 +47,11 @@ bool validQuestState(const QuestState& state) {
 bool isPlayerClassUnlocked(
     PlayerClass playerClass, const MetaProgression& progression) {
     switch (playerClass) {
+    case PlayerClass::Lumberjack:
+    case PlayerClass::Sharpshooter:
+    case PlayerClass::Mechanic:
+    case PlayerClass::Miner:
+    case PlayerClass::Stump:
     case PlayerClass::Vanguard:
     case PlayerClass::Ranger:
     case PlayerClass::Engineer:
@@ -76,10 +81,10 @@ bool isPlayerClassUnlocked(
 
 std::string_view playerClassUnlockRequirement(PlayerClass playerClass) {
     switch (playerClass) {
-    case PlayerClass::Berserker: return "REACH WAVE 6";
-    case PlayerClass::Vampire: return "DEFEAT 250 ENEMIES";
-    case PlayerClass::Alchemist: return "COLLECT 20 ITEMS";
-    case PlayerClass::Chronomancer: return "CLEAR THE STAGE";
+    case PlayerClass::Berserker: return "REACH NIGHT 6, THEN BUY IN UNLOCKS";
+    case PlayerClass::Vampire: return "DEFEAT 250 ENEMIES, THEN BUY IN UNLOCKS";
+    case PlayerClass::Alchemist: return "COLLECT 20 ITEMS, THEN BUY IN UNLOCKS";
+    case PlayerClass::Chronomancer: return "CLEAR THE STAGE, THEN BUY IN UNLOCKS";
     default: return "UNLOCKED";
     }
 }
@@ -118,7 +123,7 @@ static bool readMetaProgressionFile(
         const nlohmann::json root = nlohmann::json::parse(input);
         if (!root.is_object()) return false;
         const int version = root.value("version", 1);
-        if (version < 1 || version > 4) return false;
+        if (version < 1 || version > 5) return false;
         if (version >= 3 && !root.contains("quests")) return false;
         MetaProgression loaded;
         loaded.silver = nonNegative(root, "silver");
@@ -187,6 +192,8 @@ static bool readMetaProgressionFile(
                 [](const auto& id){return id.empty() || id.size()>128;})) return false;
             if (!shop.at("silverRemainder").is_number_integer()) return false;
             for (const auto& d : MetaShopDefinitions) {
+                if (version < 5 && loaded.shopLevels[static_cast<std::size_t>(d.upgrade)] > 0 && !d.requiredUnlock.empty())
+                    loaded.quests.ownedUnlocks.insert(std::string(d.requiredUnlock));
                 if (loaded.shopLevels[static_cast<std::size_t>(d.upgrade)] > 0 &&
                     !metaShopAvailable(loaded, d.upgrade)) return false;
             }

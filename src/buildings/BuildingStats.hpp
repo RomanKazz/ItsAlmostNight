@@ -41,11 +41,13 @@ struct BuildingStatComparison {
 
 [[nodiscard]] BuildingStats buildingStatsAtLevel(
     const BuildingInstance& building, std::uint8_t level,
-    const CrystalMineSystem& producers);
+    const CrystalMineSystem& producers,
+    double baseMaxHealth = 0.0);
 
 [[nodiscard]] BuildingStatComparison compareBuildingStats(
     const BuildingInstance& building,
     const CrystalMineSystem& producers,
-    std::uint8_t maximumLevel);
+    std::uint8_t maximumLevel,
+    double baseMaxHealth = 0.0);
 
 } // namespace ian

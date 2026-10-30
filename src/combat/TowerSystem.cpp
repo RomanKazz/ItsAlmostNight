@@ -47,7 +47,7 @@ double attackDamage(BuildingType type, std::uint8_t level) {
     if (type == BuildingType::TeslaTower) return 1.2 + 0.3 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     if (type == BuildingType::MissileLauncher) return 2.0 + 0.45 * (std::clamp<int>(level, 1, MaxBuildingLevel) - 1);
     constexpr std::array<double, MaxBuildingLevel> FlameDamage{
-        0.6, 0.85, 1.1, 1.4, 1.7, 2.0, 2.35, 2.7};
+        0.5, 0.75, 1.0, 1.3, 1.6, 1.9, 2.25, 2.6};
     if (type == BuildingType::Flamethrower) return FlameDamage[static_cast<std::size_t>(
         std::clamp<int>(level, 1, MaxBuildingLevel) - 1)];
     constexpr std::array<double, MaxBuildingLevel> CrossbowDamage{
@@ -149,10 +149,12 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
     stats.projectileSpeed = type == BuildingType::GunTurret ? 22.0 : 14.0;
     stats.pierce = piercingCount(type, level);
     stats.spreadDegrees = type == BuildingType::GunTurret ? 2.0 : 1.0;
+    if (type == BuildingType::Turret) stats.fanStepDegrees = 3.0;
     stats.knockback = type == BuildingType::GunTurret ? 0.25 : 0.8;
     if (type == BuildingType::WindBlower) {
         stats.projectileSpeed = 0; stats.spreadDegrees = 0;
         stats.knockback = 8.0 + .6 * (level - 1);
+        stats.duration = WindBlowerPulseSeconds;
     }
     if (type == BuildingType::Flamethrower) {
         stats.projectileSpeed = 0.0;
@@ -177,13 +179,18 @@ AttackStats TowerSystem::baseStats(BuildingType type, std::uint8_t level) {
 }
 
 FinalAttackStats TowerSystem::finalStats(const BuildingInstance& building) const {
+    auto itemModifiers = modifiers_;
+    if (building.maxHealth > 0 && building.health / building.maxHealth < 0.40)
+        itemModifiers[AttackStat::AttackSpeed].multiplier *= 1.0 + 0.15 * sirenStacks_;
     if (building.type == BuildingType::Flamethrower || building.type == BuildingType::MissileLauncher || building.type == BuildingType::TeslaTower || building.type == BuildingType::LaserTower || building.type == BuildingType::WindBlower) {
         return resolveBuildingAttackStats(baseStats(building.type, building.level), building,
-            compatibleAttackModifiers(building.type, modifiers_), bonusType_,
-            compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_);
+            compatibleAttackModifiers(building.type, itemModifiers), bonusType_,
+            compatibleAttackModifiers(building.type, typeModifiers_), highGroundDamageMultiplier_,
+            buildingUpgradeModifiers_[static_cast<std::size_t>(building.type)]);
     }
     return resolveBuildingAttackStats(baseStats(building.type, building.level), building,
-        modifiers_, bonusType_, typeModifiers_, highGroundDamageMultiplier_);
+        itemModifiers, bonusType_, typeModifiers_, highGroundDamageMultiplier_,
+        buildingUpgradeModifiers_[static_cast<std::size_t>(building.type)]);
 }
 
 void TowerSystem::clearProjectiles() {
@@ -194,13 +201,13 @@ void TowerSystem::clearProjectiles() {
     flameBurnSlots_.fill(-1);
     for (auto& tower : towers_) {
         tower.flameRemaining = tower.flameAge = tower.flameTailRemaining = 0.0;
-        tower.windAge = WindBlowerPulseSeconds;
+        tower.windAge = 1000.0;
         tower.laserFocusTarget.reset(); tower.laserFocusSeconds = tower.laserRemaining = 0;
     }
     for (auto& tower : towers_) { tower.sequenceRemaining = 0; tower.sequenceDelay = 0.0; tower.sequenceInterval = 0.0; }
 }
 void TowerSystem::reset() {
-    clearProjectiles(); modifiers_ = {}; typeModifiers_ = {};
+    clearProjectiles(); modifiers_ = {}; typeModifiers_ = {}; buildingUpgradeModifiers_ = {};
     bonusType_ = BuildingType::Core; highGroundDamageMultiplier_ = 1.0;
     towers_.clear(); shotBuffer_.clear(); attackBuffer_.clear(); launches_.clear(); shotSerial_ = 0; shrapnelCount_ = 0;
 }
@@ -285,6 +292,21 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const Vec3 origin = towerPosition(*building);
         const auto stats = finalStats(*building);
         const double range = wind ? windBlowerRange(stats) : flame ? flamethrowerRange(stats) : stats.range;
+        if (wind && tower.windAge < stats.duration) {
+            // The authored impulse remains instant. While the visible gust is
+            // present, a small sustained push keeps Duration meaningful.
+            if (!flameQueryReady) { flameQuery_.rebuild(enemies); flameQueryReady = true; }
+            const Vec3 base = buildingWorldPosition(*building);
+            const Vec3 direction{-std::sin(tower.windYaw), 0, -std::cos(tower.windYaw)};
+            flameQuery_.nearby(enemies, base, range + 2.0, [&](const EnemyInstance& enemy) {
+                if (!windBlowerTouches(enemy, base, tower.windYaw, range)) return;
+                const double along = enemy.knockbackVelocity.x * direction.x +
+                    enemy.knockbackVelocity.z * direction.z;
+                const double strength = std::clamp(stats.knockback * 0.18 * deltaSeconds,
+                    0.0, std::max(0.0, stats.knockback * 0.45 - along));
+                enemies.applyKnockback(enemy.id, direction, strength);
+            });
+        }
         if (building->type == BuildingType::TeslaTower) {
             // Static, omnidirectional building. Quantity means one controlled
             // chain-discharge sequence, with independent visited IDs per bolt.
@@ -469,7 +491,11 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 tower.laserFocusSeconds = 0;
             }
             if (!aligned) continue;
-            tower.laserFocusSeconds = std::min(LaserFocusRampSeconds, tower.laserFocusSeconds + deltaSeconds);
+            // Duration means sustained focus: longer duration reaches the same
+            // maximum ramp damage sooner while staying locked on one target.
+            tower.laserFocusSeconds = std::min(LaserFocusRampSeconds,
+                tower.laserFocusSeconds + deltaSeconds *
+                    stats.duration / baseStats(BuildingType::LaserTower, building->level).duration);
             tower.laserOrigin = laserMuzzleWorldPosition(buildingWorldPosition(*building), tower.yaw, tower.pitch);
             tower.laserEnd = aimPosition;
             tower.laserRemaining = .12;
@@ -489,8 +515,9 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             const EntityId primary=*tower.targetId;
             bool primaryKilled=false;
             for(int ray=0;ray<rays && enemies.enemy(primary);++ray) {
+                const auto rayStats = defenseInstanceStats(focused, building->type, ray);
                 std::optional<EntityId> fromTarget;
-                applyTeslaChain(enemies,teslaQuery_,primary,tower.laserOrigin,defenseInstanceStats(focused,building->type,ray),
+                applyTeslaChain(enemies,teslaQuery_,primary,tower.laserOrigin,rayStats,
                     ++shotSerial_ ^ tower.buildingId.index,teslaVisited_,
                     [&](const AttackHit& hit,Vec3 origin,Vec3 end,int jump) {
                         auto hitStats=focused;hitStats.damage=hit.payloadDamage;
@@ -505,6 +532,40 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                         fromTarget=hit.result.id;
                         primaryKilled|=hit.result.id==primary && hit.result.killed;
                     },&teslaTargetCache_,BuildingType::LaserTower,1.0/focusMultiplier);
+                // Pierce continues on the original beam axis beyond the focus
+                // target. Unlike a bounce, it only hits bodies intersecting
+                // that straight line and never retargets a nearby enemy.
+                const Vec3 beam = geometry::subtract(aimPosition, tower.laserOrigin);
+                const double beamLength = geometry::length(beam);
+                if (beamLength < 1e-6 || beamLength >= rayStats.range) continue;
+                const Vec3 direction = geometry::scale(beam, 1.0 / beamLength);
+                const Vec3 end = geometry::add(tower.laserOrigin,
+                    geometry::scale(direction, rayStats.range));
+                Vec3 pierceStart = aimPosition;
+                std::optional<EntityId> previous = primary;
+                for (int pierce = 0; pierce < effectiveAttackCount(rayStats.pierce); ++pierce) {
+                    const auto contact = teslaQuery_.sweep(enemies, pierceStart, end,
+                        0.16, BuildingType::LaserTower, building->baseHeight, teslaVisited_);
+                    if (!contact) break;
+                    teslaVisited_.push_back(contact->id);
+                    const auto contactStats = defenseContactStats(rayStats, BuildingType::LaserTower,
+                        0, pierce + 1);
+                    if (const auto hit = applyAttackHit(enemies, contact->id, contactStats,
+                            direction, ++shotSerial_ ^ tower.buildingId.index)) {
+                        shotBuffer_.push_back({.towerId=tower.buildingId,.targetId=hit->result.id,
+                            .targetType=hit->result.type,.targetEliteAffixes=hit->result.eliteAffixes,
+                            .origin=pierceStart,.hitPosition=contact->position,
+                            .type=BuildingType::LaserTower,.damage=hit->result.damage,
+                            .payloadDamage=hit->payloadDamage,.secondaryImpact=true,
+                            .critical=hit->critical,.killed=hit->result.killed,.stats=contactStats});
+                        if (laserBeams_.size() < MaximumLaserVisualSegments)
+                            laserBeams_.push_back({tower.buildingId,previous,contact->id,
+                                pierceStart,contact->position,
+                                tower.laserFocusSeconds/LaserFocusRampSeconds,.12,ray,rays});
+                    }
+                    previous = contact->id;
+                    pierceStart = geometry::add(contact->position, geometry::scale(direction, .05));
+                }
             }
             if(primaryKilled) {tower.laserFocusTarget.reset();tower.laserFocusSeconds=0;}
             continue;
@@ -565,9 +626,12 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 if (!hit->result.killed) applyFlameBurn(hit->result.id, tower.buildingId, stats, enemies);
             });
         } else if (crossbow) {
-            for (int instance = 0; instance < effectiveAttackCount(stats.quantity, 1); ++instance) {
-                if (!spawn(stats, tower.yaw + fanAngleDegrees(instance, effectiveAttackCount(stats.quantity, 1), stats.fanStepDegrees) * PiRadians / 180.0,
-                    tower.pitch, instance == effectiveAttackCount(stats.quantity,1)/2 ? 0 : 1)) break;
+            const int count = effectiveAttackCount(stats.quantity, 1);
+            const double fanStep = count > 1
+                ? std::min(stats.fanStepDegrees, 24.0 / (count - 1)) : 0.0;
+            for (int instance = 0; instance < count; ++instance) {
+                if (!spawn(stats, tower.yaw + fanAngleDegrees(instance, count, fanStep) * PiRadians / 180.0,
+                    tower.pitch, instance == count / 2 ? 0 : 1)) break;
             }
         } else {
             // One snapshot and sequence per building. Compression leaves at least

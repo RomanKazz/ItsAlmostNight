@@ -1,11 +1,50 @@
 #include "TestHarness.hpp"
 #include "core/Geometry.hpp"
 #include "graphics/CameraCulling.hpp"
+#include <raymath.h>
 
 #include <limits>
 
 void runGeometryTests() {
     using namespace ian;
+
+    const camera_culling::Frustum clipBox(MatrixIdentity());
+    require(clipBox.intersects({{-0.5F, -0.5F, -0.5F},
+                                {0.5F, 0.5F, 0.5F}}),
+            "frustum retains interior bounds");
+    for (int axis = 0; axis < 3; ++axis) {
+        for (const float sign : {-1.0F, 1.0F}) {
+            Vector3 center{};
+            if (axis == 0) center.x = sign * 2.0F;
+            if (axis == 1) center.y = sign * 2.0F;
+            if (axis == 2) center.z = sign * 2.0F;
+            require(!clipBox.intersects({center, center}),
+                    "frustum rejects outside each of its six planes");
+        }
+    }
+    const BoundingBox windEdge{{1.05F, -0.1F, -0.1F},
+                               {1.1F, 0.1F, 0.1F}};
+    require(!clipBox.intersects(windEdge) &&
+                clipBox.intersects(windEdge, 0.12F),
+            "wind padding retains geometry that can sway into view");
+    require(clipBox.intersects({{0.9F, -0.1F, -0.1F},
+                               {2.0F, 0.1F, 0.1F}}),
+            "frustum retains a mesh straddling an edge");
+    const Matrix downwardView = MatrixLookAt(
+        {0.0F, 10.0F, 0.0F}, {}, {0.0F, 0.0F, -1.0F});
+    const camera_culling::Frustum downwardFrustum(MatrixMultiply(
+        downwardView, MatrixPerspective(PI / 2.0, 2.0, 0.1, 100.0)));
+    require(downwardFrustum.intersects({{-1.0F, 0.0F, -1.0F},
+                                       {1.0F, 1.0F, 1.0F}}),
+            "pitched camera retains grass below it");
+    require(!downwardFrustum.intersects({{-1.0F, 12.0F, -1.0F},
+                                        {1.0F, 13.0F, 1.0F}}),
+            "pitched camera rejects bounds behind its view");
+    require(downwardFrustum.intersects({{17.0F, 0.0F, 0.0F},
+                                       {18.0F, 0.1F, 0.1F}}) &&
+                !downwardFrustum.intersects({{0.0F, 0.0F, 17.0F},
+                                             {0.1F, 0.1F, 18.0F}}),
+            "frustum uses the render target aspect ratio");
 
     requireNear(
         geometry::distanceSquared({1.0, 2.0, 3.0}, {4.0, 6.0, 3.0}),

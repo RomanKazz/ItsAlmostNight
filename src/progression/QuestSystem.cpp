@@ -16,7 +16,7 @@ bool maximumMetric(QuestMetric metric) {
     return metric == QuestMetric::WaveReached || metric == QuestMetric::PlayerLevel ||
         metric == QuestMetric::UpgradeLevel || metric == QuestMetric::MaximumHealth ||
         metric == QuestMetric::DefenseDamage || metric == QuestMetric::QuestsCompleted ||
-        metric == QuestMetric::UnlocksPurchased;
+        metric == QuestMetric::UnlocksPurchased || metric == QuestMetric::DawnReserve;
 }
 
 double legacyValue(QuestMetric metric, const MetaProgression& progression) {
@@ -89,14 +89,33 @@ QuestSystem::QuestSystem(std::vector<QuestDefinition> definitions)
 
 void QuestSystem::initialize(MetaProgression& progression) const {
     const bool migrate = !progression.quests.initialized;
+    if (migrate) {
+        if (progression.bestWave >= 6) progression.quests.ownedUnlocks.insert("class.berserker");
+        if (progression.enemiesDefeated >= 250) progression.quests.ownedUnlocks.insert("class.vampire");
+        if (progression.lootCollected >= 20) progression.quests.ownedUnlocks.insert("class.alchemist");
+        if (progression.stageClears >= 1) progression.quests.ownedUnlocks.insert("class.chronomancer");
+    }
+    for (const auto& shop : MetaShopDefinitions) {
+        if (progression.shopLevels[static_cast<std::size_t>(shop.upgrade)] > 0 && !shop.requiredUnlock.empty())
+            progression.quests.ownedUnlocks.insert(std::string(shop.requiredUnlock));
+    }
+    bool extendedCatalog = false;
     for (const auto& definition : definitions_) {
+        const bool newDefinition = !progression.quests.progress.contains(definition.id);
+        extendedCatalog = extendedCatalog || newDefinition;
         auto& progress = progression.quests.progress[definition.id];
         progress.values.resize(definition.conditions.size());
         for (std::size_t index = 0; index < progress.values.size(); ++index) {
             const auto& condition = definition.conditions[index];
             auto& value = progress.values[index];
             if (!std::isfinite(value) || value < 0.0) value = 0.0;
-            if (migrate && condition.scope == QuestScope::Lifetime &&
+            if (newDefinition && !migrate && progression.quests.runActive &&
+                condition.scope == QuestScope::Run && condition.comparison == QuestComparison::AtMost) {
+                // We have no history for a newly added no-damage/no-chest goal.
+                // It becomes attemptable next run rather than assuming past actions were zero.
+                value = condition.target + 1.0;
+            }
+            if ((migrate || newDefinition) && condition.scope == QuestScope::Lifetime &&
                 condition.subject.empty() && condition.playerClass.empty()) {
                 value = std::max(value, legacyValue(condition.metric, progression));
             }
@@ -108,11 +127,9 @@ void QuestSystem::initialize(MetaProgression& progression) const {
             progression.quests.ownedUnlocks.insert(definition.reward.unlockId);
         }
     }
-    if (migrate) {
-        progression.quests.runActive = false;
-        static_cast<void>(collect(progression, false));
-        progression.quests.initialized = true;
-    }
+    if (migrate) progression.quests.runActive = false;
+    if (migrate || extendedCatalog) static_cast<void>(collect(progression, false));
+    progression.quests.initialized = true;
 }
 
 void QuestSystem::beginRun(MetaProgression& progression) const {

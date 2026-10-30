@@ -40,7 +40,6 @@ enum class ObjectiveMetric : std::uint8_t {
     CoinsCollected,
     ChestsOpened,
     LootCollected,
-    PlayerDashes,
     RifleShots,
     ElementalHits,
     TrapHits,

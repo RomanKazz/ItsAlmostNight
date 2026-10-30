@@ -1,5 +1,10 @@
 #include "app/App.hpp"
 
+#include <raylib.h>
+
+#include <cstdio>
+#include <memory>
+
 #ifdef IAN_PRESENTATION_SMOKE_TEST
 #include <string_view>
 #include <charconv>
@@ -18,6 +23,23 @@ int main(int argc, char** argv) {
 #else
     static_cast<void>(argc);static_cast<void>(argv);
 #endif
-    ian::App app;
-    return app.run();
+    // Runtime assets are packaged beside the executable. Finder and shortcuts
+    // may start us from any working directory, so resolve relative paths here.
+    if (!ChangeDirectory(GetApplicationDirectory())) {
+        std::fputs("Failed to locate the game directory.\n", stderr);
+        return 1;
+    }
+#if defined(__APPLE__)
+    // The release places assets beside the .app, keeping save data outside
+    // the signed bundle. The development executable still uses its own dir.
+    if (!DirectoryExists("assets/data")) {
+        static_cast<void>(ChangeDirectory("../../.."));
+    }
+#endif
+    if (!DirectoryExists("assets/data")) {
+        std::fputs("Game assets are missing.\n", stderr);
+        return 1;
+    }
+    auto app = std::make_unique<ian::App>();
+    return app->run();
 }

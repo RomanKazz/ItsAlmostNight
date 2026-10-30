@@ -53,6 +53,51 @@ int main() {
     std::set<NightPattern> patterns;
     bool coherent = false, actsDiffer = false, cyclesDiffer = false;
     for (std::uint32_t seed = 0; seed < 100; ++seed) {
+        for (int night = 1; night <= 9; ++night) {
+            const auto forecast = director.forecast(night, seed);
+            if (night <= 5) require(forecast.pattern == NightPattern::Horde,
+                "onboarding nights cannot roll disruptive encounter themes");
+            for (int act = 0; act < 3; ++act) {
+                const auto early = director.buildWave(night, {}, 0,
+                    {.runSeed = seed, .act = act});
+                const EnemyType introduced = night == 6 ? EnemyType::Flying :
+                    night == 7 ? EnemyType::Bee : EnemyType::AirTank;
+                if (night == 6 || night == 7 || night == 9)
+                    require(std::ranges::any_of(early.spawns,
+                        [introduced](const auto& spawn) { return spawn.type == introduced; }),
+                        "first night after an unlock visibly introduces its new flying role");
+                if (night == 6 || night == 8) {
+                    const auto count = [&](EnemyType type) {
+                        return std::ranges::count_if(early.spawns,
+                            [type](const auto& spawn) { return spawn.type == type; });
+                    };
+                    require(night == 6
+                            ? count(EnemyType::Flying) <= 3 &&
+                                count(EnemyType::Heavy) <= 5
+                            : count(EnemyType::Heavy) <= 4 &&
+                                count(EnemyType::Ranged) <= 5,
+                        "first air night and first boss night avoid excessive heavy support");
+                }
+                for (const auto& spawn : early.spawns) {
+                    int unlock = 1;
+                    switch (spawn.type) {
+                    case EnemyType::Fast: unlock = 2; break;
+                    case EnemyType::Heavy: unlock = 3; break;
+                    case EnemyType::Ranged: unlock = 4; break;
+                    case EnemyType::Splitter: unlock = 5; break;
+                    case EnemyType::Flying: unlock = 6; break;
+                    case EnemyType::Bee: unlock = 7; break;
+                    case EnemyType::Boss: unlock = 8; break;
+                    case EnemyType::AirTank: unlock = 9; break;
+                    default: break;
+                    }
+                    require(night >= unlock,
+                        "encounter themes and acts cannot bypass enemy unlock nights");
+                    if (night < 5) require(spawn.eliteAffixes == 0,
+                        "first four nights contain no elite enemies");
+                }
+            }
+        }
         const auto forecast = director.forecast(7, seed);
         patterns.insert(forecast.pattern);
         require(forecast.pattern == director.forecast(7, seed).pattern,
@@ -173,9 +218,9 @@ int main() {
             xpAfterDawn == killsAfterDawn * static_cast<int>(std::lround(cleanup->insightSystem().config().enemy[0])),
             "all post-countdown kills retain their ordinary XP rewards");
         require(cleanup->snapshot().state == RunState::WaveComplete &&
-            cleanup->snapshot().activeEnemyCount == 0 && cleanup->snapshot().runShop.pending &&
+            cleanup->snapshot().activeEnemyCount == 0 && !cleanup->snapshot().runShop.pending &&
             completions == 1 && rewards == 1,
-            "the last kill completes the night and opens exactly one rewarded shop intermission");
+            "the last kill completes the night and grants its reward once without opening the disabled shop");
         cleanup->tick(1);
         for (const auto& event : cleanup->takeEvents())
             require(event.type != GameEventType::WaveCompleted && event.type != GameEventType::WaveRewardGranted,
@@ -231,7 +276,7 @@ int main() {
         auto checkpoint = pressure->saveSuspendedRunState();
         checkpoint.wave = checkpoint.bestWave = 10;
         pressure->returnToMainMenu();
-        require(pressure->loadSuspendedRunState(checkpoint), "cleanup overtime checkpoint loads");
+        require(pressure->loadSuspendedRunState(checkpoint), "endless pressure checkpoint loads");
         PlayerCommand god;
         god.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
         pressure->tick(0, god);
@@ -240,10 +285,11 @@ int main() {
         const auto alive = pressure->snapshot().activeEnemyCount;
         pressure->tick(3);
         require(pressure->snapshot().state == RunState::Wave &&
-            pressure->snapshot().activeEnemyCount == alive,
-            "ordinary late-night cleanup stays active without replenishment");
+            pressure->snapshot().finalNight && pressure->snapshot().phaseDuration==0 &&
+            pressure->snapshot().activeEnemyCount > alive,
+            "night eleven keeps replenishing enemies beyond the ordinary dawn time");
         requireNear(pressure->snapshot().overtimeSeconds, 15.0, 1e-12,
-            "overtime continues through cleanup on ordinary nights as well as boss nights");
+            "continuous night keeps advancing overtime after its former duration");
     }
 
     auto strong = fixture();

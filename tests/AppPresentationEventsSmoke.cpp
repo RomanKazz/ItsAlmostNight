@@ -1,21 +1,174 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "app/TutorialPresentation.hpp"
+#include "ui/EnemySpawnMenu.hpp"
 #include <filesystem>
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <fstream>
+#include <chrono>
 #include <rlgl.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 
 namespace ian {
+bool checkRelicSaveJsonRoundTrip();
 struct AppPresentationTestAccess {
     static int run() {
+        if (!checkRelicSaveJsonRoundTrip()) {std::cerr << "Relic JSON save roundtrip failed\n";return 1;}
         auto app=std::make_unique<App>();
         SetConfigFlags(FLAG_WINDOW_HIDDEN|FLAG_WINDOW_HIGHDPI);
         InitWindow(800,600,"Presentation event integration");
         if(!IsWindowReady()) return 77;
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
+        if (const char* directory=std::getenv("IAN_ECONOMY_ENDLESS_CAPTURE")) {
+            const Camera3D camera{{0,2,8},{0,1,0},{0,1,0},55,CAMERA_PERSPECTIVE};
+            WorldLighting light{}; light.cameraPosition=camera.position;
+            const auto target=LoadRenderTexture(800,600);
+            std::array<IceWandProjectile,1> shots{{{
+                .id={800,1},.previousPosition={-1,1,0},.position={1,1,0},.velocity={4,0,0},
+                .trail={Vec3{1,1,0},Vec3{0,1,0},Vec3{-1,1,0}},.trailCount=3,
+                .age=.5,.lifetime=2,.radius=.25,.element=WandElement::Fire,.active=true}}};
+            std::array<EnemyProjectile,1> hostile{{{
+                .id={801,1},.ownerId={802,1},.position={1,1,0},.previousPosition={-1,1,0},
+                .velocity={4,0,0},.radius=.3,.lifetimeRemaining=2,.active=true}}};
+            std::array<CannonProjectile,1> shells{};
+            shells[0].active=true; shells[0].position={1,1,0}; shells[0].velocity={4,0,0};
+            shells[0].trailHead=2; shells[0].trailPointCount=3;
+            shells[0].trailPositions[0]={-2,1,0}; shells[0].trailPositions[1]={-1,1,0};
+            shells[0].trailPositions[2]={1,1,0};
+            std::array<AttackProjectile,1> bullets{};
+            bullets[0].active=true; bullets[0].position={1,1,0}; bullets[0].previousPosition={-1,1,0};
+            bullets[0].launchOrigin={-2,1,0}; bullets[0].runtime.velocity={4,0,0};
+            bullets[0].runtime.previousTravelledDistance=1; bullets[0].runtime.travelledDistance=3;
+            bullets[0].configuration.stats.damage=10; bullets[0].configuration.stats.size=2;
+            std::array<BombProjectile,1> bombs{{{
+                .id={803,1},.position={1,1,0},.fuseRemaining=1,.fuseDuration=3,.active=true}}};
+            snapshot.elapsedSeconds=8;
+            bool okay=true;
+            constexpr std::array names{"fire","ice","cannon","catapult","mortar","turret",
+                "gun","missile","shrapnel","stinger","magic","royal","bomb"};
+            for(std::size_t kind=0;kind<names.size();++kind) {
+                snapshot.fireWandProjectiles={}; snapshot.iceWandProjectiles={}; snapshot.cannonProjectiles={};
+                snapshot.defenseProjectiles={}; snapshot.enemyProjectiles={}; snapshot.bombProjectiles={};
+                shots[0].element=kind==1 ? WandElement::Ice : WandElement::Fire;
+                if(kind==0) snapshot.fireWandProjectiles=shots;
+                else if(kind==1) snapshot.iceWandProjectiles=shots;
+                else if(kind<=4) {
+                    shells[0].type=kind==2 ? BuildingType::Cannon : kind==3 ? BuildingType::Catapult : BuildingType::Mortar;
+                    snapshot.cannonProjectiles=shells;
+                } else if(kind<=8) {
+                    bullets[0].type=kind==5 ? BuildingType::Turret : kind==7 ? BuildingType::MissileLauncher : BuildingType::GunTurret;
+                    bullets[0].shrapnel=kind==8; snapshot.defenseProjectiles=bullets;
+                } else if(kind<=11) {
+                    hostile[0].stinger=kind==9; hostile[0].royal=kind==11;
+                    snapshot.enemyProjectiles=hostile;
+                } else snapshot.bombProjectiles=bombs;
+                for(int pausedBy=0;pausedBy<3;++pausedBy) {
+                    snapshot.state=pausedBy==0 ? RunState::Paused : RunState::Wave;
+                    snapshot.runUpgradeChoicePending=pausedBy==1; snapshot.runShop.pending=pausedBy==2;
+                    std::vector<Color> reference;
+                    bool stable=true, visible=true;
+                    for(const float alpha : {.05F,.95F}) {
+                        okay &= app_detail::worldInterpolationAlpha(snapshot,alpha)==1;
+                        app->renderer_->beginFrame();
+                        BeginTextureMode(target); ClearBackground({29,47,57,255}); BeginMode3D(camera);
+                        app->drawWorldProjectiles(snapshot,camera,light,alpha);
+                        EndMode3D(); EndTextureMode();
+                        auto capture=LoadImageFromTexture(target.texture);
+                        auto* pixels=LoadImageColors(capture);
+                        if(reference.empty()) reference.assign(pixels,pixels+capture.width*capture.height);
+                        else for(std::size_t i=0;i<reference.size();++i)
+                            stable &= reference[i].r==pixels[i].r && reference[i].g==pixels[i].g && reference[i].b==pixels[i].b;
+                        int ink=0;
+                        for(std::size_t i=0;i<reference.size();++i)
+                            ink+=pixels[i].r!=29 || pixels[i].g!=47 || pixels[i].b!=57;
+                        visible &= ink>20;
+                        UnloadImageColors(pixels); UnloadImage(capture);
+                        WaitTime(.005);
+                    }
+                    if(!stable || !visible) std::cerr << "Projectile pause regression: " << names[kind]
+                        << " mode=" << pausedBy << " stable=" << stable << " visible=" << visible << "\n";
+                    okay &= stable && visible;
+                }
+            }
+            snapshot.state=RunState::Wave; snapshot.runUpgradeChoicePending=false; snapshot.runShop.pending=false;
+            okay &= std::abs(app_detail::worldInterpolationAlpha(snapshot,.25)-.25F)<.00001F;
+            snapshot.fireWandProjectiles={}; snapshot.iceWandProjectiles={}; snapshot.cannonProjectiles={};
+            snapshot.defenseProjectiles={}; snapshot.enemyProjectiles={}; snapshot.bombProjectiles={};
+
+            app->simulation_.startRunFromSeed(PlayerClass::Vanguard,817);
+            app->simulation_.togglePause();
+            app->effects_.push_back({.type=PresentationEffectType::ChainLightning,
+                .position={-1,1,0},.targetPosition=Vec3{1,1,0},.remaining=.15,.duration=.4});
+            std::vector<Color> lightningReference;
+            for(int frame=0;frame<2;++frame) {
+                app->renderer_->beginFrame();
+                BeginTextureMode(target); ClearBackground({29,47,57,255}); BeginMode3D(camera);
+                app->drawPresentationEffects(camera,light);
+                EndMode3D(); EndTextureMode();
+                auto capture=LoadImageFromTexture(target.texture); auto* pixels=LoadImageColors(capture);
+                if(frame==0) lightningReference.assign(pixels,pixels+capture.width*capture.height);
+                else for(std::size_t i=0;i<lightningReference.size();++i)
+                    okay &= lightningReference[i].r==pixels[i].r && lightningReference[i].g==pixels[i].g && lightningReference[i].b==pixels[i].b;
+                UnloadImageColors(pixels); UnloadImage(capture); WaitTime(.03);
+            }
+            app->effects_.clear();
+            app->ui_.initialize();
+            snapshot.fireWandProjectiles={}; snapshot.state=RunState::Wave;
+            snapshot.runUpgradeChoicePending=false; snapshot.runShop.pending=false; snapshot.finalNight=true;
+            snapshot.overtimeSeconds=63; snapshot.overtimeActive=true; snapshot.wave=12; snapshot.activeEnemyCount=240;
+            snapshot.phaseDuration=0; snapshot.phaseTimeRemaining=0;
+            BeginTextureMode(target); ClearBackground({68,95,85,255});
+            drawHud(app->ui_,snapshot,HudViewState{.minimapHidden=true},camera,app->userSettings_.controls);
+            EndTextureMode();
+            auto capture=LoadImageFromTexture(target.texture); ImageFlipVertical(&capture);
+            std::filesystem::create_directories(directory);
+            ExportImage(capture,(std::filesystem::path(directory)/"endless-hud.png").string().c_str());
+            UnloadImage(capture);
+            const std::array<WorldLandmarkInstance,1> landmarks{{{
+                .id={805,1},.type=WorldLandmarkType::LumberMill,.position={0,0,0},
+                .activated=true,.level=2,.upgradeCoinCost=75,.incomePerMinute=90,.nextIncomePerMinute=120}}};
+            snapshot.worldLandmarks=landmarks; snapshot.aimedWorldLandmark=landmarks[0].id;
+            snapshot.coins=100;
+            const auto producer=app->buildInteractionPrompt(snapshot,camera);
+            okay &= producer && producer->actionText=="UPGRADE" && producer->worldAnchor.y==2.8F &&
+                producer->cost && producer->cost->crystals==75;
+            const auto spawnLayout=enemy_spawn_menu::layout({800,600});
+            EnemyType selected=EnemyType::Basic; EliteAffix variant{}; int count=1;
+            EnemySpawnMenuInput clickNight{
+                .pointer={spawnLayout.startNight.x+5,spawnLayout.startNight.y+5},.click=true};
+            BeginTextureMode(target);
+            const auto start=drawEnemySpawnCatalog(app->ui_,selected,variant,count,0,{800,600},clickNight,true);
+            const auto blocked=drawEnemySpawnCatalog(app->ui_,selected,variant,count,0,{800,600},clickNight,false);
+            okay &= start.startNight && !start.summon && !blocked.startNight;
+            EndTextureMode();
+            auto* window=glfwGetCurrentContext();
+            const auto mouseCallback=glfwSetMouseButtonCallback(window,nullptr);
+            glfwSetMouseButtonCallback(window,mouseCallback);
+            if(mouseCallback) mouseCallback(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            SetTargetFPS(120);
+            for(int frame=0;frame<35;++frame) {
+                BeginDrawing(); ClearBackground({68,95,85,255});
+                app->interactionPromptRenderer_.draw(producer,camera,app->ui_,app->userSettings_.controls);
+                EndDrawing();
+            }
+            BeginTextureMode(target); ClearBackground({68,95,85,255});
+            app->interactionPromptRenderer_.draw(producer,camera,app->ui_,app->userSettings_.controls);
+            EndTextureMode();
+            capture=LoadImageFromTexture(target.texture); ImageFlipVertical(&capture);
+            ExportImage(capture,(std::filesystem::path(directory)/"world-producer.png").string().c_str());
+            if(mouseCallback) mouseCallback(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
+            UnloadImage(capture); UnloadRenderTexture(target);
+            app->ui_.shutdown(); app->renderer_->shutdown(); app->renderer_.reset();
+            CloseWindow();
+            if(!okay) std::cerr << "Paused and upgrade-screen projectiles must freeze independently of interpolation alpha\n";
+            else std::cout << "13 projectile variants freeze across pause/upgrade/shop screens; lightning and UI renders passed\n";
+            return okay?0:1;
+        }
         {
             TutorialHintPresentation hint;
             for (int i = 0; i < 20; ++i) hint.update(TutorialObjective::MineWood, false, .016);
@@ -167,6 +320,102 @@ struct AppPresentationTestAccess {
             app->effects_.clear(); app->buildingImpactVisuals_.clear();
         }
 
+        {
+            auto sample = snapshot;
+            sample.state = RunState::Gathering;
+            std::array<BuildingInstance, 1> targets{{{
+                .id = {987, 1}, .type = BuildingType::GunTurret,
+                .gridPosition = {0, 0}, .health = 50, .maxHealth = 100,
+            }}};
+            sample.buildings = targets;
+            sample.aimedBuilding = targets[0].id;
+            const Camera3D view{{0, 3, 8}, {0, 1, 0}, {0, 1, 0}, 60, CAMERA_PERSPECTIVE};
+            const auto damaged = app->buildInteractionPrompt(sample, view);
+            targets[0].health = 100;
+            const auto healthy = app->buildInteractionPrompt(sample, view);
+            targets[0].type = BuildingType::Wall;
+            targets[0].health = 50;
+            const auto fence = app->buildInteractionPrompt(sample, view);
+            if (!damaged || !damaged->showRepair || !damaged->showRemove || !damaged->showRotate ||
+                !healthy || healthy->showRepair || !healthy->showRemove || !healthy->showRotate ||
+                !fence || !fence->showRepair || fence->showRotate || !fence->actionText.empty()) {
+                std::cerr << "Building repair/remove prompts disagree with health or fence input\n";
+                return 1;
+            }
+            app->removalDragActive_ = true;
+            app->removalDragTargets_ = {targets[0].id};
+            const auto selected = app->buildingFeedbackHighlightAt({}, targets[0].id, 0, 3);
+            app->removalDragActive_ = false;
+            app->removalDragTargets_.clear();
+            const auto cleared = app->buildingFeedbackHighlightAt({}, targets[0].id, 0, 3);
+            if (selected.removalAmount < .6F || cleared.removalAmount != 0) {
+                std::cerr << "Removal tint does not clear after releasing removal mode\n";
+                return 1;
+            }
+            std::array<BuildingInstance, 2> removalBuildings{targets[0], targets[0]};
+            removalBuildings[1].id = {988, 1};
+            sample.buildings = removalBuildings;
+            const auto first = removalBuildings[0].id, second = removalBuildings[1].id;
+            const int removalKey = controlKey(app->userSettings_.controls, ControlAction::Sell);
+            const auto removalFrame = [&](bool held, std::optional<EntityId> aim, double seconds) {
+                PollInputEvents();
+                PlayAutomationEvent({0, held ? 2U : 1U, {removalKey, 0, 0, 0}});
+                app->processRemovalInput(sample, aim, true, seconds);
+            };
+            removalFrame(true, first, .016);
+            removalFrame(true, std::nullopt, .10);
+            removalFrame(true, std::nullopt, .10);
+            removalFrame(true, first, .016);
+            removalFrame(false, first, .016);
+            if (app->removalDragActive_ || !app->queuedBuildingSales_.empty()) {
+                std::cerr << "Looking away must cancel without rearming while X remains held\n";
+                return 1;
+            }
+            removalFrame(true, first, .016);
+            removalFrame(false, std::nullopt, .016);
+            if (!app->queuedBuildingSales_.empty()) {
+                std::cerr << "Releasing X off target must cancel immediately\n";
+                return 1;
+            }
+            removalFrame(true, first, .016);
+            removalFrame(true, std::nullopt, .08);
+            removalFrame(true, second, .016);
+            removalFrame(false, second, .016);
+            if (app->queuedBuildingSales_.size() != 2 || app->removalDragActive_) {
+                std::cerr << "Brief gaps must preserve intentional multi-building removal\n";
+                return 1;
+            }
+            app->queuedBuildingSales_.clear();
+        }
+
+        {
+            const auto original=app->metaProgression_;
+            const auto persisted=app->persistedMetaProgression_;
+            app->metaProgression_={};app->persistedMetaProgression_={};
+            auto runSnapshot=snapshot;runSnapshot.sandboxMode=false;runSnapshot.unlimitedResources=false;
+            const auto send=[&](std::initializer_list<GameEvent> batch) {
+                app->recordMetaProgression(std::span(batch.begin(),batch.size()),runSnapshot);
+            };
+            const auto hint=[&] {
+                return presentedTutorialObjective(TutorialObjective::PlaceCore,ActionMode::Equipment,
+                    app->metaProgression_.runsPlayed);
+            };
+            send({{.type=GameEventType::RunStarted}});
+            bool hints=app->metaProgression_.runsPlayed==1 && hint()==TutorialObjective::OpenBuildMode;
+            send({{.type=GameEventType::BuildingRejected},{.type=GameEventType::PauseChanged}});
+            hints &= app->metaProgression_.placementControlHintsUsed==0;
+            send({{.type=GameEventType::BuildingPlaced},{.type=GameEventType::ModularBuildingPlaced}});
+            hints &= app->metaProgression_.placementControlHintsUsed==1;
+            send({{.type=GameEventType::BuildingPlaced}});
+            hints &= app->metaProgression_.placementControlHintsUsed==2;
+            send({{.type=GameEventType::BuildingPlaced}});
+            hints &= app->metaProgression_.placementControlHintsUsed==2;
+            send({{.type=GameEventType::RunRestarted}});
+            hints &= app->metaProgression_.runsPlayed==2 && !hint();
+            app->metaProgression_=original;app->persistedMetaProgression_=persisted;
+            app->questGameplayTracker_={};
+            if(!hints) {std::cerr<<"First-run or placement-hint lifetime failed\n";return 1;}
+        }
         const std::array events{
             GameEvent{.type=GameEventType::ChainLightningHit,.entityId=EntityId{810,1},.sourceId=EntityId{990,1},
                 .buildingType=BuildingType::TeslaTower,.position={0,1.26,0},.targetPosition=Vec3{1.4,.7,-2},.secondaryImpact=true},
@@ -817,17 +1066,261 @@ struct AppPresentationTestAccess {
         destruction &= premature==0;
         okay &= destruction;
         if(!destruction)std::cerr << "Building destruction model, animation, dust delay or expiry failed\n";
+        app->effects_.clear();
+        const double rootGround=app->simulation_.terrain().getHeight(0,0);
+        const std::array roots{GameEvent{.type=GameEventType::StumpRootWave,.position={0,rootGround,0},
+            .targetPosition=Vec3{0,rootGround,-1},.intensity=1,.duration=1.25}};
+        app->processPresentationEvents(roots,snapshot);
+        bool rootOkay=count(PresentationEffectType::StumpRootWave)==1;
+        for(auto& effect:app->effects_) effect.remaining=effect.duration-.43;
+        const Camera3D rootCamera{{7,static_cast<float>(rootGround)+5,5},
+            {0,static_cast<float>(rootGround),-3},{0,1,0},55,CAMERA_PERSPECTIVE};
+        lighting.cameraPosition=rootCamera.position;
+        app->renderer_->beginFrame();BeginTextureMode(target);ClearBackground({29,47,57,255});BeginMode3D(rootCamera);
+        app->drawPresentationEffects(rootCamera,lighting);EndMode3D();EndTextureMode();
+        Image rootImage=LoadImageFromTexture(target.texture);auto* rootPixels=LoadImageColors(rootImage);
+        int brown=0;
+        for(int i=0;i<rootImage.width*rootImage.height;++i) brown+=rootPixels[i].r>50 &&
+            int(rootPixels[i].r)*10>int(rootPixels[i].g)*13;
+        rootOkay &= brown>200;
+        if(const char* capture=std::getenv("IAN_CAPTURE_STUMP")) {
+            ImageFlipVertical(&rootImage);std::filesystem::create_directories(capture);
+            ExportImage(rootImage,(std::filesystem::path(capture)/"app-roots.png").string().c_str());
+        }
+        UnloadImageColors(rootPixels);UnloadImage(rootImage);
+        okay &= rootOkay;
+        if(!rootOkay) std::cerr<<"Stump roots failed event routing or actual App rendering\n";
+        // Destructive UI actions run only in the test's dedicated temporary folder.
+        if(!std::filesystem::current_path().filename().string().starts_with("ian-presentation-events-smoke-")) {
+            std::cerr<<"Refusing progress reset test outside its sandbox\n";return 1;
+        }
+        app->questSystem_=QuestSystem({
+            {"first_hit","First victory","Defeat one enemy",QuestCategory::General,
+                {{QuestMetric::EnemiesDefeated,QuestScope::Lifetime,1,QuestComparison::AtLeast,{},{}}}, {},{3,{},0},"Enemy defeated"},
+            {"first_unlock","Abacus","Defeat one enemy",QuestCategory::Items,
+                {{QuestMetric::EnemiesDefeated,QuestScope::Lifetime,1,QuestComparison::AtLeast,{},{}}}, {},{0,"item.abacus",5}}});
+        app->metaProgression_={};app->persistedMetaProgression_={};app->questGameplayTracker_={};
+        app->questCompletionNotices_.clear();app->questCompletionRemaining_=0;
+        app->simulation_.returnToMainMenu();
+        app->simulation_.startRunFromSeed(PlayerClass::Stump,614);
+        app->playerArrival_.reset();app->hudHidden_=false;app->coreDefenseMenuVisible_=false;
+        app->renderer_->setGraphicsPanelVisible(false);
+        auto questSnapshot=app->simulation_.snapshot();
+        const std::array runStart{GameEvent{.type=GameEventType::RunStarted}};
+        const std::array kill{GameEvent{.type=GameEventType::EnemyKilled}};
+        app->recordMetaProgression(runStart,questSnapshot);
+        app->recordMetaProgression(kill,questSnapshot);
+        bool quests=app->questCompletionNotices_.size()==2 && app->metaProgression_.silver==0 &&
+            app->questCompletionNotices_.front().title=="Enemy defeated" &&
+            app->questCompletionNotices_.back().title=="Abacus";
+        app->recordMetaProgression(kill,questSnapshot);
+        quests &= app->questCompletionNotices_.size()==2;
+        app->updateQuestCompletionNotices(.2);
+        const double held=app->questCompletionRemaining_;
+        app->simulation_.togglePause();app->updateQuestCompletionNotices(100);
+        quests &= app->questCompletionRemaining_==held;
+        app->simulation_.togglePause();app->updateQuestCompletionNotices(5);
+        quests &= app->questCompletionNotices_.size()==1 && app->questCompletionNotices_.front().id=="first_unlock";
+        app->updateQuestCompletionNotices(.1);
+        quests &= app->questCompletionRemaining_>4;
+        okay &= quests;
+        if(!quests) std::cerr<<"Quest completion queue, duplicate filtering, reward ownership or pause timing failed\n";
+        app->metaProgression_.silver=99;app->metaProgression_.placementControlHintsUsed=2;
+        app->metaProgression_.quests.ownedUnlocks.insert("class.berserker");
+        app->metaProgression_.quests.purchasedUnlocks.insert("class.berserker");
+        app->renderer_->settings().brightness=.17F;app->userSettings_.controls.mouseSensitivity=1.6F;
+        app->persistUserSettings(true);
+        const auto read=[](const char* path) {std::ifstream input(path);return std::string(std::istreambuf_iterator<char>(input),{});};
+        const auto settingsBefore=read("user_settings/game_settings.json");
+        for(const auto* name:{"user_settings/suspended_run.json","user_settings/suspended_run.json.bak",
+            "user_settings/suspended_run.json.tmp","user_settings/suspended_run.bin","user_settings/meta_progression.json.bak"}) {
+            std::ofstream file(name);file<<"old progress";
+        }
+        app->renderer_->setGraphicsPanelVisible(true);app->resumeAfterSettings_=true;
+        bool reset=app->resetAllProgress();
+        MetaProgression clean;app->questSystem_.initialize(clean);
+        MetaProgression saved;
+        reset &= app->metaProgression_==clean && app->persistedMetaProgression_==clean &&
+            loadMetaProgression("user_settings/meta_progression.json",saved) && saved==clean &&
+            app->simulation_.snapshot().state==RunState::MainMenu && app->questCompletionNotices_.empty() &&
+            !app->resumeAfterSettings_ && read("user_settings/game_settings.json")==settingsBefore;
+        reset &= app->simulation_.takeEvents().empty();
+        for(const auto* name:{"user_settings/suspended_run.json","user_settings/suspended_run.json.bak",
+            "user_settings/suspended_run.json.tmp","user_settings/suspended_run.bin","user_settings/meta_progression.json.bak"})
+            reset &= !std::filesystem::exists(name);
+        app->metaProgression_.silver=88;
+        const auto unchanged=app->metaProgression_;
+        std::filesystem::create_directory("user_settings/meta_progression.json.bak");
+        {std::ofstream file("user_settings/meta_progression.json.bak/blocked");file<<"test";}
+        reset &= !app->resetAllProgress() && app->metaProgression_==unchanged;
+        std::filesystem::remove_all("user_settings/meta_progression.json.bak");
+        okay &= reset;
+        if(!reset) std::cerr<<"Full progress reset, backup cleanup, settings preservation or failed-write handling failed\n";
+        // Exercise the actual keyboard handlers, including every modifier group.
+        // raylib's public automation API uses event types 1 (up) and 2 (down).
+        app->renderer_->setGraphicsPanelVisible(false);
+        app->simulation_.startRunFromSeed(PlayerClass::Vanguard,91234);
+        app->playerArrival_.reset();app->resetRunInputState();
+        app->coreDefenseMenuVisible_=false;app->coreMenuPointerActive_=false;
+        app->userSettings_.debugHotkeysEnabled=false;
+        const auto seedBefore=app->simulation_.terrain().seed();
+        const auto graphicsBefore=app->renderer_->settings();
+        const auto timeBefore=app->environment_.timeOfDay();
+        const auto frozenBefore=app->environment_.frozen();
+        const auto spawnTypeBefore=app->debugSpawnType_;
+        const auto chord=[&](int key,int modifier=KEY_NULL) {
+            PollInputEvents();
+            if(modifier!=KEY_NULL) PlayAutomationEvent({0,2,{modifier,0,0,0}});
+            PlayAutomationEvent({0,2,{key,0,0,0}});
+            app->processInput();
+            PlayAutomationEvent({0,1,{key,0,0,0}});
+            if(modifier!=KEY_NULL) PlayAutomationEvent({0,1,{modifier,0,0,0}});
+            PollInputEvents();
+        };
+        bool debugKeys=true;
+        const auto cleanDebugState=[&] {
+            return !app->pendingUnlimitedResources_ && !app->pendingRevealChest_ &&
+                !app->pendingDefeatAllEnemies_ && !app->pendingToggleInvulnerability_ &&
+                !app->pendingGrantInsight_ && !app->pendingDamageCore_ &&
+                !app->pendingSpawnEnemy_ && !app->pendingChainLightning_ &&
+                !app->enemySpawnMenuVisible_ && !app->itemGrantMenuVisible_ &&
+                !app->sandboxCardMenuVisible_ && !app->objectiveDebugMenuVisible_ &&
+                !app->performanceOverlayVisible_ && !app->showColliders_ &&
+                !app->showFlowField_ && !app->showSpatialHash_ && !app->showTerrainWireframe_ && !app->hudHidden_;
+        };
+        for(int modifier:{KEY_NULL,KEY_LEFT_CONTROL,KEY_RIGHT_CONTROL,KEY_LEFT_SHIFT,KEY_RIGHT_SHIFT}) {
+            for(int key:{KEY_F1,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,
+                    KEY_F10,KEY_F11,KEY_F12,KEY_B,KEY_O,KEY_I,KEY_Z,KEY_Y,
+                    KEY_H,KEY_L,KEY_K,KEY_J,KEY_M,KEY_LEFT_BRACKET,KEY_RIGHT_BRACKET,KEY_APOSTROPHE,KEY_BACKSLASH}) {
+                chord(key,modifier);
+                debugKeys &= cleanDebugState() && app->renderer_->settings()==graphicsBefore &&
+                    app->simulation_.terrain().seed()==seedBefore && app->debugSpawnType_==spawnTypeBefore &&
+                    app->environment_.timeOfDay()==timeBefore && app->environment_.frozen()==frozenBefore;
+                if(!debugKeys) {std::cerr<<"Disabled debug chord changed state: "<<key<<'/'<<modifier<<'\n';break;}
+            }
+        }
+        // Rebound reveal and HUD debug actions obey the same switch.
+        setControlKey(app->userSettings_.controls,ControlAction::RevealChest,KEY_T);
+        setControlKey(app->userSettings_.controls,ControlAction::ToggleHud,KEY_T);
+        chord(KEY_T);debugKeys &= cleanDebugState();
+        app->userSettings_.controls={};
+        // Ordinary play and settings stay usable with debugging switched off.
+        chord(KEY_W);debugKeys &= app->input_.moveForward>0;
+        chord(KEY_TAB);debugKeys &= app->actionMode_==ActionMode::Buildings;
+        chord(KEY_TAB);debugKeys &= app->actionMode_==ActionMode::Equipment;
+        chord(KEY_F2);
+        debugKeys &= app->renderer_->graphicsPanelVisible() && !app->debugSettings_ &&
+            app->simulation_.snapshot().state==RunState::Paused;
+        app->closeSettings();
+        chord(KEY_F3);
+        debugKeys &= app->feedback_.active() && app->feedback_.needsCapture() &&
+            !app->renderer_->graphicsPanelVisible() && !app->debugSettings_ &&
+            app->simulation_.snapshot().state==RunState::Paused;
+        const auto feedbackTick=app->simulation_.snapshot().tick;
+        app->update();
+        chord(KEY_B);chord(KEY_I);chord(KEY_TAB);
+        debugKeys &= app->simulation_.snapshot().tick==feedbackTick &&
+            !app->enemySpawnMenuVisible_ && !app->pendingToggleInvulnerability_ &&
+            app->actionMode_==ActionMode::Equipment;
+        // The screenshot is read before buffer swap and before overlay artwork.
+        BeginDrawing();ClearBackground(RED);
+        DrawRectangle(0,GetScreenHeight()/2,GetScreenWidth(),GetScreenHeight()/2,BLUE);
+        app->captureFeedbackFrame();EndDrawing();
+        debugKeys &= app->feedback_.ready() && app->feedback_.save("feedback");
+        const auto report=app->feedback_.savedDirectory();
+        auto shot=LoadImage((report/"screenshot.png").string().c_str());
+        if(IsImageValid(shot)) {
+            const auto top=GetImageColor(shot,shot.width/2,shot.height/4);
+            const auto bottom=GetImageColor(shot,shot.width/2,shot.height*3/4);
+            debugKeys &= top.r>200 && top.b<100 && bottom.b>200 && bottom.r<100;
+            UnloadImage(shot);
+        } else debugKeys=false;
+        app->render(); // Frozen-overlay frames must still present and poll input.
+        debugKeys &= GetFrameTime()>0 && app->feedback_.ready();
+        app->closeFeedback();
+        debugKeys &= app->feedbackClosing_ && app->feedback_.ready() &&
+            app->simulation_.snapshot().state==RunState::BuildPhase;
+        app->render(); // Closing input is swallowed before revealing the game.
+        app->processInput();debugKeys &= !app->feedback_.active() && !app->feedbackClosing_;
+        debugKeys &= glfwGetInputMode(glfwGetCurrentContext(),GLFW_CURSOR)==GLFW_CURSOR_DISABLED;
+        debugKeys &= app->pendingYaw_==0 && app->pendingPitch_==0;
+        // Cover repeated sessions as well as Save/Done: an outgoing cancelled
+        // modal must never replace relative look with a merely hidden cursor.
+        for(int repeat=0;repeat<2;++repeat) {
+            app->beginFeedback();
+            debugKeys &= app->feedback_.capture(GenImageColor(64,64,GREEN));
+            app->closeFeedback();app->render();app->processInput();
+            debugKeys &= glfwGetInputMode(glfwGetCurrentContext(),GLFW_CURSOR)==GLFW_CURSOR_DISABLED;
+        }
+        app->simulation_.togglePause();
+        chord(KEY_F3);debugKeys &= app->feedback_.active() && !app->resumeAfterFeedback_;
+        app->closeFeedback();debugKeys &= app->simulation_.snapshot().state==RunState::Paused;
+        app->simulation_.togglePause();
+        app->openSettings(false);
+        chord(KEY_F3);app->closeFeedback();
+        debugKeys &= app->renderer_->graphicsPanelVisible() && app->simulation_.snapshot().state==RunState::Paused;
+        app->closeSettings();
+        debugKeys &= app->simulation_.snapshot().state==RunState::BuildPhase;
+        app->userSettings_.debugHotkeysEnabled=true;
+        app->persistUserSettings(true);
+        UserSettings enabledSettings;
+        debugKeys &= loadUserSettings("user_settings/game_settings.json",enabledSettings) && enabledSettings.debugHotkeysEnabled;
+        chord(KEY_I);debugKeys &= app->pendingToggleInvulnerability_;
+        chord(KEY_O);debugKeys &= app->pendingUnlimitedResources_;
+        chord(KEY_J,KEY_LEFT_CONTROL);debugKeys &= app->pendingGrantInsight_;
+        chord(KEY_B);debugKeys &= app->enemySpawnMenuVisible_;
+        chord(KEY_B);debugKeys &= !app->enemySpawnMenuVisible_;
+        chord(KEY_F5);debugKeys &= app->itemGrantMenuVisible_;
+        chord(KEY_F5);debugKeys &= !app->itemGrantMenuVisible_;
+        chord(KEY_F5,KEY_LEFT_SHIFT);debugKeys &= app->sandboxCardMenuVisible_;
+        chord(KEY_F5,KEY_LEFT_SHIFT);debugKeys &= !app->sandboxCardMenuVisible_;
+        chord(KEY_F3,KEY_LEFT_CONTROL);debugKeys &= app->renderer_->settings().shadows!=graphicsBefore.shadows;
+        app->renderer_->settings()=graphicsBefore;
+        chord(KEY_F2,KEY_LEFT_CONTROL);debugKeys &= app->debugSettings_ && app->renderer_->graphicsPanelVisible();
+        app->closeSettings();
+        // Turning the option off closes existing debug menus and clears queued cheats.
+        app->enemySpawnMenuVisible_=app->itemGrantMenuVisible_=app->sandboxCardMenuVisible_=true;
+        app->objectiveDebugMenuVisible_=app->performanceOverlayVisible_=app->showColliders_=true;
+        app->userSettings_.debugHotkeysEnabled=false;
+        app->processInput();debugKeys &= cleanDebugState();
+        app->persistUserSettings(true);
+        UserSettings persisted;
+        debugKeys &= loadUserSettings("user_settings/game_settings.json",persisted) && !persisted.debugHotkeysEnabled;
+        // Feedback also preserves the exact menu/upgrade state it interrupted.
+        app->simulation_.returnToMainMenu();
+        chord(KEY_F3);
+        debugKeys &= app->feedback_.active() && !app->resumeAfterFeedback_ &&
+            app->simulation_.snapshot().state==RunState::MainMenu;
+        app->closeFeedback();
+        debugKeys &= app->simulation_.snapshot().state==RunState::MainMenu;
+        app->simulation_.startRunFromSeed(PlayerClass::Vanguard,91234);
+        PlayerCommand insight;
+        insight.grantInsight=GrantInsightCommand{1000};
+        app->simulation_.tick(1.0/60.0,insight);
+        const auto upgradeCount=app->simulation_.snapshot().runUpgradeChoiceCount;
+        debugKeys &= app->simulation_.snapshot().runUpgradeChoicePending;
+        chord(KEY_F3);app->update();app->closeFeedback();
+        debugKeys &= app->simulation_.snapshot().runUpgradeChoicePending &&
+            app->simulation_.snapshot().runUpgradeChoiceCount==upgradeCount &&
+            app->simulation_.snapshot().state!=RunState::Paused;
+        okay &= debugKeys;
+        if(!debugKeys) std::cerr<<"Debug shortcut gate, persistence or normal-input isolation failed\n";
         UnloadRenderTexture(target);app->renderer_.reset();app.reset();CloseWindow();
         return okay?0:1;
     }
 };
 int runPresentationEventsSmoke() {
     const auto original=std::filesystem::current_path();
-    const auto sandbox=std::filesystem::temp_directory_path()/"ian-presentation-events-smoke";
+    const auto sandbox=std::filesystem::temp_directory_path()/("ian-presentation-events-smoke-"+
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(sandbox);
     if(!std::filesystem::exists(sandbox/"assets"))std::filesystem::create_directory_symlink(original/"assets",sandbox/"assets");
     std::filesystem::current_path(sandbox);
     const int result=AppPresentationTestAccess::run();
-    std::filesystem::current_path(original);return result;
+    std::filesystem::current_path(original);
+    if(!std::getenv("IAN_CAPTURE_STUMP") && !std::getenv("IAN_TESLA_CAPTURE")) {
+        std::error_code error;std::filesystem::remove_all(sandbox,error);
+    }
+    return result;
 }
 }

@@ -12,6 +12,8 @@
 namespace ian {
 
 bool Simulation::ownsRunBuilding(BuildingType type) const {
+    if (type == BuildingType::Wall || type == BuildingType::Gate) return true;
+    if (std::ranges::find(RunEconomyBuildingTypes, type) != RunEconomyBuildingTypes.end()) return true;
     const auto effect = buildingRunUpgrade(type);
     if (!effect) return true;
     const auto* playerClass = playerClassDefinition(playerClass_);
@@ -21,7 +23,7 @@ bool Simulation::ownsRunBuilding(BuildingType type) const {
 
 std::size_t Simulation::runBuildingArsenalCount() const {
     return static_cast<std::size_t>(std::count_if(RunBuildingTypes.begin(), RunBuildingTypes.end(),
-        [this](BuildingType type) { return ownsRunBuilding(type); }));
+        [this](BuildingType type) { return runCombatBuilding(type) && type != BuildingType::Wall && ownsRunBuilding(type); }));
 }
 
 bool Simulation::buildingUnlocked(BuildingType type) const {

@@ -30,18 +30,26 @@ Rotation oppositeRotation(Rotation rotation) {
 
 RampEdgeTarget rampEdgeTarget(
     const PlatformFrameInstance& frame,
-    const RampEdgeSocket& socket, double cellSize) {
+    const RampEdgeSocket& socket, double cellSize,
+    std::optional<Vec3> floorAim) {
+    GridCoord supportAnchor = frame.anchor;
+    // Slide across a continuous platform surface one cell at a time,
+    // including positions spanning two neighbouring frames.
+    if (floorAim) {
+        supportAnchor = rampSupportAnchorAlongEdge(
+            frame.anchor, socket.rotation, *floorAim, cellSize);
+    }
     const auto sockets = platformRampEdgeSockets(
-        frame.anchor, frame.floorHeight, cellSize);
+        supportAnchor, frame.floorHeight, cellSize);
     const RampEdgeSocket& lowEdge =
         sockets[static_cast<std::size_t>(
             oppositeRotation(socket.rotation))];
     return RampEdgeTarget{
         .frameId = frame.id,
         .supportHit = {
-            (frame.anchor.x + 0.5) * cellSize,
+            (supportAnchor.x + 0.5) * cellSize,
             frame.floorHeight,
-            (frame.anchor.z + 0.5) * cellSize,
+            (supportAnchor.z + 0.5) * cellSize,
         },
         .edgeMarker = lowEdge.position,
         .neighborAnchor = lowEdge.neighborAnchor,
@@ -702,7 +710,10 @@ void App::updateModularPlacementPreview(
                         RampSocketLostGraceSeconds;
                 }
                 edgeTarget = rampEdgeTarget(
-                    *targetFrame, *chosen, cellSize);
+                    *targetFrame, *chosen, cellSize,
+                    rampSocketAimOnFloor(
+                        snapshot.playerPosition, lookDirection,
+                        targetFrame->floorHeight));
             }
         }
         if (!edgeTarget &&
@@ -1213,6 +1224,12 @@ void App::updateModularPlacementPreview(
             }
             if (!targetAnchor) {
                 targetAnchor = frame->anchor;
+                if (const auto floorAim = rampSocketAimOnFloor(
+                        snapshot.playerPosition, lookDirection,
+                        frame->floorHeight)) {
+                    targetAnchor->x = platformAnchorAxisFromCenter(floorAim->x, cellSize);
+                    targetAnchor->z = platformAnchorAxisFromCenter(floorAim->z, cellSize);
+                }
             }
             platformFramePreview_ =
                 simulation_.previewFloorPlatform(

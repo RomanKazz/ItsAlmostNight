@@ -10,7 +10,9 @@ void drawBuildHotbar(
 void drawLootInventory(
     GameUi& ui, const SimulationSnapshot& snapshot,
     bool expanded, bool coreVisible);
+void drawClassAbilityStatus(const SimulationSnapshot& snapshot);
 void drawCompactInsight(
+    GameUi& ui,
     const SimulationSnapshot& snapshot,
     const HudViewState& view);
 void drawWeaponHotbar(

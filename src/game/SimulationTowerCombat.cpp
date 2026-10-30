@@ -3,7 +3,8 @@
 namespace ian {
 void Simulation::updateTowerCombat(double deltaSeconds) {
     if (state_ == RunState::Defeat) return;
-    const auto shots = towers_.tick(deltaSeconds, buildings_.buildings(), enemies_);
+    if (!relics_.ghosts.empty()) rebuildRelicCombatBuildings();
+    const auto shots = towers_.tick(deltaSeconds, relics_.ghosts.empty()?buildings_.buildings():relicCombatBuildings_, enemies_);
     for (const auto& launch : towers_.launches()) {
         events_.push_back({.type = GameEventType::TowerFired,
             .sourceId = launch.sourceId, .buildingType = launch.type,

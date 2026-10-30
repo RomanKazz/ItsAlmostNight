@@ -347,10 +347,11 @@ Model TerrainRenderer::buildMountainBackdrop() const {
     // tens of thousands of smoothly shaded faces and read as one soft wall.
     const double step = std::max(
         terrain_->spacing() * 6.0, 6.0);
-    const int longCells = std::max(
-        2, static_cast<int>(std::ceil(outer * 2.0 / step)));
     const int sideCells = std::max(
         2, static_cast<int>(std::ceil(width / step)));
+    const int innerCells = std::max(
+        2, static_cast<int>(std::ceil(inner * 2.0 / step)));
+    const int longCells = innerCells + sideCells * 2;
     const double normalStep = std::max(step * 0.55, 2.5);
 
     std::vector<float> vertices;
@@ -538,43 +539,151 @@ Model TerrainRenderer::buildMountainBackdrop() const {
             appendTriangle(x0, z0, x1, z1, x1, z0);
         }
     };
-    const auto appendGrid = [&](double minimumX, double maximumX,
-                                double minimumZ, double maximumZ,
-                                int cellsX, int cellsZ) {
-        for (int z = 0; z < cellsZ; ++z) {
-            const double z0 = minimumZ +
-                (maximumZ - minimumZ) *
-                    static_cast<double>(z) /
-                    static_cast<double>(cellsZ);
-            const double z1 = minimumZ +
-                (maximumZ - minimumZ) *
-                    static_cast<double>(z + 1) /
-                    static_cast<double>(cellsZ);
-            for (int x = 0; x < cellsX; ++x) {
-                const double x0 = minimumX +
-                    (maximumX - minimumX) *
-                        static_cast<double>(x) /
-                        static_cast<double>(cellsX);
-                const double x1 = minimumX +
-                    (maximumX - minimumX) *
-                        static_cast<double>(x + 1) /
-                        static_cast<double>(cellsX);
-                appendCell(x0, z0, x1, z1);
+    const auto coordinates = [](double first, double last, int cells) {
+        std::vector<double> values;
+        values.reserve(static_cast<std::size_t>(cells + 1));
+        for (int index = 0; index <= cells; ++index) {
+            values.push_back(
+                first + (last - first) *
+                    static_cast<double>(index) /
+                    static_cast<double>(cells));
+        }
+        return values;
+    };
+    const auto negativeSide =
+        coordinates(-outer, -inner, sideCells);
+    const auto middle =
+        coordinates(-inner, inner, innerCells);
+    const auto positiveSide =
+        coordinates(inner, outer, sideCells);
+    std::vector<double> fullSide = negativeSide;
+    fullSide.insert(
+        fullSide.end(), middle.begin() + 1,
+        middle.end());
+    fullSide.insert(
+        fullSide.end(), positiveSide.begin() + 1,
+        positiveSide.end());
+
+    // Reproduce the exact edge vertices of the playable chunk meshes. The
+    // fine map edge must not be attached directly to the coarse backdrop:
+    // the two different height polylines leave visible slivers of sky.
+    std::vector<double> mapEdge;
+    const int chunkCount = static_cast<int>(std::ceil(
+        config.terrainWorldSize /
+        config.terrainChunkWorldSize));
+    for (int chunk = 0; chunk < chunkCount; ++chunk) {
+        const double minimum = -inner +
+            static_cast<double>(chunk) *
+                config.terrainChunkWorldSize;
+        const double maximum = std::min(
+            minimum + config.terrainChunkWorldSize,
+            inner);
+        const int cells = std::clamp(
+            static_cast<int>(std::ceil(
+                (maximum - minimum) / terrain_->spacing())),
+            2, 128);
+        for (int index = chunk == 0 ? 0 : 1;
+             index <= cells; ++index) {
+            mapEdge.push_back(
+                minimum + (maximum - minimum) *
+                    static_cast<double>(index) /
+                    static_cast<double>(cells));
+        }
+    }
+
+    const auto appendGrid = [&](const std::vector<double>& xs,
+                                const std::vector<double>& zs) {
+        for (std::size_t z = 1; z < zs.size(); ++z) {
+            for (std::size_t x = 1; x < xs.size(); ++x) {
+                appendCell(
+                    xs[x - 1], zs[z - 1],
+                    xs[x], zs[z]);
+            }
+        }
+    };
+    struct Point2 {
+        double x;
+        double z;
+    };
+    const auto appendUpTriangle = [&](Point2 first,
+                                      Point2 second,
+                                      Point2 third) {
+        const double orientation =
+            (second.z - first.z) *
+                (third.x - first.x) -
+            (second.x - first.x) *
+                (third.z - first.z);
+        if (orientation < 0.0) {
+            std::swap(second, third);
+        }
+        appendTriangle(
+            first.x, first.z, second.x, second.z,
+            third.x, third.z);
+    };
+    const auto stitchEdge = [&](bool alongX,
+                                double innerCoordinate,
+                                double outerCoordinate) {
+        const auto point = [alongX](
+                               double along, double across) {
+            return alongX
+                ? Point2{along, across}
+                : Point2{across, along};
+        };
+        std::size_t fine = 0;
+        std::size_t coarse = 0;
+        while (fine + 1 < mapEdge.size() ||
+               coarse + 1 < middle.size()) {
+            const Point2 finePoint = point(
+                mapEdge[fine], innerCoordinate);
+            const Point2 coarsePoint = point(
+                middle[coarse], outerCoordinate);
+            if (fine + 1 < mapEdge.size() &&
+                (coarse + 1 == middle.size() ||
+                 mapEdge[fine + 1] <=
+                     middle[coarse + 1])) {
+                appendUpTriangle(
+                    finePoint,
+                    point(mapEdge[fine + 1],
+                          innerCoordinate),
+                    coarsePoint);
+                ++fine;
+            } else {
+                appendUpTriangle(
+                    finePoint, coarsePoint,
+                    point(middle[coarse + 1],
+                          outerCoordinate));
+                ++coarse;
             }
         }
     };
 
-    // Four non-overlapping strips form a square annulus. Keeping the inner
-    // vertices exactly on the map edge avoids a visible crack or z-fighting
-    // with the final in-map terrain row.
-    appendGrid(-outer, outer, inner, outer,
-               longCells, sideCells);
-    appendGrid(-outer, outer, -outer, -inner,
-               longCells, sideCells);
-    appendGrid(inner, outer, -inner, inner,
-               sideCells, longCells);
-    appendGrid(-outer, -inner, -inner, inner,
-               sideCells, longCells);
+    const std::vector<double> northBand{
+        positiveSide[0], positiveSide[1]};
+    const std::vector<double> southBand{
+        negativeSide[negativeSide.size() - 2],
+        negativeSide.back()};
+    const std::vector<double> northOuter(
+        positiveSide.begin() + 1, positiveSide.end());
+    const std::vector<double> southOuter(
+        negativeSide.begin(), negativeSide.end() - 1);
+
+    // The outer annulus stays coarse. Only its first band uses the exact map
+    // edge, with a zipper triangulation joining that fine edge to the coarse
+    // next row. The shared coordinate lists also remove corner T-junctions.
+    appendGrid(fullSide, northOuter);
+    appendGrid(fullSide, southOuter);
+    appendGrid(northOuter, middle);
+    appendGrid(southOuter, middle);
+    appendGrid(negativeSide, northBand);
+    appendGrid(positiveSide, northBand);
+    appendGrid(negativeSide, southBand);
+    appendGrid(positiveSide, southBand);
+    stitchEdge(true, inner, positiveSide[1]);
+    stitchEdge(true, -inner,
+               negativeSide[negativeSide.size() - 2]);
+    stitchEdge(false, inner, positiveSide[1]);
+    stitchEdge(false, -inner,
+               negativeSide[negativeSide.size() - 2]);
     return buildTriangleModel(
         vertices, normals, texcoords, colors);
 }

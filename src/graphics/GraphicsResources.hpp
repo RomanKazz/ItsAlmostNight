@@ -4,6 +4,8 @@
 #include "graphics/GlbNodeAnimation.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "resources/ResourceSystem.hpp"
+#include "game/LootChestSystem.hpp"
+#include "world/WorldScenery.hpp"
 
 #include <raylib.h>
 
@@ -86,7 +88,6 @@ class ModelResource {
     meshBounds() const;
     [[nodiscard]] bool meshValid(std::size_t index) const;
     [[nodiscard]] bool meshHasSkinning(std::size_t index) const;
-    [[nodiscard]] bool meshSkinningValid(std::size_t index) const;
     [[nodiscard]] bool gpuSkinningCompatible() const;
     [[nodiscard]] bool runtimeBoneMatricesFinite() const;
 
@@ -97,7 +98,6 @@ class ModelResource {
     std::vector<BoundingBox> meshBounds_;
     std::vector<bool> meshValid_;
     std::vector<bool> meshHasSkinning_;
-    std::vector<bool> meshSkinningValid_;
     std::string path_;
     bool gpuSkinningCompatible_{};
     mutable bool runtimeBoneWarningLogged_{};
@@ -141,6 +141,7 @@ class RenderTextureResource {
     // Check valid(): raylib's IsRenderTextureValid also requires depth.
     bool loadSingleChannel(int width, int height);
     bool loadScreenSpace(int width, int height);
+    bool loadWithDepthTexture(int width, int height);
     void unload();
 
     [[nodiscard]] bool valid() const;
@@ -210,8 +211,6 @@ class GraphicsResources {
     [[nodiscard]] int ssaoHeight() const;
     [[nodiscard]] bool selectionMaskValid() const;
     [[nodiscard]] const RenderTexture2D& selectionMask() const;
-    [[nodiscard]] int selectionMaskWidth() const;
-    [[nodiscard]] int selectionMaskHeight() const;
     [[nodiscard]] bool viewModelTargetValid() const;
     [[nodiscard]] const RenderTexture2D& viewModelTarget() const;
 
@@ -245,19 +244,12 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& viewModelCompositeShader() const;
     [[nodiscard]] ShaderResource& grassShader();
     [[nodiscard]] const ShaderResource& grassShader() const;
-    [[nodiscard]] ShaderResource& upgradeEffectShader();
-    [[nodiscard]] const ShaderResource& upgradeEffectShader() const;
     [[nodiscard]] ShaderResource& shockwaveShader();
     [[nodiscard]] const ShaderResource& shockwaveShader() const;
     [[nodiscard]] ShaderResource& iceMagicShader();
     [[nodiscard]] const ShaderResource& iceMagicShader() const;
     [[nodiscard]] ShaderResource& portalMatterShader();
     [[nodiscard]] const ShaderResource& portalMatterShader() const;
-    [[nodiscard]] ShaderResource& coinOutlineShader();
-    [[nodiscard]] const ShaderResource& coinOutlineShader() const;
-    [[nodiscard]] ShaderResource& heartOutlineShader();
-    [[nodiscard]] const ShaderResource& heartOutlineShader() const;
-    [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
     [[nodiscard]] TextureResource& portalMatterTexture();
@@ -265,7 +257,6 @@ class GraphicsResources {
     [[nodiscard]] TextureResource& skyboxTexture(std::size_t variant);
     [[nodiscard]] const TextureResource& skyboxTexture(
         std::size_t variant) const;
-    [[nodiscard]] ModelResource& placeholderModel();
     [[nodiscard]] ModelResource& cannonModel();
     [[nodiscard]] ModelResource& cannonballModel();
     [[nodiscard]] ModelResource& catapultModel();
@@ -284,7 +275,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& teslaUpgradeModel();
     [[nodiscard]] ModelResource& missileLauncherModel(int level = 1);
     [[nodiscard]] ModelResource& flamethrowerModel();
-    [[nodiscard]] ModelResource& turretBulletModel();
+    [[nodiscard]] ModelResource& flamethrowerUpgradeModel();
     [[nodiscard]] ModelResource& coreModel();
     [[nodiscard]] ModelResource& axeModel();
     [[nodiscard]] ModelResource& pickaxeModel();
@@ -293,7 +284,6 @@ class GraphicsResources {
     [[nodiscard]] const GlbNodeAnimation& pickaxeAnimation() const;
     [[nodiscard]] const GlbNodeAnimation& pickaxeAlternateAnimation() const;
     [[nodiscard]] ModelResource& clubModel();
-    [[nodiscard]] ModelResource& hammerModel();
     [[nodiscard]] ModelResource& iceWandModel();
     [[nodiscard]] ModelResource& fireWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
@@ -301,12 +291,14 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& challengeColumnModel();
     [[nodiscard]] ModelResource& challengeArenaPegModel();
     [[nodiscard]] ModelResource& enemyPortalModel();
+    [[nodiscard]] ModelResource& worldSceneryModel(std::size_t variant);
     [[nodiscard]] ModelResource& worldLandmarkModel(
         std::size_t variant);
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& powerupPickupModel(std::size_t type);
     [[nodiscard]] ModelResource& destructiblePropModel(
         std::size_t variant);
+    [[nodiscard]] ModelResource* relicLootModel(LootUpgradeEffect effect);
     [[nodiscard]] ModelResource& appleLootModel();
     [[nodiscard]] ModelResource& breadLootModel();
     [[nodiscard]] ModelResource& ironBarLootModel();
@@ -425,17 +417,12 @@ class GraphicsResources {
     ShaderResource viewModelShader_;
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
-    ShaderResource upgradeEffectShader_;
     ShaderResource shockwaveShader_;
     ShaderResource iceMagicShader_;
     ShaderResource portalMatterShader_;
-    ShaderResource coinOutlineShader_;
-    ShaderResource heartOutlineShader_;
-    TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
     TextureResource portalMatterTexture_;
     std::array<TextureResource, 3> skyboxTextures_;
-    ModelResource placeholderModel_;
     ModelResource cannonModel_;
     ModelResource cannonballModel_;
     ModelResource catapultModel_;
@@ -454,7 +441,7 @@ class GraphicsResources {
     ModelResource teslaUpgradeModel_;
     std::array<ModelResource, 8> missileLauncherModels_;
     ModelResource flamethrowerModel_;
-    ModelResource turretBulletModel_;
+    ModelResource flamethrowerUpgradeModel_;
     ModelResource coreModel_;
     ModelResource axeModel_;
     ModelResource pickaxeModel_;
@@ -463,7 +450,6 @@ class GraphicsResources {
     GlbNodeAnimation pickaxeAnimation_;
     GlbNodeAnimation pickaxeAlternateAnimation_;
     ModelResource clubModel_;
-    ModelResource hammerModel_;
     ModelResource iceWandModel_;
     ModelResource fireWandModel_;
     ModelResource woodenChestModel_;
@@ -471,10 +457,12 @@ class GraphicsResources {
     ModelResource challengeColumnModel_;
     ModelResource challengeArenaPegModel_;
     ModelResource enemyPortalModel_;
-    std::array<ModelResource, 2> worldLandmarkModels_;
+    std::array<ModelResource, 4> worldLandmarkModels_;
+    std::array<ModelResource, WorldSceneryModelCount> worldSceneryModels_;
     std::array<ModelResource, 3> coinModels_;
     std::array<ModelResource, 3> powerupPickupModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
+    std::array<ModelResource, ActiveLootEffects.size()> relicLootModels_;
     ModelResource appleLootModel_;
     ModelResource breadLootModel_;
     ModelResource ironBarLootModel_;

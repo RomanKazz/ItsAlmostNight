@@ -31,16 +31,16 @@ enum class RunUpgradeEffect {
     WiderChoice,
     BloodHarvest,
     Overkill,
-    Ricochet,
+    Bounces,
     DoubleDown,
     LockChoice,
     RerollToken,
     RiskyInvestment,
     Salvager,
-    TwinBatteries,
+    ProjectileCount,
     ClusterPayload,
     ReactiveTraps,
-    GunPiercing,
+    Pierce,
     GunShrapnel,
     GatheringSpeed,
     LongerDay,
@@ -88,10 +88,15 @@ enum class RunUpgradeEffect {
     UnlockWindBlower,
     BuildingCapacity, // Shared placed-structure capacity tome; append-only save ID 68.
     ExtraBuilding, // Slot-free +1 capacity purchase; append-only save ID 69.
+    UpgradeCore, // Card-driven Core progression; append-only save ID 70.
+    ExperienceGain, // Experience tome; append-only save ID 71.
     ResourceCapacity = RichResources, // Stable former yield-tome save ID.
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 70U;
+inline constexpr std::size_t RunUpgradeEffectCount = 72U;
+[[nodiscard]] constexpr double runExperienceGainMultiplier(double power) {
+    return 1.0 + 0.10 * std::max(0.0, power);
+}
 // Poison deals 25% of the triggering hit per second for four seconds.
 // Reapplication refreshes duration and retains the strongest dose.
 inline constexpr double PoisonDuration = 4.0;
@@ -102,7 +107,13 @@ inline constexpr double PoisonDamageFraction = 0.25;
 
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t DefaultRunUpgradeChoices = 3U;
+inline constexpr std::size_t LevelUpRunUpgradeChoices = DefaultRunUpgradeChoices + 1U;
+inline constexpr int PaidRunUpgradeChoicePrice = 20;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
+
+[[nodiscard]] constexpr int runUpgradeChoicePrice(std::size_t index, int paidChoicePrice) {
+    return index == DefaultRunUpgradeChoices ? paidChoicePrice : 0;
+}
 
 struct RunUpgradeDefinition {
     RunUpgradeEffect effect;
@@ -119,7 +130,8 @@ struct RunTomeDefinition {
     std::uint32_t colorRgb;
 };
 
-inline constexpr std::array<RunTomeDefinition, 28> RunTomeDefinitions{{
+inline constexpr std::array<RunTomeDefinition, 29> RunTomeDefinitions{{
+    {RunUpgradeEffect::ExperienceGain, "EXPERIENCE TOME", "XP", 0x80B5FF},
     {RunUpgradeEffect::BuildingCapacity, "EXPANSION TOME", "BUILD", 0xE4B65A},
     {RunUpgradeEffect::BuildingHealth, "FORTITUDE TOME", "DEF", 0x78A7FF},
     {RunUpgradeEffect::ProductionSpeed, "INDUSTRY TOME", "PROD", 0x72DA92},
@@ -137,9 +149,9 @@ inline constexpr std::array<RunTomeDefinition, 28> RunTomeDefinitions{{
     {RunUpgradeEffect::QuarryProduction, "QUARRY TOME", "ROCK", 0x9DB7D6},
     {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL TOME", "GEM", 0xCD87F6},
     {RunUpgradeEffect::BloodHarvest, "VAMPIRIC TOME", "HEAL", 0xF56891},
-    {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name, "BOUNCE", 0x75C9FF},
-    {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name, "MULTI", 0xFFE078},
-    {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name, "PIERCE", 0x73D1CC},
+    {RunUpgradeEffect::Bounces, "BOUNCE TOME", "BOUNCE", 0x75C9FF},
+    {RunUpgradeEffect::ProjectileCount, "VOLLEY TOME", "MULTI", 0xFFE078},
+    {RunUpgradeEffect::Pierce, "PIERCING TOME", "PIERCE", 0x73D1CC},
     {RunUpgradeEffect::GatheringSpeed, "GATHERING TOME", "TOOL", 0xA9D96D},
     {RunUpgradeEffect::ProjectileSpeed, "VELOCITY TOME", "VEL", 0x4DDCF2},
     {RunUpgradeEffect::AttackDuration, "DURATION TOME", "TIME", 0x8DAFFF},
@@ -158,7 +170,11 @@ inline constexpr std::array<RunTomeDefinition, 28> RunTomeDefinitions{{
 // Reserved effects retain saved bonuses and explicit debug access, but no normal offers.
 [[nodiscard]] constexpr bool legacyRunTomeUpgrade(RunUpgradeEffect effect) {
     return effect == RunUpgradeEffect::DefenseDamage || effect == RunUpgradeEffect::DefenseFireRate ||
-        effect == RunUpgradeEffect::LongerDay || effect == RunUpgradeEffect::Overkill;
+        effect == RunUpgradeEffect::LongerDay || effect == RunUpgradeEffect::Overkill ||
+        effect == RunUpgradeEffect::Regeneration || effect == RunUpgradeEffect::MaximumHealth ||
+        effect == RunUpgradeEffect::BloodHarvest || effect == RunUpgradeEffect::NightlyBomb ||
+        effect == RunUpgradeEffect::RecoverableArmor || effect == RunUpgradeEffect::CriticalDamage ||
+        effect == RunUpgradeEffect::PoisonChance;
 }
 // Reserved branch mechanics survive old saves and internal combat fixtures.
 // Their standalone cards are hidden until building evolutions provide a new UI.
@@ -208,13 +224,13 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::AttackSpeed, runTomeDefinition(RunUpgradeEffect::AttackSpeed)->name,
          "+10% defense speed"},
         {RunUpgradeEffect::MoveSpeed, runTomeDefinition(RunUpgradeEffect::MoveSpeed)->name,
-         "+7% move speed"},
+         "+8% move speed"},
         {RunUpgradeEffect::MaximumHealth, runTomeDefinition(RunUpgradeEffect::MaximumHealth)->name,
          "+12 max HP"},
         {RunUpgradeEffect::RecoverableArmor, runTomeDefinition(RunUpgradeEffect::RecoverableArmor)->name,
          "+8 armor"},
         {RunUpgradeEffect::BuildingHealth, runTomeDefinition(RunUpgradeEffect::BuildingHealth)->name,
-         "+12% building HP"},
+         "+15% building HP"},
         {RunUpgradeEffect::BuildRadius, runTomeDefinition(RunUpgradeEffect::BuildRadius)->name,
          "+3m build range"},
         {RunUpgradeEffect::DefenseDamage, "LEGACY DEFENSE DAMAGE",
@@ -222,7 +238,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::DefenseFireRate, "LEGACY DEFENSE SPEED",
          "+10% defense speed"},
         {RunUpgradeEffect::ProductionSpeed, runTomeDefinition(RunUpgradeEffect::ProductionSpeed)->name,
-         "+15% production speed"},
+         "+12% production speed"},
         {RunUpgradeEffect::NightlyBomb, "BOMB SUPPLY",
          "+1 bomb each night"},
         {RunUpgradeEffect::WiderChoice, "MORE CHOICES",
@@ -231,8 +247,8 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+8 HP per 10 kills"},
         {RunUpgradeEffect::Overkill, "LEGACY OVERKILL",
          "+1 damage transfer"},
-        {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name,
-         "+1 shot bounce"},
+        {RunUpgradeEffect::Bounces, runTomeDefinition(RunUpgradeEffect::Bounces)->name,
+         "+1 additional projectile bounce"},
         {RunUpgradeEffect::DoubleDown, "DOUBLE DOWN",
          "+2 next-level picks"},
         {RunUpgradeEffect::LockChoice, "CARD LOCK",
@@ -243,14 +259,14 @@ inline constexpr std::array<RunUpgradeDefinition,
          "Retired"},
         {RunUpgradeEffect::Salvager, runTomeDefinition(RunUpgradeEffect::Salvager)->name,
          "+30% sold or destroyed refund"},
-        {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name,
-         "+1 side shot"},
+        {RunUpgradeEffect::ProjectileCount, runTomeDefinition(RunUpgradeEffect::ProjectileCount)->name,
+         "+1 attack instance per defense attack"},
         {RunUpgradeEffect::ClusterPayload, "CLUSTER PAYLOAD",
          "+2 mini explosions"},
         {RunUpgradeEffect::ReactiveTraps, "TRAP PULSE",
          "+6 shockwave damage"},
-        {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name,
-         "+1 gun turret pierce target"},
+        {RunUpgradeEffect::Pierce, runTomeDefinition(RunUpgradeEffect::Pierce)->name,
+         "+1 additional enemy pierced"},
         {RunUpgradeEffect::GunShrapnel, "TURRET SHRAPNEL",
          "+3 gun turret kill shards"},
         {RunUpgradeEffect::GatheringSpeed, runTomeDefinition(RunUpgradeEffect::GatheringSpeed)->name,
@@ -285,13 +301,13 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::ProjectileSpeed, runTomeDefinition(RunUpgradeEffect::ProjectileSpeed)->name, "+20% defense projectile speed"},
         {RunUpgradeEffect::AttackDuration, runTomeDefinition(RunUpgradeEffect::AttackDuration)->name, "+20% defense attack duration"},
         {RunUpgradeEffect::AttackSize, runTomeDefinition(RunUpgradeEffect::AttackSize)->name, "+15% defense attack size"},
-        {RunUpgradeEffect::CriticalChance, runTomeDefinition(RunUpgradeEffect::CriticalChance)->name, "+5% defense critical chance"},
+        {RunUpgradeEffect::CriticalChance, runTomeDefinition(RunUpgradeEffect::CriticalChance)->name, "+7.5 percentage points defense critical chance"},
         {RunUpgradeEffect::CriticalDamage, runTomeDefinition(RunUpgradeEffect::CriticalDamage)->name, "+25% defense critical damage"},
         {RunUpgradeEffect::AttackKnockback, runTomeDefinition(RunUpgradeEffect::AttackKnockback)->name, "+20% defense knockback"},
         {RunUpgradeEffect::PoisonChance, runTomeDefinition(RunUpgradeEffect::PoisonChance)->name, "+10% chance to poison on hit (25% hit damage/s, 4s)"},
         {RunUpgradeEffect::UpgradeAxe, "AXE", "Upgrade axe power by one level"},
         {RunUpgradeEffect::UpgradePickaxe, "PICKAXE", "Upgrade pickaxe power by one level"},
-        {RunUpgradeEffect::UnlockFlamethrower, "FLAMETHROWER", "Acquire defense / upgrade all copies. Attack not implemented yet."},
+        {RunUpgradeEffect::UnlockFlamethrower, "FLAMETHROWER", "Short flame cone burns groups. Upgrade all copies."},
         {RunUpgradeEffect::UnlockWall, "WALL", "Acquire walls / upgrade all copies"},
         {RunUpgradeEffect::UnlockMissileLauncher, "MISSILE LAUNCHER", "Guided rockets explode on impact. Upgrade all copies."},
         {RunUpgradeEffect::UnlockTeslaTower, "TESLA", "Chain lightning jumps between enemies. Upgrade all copies."},
@@ -302,6 +318,9 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockWindBlower, "WIND BLOWER", "Gusts push back crowds. Upgrade all copies."},
         {RunUpgradeEffect::BuildingCapacity, "EXPANSION TOME", "+1 building capacity"},
         {RunUpgradeEffect::ExtraBuilding, "+1 BUILDING", "+1 building capacity. No slot required."},
+        {RunUpgradeEffect::UpgradeCore, "CORE", "Upgrade one Core characteristic"},
+        {RunUpgradeEffect::ExperienceGain, runTomeDefinition(RunUpgradeEffect::ExperienceGain)->name,
+         "+10% experience gain"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -367,7 +386,7 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     return building && runSlottedBuilding(*building);
 }
 
-[[nodiscard]] constexpr int runDefenseLevelLimit(std::uint8_t coreLevel) {
+[[nodiscard]] constexpr int runWeaponLevelLimit(std::uint8_t coreLevel) {
     return std::clamp<int>(coreLevel, 1, MaxBuildingLevel);
 }
 
@@ -427,9 +446,20 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
 [[nodiscard]] constexpr bool retiredRunUpgrade(
     RunUpgradeEffect effect) {
     return legacyRunTomeUpgrade(effect) || legacyBuildingBranchUpgrade(effect) ||
+           effect == RunUpgradeEffect::Bounces ||
+           effect == RunUpgradeEffect::Pierce ||
+           effect == RunUpgradeEffect::Regeneration ||
+           effect == RunUpgradeEffect::MaximumHealth ||
+           effect == RunUpgradeEffect::BloodHarvest ||
+           effect == RunUpgradeEffect::NightlyBomb ||
+           effect == RunUpgradeEffect::RecoverableArmor ||
+           effect == RunUpgradeEffect::BuildingCapacity ||
+           effect == RunUpgradeEffect::ExtraBuilding ||
+           effect == RunUpgradeEffect::CriticalDamage ||
            effect == RunUpgradeEffect::BuildRadius ||
            effect == RunUpgradeEffect::Salvager ||
            effect == RunUpgradeEffect::LockChoice ||
+           effect == RunUpgradeEffect::WiderChoice ||
            effect == RunUpgradeEffect::LumberMillProduction ||
            effect == RunUpgradeEffect::QuarryProduction ||
            effect == RunUpgradeEffect::CrystalMineProduction ||
@@ -460,7 +490,7 @@ inline constexpr std::size_t RunUpgradeRarityCount = 5;
 }
 
 [[nodiscard]] constexpr double runUpgradeRarityMultiplier(RunUpgradeRarity rarity) {
-    constexpr std::array<double, RunUpgradeRarityCount> Values{1.0, 1.5, 2.0, 2.5, 3.0};
+    constexpr std::array<double, RunUpgradeRarityCount> Values{1.0, 1.2, 1.4, 1.6, 2.0};
     return Values[static_cast<std::size_t>(rarity)];
 }
 
@@ -498,14 +528,14 @@ runUpgradeRarityProbabilities(double luck) {
 
 [[nodiscard]] constexpr bool discreteRunUpgradePower(RunUpgradeEffect effect) {
     return effect == RunUpgradeEffect::BuildingCapacity || effect == RunUpgradeEffect::ExtraBuilding ||
-        effect == RunUpgradeEffect::Overkill || effect == RunUpgradeEffect::Ricochet ||
-        effect == RunUpgradeEffect::TwinBatteries || effect == RunUpgradeEffect::ClusterPayload ||
-        effect == RunUpgradeEffect::GunPiercing || effect == RunUpgradeEffect::GunShrapnel ||
+        effect == RunUpgradeEffect::Overkill || effect == RunUpgradeEffect::Bounces ||
+        effect == RunUpgradeEffect::ProjectileCount || effect == RunUpgradeEffect::ClusterPayload ||
+        effect == RunUpgradeEffect::Pierce || effect == RunUpgradeEffect::GunShrapnel ||
         effect == RunUpgradeEffect::NightlyBomb;
 }
 
-// Power is stored in common-card units. Round the actual count, not those
-// units: +2 explosions at 1.5x must grant +3 explosions, not +4.
+// Power stays fractional in common-card units. Consumers floor the total
+// count after multiplying by the count per power; no per-card rounding.
 [[nodiscard]] constexpr int runUpgradeCountPerPower(RunUpgradeEffect effect) {
     if (effect == RunUpgradeEffect::ClusterPayload) return 2;
     if (effect == RunUpgradeEffect::GunShrapnel) return 3;
@@ -513,16 +543,16 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] inline int runUpgradeDiscreteAmount(RunUpgradeEffect effect, double power) {
-    return static_cast<int>(std::round(runUpgradeCountPerPower(effect) * power));
+    const double count = runUpgradeCountPerPower(effect) * power;
+    if (!std::isfinite(count)) return 0;
+    return static_cast<int>(std::floor(std::clamp(count, 0.0,
+        static_cast<double>(std::numeric_limits<int>::max() - 1))));
 }
 
 [[nodiscard]] inline double runUpgradePowerGain(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (fixedRunUpgradePower(effect)) return 1.0;
     const double multiplier = runUpgradeRarityMultiplier(rarity);
-    return discreteRunUpgradePower(effect)
-        ? static_cast<double>(runUpgradeDiscreteAmount(effect, multiplier)) /
-            runUpgradeCountPerPower(effect)
-        : multiplier;
+    return multiplier;
 }
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
@@ -533,13 +563,14 @@ runUpgradeRarityProbabilities(double luck) {
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
-    if (runDefenseCard(effect) || runWeaponLevelCard(effect)) return MaxBuildingLevel;
+    if (effect == RunUpgradeEffect::UpgradeCore) return MaxStructureLevel - 1;
+    if (runDefenseCard(effect)) return MaxStructureLevel;
+    if (runWeaponLevelCard(effect)) return MaxBuildingLevel;
     if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:
         return 2;
     case RunUpgradeEffect::Salvager:
-    case RunUpgradeEffect::TwinBatteries:
     case RunUpgradeEffect::DoubleDown:
     case RunUpgradeEffect::RiskyInvestment:
         return 3;
@@ -548,8 +579,10 @@ runUpgradeRarityProbabilities(double luck) {
         return 2;
     case RunUpgradeEffect::BuildingCapacity:
     case RunUpgradeEffect::ExtraBuilding:
-    case RunUpgradeEffect::GunPiercing:
-        return 3;
+    case RunUpgradeEffect::ProjectileCount:
+    case RunUpgradeEffect::Bounces:
+    case RunUpgradeEffect::Pierce:
+        return 1000;
     case RunUpgradeEffect::LockChoice:
         return 1;
     default:

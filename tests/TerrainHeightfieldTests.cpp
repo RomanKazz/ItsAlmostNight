@@ -15,19 +15,15 @@ void runTerrainHeightfieldTests() {
         const auto unchanged = shiftPalette(original, 0, 0, 0);
         for (std::size_t c = 0; c < 3; ++c) requireNear(unchanged[c], original[c], 1e-6,
             "zero palette variation preserves the original hue exactly");
-        std::array<int, Count> spawnBiomes{};
         for (std::uint32_t seed = 0; seed < 128; ++seed) {
             const auto layout = generate(seed, 384);
             const auto restored = generate(seed, 384);
             require(layout.centers == restored.centers && layout.ground == restored.ground &&
                 layout.leaves == restored.leaves && layout.shape == restored.shape,
                 "restoring a seed reproduces both biome geography and its entire palette");
-            const auto spawn = weights(layout, 0, 0);
-            const auto spawnBiome = static_cast<std::size_t>(
-                std::max_element(spawn.begin(), spawn.end()) - spawn.begin());
-            ++spawnBiomes[spawnBiome];
-            require(spawn[spawnBiome] > .99F,
-                "spawn stays within one coherent region, whichever biome the seed selects");
+            const auto spawn = weights(layout, 0, 6);
+            require(spawn[0] > .99F,
+                "the player starts inside the green biome for every seed");
             require(layout.ground[3][2] > layout.ground[3][0] + .25F &&
                 layout.ground[3][2] < .70F,
                 "cold ground retains a saturated blue palette without pale white highlights");
@@ -63,8 +59,6 @@ void runTerrainHeightfieldTests() {
                     "seed variations keep foliage colors in their valid range");
             }
         }
-        for (int starts : spawnBiomes) require(starts > 16,
-            "every biome can host the player, without a privileged green starting zone");
         const auto first = generate(42, 384), second = generate(43, 384);
         require(first.centers != second.centers && first.leaves != second.leaves,
             "different runs vary both region placement and their coherent palettes");

@@ -7,6 +7,7 @@
 #include "app/AppFreezeDrawing.hpp"
 #include "app/AppPoisonDrawing.hpp"
 #include "graphics/CameraCulling.hpp"
+#include "graphics/EnemyAnimationSampling.hpp"
 #include "graphics/EnemyMagicEffect.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
@@ -67,10 +68,11 @@ void App::drawWorldEnemies(
                 offsetX, offsetZ, horizontalView,
                 maximumDrawDistance + radius, radius);
         };
-    constexpr float EnemyFullDetailDistance = 20.0F;
+    constexpr float EnemyFullDetailDistance = EnemySmoothAnimationDistance;
     constexpr float EnemyFullDetailDistanceSquared =
         EnemyFullDetailDistance * EnemyFullDetailDistance;
     const double presentationSeconds = GetTime();
+    const double subTickSeconds = enemyAnimationSubTickSeconds(snapshot, fixedStep_.interpolationAlpha());
     const double splitSubTickSeconds = enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha());
     for (auto flash = enemyHitFlashById_.begin();
          flash != enemyHitFlashById_.end();) {
@@ -138,6 +140,7 @@ void App::drawWorldEnemies(
             snapshot.aimedEnemy &&
             *snapshot.aimedEnemy == enemy.id;
         const bool lowDetail =
+            renderer_->settings().enemyLod &&
             !aimed && !splitting && enemy.spawnAnimationRemaining <= 0.0 && enemy.portalArrivalRemaining<=0 &&
             enemy.type != EnemyType::Boss &&
             enemy.eliteAffixes == 0U &&
@@ -161,7 +164,7 @@ void App::drawWorldEnemies(
             ? std::ceil(hitFlash * 8.0F) * 0.125F
             : 0.0F;
         const float enemyScale =
-            enemyVisualScale(enemy.type) * enemyHitScale(enemy) *
+            enemyVisualScale(enemy.type) * enemyAppearanceScale(enemy) *
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         const EnemyStatusEffect& freezeStatus =
             enemyStatusEffect(enemy, StatusEffectType::Freeze);
@@ -215,17 +218,7 @@ void App::drawWorldEnemies(
         if (!aimed) {
             float animationTime = frozen
                 ? 0.0F
-                : enemyAnimationSeconds(enemy, snapshot.elapsedSeconds);
-            if (enemyDistanceSquared > 625.0F &&
-                enemy.hitAnimationRemaining <= 0.0 &&
-                enemy.state !=
-                    EnemyState::BossRamWindup &&
-                enemy.state != EnemyState::BossSlamWindup &&
-                enemy.state != EnemyState::BossWarCryWindup &&
-                enemy.state != EnemyState::BossPhaseTransition) {
-                animationTime = static_cast<float>(
-                    snapshot.elapsedSeconds);
-            }
+                : enemyAnimationSeconds(enemy, snapshot.elapsedSeconds, subTickSeconds);
             enemyDrawInstances_.push_back({
                 .modelVisual = enemyModelVisual(enemy),
                 .animationVisual =
@@ -240,6 +233,7 @@ void App::drawWorldEnemies(
                 .whiteFlashAmount = splitting ? hitFlash : batchedHitFlash,
                 .scale = enemyScale,
                 .lowDetail = lowDetail,
+                .smoothAnimation = enemyDistanceSquared <= EnemyFullDetailDistanceSquared,
                 .eliteAffixes = enemy.eliteAffixes,
                 .bodyStretch = splitPose.stretch, .bodyRoll = splitPose.roll,
             });
@@ -248,8 +242,6 @@ void App::drawWorldEnemies(
         WorldMaterialState material{};
         material.bakedAo = 0.82F;
         material.enemyWhiteFlashAmount = hitFlash;
-        material.selectionAmount = aimed ? 0.32F : 0.0F;
-        material.selectionTint = {1.0F, 0.38F, 0.12F};
         renderer_->setWorldMaterial(material);
         float width = 0.8F;
         float height = 1.6F;
@@ -287,9 +279,7 @@ void App::drawWorldEnemies(
                 height = 1.05F;
                 body = {82, 190, 91, 255};
         }
-        if (aimed) {
-            body = {242, 118, 76, 255};
-        } else if (frozen) {
+        if (frozen) {
             body = {91, 183, 225, 255};
         } else if (burning) {
             body = {246, 76, 16, 255};
@@ -310,20 +300,20 @@ void App::drawWorldEnemies(
                     ? EnemyAnimationVisual::Idle
                        : enemyAnimationVisual(enemy),
                 frozen ? 0.0F : enemyAnimationSeconds(
-                    enemy, snapshot.elapsedSeconds),
+                    enemy, snapshot.elapsedSeconds, subTickSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
                 modelTint, enemyScale, true, true, false, enemy.eliteAffixes,
                 splitPose.stretch, splitPose.roll)) {
-            const float hitScale = enemyHitScale(enemy);
-            DrawCube(enemyPosition, width * hitScale,
-                     height * hitScale, width * hitScale,
+            const float appearanceScale = enemyAppearanceScale(enemy);
+            DrawCube(enemyPosition, width * appearanceScale,
+                     height * appearanceScale, width * appearanceScale,
                      body);
             DrawSphere(
                 {enemyPosition.x,
-                 enemyPosition.y + height * hitScale * 0.62F,
+                 enemyPosition.y + height * appearanceScale * 0.62F,
                  enemyPosition.z},
-                width * hitScale * 0.52F,
-                aimed ? ORANGE : MAROON);
+                width * appearanceScale * 0.52F,
+                MAROON);
         }
     }
     if (!enemyDrawInstances_.empty()) {
@@ -344,7 +334,7 @@ void App::drawWorldEnemies(
                     instance.yawRadians,
                     instance.tint, instance.scale,
                     instance.loop,
-                    instance.inkOutlineEligible, false, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
+                    instance.inkOutlineEligible, !instance.smoothAnimation, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
             }
         }
     }
@@ -493,7 +483,10 @@ void App::drawWorldEnemies(
                 const Vector3 center=enemy_magic_effect::point(position);
                 if(enemyVisible(center,radius+1)) royal_boss_effect::marker(center,radius,
                     static_cast<float>(std::clamp(1-eta/std::max(.01,duration),0.0,.98)),
-                    snapshot.elapsedSeconds,detailed);
+                    snapshot.elapsedSeconds,detailed,SurfaceEffectPlane{
+                        enemy_magic_effect::point(simulation_.terrain().getNormal(position.x,position.z)),
+                        &simulation_.terrain(),std::max(0.0F,center.y-static_cast<float>(
+                            simulation_.terrain().getHeight(position.x,position.z)))});
             };
             if(enemy.state==EnemyState::BossSlamWindup)
                 drawWarning(enemy.bossAttackTarget,static_cast<float>(enemy.bossAttackRadius),enemy.bossAbilityWindupRemaining,enemy.bossWindupDuration);
@@ -575,7 +568,7 @@ void App::drawWorldEnemies(
         toCamera.y = 0.0F;
         burnDirections[rank] = Vector3LengthSqr(toCamera) < 0.001F
             ? Vector3{0, 0, 1} : Vector3Normalize(toCamera);
-        const float appearance = enemyHitScale(enemy) *
+        const float appearance = enemyAppearanceScale(enemy) *
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         burnScales[rank] = enemyFlameScale(enemy.type) * appearance;
         const BoundingBox bounds = renderer_->enemyWorldBounds(
@@ -678,7 +671,7 @@ void App::drawWorldEnemies(
         draw.front.y = 0;
         draw.front = Vector3LengthSqr(draw.front) < .001F
             ? Vector3{0, 0, 1} : Vector3Normalize(draw.front);
-        const float appearance = enemyHitScale(enemy) *
+        const float appearance = enemyAppearanceScale(enemy) *
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         const float scale = enemyFlameScale(enemy.type) * appearance;
         const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy),
@@ -768,16 +761,34 @@ void App::drawWorldEnemies(
         destroyedEnemyVisuals_.size());
     for (const DestroyedEnemyVisual& visual :
          destroyedEnemyVisuals_) {
-        const float progress = static_cast<float>(
-            1.0 - visual.remaining / visual.duration);
-        const float fade = 1.0F - smoothstep(
-            0.68F, 1.0F, progress);
-        const float quantizedFade =
-            std::ceil(
-                std::clamp(fade, 0.0F, 1.0F) * 4.0F) /
-            4.0F;
+        const float elapsed = static_cast<float>(
+            visual.duration - visual.remaining);
+        const float opacity = visual.flashOnDeath
+            ? std::clamp(
+                  1.0F -
+                      (elapsed - static_cast<float>(
+                          EnemyHitFlashDuration +
+                          EnemyDeathHoldDuration)) /
+                          static_cast<float>(EnemyDeathFadeDuration),
+                  0.0F, 1.0F)
+            : std::clamp(
+                  static_cast<float>(
+                      visual.remaining / visual.duration),
+                  0.0F, 1.0F);
+        float deathHitFlash = 0.0F;
+        if (visual.flashOnDeath &&
+            visual.startDelayRemaining <= 0.0) {
+            constexpr float FlashHoldSeconds = 0.012F;
+            const float fade = std::clamp(
+                (elapsed - FlashHoldSeconds) /
+                    static_cast<float>(
+                        EnemyHitFlashDuration - FlashHoldSeconds),
+                0.0F, 1.0F);
+            deathHitFlash = EnemyHitFlashPeak *
+                (1.0F - fade * fade * (3.0F - 2.0F * fade));
+        }
         const auto alpha = static_cast<unsigned char>(
-            std::lround(quantizedFade * 255.0F));
+            std::lround(opacity * 255.0F));
         const EnemyInstance visualEnemy{
             .type = visual.type,
             .position = visual.position,
@@ -798,10 +809,6 @@ void App::drawWorldEnemies(
         if (!enemyVisible(position, cullRadius)) {
             continue;
         }
-        const Vector3 toEnemy =
-            Vector3Subtract(position, camera.position);
-        const float distanceSquared =
-            Vector3LengthSqr(toEnemy);
         const float popProgress = std::clamp(elapsed / 0.17F, 0.0F, 1.0F);
         const float popScale = visual.flashOnDeath
             ? (1.0F + std::sin(popProgress * PI) * 0.15F) *
@@ -810,23 +817,18 @@ void App::drawWorldEnemies(
         destroyedEnemyDrawInstances_.push_back({
             .modelVisual =
                 enemyModelVisual(visualEnemy),
-            .animationVisual =
-                EnemyAnimationVisual::Death,
-            .animationSeconds =
-                progress *
-                static_cast<float>(visual.duration),
+            .animationVisual = EnemyAnimationVisual::Idle,
+            .animationSeconds = 0.0F,
             .position = position,
             .yawRadians =
                 static_cast<float>(visual.yaw),
-            .tint = visual.eliteAffixes != 0U
-                ? Color{255, 176, 122, alpha}
-                : Color{255, 255, 255, alpha},
+            .tint = {255, 255, 255, alpha},
+            .whiteFlashAmount = deathHitFlash,
             .scale = enemyVisualScale(visual.type) * popScale *
                 (visual.eliteAffixes != 0U ? 1.08F : 1.0F),
             .loop = false,
-            .lowDetail = distanceSquared >
-                EnemyFullDetailDistanceSquared &&
-                visual.type != EnemyType::Boss,
+            // The distant proxy is a box; dissolve the actual silhouette.
+            .lowDetail = false,
             .eliteAffixes = visual.eliteAffixes,
         });
     }
@@ -846,9 +848,10 @@ void App::drawWorldEnemies(
                     instance.yawRadians,
                     instance.tint, instance.scale,
                     instance.loop,
-                    instance.inkOutlineEligible, false, instance.eliteAffixes));
+                    instance.inkOutlineEligible, !instance.smoothAnimation, instance.eliteAffixes));
             }
         }
+        renderer_->setWorldMaterial({});
     }
 }
 

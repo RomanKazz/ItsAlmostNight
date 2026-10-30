@@ -19,17 +19,9 @@ enum class ActionMode {
     return mode == ActionMode::Equipment;
 }
 
-[[nodiscard]] inline constexpr const char*
-actionModeLabel(ActionMode mode) {
-    switch (mode) {
-    case ActionMode::Equipment: return "EQUIPMENT";
-    case ActionMode::Buildings: return "BUILDINGS";
-    }
-    return "EQUIPMENT";
-}
-
 enum class PresentationEffectType {
     Hit,
+    GunBulletImpact,
     EnemyHitImpact,
     ResourceHit,
     ResourceImpactDecal,
@@ -49,15 +41,18 @@ enum class PresentationEffectType {
     PlayerArrivalDust,
     RamImpact,
     LootCollected,
+    ChestOpened,
     BuildingPlaced,
     BuildingUpgrade,
     BuildingDamaged,
     BuildingRepaired,
     RepairShockwave,
+    TurretMuzzleFlash,
     EnemyMagicCast,
     EnemyMagicImpact,
     RoyalImpact,
     PropBreak,
+    StumpRootWave,
 };
 
 struct PresentationEffect {
@@ -93,11 +88,13 @@ struct ArrowVisual {
     presentation::BulletAppearance bulletAppearance{};
     bool turretBullet{};
     bool shrapnel{};
+    bool secondaryImpact{};
     std::optional<EntityId> flashTarget;
 };
 
 struct FloatingDamageNumber {
     Vec3 position;
+    std::optional<EntityId> targetId;
     double damage;
     double remaining;
     double duration;
@@ -108,6 +105,7 @@ struct FloatingDamageNumber {
     float rotationTravelDegrees;
     float scaleVariation;
     float popOvershoot;
+    std::uint8_t lane{};
     bool critical;
 };
 

@@ -376,6 +376,7 @@ void Renderer::initializePlatformTopPartMeshes() {
             }
         }
         UploadMesh(&mesh, false);
+        platformTopPartBounds_[part] = GetMeshBoundingBox(mesh);
     }
     platformTopPartMeshesReady_ = true;
 }
@@ -399,12 +400,12 @@ void Renderer::drawTerrainAlignedModel(
 }
 
 Color lootRarityColor(LootRarity rarity) {
-    // The three tiers intentionally read as blue -> crystals -> red in-world:
-    // common, rare (Uncommon in the data model), legendary (Rare).
+    // New fixed tiers. Uncommon remains a legacy saved tier.
     if (rarity == LootRarity::Legendary)
         return {255, 126, 38, 255};
+    if (rarity == LootRarity::Epic) return {211,143,255,255};
     if (rarity == LootRarity::Rare)
-        return {255, 170, 170, 255};
+        return {112,185,255,255};
     if (rarity == LootRarity::Uncommon)
         return {255, 228, 148, 255};
     return {185, 225, 255, 255};
@@ -551,7 +552,7 @@ bool Renderer::drawPlatformFrameModel(
     Vector3 topCenter, Color tint, float scale,
     const std::array<float, 4>& supportLengths,
     const std::array<bool, 4>& supportVisibility,
-    const std::array<bool, 4>& edgeVisibility) {
+    const PlatformEdgeVisibilityMask& edgeVisibility) {
     auto& resource = resources_.platformModel();
     if (!resource.valid()) {
         return false;
@@ -596,13 +597,28 @@ bool Renderer::drawPlatformFrameModel(
             PlatformMinimumZPart, PlatformMaximumZPart};
         for (std::size_t localEdge = 0;
              localEdge < EdgeParts.size(); ++localEdge) {
-            if (!edgeVisibility[
-                    RotatedPlatformEdgeIndices[localEdge]]) {
+            const auto& visible = edgeVisibility[RotatedPlatformEdgeIndices[localEdge]];
+            if (!visible[0] && !visible[1]) {
                 continue;
+            }
+            Matrix transform = transforms[PlatformTopMeshIndex];
+            if (visible[0] != visible[1]) {
+                // A half rail retains its original outer end and thickness.
+                // The model's PI rotation reverses the world segment order.
+                const bool alongX = localEdge >= 2U;
+                const auto& bounds = platformTopPartBounds_[EdgeParts[localEdge]];
+                const float end = visible[0]
+                    ? (alongX ? bounds.max.x : bounds.max.z)
+                    : (alongX ? bounds.min.x : bounds.min.z);
+                const Matrix halfRail = MatrixMultiply(
+                    MatrixScale(alongX ? 0.5F : 1.0F, 1.0F, alongX ? 1.0F : 0.5F),
+                    MatrixTranslate(alongX ? end * 0.5F : 0.0F, 0.0F,
+                        alongX ? 0.0F : end * 0.5F));
+                transform = MatrixMultiply(halfRail, transform);
             }
             drawSpecificMesh(
                 platformTopPartMeshes_[EdgeParts[localEdge]],
-                topMaterial, transforms[PlatformTopMeshIndex]);
+                topMaterial, transform);
         }
     } else {
         drawMesh(

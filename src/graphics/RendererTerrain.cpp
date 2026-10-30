@@ -649,6 +649,14 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
 
     constexpr std::size_t VariantCount = 3;
     constexpr std::size_t MaximumInstancesPerVariant = 1024;
+    const std::array<ModelResource*, VariantCount> variants{
+        &resources_.grassModelB(),
+        &resources_.grassModelC(),
+        &resources_.grassModelD(),
+    };
+    const camera_culling::Frustum grassFrustum(MatrixMultiply(
+        MatrixMultiply(rlGetMatrixTransform(), rlGetMatrixModelview()),
+        rlGetMatrixProjection()));
     const float Spacing =
         settings_.quality == GraphicsQuality::Low
             ? 2.6F
@@ -780,7 +788,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                     ? static_cast<float>(
                           terrainHeightfield_->waterSignedDistance(x, z))
                     : 100.0F;
-                if (shoreDistance < 0.15F) {
+                if (shoreDistance < 0.45F) {
                     continue;
                 }
                 const float pathAmount = terrainHeightfield_ != nullptr
@@ -818,7 +826,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 patchStrength = patchStrength * patchStrength *
                     (3.0F - 2.0F * patchStrength);
                 float shoreRecovery = std::clamp(
-                    (shoreDistance - 0.22F) / 2.45F, 0.0F, 1.0F);
+                    (shoreDistance - 0.45F) / 2.45F, 0.0F, 1.0F);
                 shoreRecovery = shoreRecovery * shoreRecovery *
                     (3.0F - 2.0F * shoreRecovery);
                 // True patch cutoffs leave broad gaps with no volumetric
@@ -877,19 +885,25 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                         : 0.0F;
                 const float rotation =
                     randomChannel(hash, 0xa511e9b3U) * PI * 2.0F;
+                const Matrix grassTransform = MatrixMultiply(
+                    MatrixScale(
+                        horizontalScale,
+                        verticalScale,
+                        horizontalScale),
+                    MatrixMultiply(
+                        MatrixRotateY(rotation),
+                        MatrixTranslate(
+                            x,
+                            terrainHeight + 0.02F,
+                            z)));
                 grassInstanceCandidates_[variant].push_back({
-                    .transform = MatrixMultiply(
-                        MatrixScale(
-                            horizontalScale,
-                            verticalScale,
-                            horizontalScale),
-                        MatrixMultiply(
-                            MatrixRotateY(rotation),
-                            MatrixTranslate(
-                                x,
-                                terrainHeight + 0.02F,
-                                z))),
+                    .transform = grassTransform,
                     .position = {x, z},
+                    .bounds = world_transforms::transformBounds(
+                        variants[variant]->visualBounds(), grassTransform),
+                    // Depends only on the fixed tuft position, not the camera.
+                    .densityNoise = std::fmod(std::abs(std::sin(
+                        x * 12.9898F + z * 78.233F) * 43758.5453F), 1.0F),
                 });
             }
         }
@@ -913,7 +927,8 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             std::min(
                 grassInstanceCandidates_[variant].size(),
                 MaximumInstancesPerVariant));
-        for (const CachedInstance& instance :
+        std::size_t eligibleCount = 0U;
+        for (const CachedGrassInstance& instance :
              grassInstanceCandidates_[variant]) {
             const float offsetX =
                 instance.position.x - cameraPosition.x;
@@ -929,13 +944,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 (distance - DrawRadius * 0.46F) /
                     (DrawRadius * 0.54F),
                 0.0F, 1.0F);
-            const float stableNoise = std::fmod(std::abs(std::sin(
-                instance.position.x * 12.9898F +
-                instance.position.y * 78.233F) * 43758.5453F), 1.0F);
             const float farDensityReduction = variant == 2U
                 ? 0.72F
                 : variant == 1U ? 0.62F : 0.52F;
-            if (stableNoise >
+            if (instance.densityNoise >
                 1.0F - detailFade * farDensityReduction) {
                 continue;
             }
@@ -948,9 +960,14 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                     0.001F, 0.25F) < 0.999F) {
                 continue;
             }
-            if (grassInstanceTransforms_[variant].size() >=
-                MaximumInstancesPerVariant) {
+            // Preserve the same density cap regardless of camera direction.
+            if (eligibleCount++ >= MaximumInstancesPerVariant) {
                 break;
+            }
+            // Wind moves world-space X/Z by at most length(0.075, 0.035)*
+            // 1.28 = 0.106. Keep a conservative margin around the mesh bounds.
+            if (!grassFrustum.intersects(instance.bounds, 0.12F)) {
+                continue;
             }
             grassInstanceTransforms_[variant].push_back(
                 instance.transform);
@@ -958,11 +975,6 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         counts[variant] = grassInstanceTransforms_[variant].size();
     }
 
-    std::array<ModelResource*, VariantCount> variants{
-        &resources_.grassModelB(),
-        &resources_.grassModelC(),
-        &resources_.grassModelD(),
-    };
     const float darkness =
         1.0F - std::clamp(nightAmount, 0.0F, 1.0F) * 0.12F;
     const Color tint{

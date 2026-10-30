@@ -48,6 +48,15 @@ std::vector<QuestDefinition> loadQuestDefinitions(const std::filesystem::path& p
         {"quests_completed", QuestMetric::QuestsCompleted},
         {"unlocks_purchased", QuestMetric::UnlocksPurchased},
         {"secret_found", QuestMetric::SecretFound},
+        {"nodes_depleted", QuestMetric::NodesDepleted},
+        {"producers_built", QuestMetric::ProducersBuilt},
+        {"shrines_activated", QuestMetric::ShrinesActivated},
+        {"defense_shots", QuestMetric::DefenseShots},
+        {"damage_taken", QuestMetric::DamageTaken},
+        {"core_damage_taken", QuestMetric::CoreDamageTaken},
+        {"structures_lost", QuestMetric::StructuresLost},
+        {"player_deaths", QuestMetric::PlayerDeaths},
+        {"dawn_reserve", QuestMetric::DawnReserve},
     };
     static const std::map<std::string, QuestCategory> Categories{
         {"characters", QuestCategory::Characters},

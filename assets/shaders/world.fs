@@ -87,6 +87,8 @@ uniform float enemyWhiteFlashAmount;
 uniform float enemyPresentationAmount;
 uniform vec3 hitFlashPosition;
 uniform float hitFlashRadius;
+uniform vec3 buildingFeedbackSweep;
+uniform vec3 buildingFeedbackTint;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
 uniform float ghostAmount;
@@ -107,6 +109,7 @@ uniform int shadowSampleCount;
 layout(location = 0) out vec4 finalColor;
 layout(location = 1) out vec4 normalAo;
 layout(location = 2) out vec4 effectCoverage;
+
 
 in vec4 fragBiomeWeights;
 uniform vec4 worldBiomeShape;
@@ -178,6 +181,24 @@ vec2 terrainBiomeFields(vec2 worldPosition)
     return vec2(
         valueNoise(warped + vec2(4.8, 13.2)),
         valueNoise(warped*0.91 + vec2(-17.5, 8.6)));
+}
+
+vec3 sandyShoreMaterial(
+    vec3 ground, float shoreWeight, float variation, float edgeVariation, float slope)
+{
+    // Reuse the existing baked 3.6 m shoreline field. No extra texture fetch,
+    // pond-distance calculation or material pass is required at runtime.
+    // A narrow, broken bank rather than a bright, uniform outline of the pond.
+    // Both noise fields are already available from the ground material.
+    float sandCoverage = smoothstep(
+        mix(0.50, 0.68, edgeVariation), 0.85, shoreWeight);
+    sandCoverage *= mix(0.45, 0.94,
+        smoothstep(0.28, 0.68, edgeVariation));
+    sandCoverage *= 1.0 - smoothstep(0.20, 0.50, slope);
+    float wetBand = smoothstep(0.90, 1.0, shoreWeight);
+    vec3 sand = mix(vec3(0.64, 0.60, 0.50), vec3(0.49, 0.46, 0.39), wetBand);
+    sand *= 0.95 + variation*0.08;
+    return mix(ground, sand, sandCoverage);
 }
 
 vec3 painterlyGroundMaterial(
@@ -339,8 +360,10 @@ vec3 painterlyGroundMaterial(
 
     float textureWeight = clamp(
         terrainTextureEnabled*groundTextureStrength, 0.0, 1.0);
-    return visualBiomeColor(mix(terrainGrassTint, grass, textureWeight),
+    vec3 biomeGround = visualBiomeColor(mix(terrainGrassTint, grass, textureWeight),
         worldBiomeGround, vec3(0.44, 0.50, 0.24));
+    return sandyShoreMaterial(biomeGround,
+        shoreWeight, earthDetail, slopeDetail, slope);
 }
 
 vec3 terrainMaterial(
@@ -467,6 +490,8 @@ vec3 terrainMaterial(
     float packedEarth = smoothstep(0.18, 0.90, pathWeight);
     terrain = mix(
         terrain, pathEarth*(0.96 + pathDetail*0.08), packedEarth*0.54);
+    terrain = sandyShoreMaterial(
+        terrain, shoreWeight, shoreVariation, highlandNoise, slope);
 
     // Terrain vertex R-B encodes the mountain band on the raised boundary
     // and backdrop. Shore vertices remain greyscale, so water-darkening
@@ -518,9 +543,10 @@ vec3 terrainMaterial(
     return result*mix(1.10, 1.0, mountainAmount);
 }
 
-float sampleShadow(vec3 normal)
+float sampleShadow(float lightFacing)
 {
-    if (shadowsEnabled < 0.5 || fragLightSpacePosition.w <= 0.0)
+    if (shadowsEnabled < 0.5 || shadowStrength <= 0.0 ||
+        fragLightSpacePosition.w <= 0.0)
     {
         return 1.0;
     }
@@ -534,8 +560,15 @@ float sampleShadow(vec3 normal)
         return 1.0;
     }
 
-    float lightFacing = max(dot(normal, normalize(-sunDirection)), 0.0);
-    float bias = constantBias + slopeBias*(1.0 - lightFacing);
+    vec2 mapEdge = abs(projected.xy*2.0 - 1.0);
+    float maximumMapEdge = max(mapEdge.x, mapEdge.y);
+    if (maximumMapEdge >= 0.98)
+    {
+        return 1.0;
+    }
+
+    float bias = constantBias + slopeBias*(
+        1.0 - max(lightFacing, 0.0));
     // Nested disc-shaped PCF kernels let quality presets reduce the dominant
     // foliage fill-rate cost without changing shadow resolution. The first
     // five samples form a balanced kernel; High adds the outer detail taps.
@@ -554,12 +587,9 @@ float sampleShadow(vec3 normal)
     int effectiveSampleCount = terrainAmount > 0.5
         ? min(shadowSampleCount, 5)
         : shadowSampleCount;
-    for (int sampleIndex = 0; sampleIndex < 9; ++sampleIndex)
+    for (int sampleIndex = 0;
+         sampleIndex < effectiveSampleCount; ++sampleIndex)
     {
-        if (sampleIndex >= effectiveSampleCount)
-        {
-            break;
-        }
         float centerWeight = sampleIndex == 0 ? 1.55 : 1.0;
         // A one-texel kernel keeps the cast shadow crisp. Bilinear depth
         // sampling still smooths its sub-texel stair steps.
@@ -573,9 +603,8 @@ float sampleShadow(vec3 normal)
     occlusion /= totalWeight;
     // Fade before the orthographic map border so a moving camera never
     // exposes a hard rectangular cutoff.
-    vec2 mapEdge = abs(projected.xy*2.0 - 1.0);
     float edgeFade = 1.0 - smoothstep(
-        0.72, 0.98, max(mapEdge.x, mapEdge.y));
+        0.72, 0.98, maximumMapEdge);
     // Keep cast shadows readable. With the normal 0.58 setting direct-light
     // occlusion stays near thirty percent instead of collapsing to black.
     float artisticStrength = clamp(shadowStrength, 0.0, 1.0)*0.52;
@@ -649,14 +678,21 @@ void main()
         (1.0 - mountainSurface)*
         smoothstep(0.06, 0.20, terrainSlope);
     vec3 lightDirection = normalize(-sunDirection);
-    vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
-    float shadow = sampleShadow(normal);
     float lightFacing = dot(normal, lightDirection);
     float stylizedDiffuse = smoothstep(-0.05, 0.76, lightFacing);
     if (toonShadingEnabled > 0.5)
     {
         stylizedDiffuse = toonRamp(
             stylizedDiffuse, toonLightSteps);
+    }
+    // Test the final diffuse value: derivative smoothing in toonRamp can
+    // add light near a band edge even when the unsmoothed value was zero.
+    // Terrain and foliage also use shadows in their independent ramps.
+    float shadow = 1.0;
+    if (stylizedDiffuse > 0.0 || terrainAmount > 0.5 ||
+        treeAmount > 0.5 || bushAmount > 0.5 || coniferAmount > 0.5)
+    {
+        shadow = sampleShadow(lightFacing);
     }
     float shadowVisibility = smoothstep(0.54, 0.96, shadow);
     float cloudLight = 1.0;
@@ -675,34 +711,33 @@ void main()
         directAmount, mountainDirect,
         mountainSurface*0.78);
 
-    vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
+    vec4 albedo = baseColor*colDiffuse*fragVertexColor;
     albedo.a = baseColor.a*colDiffuse.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
-    vec3 terrainAlbedo = albedo.rgb;
-    if (terrainAmount > 0.001)
+    if (terrainAmount > 0.5)
     {
         if (mountainSurface > 0.001)
         {
             // Keep the approved painterly grass on playable terrain, while
             // restored backdrop vertices reuse their authored rock/snow masks.
-            terrainAlbedo = terrainMaterial(
+            albedo.rgb = terrainMaterial(
                 fragWorldPosition, normal, fragVertexColor);
         }
         else
         {
-            terrainAlbedo = painterlyGroundMaterial(
+            albedo.rgb = painterlyGroundMaterial(
                 fragWorldPosition, normal, fragVertexColor, fragTexCoord);
         }
     }
-    albedo.rgb = mix(albedo.rgb, terrainAlbedo,
-                     clamp(terrainAmount, 0.0, 1.0));
+    else
+    {
+        albedo.rgb *= texture(texture0, fragTexCoord).rgb;
+    }
     float vertexAo =
         mix(1.0, fragVertexColor.a, clamp(vertexAoAmount, 0.0, 1.0));
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
-    vec3 litColor = applyStylizedWorldLight(
-        albedo.rgb, directAmount, hemisphere, 0.0);
-    litColor *= mix(0.78, 1.0, ao);
+    vec3 litColor;
     if (terrainAmount > 0.5)
     {
         // Terrain keeps broad, soft illumination. Cast shadows remain visible
@@ -722,6 +757,12 @@ void main()
             albedo.rgb, terrainDirect,
             mix(0.58, hemisphere, 0.42), 0.0);
         litColor *= mix(0.82, 1.0, ao);
+    }
+    else if (treeAmount <= 0.5)
+    {
+        litColor = applyStylizedWorldLight(
+            albedo.rgb, directAmount, hemisphere, 0.0);
+        litColor *= mix(0.78, 1.0, ao);
     }
     float treeFaceFacing = lightFacing;
     if (treeAmount > 0.5)
@@ -974,57 +1015,63 @@ void main()
     // Scenic materials use distance as an art-direction axis. The foreground
     // stays unchanged, the middle ground rests, and distant vegetation keeps
     // most of its authored hue instead of becoming a cyan silhouette.
-    float depthPalette = clamp(distantFadeAmount, 0.0, 1.0);
-    float nearPlane =
-        1.0 - smoothstep(17.0, 34.0, horizontalDistance);
-    float middlePlane =
-        smoothstep(0.10, 0.38, fogDistance)*
-        (1.0 - smoothstep(0.55, 0.82, fogDistance));
-    float farPlane = smoothstep(0.22, 0.78, fogDistance);
-    vec3 nearColor = litColor*vec3(1.035, 1.012, 0.965);
-    float nearLuminance =
-        dot(nearColor, vec3(0.2126, 0.7152, 0.0722));
-    nearColor = mix(vec3(nearLuminance), nearColor, 1.055);
-    litColor = mix(
-        litColor, nearColor, depthPalette*nearPlane*0.72);
-    float middleLuminance =
-        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
-    vec3 middleColor = mix(
-        vec3(middleLuminance)*vec3(0.975, 1.0, 0.985),
-        litColor, 0.84);
-    litColor = mix(
-        litColor, middleColor, depthPalette*middlePlane*0.34);
-    float distantLuminance =
-        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
-    vec3 distantIdentity = mix(
-        vec3(distantLuminance), litColor, 0.86);
-    distantIdentity *= mix(
-        vec3(1.0), normalizedLightingTint(atmosphereColor), 0.14);
-    vec3 distantColor = mix(
-        distantIdentity, atmosphereColor, 0.08);
-    litColor = mix(
-        litColor, distantColor, depthPalette*farPlane*0.34);
+    if (distantFadeAmount > 0.0)
+    {
+        float depthPalette = clamp(distantFadeAmount, 0.0, 1.0);
+        float nearPlane =
+            1.0 - smoothstep(17.0, 34.0, horizontalDistance);
+        float middlePlane =
+            smoothstep(0.10, 0.38, fogDistance)*
+            (1.0 - smoothstep(0.55, 0.82, fogDistance));
+        float farPlane = smoothstep(0.22, 0.78, fogDistance);
+        vec3 nearColor = litColor*vec3(1.035, 1.012, 0.965);
+        float nearLuminance =
+            dot(nearColor, vec3(0.2126, 0.7152, 0.0722));
+        nearColor = mix(vec3(nearLuminance), nearColor, 1.055);
+        litColor = mix(
+            litColor, nearColor, depthPalette*nearPlane*0.72);
+        float middleLuminance =
+            dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+        vec3 middleColor = mix(
+            vec3(middleLuminance)*vec3(0.975, 1.0, 0.985),
+            litColor, 0.84);
+        litColor = mix(
+            litColor, middleColor, depthPalette*middlePlane*0.34);
+        float distantLuminance =
+            dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+        vec3 distantIdentity = mix(
+            vec3(distantLuminance), litColor, 0.86);
+        distantIdentity *= mix(
+            vec3(1.0), normalizedLightingTint(atmosphereColor), 0.14);
+        vec3 distantColor = mix(
+            distantIdentity, atmosphereColor, 0.08);
+        litColor = mix(
+            litColor, distantColor, depthPalette*farPlane*0.34);
+    }
 
     // Backdrop mountain vertices carry a dedicated material mask. Two smooth
     // distance shoulders create near/middle/far mountain groups without new
     // geometry, texture, or noise. Peaks retain more local color below.
-    float nearMountain = mountainSurface*
-        (1.0 - smoothstep(0.36, 0.60, fogDistance));
-    float middleMountain = mountainSurface*
-        smoothstep(0.36, 0.60, fogDistance)*
-        (1.0 - smoothstep(0.68, 0.88, fogDistance));
-    float farMountain = mountainSurface*
-        smoothstep(0.68, 0.92, fogDistance);
-    float mountainLuminance = dot(
-        litColor, vec3(0.2126, 0.7152, 0.0722));
-    vec3 nearMountainColor = mix(
-        vec3(mountainLuminance), litColor, 0.78)*1.04;
-    litColor = mix(
-        litColor, nearMountainColor, nearMountain*0.42);
-    litColor = mix(
-        litColor, atmosphereColor, middleMountain*0.08);
-    litColor = mix(
-        litColor, atmosphereColor, farMountain*0.18);
+    if (mountainSurface > 0.0)
+    {
+        float nearMountain = mountainSurface*
+            (1.0 - smoothstep(0.36, 0.60, fogDistance));
+        float middleMountain = mountainSurface*
+            smoothstep(0.36, 0.60, fogDistance)*
+            (1.0 - smoothstep(0.68, 0.88, fogDistance));
+        float farMountain = mountainSurface*
+            smoothstep(0.68, 0.92, fogDistance);
+        float mountainLuminance = dot(
+            litColor, vec3(0.2126, 0.7152, 0.0722));
+        vec3 nearMountainColor = mix(
+            vec3(mountainLuminance), litColor, 0.78)*1.04;
+        litColor = mix(
+            litColor, nearMountainColor, nearMountain*0.42);
+        litColor = mix(
+            litColor, atmosphereColor, middleMountain*0.08);
+        litColor = mix(
+            litColor, atmosphereColor, farMountain*0.18);
+    }
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
     float hitFlashMask = 1.0;
     if (hitFlashRadius > 0.001) {
@@ -1125,6 +1172,8 @@ void main()
     {
         // A restrained world-space hologram: the body stays translucent while
         // the view-dependent rim carries most of the silhouette definition.
+        vec3 viewDirection = normalize(
+            cameraPosition - fragWorldPosition);
         float fresnel = pow(
             1.0 - clamp(abs(dot(normal, viewDirection)), 0.0, 1.0),
             2.15);
@@ -1153,6 +1202,23 @@ void main()
     // Glowing projectiles still write the normal/ink target of the world pass.
     // This prevents old geometry tags from bleeding through their silhouette.
     litColor = mix(litColor, albedo.rgb, clamp(unlitAmount, 0.0, 1.0));
+    if (buildingFeedbackSweep.z > 0.001)
+    {
+        float bandDistance = abs(fragWorldPosition.y - buildingFeedbackSweep.x)/
+            max(buildingFeedbackSweep.y, 0.001);
+        float band = 1.0 - smoothstep(0.0, 1.0, bandDistance);
+        float core = 1.0 - smoothstep(0.0, 0.32, bandDistance);
+        vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
+        vec3 halfDirection = normalize(viewDirection - normalize(sunDirection));
+        float specular = pow(max(dot(normal, halfDirection), 0.0), 24.0);
+        vec3 shineTint = mix(buildingFeedbackTint, vec3(1.0), 0.82);
+        vec3 shine = buildingFeedbackTint*band*0.22 +
+            shineTint*core*(0.36 + specular*0.34);
+        // Add reflected light instead of replacing the authored color. Soft
+        // highlight compression keeps the bright core from washing out detail.
+        litColor += shine*buildingFeedbackSweep.z*
+            (vec3(1.0) - clamp(litColor, 0.0, 1.0)*0.65);
+    }
     finalColor = vec4(litColor, outputAlpha);
     // Enabled only for transparent color-only effects. The same depth test
     // and alpha blend accumulate real coverage without touching normals or

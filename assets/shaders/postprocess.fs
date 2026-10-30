@@ -17,7 +17,7 @@ uniform float postExposure;
 uniform float brightness;
 uniform float contrast;
 uniform float saturation;
-uniform float hueDegrees;
+uniform vec2 hueSinCos;
 uniform float temperature;
 uniform float tint;
 uniform float gammaValue;
@@ -63,9 +63,25 @@ float luminanceOf(vec3 color)
 
 vec3 reconstructViewPosition(vec2 uv, float depth)
 {
-    vec4 clip = vec4(uv*2.0 - 1.0, depth*2.0 - 1.0, 1.0);
-    vec4 view = inverseProjection*clip;
-    return view.xyz/max(view.w, 0.000001);
+    // Renderer supplies the inverse of a symmetric MatrixPerspective.
+    // Omit its zero coefficients instead of multiplying a full mat4.
+    vec3 clip = vec3(uv*2.0 - 1.0, depth*2.0 - 1.0);
+    vec3 view = vec3(
+        inverseProjection[0][0]*clip.x,
+        inverseProjection[1][1]*clip.y,
+        inverseProjection[2][2]*clip.z + inverseProjection[3][2]);
+    float viewW = inverseProjection[2][3]*clip.z + inverseProjection[3][3];
+    return view/max(viewW, 0.000001);
+}
+
+float reconstructViewZ(float depth)
+{
+    float clipZ = depth*2.0 - 1.0;
+    float viewZ = inverseProjection[2][2]*clipZ +
+        inverseProjection[3][2];
+    float viewW = inverseProjection[2][3]*clipZ +
+        inverseProjection[3][3];
+    return viewZ/max(viewW, 0.000001);
 }
 
 vec3 decodeOctahedralNormal(vec2 encoded)
@@ -111,13 +127,17 @@ float bilateralSsao(vec2 uv)
     {
         return 0.0;
     }
+    // Empty AO is common beyond the existing distance fade and on clear
+    // surfaces. Read the same five AO taps first; if all are zero, bilateral
+    // weights cannot affect the result. No depth/normal decode is needed.
     vec2 aoUvs[5];
     float aoValues[5];
-    float maximumAo = 0.0;
-    for (int sampleIndex = 0; sampleIndex < 5; ++sampleIndex)
+    aoUvs[0] = uv;
+    aoValues[0] = texture(ssaoTexture, uv).r;
+    float maximumAo = aoValues[0];
+    for (int sampleIndex = 1; sampleIndex < 5; ++sampleIndex)
     {
-        vec2 offset = sampleIndex == 0 ? vec2(0.0)
-            : sampleIndex == 1 ? vec2(1.0, 0.0)
+        vec2 offset = sampleIndex == 1 ? vec2(1.0, 0.0)
             : sampleIndex == 2 ? vec2(-1.0, 0.0)
             : sampleIndex == 3 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
         aoUvs[sampleIndex] = clamp(uv + offset*ssaoTexelSize,
@@ -125,35 +145,35 @@ float bilateralSsao(vec2 uv)
         aoValues[sampleIndex] = texture(ssaoTexture, aoUvs[sampleIndex]).r;
         maximumAo = max(maximumAo, aoValues[sampleIndex]);
     }
-    // Zero AO cannot be changed by bilateral weights.
     if (maximumAo == 0.0) return 0.0;
-    vec3 centerPosition = reconstructViewPosition(uv, centerDepth);
+    float centerViewZ = reconstructViewZ(centerDepth);
     vec3 centerNormal = decodeOctahedralNormal(centerPackedNormal.rg);
-    float total = 0.0;
-    float totalWeight = 0.0;
-    for (int sampleIndex = 0; sampleIndex < 5; ++sampleIndex)
+    float total = aoValues[0]*centerAoMask;
+    float totalWeight = centerAoMask;
+    for (int sampleIndex = 1; sampleIndex < 5; ++sampleIndex)
     {
         vec2 sampleUv = aoUvs[sampleIndex];
         float sampleDepth = texture(sceneDepth, sampleUv).r;
+        if (sampleDepth >= 0.999999)
+        {
+            continue;
+        }
         vec3 samplePackedNormal = texture(sceneNormal, sampleUv).rgb;
         float sampleMaterialClass = materialClassOf(
             vec4(samplePackedNormal, 1.0));
         float sampleAoMask = screenAoMaskOf(samplePackedNormal);
-        if (sampleDepth >= 0.999999 ||
-            sampleMaterialClass < 0.5 || sampleAoMask <= 0.001)
+        if (sampleMaterialClass < 0.5 || sampleAoMask <= 0.001)
         {
             continue;
         }
-        vec3 samplePosition = reconstructViewPosition(
-            sampleUv, sampleDepth);
+        float sampleViewZ = reconstructViewZ(sampleDepth);
         vec3 sampleNormal = decodeOctahedralNormal(
             samplePackedNormal.rg);
         float depthWeight = exp(
-            -abs(samplePosition.z - centerPosition.z)*3.6);
+            -abs(sampleViewZ - centerViewZ)*3.6);
         float normalWeight = pow(
             max(dot(centerNormal, sampleNormal), 0.0), 5.0);
-        float spatialWeight = sampleIndex == 0 ? 1.0 : 0.62;
-        float weight = depthWeight*normalWeight*spatialWeight*
+        float weight = depthWeight*normalWeight*0.62*
             sampleAoMask;
         total += aoValues[sampleIndex]*weight;
         totalWeight += weight;
@@ -182,6 +202,12 @@ float inkDifference(
         sceneDepth,
         clamp(coordinate, ivec2(0), depthSize - ivec2(1)),
         0).r;
+    // Ground pixels only ink against sky. Most neighbors have ground depth,
+    // so avoid reading the normal buffer for those probes.
+    if (centerIsTerrain > 0.5 && neighborDepth < 0.9999)
+    {
+        return 0.0;
+    }
     vec4 neighborPackedNormal = normalPixel(coordinate);
     float neighborMaterialClass =
         materialClassOf(neighborPackedNormal);
@@ -265,13 +291,15 @@ float inkDifference(
     float frontSurfaceGap = max(
         centerPosition.z - neighborPosition.z, 0.0);
     float viewDistance = length(centerPosition);
-    // Adjacent shells and inset faces inside low-poly props can be several
-    // centimetres apart even though they belong to one visual object. Treat
-    // only a clearly separated rear surface as an overlap silhouette; the
-    // old two-centimetre threshold produced short black scratches on rocks
-    // and tree crowns.
+    // At distance, stacked meshes of the same material class still belong to
+    // one visual object. Raise only their overlap threshold as projected
+    // depth precision falls. Keep cross-class edges and background silhouettes
+    // at their original thresholds so outlines do not become patchy.
+    float sameClass = 1.0 - step(
+        0.5, abs(centerMaterialClass - neighborMaterialClass));
     float separateSurfaceDistance =
-        0.080 + viewDistance*0.0015;
+        0.080 + viewDistance*0.0015 +
+        sameClass*2.5*smoothstep(20.0, 100.0, viewDistance);
     // Depth already assigns an overlapping-object edge to the front surface.
     // Drawing a plain class boundary on both surfaces doubles the visible
     // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
@@ -285,9 +313,13 @@ float inkDifference(
     float objectClassBoundary = centerIsObject*neighborIsObject*
         max(centerIsEffect, frontClassBoundary)*
         step(0.5, abs(centerMaterialClass - neighborMaterialClass));
-    // Continuous faces have zero depth-boundary contribution.
+    // A continuous face has no depth boundary. Most object neighbours are
+    // on that same face: avoid two extra depth reads and the slope test when
+    // smoothstep(separateSurfaceDistance, ..., frontSurfaceGap) is zero.
     if (frontSurfaceGap <= separateSurfaceDistance)
+    {
         return objectClassBoundary*directionWeight;
+    }
     // Hardware depth is affine across a projected planar face. Compare the
     // candidate jump with the one-sided slopes INSIDE each surface. Unlike
     // fwidth, these samples never straddle the candidate edge in 2x2 quads.
@@ -426,10 +458,10 @@ vec3 menuDepthOfFieldSample(vec2 uv, vec2 texel, float amount)
     return result;
 }
 
-vec3 rotateHue(vec3 color, float angle)
+vec3 rotateHue(vec3 color, vec2 sinCos)
 {
-    float cosine = cos(angle);
-    float sine = sin(angle);
+    float sine = sinCos.x;
+    float cosine = sinCos.y;
     mat3 rotation = mat3(
         0.299 + 0.701*cosine + 0.168*sine,
         0.587 - 0.587*cosine + 0.330*sine,
@@ -447,12 +479,13 @@ void main()
 {
     ivec2 sourceSize = textureSize(texture0, 0);
     vec2 healthCentered = fragTexCoord*2.0 - 1.0;
-    float healthRadius = length(healthCentered);
-    float healthEdge = smoothstep(0.18, 1.18, healthRadius);
+    float healthEdge = 0.0;
     vec2 healthDirection = vec2(0.0);
     vec2 healthUv = fragTexCoord;
     if (lowHealthAmount > 0.001)
     {
+        float healthRadius = length(healthCentered);
+        healthEdge = smoothstep(0.18, 1.18, healthRadius);
         healthDirection = healthRadius > 0.0001
             ? healthCentered/healthRadius
             : vec2(0.0);
@@ -487,9 +520,13 @@ void main()
     float foregroundOverlayMask =
         step(0.025, abs(source.a - 1.0));
     vec2 texel = 1.0/vec2(sourceSize);
-    float menuDofAmount = menuDepthOfFieldAmount(pixelUv);
-    source.rgb = menuDepthOfFieldSample(
-        pixelUv, texel, menuDofAmount)*fragColor.rgb;
+    float menuDofAmount = 0.0;
+    if (menuDofEnabled > 0.5)
+    {
+        menuDofAmount = menuDepthOfFieldAmount(pixelUv);
+        source.rgb = menuDepthOfFieldSample(
+            pixelUv, texel, menuDofAmount)*fragColor.rgb;
+    }
     if (lowHealthAmount > 0.001)
     {
         vec2 chromaticOffset = healthDirection*texel*2.2*
@@ -503,9 +540,15 @@ void main()
     }
     vec2 stylePixel = vec2(sourceCoordinate);
     vec3 color = source.rgb;
-    float contactAo = bilateralSsao(pixelUv)*
-        clamp(ssaoStrength, 0.0, 0.6)*
+    float contactAo = 0.0;
+    float contactAoStrength = clamp(ssaoStrength, 0.0, 0.6)*
         (1.0 - selectedSurface);
+    // Fully selected surfaces suppress AO. Skip all bilateral texture probes
+    // when the existing strength/mask would multiply their result by zero.
+    if (contactAoStrength > 0.0)
+    {
+        contactAo = bilateralSsao(pixelUv)*contactAoStrength;
+    }
     // Cool green-grey contact, never black. Keeps bright low-poly palette.
     color *= mix(
         vec3(1.0), vec3(0.38, 0.52, 0.47), contactAo);
@@ -534,7 +577,7 @@ void main()
         temperature*0.10 - tint*0.025,
         tint*0.075,
         -temperature*0.10 - tint*0.025);
-    color = rotateHue(color, radians(hueDegrees));
+    color = rotateHue(color, hueSinCos);
     float luminance = dot(color, LuminanceWeights);
     color = mix(vec3(luminance), color, saturation);
 
@@ -710,26 +753,33 @@ void main()
     }
 
     vec2 centered = fragTexCoord*2.0 - 1.0;
-    float vignetteMask =
-        smoothstep(0.28, 1.25, dot(centered, centered));
-    color *= 1.0 - vignetteMask*vignette;
+    if (vignette > 0.001)
+    {
+        float vignetteMask =
+            smoothstep(0.28, 1.25, dot(centered, centered));
+        color *= 1.0 - vignetteMask*vignette;
+    }
 
-    float heartbeat = 0.5 + 0.5*sin(lowHealthTime*4.1);
-    heartbeat = heartbeat*heartbeat*lowHealthPulse;
-    float dangerMask = smoothstep(
-        0.12, 1.08, dot(centered, centered));
-    float danger = clamp(
-        dangerMask*lowHealthAmount*(0.72 + heartbeat*0.18),
-        0.0, 0.88);
-    vec3 dangerColor =
-        color*vec3(0.58, 0.24, 0.29) +
-        vec3(0.045 + heartbeat*0.018, 0.0, 0.008);
-    color = mix(color, dangerColor, danger);
-    float centerDrain = lowHealthAmount*
-        (1.0 - smoothstep(
-            0.05, 1.0, dot(centered, centered)))*0.08;
-    float healthLuminance = luminanceOf(color);
-    color = mix(color, vec3(healthLuminance), centerDrain);
+    if (lowHealthAmount > 0.0)
+    {
+        float heartbeat = 0.5 + 0.5*sin(lowHealthTime*4.1);
+        heartbeat = heartbeat*heartbeat*lowHealthPulse;
+        float centeredDistanceSquared = dot(centered, centered);
+        float dangerMask = smoothstep(
+            0.12, 1.08, centeredDistanceSquared);
+        float danger = clamp(
+            dangerMask*lowHealthAmount*(0.72 + heartbeat*0.18),
+            0.0, 0.88);
+        vec3 dangerColor =
+            color*vec3(0.58, 0.24, 0.29) +
+            vec3(0.045 + heartbeat*0.018, 0.0, 0.008);
+        color = mix(color, dangerColor, danger);
+        float centerDrain = lowHealthAmount*
+            (1.0 - smoothstep(
+                0.05, 1.0, centeredDistanceSquared))*0.08;
+        float healthLuminance = luminanceOf(color);
+        color = mix(color, vec3(healthLuminance), centerDrain);
+    }
 
     finalColor = vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0);
 }

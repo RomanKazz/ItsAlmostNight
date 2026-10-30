@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "QuestContentProgressionChecks.hpp"
 #include "game/GameEvent.hpp"
 #include "game/QuestGameplayTracker.hpp"
 #include "game/Simulation.hpp"
@@ -196,10 +197,15 @@ void migrationKeepsExistingUnlocks() {
     system.initialize(newcomer);
     system.beginRun(newcomer);
     static_cast<void>(send(system, newcomer, {{QuestMetric::WaveReached, 6}}));
-    require(newcomer.silver == 0 && isPlayerClassUnlocked(PlayerClass::Berserker, newcomer),
-            "newly achieved class quest unlocks class while silver awaits collection");
+    require(newcomer.silver == 0 && !isPlayerClassUnlocked(PlayerClass::Berserker, newcomer),
+            "newly achieved class quest permits purchase, without automatically granting the class");
     require(system.claimReward(newcomer, "class_berserker").silverGranted == 2,
             "class quest silver can be collected once");
+    newcomer.silver = 6;
+    require(system.purchaseUnlock(newcomer, "class.berserker") == QuestPurchaseResult::UnknownUnlock && newcomer.silver == 6,
+        "retired class discoveries no longer charge silver for invisible characters");
+    for(const auto& character:PlayerClassDefinitions)
+        require(isPlayerClassUnlocked(character.type,newcomer),"all four replacement characters are immediately selectable");
 }
 
 void validationAndBounds() {
@@ -353,6 +359,10 @@ void gameplayAdapter() {
     require(profile.runsPlayed == 1 && profile.enemiesDefeated == 1 && profile.resourcesGathered == 5 &&
             completed(profile, "resources") && completed(profile, "coins") && !completed(profile, "gun"),
             "authoritative events advance quests and existing counters once");
+    const int beforeSilver = profile.silver;
+    const std::array silverPickup{GameEvent{.type=GameEventType::MetaSilverCollected,.amount=1}};
+    require(tracker.record(system,profile,silverPickup,snapshot).changed && profile.silver==beforeSilver+1,
+            "collected crate silver credits the permanent wallet, separate from run coins");
     snapshot.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)] = 2;
     const std::array next{
         GameEvent{.type = GameEventType::ProjectileHit, .buildingType = BuildingType::GunTurret},
@@ -433,6 +443,8 @@ void closestQuestRecommendations() {
 } // namespace
 
 void runQuestSystemTests() {
+    checkQuestContentProgression();
+    checkQuestActionSignals();
     lifetimeAndRunProgress();
     rewardNotificationCounts();
     filtersAndMaximums();

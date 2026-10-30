@@ -1,5 +1,5 @@
 {
-  "crystalMineInterval": 12.0,
+  "crystalMineInterval": 20.0,
   "crystalMineAmount": 2,
   "waveRewardBase": 15,
   "waveRewardPerWave": 6,
@@ -7,7 +7,7 @@
   "bombPurchaseCoinCostPerWave": 3,
   "bombPurchaseAmount": 2,
   "chestRerollCoinCosts": [15, 30, 60],
-  "chestOpeningCoinCostPerWave": 4,
+  "chestOpeningCoinCostPerWave": 0,
   "repairAllCoinCost": 35,
   "repairAllCoinCostPerWave": 6,
   "chestRevealCoinCost": 20,

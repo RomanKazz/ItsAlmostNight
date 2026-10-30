@@ -1,0 +1,92 @@
+[
+  {
+    "name": "stone_fence",
+    "source": "buildings/neutral/fence_stone_straight.gltf",
+    "dimensions": [
+      0.8550383795520888,
+      1.15,
+      4.93655547101689
+    ]
+  },
+  {
+    "name": "wood_fence",
+    "source": "buildings/neutral/fence_wood_straight.gltf",
+    "dimensions": [
+      0.32726524386080924,
+      1.8,
+      3.7789341245179453
+    ]
+  },
+  {
+    "name": "stone_wall",
+    "source": "buildings/neutral/wall_straight.gltf",
+    "dimensions": [
+      6.363636915348826,
+      3.5,
+      2.545454804069762
+    ]
+  },
+  {
+    "name": "ruined_house",
+    "source": "buildings/neutral/building_destroyed.gltf",
+    "dimensions": [
+      6.3496867016248215,
+      4.1,
+      5.38705770410616
+    ]
+  },
+  {
+    "name": "ruined_frame",
+    "source": "buildings/neutral/building_stage_B.gltf",
+    "dimensions": [
+      4.493552641669212,
+      2.8,
+      4.978224271739152
+    ]
+  },
+  {
+    "name": "well",
+    "source": "buildings/yellow/building_well_yellow.gltf",
+    "dimensions": [
+      1.9727112578204693,
+      2.5,
+      2.272131491542946
+    ]
+  },
+  {
+    "name": "tent",
+    "source": "decoration/props/tent.gltf",
+    "dimensions": [
+      2.3,
+      2.3,
+      2.3
+    ]
+  },
+  {
+    "name": "lumber_stack",
+    "source": "decoration/props/resource_lumber.gltf",
+    "dimensions": [
+      2.776420392860761,
+      0.8499999999999999,
+      1.3377140541088255
+    ]
+  },
+  {
+    "name": "wheelbarrow",
+    "source": "decoration/props/wheelbarrow.gltf",
+    "dimensions": [
+      1.0736923410669428,
+      0.85,
+      2.281278810831698
+    ]
+  },
+  {
+    "name": "crate",
+    "source": "decoration/props/crate_B_big.gltf",
+    "dimensions": [
+      0.8500000241248611,
+      0.8500000000000001,
+      0.8500000241248611
+    ]
+  }
+]

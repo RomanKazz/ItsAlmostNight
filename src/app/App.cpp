@@ -12,8 +12,10 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <exception>
+#include <filesystem>
 #include <string>
 #include <utility>
 
@@ -73,6 +75,11 @@ std::uint64_t decorationFingerprint(
         hash = mixDecorationFingerprint(
             hash, std::bit_cast<std::uint64_t>(landmark.position.z));
     }
+    for (const auto& scenery : snapshot.worldScenery) {
+        hash = mixDecorationFingerprint(hash, scenery.id.index);
+        hash = mixDecorationFingerprint(hash, std::bit_cast<std::uint64_t>(scenery.position.x));
+        hash = mixDecorationFingerprint(hash, std::bit_cast<std::uint64_t>(scenery.position.z));
+    }
     return hash;
 }
 
@@ -82,7 +89,7 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
     exclusions.reserve(
         snapshot.resourceNodes.size() + snapshot.lootChests.size() +
         snapshot.mapObstacles.size() + snapshot.challengeColumns.size() +
-        snapshot.worldLandmarks.size());
+        snapshot.worldLandmarks.size() + snapshot.worldScenery.size());
     for (const ResourceNode& resource : snapshot.resourceNodes) {
         // Include inactive nodes: their current position remains reserved
         // until the resource actually relocates on respawn.
@@ -118,6 +125,12 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
             .radius = landmark.collisionRadius + 1.5,
         });
     }
+    for (const auto& scenery : snapshot.worldScenery) {
+        const auto box = worldSceneryCollisionBox(scenery);
+        exclusions.push_back({.shape = DecorationExclusionShape::Rectangle,
+            .centerX = scenery.position.x, .centerZ = scenery.position.z,
+            .halfWidth = (box.maxX-box.minX)*.5, .halfDepth = (box.maxZ-box.minZ)*.5});
+    }
     for (const MapObstacle& obstacle : snapshot.mapObstacles) {
         exclusions.push_back({
             .shape = DecorationExclusionShape::Rectangle,
@@ -141,7 +154,7 @@ using namespace app_detail;
 FirstPersonToolTuning& App::activeToolTuning() {
     FirstPersonToolVisual visual = displayedToolVisual_;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
-        graphicsPanelTab_ == ToolSettingsTab) {
+        debugSettings_ && graphicsPanelTab_ == ToolSettingsTab) {
         visual = toolPanelPreviewVisual_;
     }
     const std::size_t index = visual == FirstPersonToolVisual::None
@@ -153,7 +166,7 @@ FirstPersonToolTuning& App::activeToolTuning() {
 const FirstPersonToolTuning& App::activeToolTuning() const {
     FirstPersonToolVisual visual = displayedToolVisual_;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
-        graphicsPanelTab_ == ToolSettingsTab) {
+        debugSettings_ && graphicsPanelTab_ == ToolSettingsTab) {
         visual = toolPanelPreviewVisual_;
     }
     const std::size_t index = visual == FirstPersonToolVisual::None
@@ -205,11 +218,6 @@ App::App()
     }
     effects_.reserve(128);
     gameEventBuffer_.reserve(256);
-    // Tower fire is hitscan in the simulation, but presentation keeps a
-    // short-lived projectile/tracer so the player can read where the base is
-    // shooting.  Reserve the full bounded visual budget to avoid reallocating
-    // during dense nights.
-    arrowVisuals_.reserve(1024);
     damageIndicators_.reserve(12);
     floatingDamageNumbers_.reserve(32);
     resourceGainVisuals_.reserve(16);
@@ -219,16 +227,23 @@ App::App()
 }
 
 int App::run() {
-    // Prepare a suspended run's terrain before the window appears. Continue
-    // can then reuse the already uploaded terrain instead of freezing input.
-    if (const auto seed = suspendedRunTerrainSeed()) {
+    // Build the saved menu view before the window appears. When no menu
+    // view is saved, prebuild the suspended run's terrain for Continue.
+    const bool hasMenuBackgroundView = loadMenuBackgroundView();
+    if (hasMenuBackgroundView && menuBackgroundTerrainSeed_) {
+        simulation_.regenerateTerrain(
+            *menuBackgroundTerrainSeed_);
+    } else if (const auto seed = suspendedRunTerrainSeed()) {
         simulation_.regenerateTerrain(*seed);
     }
-    // Render the final framebuffer (especially SDF UI text) at the native
-    // backing resolution on Retina/HiDPI displays. World resolution remains
-    // independently controlled by GraphicsSettings::renderWidth/Height.
-    unsigned int windowFlags =
-        FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI;
+    // Native HiDPI output multiplies the final framebuffer area on Retina
+    // displays even though the world target keeps its configured resolution.
+    // Keep the standard-density presentation by default so UI and final
+    // compositing do not consume several extra milliseconds every frame.
+    unsigned int windowFlags = FLAG_WINDOW_RESIZABLE;
+    if (std::getenv("IAN_HIDPI") != nullptr) {
+        windowFlags |= FLAG_WINDOW_HIGHDPI;
+    }
     // On macOS the multisampled default framebuffer also avoids a driver
     // presentation path that can throttle a single-sample fullscreen
     // drawable to the ProMotion refresh cadence even with swap interval 0.
@@ -276,9 +291,16 @@ int App::run() {
             "performance_logs"));
     }
 
+    PerformanceClock::time_point previousFrameStart{};
+    bool hasPreviousFrameStart = false;
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
         const bool windowFocusedAtFrameStart = IsWindowFocused();
+        const double frameIntervalMilliseconds = hasPreviousFrameStart
+            ? performanceMilliseconds(previousFrameStart, frameStart)
+            : 0.0;
+        previousFrameStart = frameStart;
+        hasPreviousFrameStart = true;
         const RunState stateBeforeInput = simulation_.snapshot().state;
         performanceStats_.minimapPreparation.sample(0.0);
         const auto inputStart = PerformanceClock::now();
@@ -286,6 +308,7 @@ int App::run() {
         performanceStats_.input.sample(
             performanceMilliseconds(inputStart));
         update();
+        performanceStats_.worldObjectTimings.fill(0.0);
         const auto renderStart = PerformanceClock::now();
         render();
         const double renderMilliseconds =
@@ -317,6 +340,20 @@ int App::run() {
                 simulation_.enemyPerformanceStats();
             const RendererPerformanceStats& rendererStats =
                 renderer_->performanceStats();
+            const GraphicsSettings& graphicsSettings =
+                renderer_->settings();
+            const bool hadSimulationTick =
+                performanceStats_.fixedTicks > 0U;
+            const int selectionKind =
+                performanceSnapshot.buildingPreview ? 9 :
+                performanceSnapshot.aimedResource ? 1 :
+                performanceSnapshot.aimedEnemy ? 2 :
+                performanceSnapshot.aimedBuilding ? 3 :
+                performanceSnapshot.aimedChest ? 4 :
+                performanceSnapshot.aimedModularBuilding ? 5 :
+                performanceSnapshot.aimedChallengeColumn ? 6 :
+                performanceSnapshot.aimedWorldLandmark ? 7 :
+                performanceSnapshot.aimedLoot ? 8 : 0;
             performanceRecorder_.record({
                 .frame = performanceFrameIndex_++,
                 .sessionSeconds = GetTime(),
@@ -335,7 +372,9 @@ int App::run() {
                 .inputMs = performanceStats_.input.lastMilliseconds,
                 .updateMs = performanceStats_.simulation.lastMilliseconds,
                 .simulationTickMs =
-                    performanceStats_.simulationTick.lastMilliseconds,
+                    hadSimulationTick
+                        ? performanceStats_.simulationTick.lastMilliseconds
+                        : 0.0,
                 .renderMs = performanceStats_.render.lastMilliseconds,
                 .presentMs = performanceStats_.present.lastMilliseconds,
                 .presentPacingMs =
@@ -432,12 +471,86 @@ int App::run() {
                     rendererStats.gpuViewModelComposite.lastMilliseconds,
                 .gpuUiMs =
                     rendererStats.gpuUi.lastMilliseconds,
-                .enemyAiMs = enemyStats.tick.lastMilliseconds,
-                .enemyCollisionMs = enemyStats.collision.lastMilliseconds,
+                .enemyAiMs = hadSimulationTick
+                    ? enemyStats.tick.lastMilliseconds : 0.0,
+                .enemyCollisionMs = hadSimulationTick
+                    ? enemyStats.collision.lastMilliseconds : 0.0,
                 .enemyDrawMs =
                     performanceStats_.enemyRender.lastMilliseconds,
                 .blobShadowsMs =
                     performanceStats_.blobShadows.lastMilliseconds,
+                .windowWidth = GetScreenWidth(),
+                .windowHeight = GetScreenHeight(),
+                .renderWidth = graphicsSettings.renderWidth,
+                .renderHeight = graphicsSettings.renderHeight,
+                .frameRateLimit = graphicsSettings.frameRateLimit,
+                .graphicsQuality =
+                    static_cast<int>(graphicsSettings.quality),
+                .selectionKind = selectionKind,
+                .resourceNodes = performanceSnapshot.resourceNodes.size(),
+                .coinPickups = performanceSnapshot.coinPickups.size(),
+                .lootChests = performanceSnapshot.lootChests.size(),
+                .presentationEffects = effects_.size(),
+                .enemyProjectiles =
+                    performanceSnapshot.enemyProjectiles.size(),
+                .instancedEnemies = rendererStats.instancedEnemyCount,
+                .enemyBatches = rendererStats.enemyBatchCount,
+                .lowDetailEnemies = rendererStats.lowDetailEnemyCount,
+                .blobShadowCount = rendererStats.blobShadowCount,
+                .blobShadowTriangles =
+                    rendererStats.blobShadowTriangles,
+                .enemyFullAiUpdates = hadSimulationTick
+                    ? enemyStats.fullAiUpdates : 0U,
+                .enemyThrottledAiMoves = hadSimulationTick
+                    ? enemyStats.throttledAiMoves : 0U,
+                .enemySpatialRebuilds = hadSimulationTick
+                    ? enemyStats.spatialRebuilds : 0U,
+                .enemyStructureGridRebuilds = hadSimulationTick
+                    ? enemyStats.structureGridRebuilds : 0U,
+                .enemySpatialRebuildMs = hadSimulationTick
+                    ? enemyStats.spatialRebuild.lastMilliseconds : 0.0,
+                .simulationTickTotalMs =
+                    performanceStats_.simulationTickTotal.lastMilliseconds,
+                .selectionCompositeMs =
+                    performanceStats_.selectionComposite.lastMilliseconds,
+                .resourceImpactOverlaysMs =
+                    performanceStats_.resourceImpactOverlays
+                        .lastMilliseconds,
+                .gpuTimersSupported = rendererStats.gpuTimersSupported,
+                .gpuWorldSamples = rendererStats.gpuWorld.sampleCount,
+                .gpuPostProcessSamples =
+                    rendererStats.gpuPostProcess.sampleCount,
+                .gpuUiSamples = rendererStats.gpuUi.sampleCount,
+                .frameIntervalMs = frameIntervalMilliseconds,
+                .gpuShadowMs =
+                    rendererStats.gpuShadow.lastMilliseconds,
+                .gpuSelectionMs =
+                    rendererStats.gpuSelection.lastMilliseconds,
+                .gpuSceneMs =
+                    rendererStats.gpuScene.lastMilliseconds,
+                .gpuShadowSamples =
+                    rendererStats.gpuShadow.sampleCount,
+                .gpuSelectionSamples =
+                    rendererStats.gpuSelection.sampleCount,
+                .gpuSceneSamples =
+                    rendererStats.gpuScene.sampleCount,
+                .gpuTerrainMs =
+                    rendererStats.gpuTerrain.lastMilliseconds,
+                .gpuObjectsMs =
+                    rendererStats.gpuObjects.lastMilliseconds,
+                .gpuEnvironmentMs =
+                    rendererStats.gpuEnvironment.lastMilliseconds,
+                .gpuOverlaysMs =
+                    rendererStats.gpuOverlays.lastMilliseconds,
+                .gpuTerrainSamples =
+                    rendererStats.gpuTerrain.sampleCount,
+                .gpuObjectsSamples =
+                    rendererStats.gpuObjects.sampleCount,
+                .gpuEnvironmentSamples =
+                    rendererStats.gpuEnvironment.sampleCount,
+                .gpuOverlaysSamples =
+                    rendererStats.gpuOverlays.sampleCount,
+                .worldObjectTimings = performanceStats_.worldObjectTimings,
                 .gpuViewModelTargetSamples = rendererStats.gpuViewModelTarget.sampleCount,
                 .gpuViewModelCompositeSamples = rendererStats.gpuViewModelComposite.sampleCount,
                 .gpuQueriesIssued = rendererStats.gpuQueriesIssued,
@@ -459,6 +572,7 @@ int App::run() {
                         return event.type == GameEventType::TowerFired || event.type == GameEventType::CannonFired;
                       })) : 0U,
                 .activeDefenseProjectiles = static_cast<std::size_t>(
+                    std::ranges::count_if(performanceSnapshot.defenseProjectiles, [](const auto& shot) { return shot.active; }) +
                     std::ranges::count_if(performanceSnapshot.cannonProjectiles, [](const auto& shot) { return shot.active; })),
 #ifdef NDEBUG
                 .optimizedBuild = true,
@@ -476,6 +590,7 @@ int App::run() {
     static_cast<void>(saveSuspendedRun());
     persistUserSettings(true);
     persistMetaProgression();
+    feedback_.clear();
     arrivalHudLayer_.unload();
     ui_.shutdown();
     audio_.shutdown();
@@ -570,6 +685,15 @@ void App::persistMetaProgression() {
 
 void App::recordMetaProgression(std::span<const GameEvent> events,
                                 const SimulationSnapshot& snapshot) {
+    if (metaProgression_.placementControlHintsUsed < 2 &&
+        std::ranges::any_of(events, [](const GameEvent& event) {
+            return event.type == GameEventType::BuildingPlaced ||
+                event.type == GameEventType::ModularBuildingPlaced;
+        })) {
+        // A drag placement and its automatic foundations are one action.
+        ++metaProgression_.placementControlHintsUsed;
+        persistMetaProgression();
+    }
     if (snapshot.sandboxMode) {
         return;
     }
@@ -581,6 +705,12 @@ void App::recordMetaProgression(std::span<const GameEvent> events,
     }
     const auto update = questGameplayTracker_.record(
         questSystem_, metaProgression_, events, snapshot);
+    for(const auto& completed:update.completed) {
+        const auto definition=std::ranges::find(questSystem_.definitions(),completed.id,&QuestDefinition::id);
+        if(definition!=questSystem_.definitions().end())
+            questCompletionNotices_.push_back({completed.id,
+                definition->notification.empty()?definition->title:definition->notification,completed.reward});
+    }
     const bool runBoundary = std::ranges::any_of(events, [](const auto& event) {
         return event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted ||
@@ -588,6 +718,18 @@ void App::recordMetaProgression(std::span<const GameEvent> events,
             event.type == GameEventType::StageCleared;
     });
     bool saveNow = runBoundary || !update.completed.empty();
+    if (std::ranges::any_of(events, [](const GameEvent& event) {
+            return event.type == GameEventType::RunStarted ||
+                event.type == GameEventType::RunRestarted ||
+                event.type == GameEventType::RunEnded;
+        })) {
+        silverHudRemaining_ = 0.0;
+    }
+    for (const auto& event : events) {
+        if (event.type != GameEventType::MetaSilverCollected || event.amount <= 0) continue;
+        silverHudRemaining_ = 3.0;
+        saveNow = true;
+    }
     for (std::size_t index = 0;
          index < PlayerClassDefinitions.size(); ++index) {
         if (unlockedBefore[index] || !isPlayerClassUnlocked(
@@ -602,6 +744,53 @@ void App::recordMetaProgression(std::span<const GameEvent> events,
         saveNow = true;
     }
     if (saveNow) persistMetaProgression();
+}
+
+bool App::questCompletionToastVisible() const {
+    const auto& snapshot=simulation_.snapshot();
+    return !hudHidden_ && !playerArrival_.active() && snapshot.state!=RunState::MainMenu &&
+        (snapshot.state!=RunState::Paused || (feedback_.needsCapture() && resumeAfterFeedback_)) && !snapshot.runUpgradeChoicePending && !snapshot.runShop.pending &&
+        !coreDefenseMenuVisible_ && !(renderer_ && renderer_->graphicsPanelVisible());
+}
+
+void App::updateQuestCompletionNotices(double seconds) {
+    if(questCompletionNotices_.empty() || !questCompletionToastVisible()) return;
+    if(questCompletionRemaining_<=0) {
+        questCompletionRemaining_=QuestCompletionNoticeDuration;
+        audio_.playUiReward();
+    }
+    questCompletionRemaining_=std::max(0.0,questCompletionRemaining_-seconds);
+    if(questCompletionRemaining_<=0) questCompletionNotices_.pop_front();
+}
+
+bool App::resetAllProgress() {
+    MetaProgression fresh;
+    questSystem_.initialize(fresh);
+    // Remove recoverable old runs as well, so a backup cannot resurrect them.
+    for(const auto path:{"user_settings/meta_progression.json.bak","user_settings/meta_progression.json.tmp",
+        "user_settings/suspended_run.json","user_settings/suspended_run.json.tmp",
+        "user_settings/suspended_run.json.bak","user_settings/suspended_run.bin"}) {
+        std::error_code error;
+        std::filesystem::remove(path,error);
+        if(error) return false;
+    }
+    if(!saveMetaProgression(MetaProgressionPath,fresh)) return false;
+    metaProgression_=fresh;
+    persistedMetaProgression_=fresh;
+    questGameplayTracker_={};
+    questCompletionNotices_.clear();questCompletionRemaining_=0;
+    pendingObjectiveCompletionNotices_.clear();objectiveCompletionTitle_.clear();objectiveCompletionRemaining_=0;
+    questMenuState_={};unlockMenuState_={};shopMenuState_={};classSelectionState_={};pauseMenuState_={};
+    selectedPlayerClass_=DefaultPlayerClass;
+    resumeAfterSettings_=false;
+    simulation_.returnToMainMenu();
+    simulation_.takeEvents(gameEventBuffer_);gameEventBuffer_.clear();
+    discardSuspendedRun();
+    resetMainMenuInput();resetRunInputState();fixedStep_.reset();playerArrival_.reset();
+    effects_.clear();floatingDamageNumbers_.clear();statusMessage_.clear();statusMessageRemaining_=0;
+    if(renderer_ && renderer_->graphicsPanelVisible()) closeSettings();
+    EnableCursor();
+    return true;
 }
 
 void App::drawPerformanceOverlay(

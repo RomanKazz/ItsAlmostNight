@@ -217,6 +217,36 @@ void runPresentationTimelineTests() {
         1.0, 1e-9,
         "completed point timeline cannot lose its notification");
 
+    const double visibleStart = ian::presentation::insightFraction(25.0, 40.0);
+    const double nextLevelFill = ian::presentation::insightFraction(15.0, 65.0);
+    requireNear(ian::presentation::levelUpInsightFraction(0.0, visibleStart, nextLevelFill),
+                visibleStart, 1e-9, "level-up begins at the visible bar without a jump");
+    double previousFill = visibleStart;
+    for (int step = 1; step <= 35; ++step) {
+        const double fill = ian::presentation::levelUpInsightFraction(
+            static_cast<double>(step)/100.0, visibleStart, nextLevelFill);
+        require(fill >= previousFill && fill <= 1.0,
+                "changing XP requirements cannot shrink the fill-to-full phase");
+        previousFill = fill;
+    }
+    requireNear(previousFill, 1.0, 1e-9,
+                "40-to-65 XP transition must reach a completely full bar");
+    requireNear(ian::presentation::levelUpInsightFraction(0.5, visibleStart, nextLevelFill),
+                1.0, 1e-9, "level-up holds the full bar before resetting");
+    requireNear(ian::presentation::levelUpInsightFraction(0.55, visibleStart, nextLevelFill),
+                0.0, 1e-9, "the new level begins with an empty bar");
+    requireNear(ian::presentation::levelUpInsightFraction(1.0, visibleStart, nextLevelFill),
+                15.0/65.0, 1e-9, "overflow uses the new level's requirement");
+    const double updatedFill = ian::presentation::insightFraction(30.0, 65.0);
+    requireNear(ian::presentation::levelUpInsightFraction(1.0, visibleStart, updatedFill),
+                30.0/65.0, 1e-9, "XP received during animation is included in the final fill");
+    requireNear(ian::presentation::levelUpInsightFraction(1.0, visibleStart,
+                    ian::presentation::insightFraction(50.0, 125.0)),
+                0.4, 1e-9, "a multiple-level grant displays the final level's remainder");
+    requireNear(ian::presentation::levelUpInsightFraction(
+                    ian::presentation::timelineProgress(0.0, 0.48), visibleStart, updatedFill),
+                updatedFill, 1e-9, "a frame past animation completion lands on the target");
+
     require(
         ian::actionModeUsesEquipment(ian::ActionMode::Equipment) &&
             !ian::actionModeUsesEquipment(ian::ActionMode::Buildings),

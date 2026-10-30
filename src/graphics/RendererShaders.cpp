@@ -268,21 +268,6 @@ void Renderer::resolveAuxiliaryShaderLocations() {
         grassSaturationLocation_ =
             GetShaderLocation(shader, "saturation");
     }
-    if (resources_.upgradeEffectShader().valid()) {
-        Shader& shader = resources_.upgradeEffectShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MODEL] =
-            GetShaderLocation(shader, "matModel");
-        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
-            GetShaderLocation(shader, "matNormal");
-        upgradeEffectOriginLocation_ =
-            GetShaderLocation(shader, "effectOrigin");
-        upgradeEffectHeightLocation_ =
-            GetShaderLocation(shader, "effectHeight");
-        upgradeEffectProgressLocation_ =
-            GetShaderLocation(shader, "progress");
-        upgradeEffectTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-    }
     if (resources_.shockwaveShader().valid()) {
         Shader& shader = resources_.shockwaveShader().get();
         shader.locs[SHADER_LOC_MATRIX_MODEL] =
@@ -317,6 +302,7 @@ void Renderer::setMenuDepthOfField(
 }
 
 void Renderer::resolveWorldShaderLocations() {
+    worldMaterialUniforms_.reset();
     if (!resources_.worldShader().valid()) {
         return;
     }
@@ -327,6 +313,8 @@ void Renderer::resolveWorldShaderLocations() {
         GetShaderLocation(shader, "skinningEnabled");
     worldInstancingEnabledLocation_ =
         GetShaderLocation(shader, "instancingEnabled");
+    worldBonePoseOffsetLocation_ = GetShaderLocation(shader, "bonePoseOffset");
+    worldBonePoseBlendLocation_ = GetShaderLocation(shader, "bonePoseBlend");
     shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
         GetShaderLocationAttrib(shader, "instanceTransform");
     shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
@@ -457,6 +445,8 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "enemyPresentationAmount"),
         .hitFlashPosition = GetShaderLocation(shader, "hitFlashPosition"),
         .hitFlashRadius = GetShaderLocation(shader, "hitFlashRadius"),
+        .buildingFeedbackSweep = GetShaderLocation(shader, "buildingFeedbackSweep"),
+        .buildingFeedbackTint = GetShaderLocation(shader, "buildingFeedbackTint"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
         .ghostAmount = GetShaderLocation(shader, "ghostAmount"),
@@ -504,6 +494,11 @@ void Renderer::setSkinningEnabled(
     }
     const int value = enabled ? 1 : 0;
     rlDrawRenderBatchActive();
+    if (resources_.worldShader().valid() && location == worldSkinningEnabledLocation_ &&
+        shader.id == resources_.worldShader().get().id) {
+        const int noInterpolation = 0;
+        SetShaderValue(shader, worldBonePoseOffsetLocation_, &noInterpolation, SHADER_UNIFORM_INT);
+    }
     SetShaderValue(
         shader, location, &value, SHADER_UNIFORM_INT);
 }
@@ -555,8 +550,8 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "contrast"),
         .saturation =
             GetShaderLocation(shader, "saturation"),
-        .hueDegrees =
-            GetShaderLocation(shader, "hueDegrees"),
+        .hueSinCos =
+            GetShaderLocation(shader, "hueSinCos"),
         .temperature =
             GetShaderLocation(shader, "temperature"),
         .tint = GetShaderLocation(shader, "tint"),
@@ -673,8 +668,12 @@ void Renderer::uploadPostProcessSettings() {
            settings_.contrast);
     upload(postProcessLocations_.saturation,
            settings_.colorSaturation);
-    upload(postProcessLocations_.hueDegrees,
-           settings_.hueDegrees);
+    const float hueRadians = settings_.hueDegrees * DEG2RAD;
+    const Vector2 hueSinCos{
+        std::sin(hueRadians), std::cos(hueRadians)};
+    SetShaderValue(
+        shader, postProcessLocations_.hueSinCos,
+        &hueSinCos, SHADER_UNIFORM_VEC2);
     upload(postProcessLocations_.temperature,
            settings_.temperature);
     upload(postProcessLocations_.tint, settings_.tint);
@@ -873,144 +872,165 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
 
 void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
     auto& shader = resources_.worldShader().get();
-    SetShaderValue(shader, worldShaderLocations_.baseColor,
+    // Track actual GPU values, including temporary tree/bush overrides that
+    // intentionally do not change the logical worldMaterial_ state.
+    const auto upload = [&](int location, const auto* value, int type) {
+        std::array<float, 4> components{};
+        std::size_t count = 1U;
+        if constexpr (requires { value->w; }) {
+            components = {value->x, value->y, value->z, value->w};
+            count = 4U;
+        } else if constexpr (requires { value->z; }) {
+            components = {value->x, value->y, value->z, 0.0F};
+            count = 3U;
+        } else {
+            components[0] = *value;
+        }
+        if (worldMaterialUniforms_.update(
+                location, std::span<const float>(components.data(), count))) {
+            SetShaderValue(shader, location, value, type);
+        }
+    };
+    upload(worldShaderLocations_.baseColor,
                    &material.baseColor, SHADER_UNIFORM_VEC4);
-    SetShaderValue(shader, worldShaderLocations_.bakedAo,
+    upload(worldShaderLocations_.bakedAo,
                    &material.bakedAo, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.vertexAoAmount,
+    upload(worldShaderLocations_.vertexAoAmount,
                    &material.vertexAoAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.screenAoAmount,
+    upload(worldShaderLocations_.screenAoAmount,
                    &material.screenAoAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.terrainAmount,
+    upload(worldShaderLocations_.terrainAmount,
                    &material.terrainAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.terrainGrassTint,
+    upload(worldShaderLocations_.terrainGrassTint,
                    &material.terrainGrassTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.terrainDirtTint,
+    upload(worldShaderLocations_.terrainDirtTint,
                    &material.terrainDirtTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.groundTextureScale,
+    upload(worldShaderLocations_.groundTextureScale,
                    &material.groundTextureScale, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundTextureStrength,
+    upload(worldShaderLocations_.groundTextureStrength,
                    &material.groundTextureStrength, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundSaturation,
+    upload(worldShaderLocations_.groundSaturation,
                    &material.groundSaturation, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundBrightness,
+    upload(worldShaderLocations_.groundBrightness,
                    &material.groundBrightness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundTextureTint,
+    upload(worldShaderLocations_.groundTextureTint,
                    &material.groundTextureTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.groundTextureContrast,
+    upload(worldShaderLocations_.groundTextureContrast,
                    &material.groundTextureContrast, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundHighlightCompression,
+    upload(worldShaderLocations_.groundHighlightCompression,
                    &material.groundHighlightCompression,
                    SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundSecondaryBlend,
+    upload(worldShaderLocations_.groundSecondaryBlend,
                    &material.groundSecondaryBlend, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.groundMacroVariation,
+    upload(worldShaderLocations_.groundMacroVariation,
                    &material.groundMacroVariation, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.windAmount,
+    upload(worldShaderLocations_.windAmount,
                    &material.windAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.localWindHeight,
+    upload(worldShaderLocations_.localWindHeight,
                    &material.localWindHeight, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.distantFadeAmount,
+    upload(worldShaderLocations_.distantFadeAmount,
                    &material.distantFadeAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.vegetationAmount,
+    upload(worldShaderLocations_.vegetationAmount,
                    &material.vegetationAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeAmount,
+    upload(worldShaderLocations_.treeAmount,
                    &material.treeAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeLeafShadowColor,
+    upload(worldShaderLocations_.treeLeafShadowColor,
                    &material.treeLeafShadowColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeLeafMidColor,
+    upload(worldShaderLocations_.treeLeafMidColor,
                    &material.treeLeafMidColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeLeafLightColor,
+    upload(worldShaderLocations_.treeLeafLightColor,
                    &material.treeLeafLightColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeTrunkShadowColor,
+    upload(worldShaderLocations_.treeTrunkShadowColor,
                    &material.treeTrunkShadowColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeTrunkMidColor,
+    upload(worldShaderLocations_.treeTrunkMidColor,
                    &material.treeTrunkMidColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeTrunkLightColor,
+    upload(worldShaderLocations_.treeTrunkLightColor,
                    &material.treeTrunkLightColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.treeShadowThreshold,
+    upload(worldShaderLocations_.treeShadowThreshold,
                    &material.treeShadowThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeHighlightThreshold,
+    upload(worldShaderLocations_.treeHighlightThreshold,
                    &material.treeHighlightThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeRampSmoothness,
+    upload(worldShaderLocations_.treeRampSmoothness,
                    &material.treeRampSmoothness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeHighlightStrength,
+    upload(worldShaderLocations_.treeHighlightStrength,
                    &material.treeHighlightStrength, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeTextureVariation,
+    upload(worldShaderLocations_.treeTextureVariation,
                    &material.treeTextureVariation, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.treeLeafFlatness,
+    upload(worldShaderLocations_.treeLeafFlatness,
                    &material.treeLeafFlatness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.bushAmount,
+    upload(worldShaderLocations_.bushAmount,
                    &material.bushAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.bushShadowColor,
+    upload(worldShaderLocations_.bushShadowColor,
                    &material.bushShadowColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.bushMidColor,
+    upload(worldShaderLocations_.bushMidColor,
                    &material.bushMidColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.bushLightColor,
+    upload(worldShaderLocations_.bushLightColor,
                    &material.bushLightColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.bushShadowThreshold,
+    upload(worldShaderLocations_.bushShadowThreshold,
                    &material.bushShadowThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.bushHighlightThreshold,
+    upload(worldShaderLocations_.bushHighlightThreshold,
                    &material.bushHighlightThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.bushRampSmoothness,
+    upload(worldShaderLocations_.bushRampSmoothness,
                    &material.bushRampSmoothness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.bushHighlightStrength,
+    upload(worldShaderLocations_.bushHighlightStrength,
                    &material.bushHighlightStrength, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.coniferAmount,
+    upload(worldShaderLocations_.coniferAmount,
                    &material.coniferAmount, SHADER_UNIFORM_FLOAT);
     upload(worldShaderLocations_.plantBiomeAnchor,
                    &material.plantBiomeAnchor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.coniferShadowColor,
+    upload(worldShaderLocations_.coniferShadowColor,
                    &material.coniferShadowColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.coniferMidColor,
+    upload(worldShaderLocations_.coniferMidColor,
                    &material.coniferMidColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.coniferLightColor,
+    upload(worldShaderLocations_.coniferLightColor,
                    &material.coniferLightColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.coniferShadowThreshold,
+    upload(worldShaderLocations_.coniferShadowThreshold,
                    &material.coniferShadowThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.coniferHighlightThreshold,
+    upload(worldShaderLocations_.coniferHighlightThreshold,
                    &material.coniferHighlightThreshold, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.coniferRampSmoothness,
+    upload(worldShaderLocations_.coniferRampSmoothness,
                    &material.coniferRampSmoothness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.coniferHighlightStrength,
+    upload(worldShaderLocations_.coniferHighlightStrength,
                    &material.coniferHighlightStrength, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.coniferFacetBlend,
+    upload(worldShaderLocations_.coniferFacetBlend,
                    &material.coniferFacetBlend, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
+    upload(worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.enemyWhiteFlashAmount,
+    upload(worldShaderLocations_.enemyWhiteFlashAmount,
                    &material.enemyWhiteFlashAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.enemyPresentationAmount,
+    upload(worldShaderLocations_.enemyPresentationAmount,
                    &material.enemyPresentationAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.hitFlashPosition,
+    upload(worldShaderLocations_.hitFlashPosition,
                    &material.hitFlashPosition, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.hitFlashRadius,
+    upload(worldShaderLocations_.hitFlashRadius,
                    &material.hitFlashRadius, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.selectionAmount,
+    upload(worldShaderLocations_.buildingFeedbackSweep,
+        &material.buildingFeedback.sweep, SHADER_UNIFORM_VEC3);
+    upload(worldShaderLocations_.buildingFeedbackTint,
+        &material.buildingFeedback.tint, SHADER_UNIFORM_VEC3);
+    upload(worldShaderLocations_.selectionAmount,
                    &material.selectionAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.selectionTint,
+    upload(worldShaderLocations_.selectionTint,
                    &material.selectionTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.ghostAmount,
+    upload(worldShaderLocations_.ghostAmount,
                    &material.ghostAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.ghostTint,
+    upload(worldShaderLocations_.ghostTint,
                    &material.ghostTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.ghostOpacity,
+    upload(worldShaderLocations_.ghostOpacity,
                    &material.ghostOpacity, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(
-        shader,
-        worldShaderLocations_.outlineMaterialClassOverride,
+    upload(worldShaderLocations_.outlineMaterialClassOverride,
         &material.outlineMaterialClassOverride,
         SHADER_UNIFORM_FLOAT);
     const float inkOutlineEligible = material.inkOutlineEligible
         ? 1.0F : 0.0F;
-    SetShaderValue(shader, worldShaderLocations_.inkOutlineEligible,
+    upload(worldShaderLocations_.inkOutlineEligible,
                    &inkOutlineEligible, SHADER_UNIFORM_FLOAT);
     const float inkOccluder = material.inkOccluder ? 1.0F : 0.0F;
-    SetShaderValue(shader, worldShaderLocations_.inkOccluder,
+    upload(worldShaderLocations_.inkOccluder,
                    &inkOccluder, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.unlitAmount,
+    upload(worldShaderLocations_.unlitAmount,
                    &material.unlitAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.aoStrength,
+    upload(worldShaderLocations_.aoStrength,
                    &settings_.aoStrength, SHADER_UNIFORM_FLOAT);
 }
 

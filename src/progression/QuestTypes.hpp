@@ -15,7 +15,9 @@ enum class QuestMetric {
     BuildingsPlaced, BuildingsUpgraded, StructuresRepaired, ChestsOpened,
     ItemsCollected, CoinsCollected, WavesCompleted, WaveReached, StageClears,
     ChallengesCompleted, PlayerLevel, UpgradeLevel, MaximumHealth,
-    DefenseDamage, QuestsCompleted, UnlocksPurchased, SecretFound, Count
+    DefenseDamage, QuestsCompleted, UnlocksPurchased, SecretFound,
+    NodesDepleted, ProducersBuilt, ShrinesActivated, DefenseShots, DamageTaken,
+    CoreDamageTaken, StructuresLost, PlayerDeaths, DawnReserve, Count
 };
 
 struct QuestCondition {

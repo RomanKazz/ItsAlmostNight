@@ -26,11 +26,13 @@ void lessThanThreshold() {
 void exactThreshold() {
     InsightSystem insight;
     const auto result = insight.grantInsight(
-        100.0, InsightSource::Objective, InsightCategory::Exploration,
+        30.0, InsightSource::Objective, InsightCategory::Exploration,
         {.bypassDiminishing = true});
     require(result.levelsGranted == 1, "exact threshold grants one level");
     requireNear(insight.progress().currentInsight, 0.0, 1e-9,
                 "exact threshold resets the bar");
+    requireNear(insight.progress().requiredInsight, 65.0, 1e-9,
+                "next level requires more XP");
 }
 
 void overflowAndMultiplePoints() {
@@ -38,10 +40,10 @@ void overflowAndMultiplePoints() {
     const auto result = insight.grantInsight(
         250.0, InsightSource::ChallengeCompleted, InsightCategory::Combat,
         {.bypassDiminishing = true});
-    require(result.levelsGranted == 2, "250 XP grants two levels");
-    requireNear(insight.progress().currentInsight, 50.0, 1e-9,
+    require(result.levelsGranted == 3, "250 XP grants three early levels");
+    requireNear(insight.progress().currentInsight, 60.0, 1e-9,
                 "overflow remainder must be preserved");
-    require(insight.progress().totalLevelsEarned == 2,
+    require(insight.progress().totalLevelsEarned == 3,
             "total earned level telemetry follows overflow");
 }
 
@@ -61,7 +63,10 @@ void duplicateEventsAreBlocked() {
 }
 
 void diminishingReturnsArePiecewise() {
-    InsightSystem insight;
+    InsightConfig config = InsightConfig::defaults();
+    config.fullRateBudget = 20.0;
+    config.reducedRateBudget = 20.0;
+    InsightSystem insight{config};
     const auto full = insight.grantInsight(
         20.0, InsightSource::EnemyKilled, InsightCategory::Combat);
     const auto half = insight.grantInsight(
@@ -105,16 +110,19 @@ void constructionAndDeathsCannotRepeat() {
 }
 
 void saveLoadAndReset() {
-    InsightSystem original;
-    static_cast<void>(original.grantInsight(35.0, InsightSource::Objective,
+    InsightConfig config = InsightConfig::defaults();
+    config.fullRateBudget = 20.0;
+    config.reducedRateBudget = 20.0;
+    InsightSystem original{config};
+    static_cast<void>(original.grantInsight(20.0, InsightSource::Objective,
         InsightCategory::Exploration,
         {.eventId = 123, .oneTime = true, .bypassDiminishing = true}));
     static_cast<void>(original.grantInsight(10.0, InsightSource::ResourceGathered,
         InsightCategory::Gathering));
     const auto saved = original.saveState();
-    InsightSystem loaded;
+    InsightSystem loaded{config};
     require(loaded.loadState(saved), "valid Insight state loads");
-    requireNear(loaded.progress().currentInsight, 45.0, 1e-9,
+    requireNear(loaded.progress().currentInsight, 0.0, 1e-9,
                 "load restores exact bar remainder");
     require(loaded.grantInsight(35.0, InsightSource::Objective,
                 InsightCategory::Exploration,
@@ -157,26 +165,97 @@ void invalidAmountsAreIgnored() {
                 "invalid values cannot poison totals");
 }
 
-void growingRequirementIsSupportedButDisabledByDefault() {
-    InsightConfig config;
-    config.requirementGrowth = 10.0;
-    InsightSystem insight{config};
-    const auto result = insight.grantInsight(215.0, InsightSource::Objective,
-        InsightCategory::Exploration, {.bypassDiminishing = true});
-    require(result.levelsGranted == 2, "growing requirement uses each new threshold");
-    requireNear(insight.progress().currentInsight, 5.0, 1e-9,
-                "growing thresholds preserve the final remainder");
-    requireNear(insight.progress().requiredInsight, 120.0, 1e-9,
-                "next growing threshold is derived from total earned points");
+void earlyRewardsJoinTheNormalCurve() {
+    InsightSystem insight;
+    for (double threshold : {30.0, 65.0, 95.0, 125.0, 160.0, 175.0}) {
+        requireNear(insight.progress().requiredInsight, threshold, 1e-9,
+                    "early discounts end at the original fifth threshold");
+        const auto result = insight.grantInsight(threshold, InsightSource::Objective,
+            InsightCategory::Exploration, {.bypassDiminishing = true});
+        require(result.levelsGranted == 1,
+                "each exact threshold grants one reward");
+        requireNear(insight.progress().currentInsight, 0.0, 1e-9,
+                    "each exact threshold clears the bar");
+    }
+    insight.reset();
+    requireNear(insight.progress().requiredInsight, 30.0, 1e-9,
+                "new runs restore the quick first reward");
+}
+
+void previousEarlySavesPreserveProgress() {
+    InsightConfig previousConfig = InsightConfig::defaults();
+    previousConfig.earlyRequirementDiscounts.fill(0.0);
+    for (int level = 0; level < 6; ++level) {
+        InsightSystem previous{previousConfig};
+        for (int earned = 0; earned < level; ++earned) {
+            static_cast<void>(previous.grantInsight(previous.progress().requiredInsight,
+                InsightSource::Objective, InsightCategory::Exploration,
+                {.bypassDiminishing = true}));
+        }
+        static_cast<void>(previous.grantInsight(previous.progress().requiredInsight*0.9,
+            InsightSource::Objective, InsightCategory::Exploration,
+            {.eventId = 777, .oneTime = true, .bypassDiminishing = true}));
+        const auto saved = previous.saveState();
+        InsightSystem loaded;
+        require(loaded.loadState(saved), "previous early and late saves must load");
+        require(loaded.progress().totalLevelsEarned == level,
+                "migration must preserve earned rewards");
+        requireNear(loaded.progress().currentInsight/loaded.progress().requiredInsight,
+                    0.9, 1e-9, "migration preserves the filled bar fraction");
+        requireNear(loaded.progress().totalInsightEarned, saved.progress.totalInsightEarned,
+                    1e-9, "migration preserves lifetime XP telemetry");
+        InsightSystem reloaded;
+        require(reloaded.loadState(loaded.saveState()), "migrated saves round trip");
+        requireNear(reloaded.progress().currentInsight, loaded.progress().currentInsight,
+                    1e-9, "migration must not scale progress twice");
+        require(loaded.grantInsight(1.0, InsightSource::Objective,
+                    InsightCategory::Exploration,
+                    {.eventId = 777, .oneTime = true, .bypassDiminishing = true}).duplicate,
+                "migration preserves consumed event IDs");
+        const double remaining = loaded.progress().requiredInsight -
+            loaded.progress().currentInsight;
+        require(loaded.grantInsight(remaining, InsightSource::Objective,
+                    InsightCategory::Exploration, {.bypassDiminishing = true}).levelsGranted == 1,
+                "the next earned reward still works after migration");
+    }
+}
+
+void previousFirstRewardPreservesFraction() {
+    auto oldConfig = InsightConfig::defaults();
+    oldConfig.earlyRequirementDiscounts[0] = 60.0;
+    InsightSystem previous{oldConfig};
+    static_cast<void>(previous.grantInsight(20.0, InsightSource::Objective,
+        InsightCategory::Exploration,
+        {.eventId = 1234, .oneTime = true, .bypassDiminishing = true}));
+    InsightSystem loaded;
+    require(loaded.loadState(previous.saveState()), "old forty-XP first level still loads");
+    requireNear(loaded.progress().currentInsight, 15.0, 1e-9,
+                "old first-level save preserves half-filled bar");
+    require(loaded.progress().totalLevelsEarned == 0,
+            "loading shorter first level does not silently grant a reward");
+    InsightSystem reloaded;
+    require(reloaded.loadState(loaded.saveState()), "migrated first-level save round trips");
+    requireNear(reloaded.progress().currentInsight, 15.0, 1e-9,
+                "first-level migration is applied only once");
+    require(reloaded.grantInsight(1.0, InsightSource::Objective,
+                InsightCategory::Exploration,
+                {.eventId = 1234, .oneTime = true, .bypassDiminishing = true}).duplicate,
+            "first-level migration retains consumed reward IDs");
+    auto customConfig = InsightConfig::defaults();
+    customConfig.baseRequirement = 30;
+    customConfig.earlyRequirementDiscounts.fill(0);
+    InsightSystem custom{customConfig};
+    require(!custom.loadState(previous.saveState()),
+            "forty-XP migration does not accept unrelated custom thresholds");
 }
 
 void simulationProgressionStateRoundTripsAndResets() {
     ian::Simulation simulation;
     ian::ProgressionRunState state;
     state.insight.progress.currentInsight = 47.5;
-    state.insight.progress.requiredInsight = 100.0;
+    state.insight.progress.requiredInsight = 95.0;
     state.insight.progress.totalLevelsEarned = 2;
-    state.insight.progress.totalInsightEarned = 247.5;
+    state.insight.progress.totalInsightEarned = 262.5;
     state.insight.consumedEventIds = {45, 90};
     require(simulation.loadProgressionState(state),
             "combined run progression state loads atomically");
@@ -184,6 +263,12 @@ void simulationProgressionStateRoundTripsAndResets() {
     require(saved.insight.progress.currentInsight == 47.5 &&
                 saved.insight.consumedEventIds.size() == 2,
             "run progression save preserves Insight state");
+    state.insight.progress.requiredInsight = 100.0;
+    require(simulation.loadProgressionState(state) &&
+                simulation.snapshot().requiredInsight == 95.0,
+            "flat-threshold saves migrate to the early requirement");
+    requireNear(simulation.insightSystem().progress().currentInsight, 45.125, 1e-9,
+                "flat-threshold early saves preserve their bar fraction");
     simulation.startRun();
     require(simulation.insightSystem().progress().currentInsight == 0.0 &&
                 simulation.insightSystem().saveState().consumedEventIds.empty(),
@@ -193,6 +278,27 @@ void simulationProgressionStateRoundTripsAndResets() {
 } // namespace
 
 void runInsightSystemTests() {
+    {
+        InsightSystem base;
+        InsightSystem boosted;
+        for (int grant = 0; grant < 3; ++grant) {
+            const auto ordinary = base.grantInsight(28.0,
+                InsightSource::ResourceGathered, InsightCategory::Gathering);
+            const auto bonus = boosted.grantInsight(28.0,
+                InsightSource::ResourceGathered, InsightCategory::Gathering,
+                {.rewardMultiplier = 1.1});
+            requireNear(bonus.finalAmount, ordinary.finalAmount * 1.1, 1e-12,
+                "experience bonus remains exact across diminishing-return budgets");
+            requireNear(bonus.diminishingMultiplier, ordinary.diminishingMultiplier, 1e-12,
+                "experience bonus never exhausts a category budget sooner");
+        }
+        for (const auto invalid : {0.0, -1.0, std::numeric_limits<double>::infinity()}) {
+            const auto rejected = boosted.grantInsight(1.0,
+                InsightSource::Other, InsightCategory::Exploration,
+                {.rewardMultiplier = invalid});
+            require(!rejected.accepted, "invalid reward multipliers never award experience");
+        }
+    }
     lessThanThreshold();
     exactThreshold();
     overflowAndMultiplePoints();
@@ -202,6 +308,8 @@ void runInsightSystemTests() {
     constructionAndDeathsCannotRepeat();
     saveLoadAndReset();
     invalidAmountsAreIgnored();
-    growingRequirementIsSupportedButDisabledByDefault();
+    earlyRewardsJoinTheNormalCurve();
+    previousEarlySavesPreserveProgress();
+    previousFirstRewardPreservesFraction();
     simulationProgressionStateRoundTripsAndResets();
 }

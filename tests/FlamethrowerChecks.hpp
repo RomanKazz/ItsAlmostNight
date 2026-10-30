@@ -20,9 +20,11 @@ inline void checkFlamethrowerBuilding() {
         "flamethrower consumes the core defense limit");
     require(isDirectionalDefense(BuildingType::Flamethrower) && buildingRotationStepCount(BuildingType::Flamethrower)==8,
         "flamethrower supports placement and manual eight-way rotation");
-    for (std::size_t i=0; i<static_cast<std::size_t>(AttackStat::Count); ++i)
-        require(!supportsAttackStat(BuildingType::Flamethrower, static_cast<AttackStat>(i)),
-            "unimplemented flamethrower attack does not advertise working attack statistics");
+    require(supportsAttackStat(BuildingType::Flamethrower, AttackStat::Damage) &&
+        supportsAttackStat(BuildingType::Flamethrower, AttackStat::AttackSpeed) &&
+        !supportsAttackStat(BuildingType::Flamethrower, AttackStat::Quantity) &&
+        !supportsAttackStat(BuildingType::Flamethrower, AttackStat::Bounces),
+        "flamethrower compatibility describes its cone and shared hits");
     const auto box = buildingCollisionBox(BuildingType::Flamethrower, {0,0}, 3.0);
     requireNear(box.maxX-box.minX, 2, 1e-12, "flamethrower occupies two cells");
     requireNear(box.minimumBlockingEyeY, 3, 1e-12, "building collision follows platform height");
@@ -50,9 +52,12 @@ inline void checkFlamethrowerBuilding() {
     auto allUnlocked = simulation->snapshot().unlockedBuildings;
     allUnlocked.fill(true);
     const auto complete = makeBuildingHotbarLayout(allUnlocked, BuildingHotbarCategory::Defense, true, 8, true);
-    require(complete.count == 15 && complete.types[4] == BuildingType::Flamethrower &&
-        complete.types[5] == BuildingType::MissileLauncher && complete.types[6] == BuildingType::TeslaTower && complete.types[7] == BuildingType::LaserTower && complete.types[9] == BuildingType::RepairStation && complete.types[10] == BuildingType::DecoyBeacon && complete.types[12] == BuildingType::Wall && complete.types[13] == BuildingType::SpikeTrap && complete.types[14] == BuildingType::SlowTrap,
-        "defense hotbar places weapons first and traps in the final slots");
+    require(complete.count == DefenseBuildingOrder.size() && complete.types[4] == BuildingType::Flamethrower &&
+        complete.types[5] == BuildingType::MissileLauncher && complete.types[6] == BuildingType::TeslaTower &&
+        complete.types[7] == BuildingType::LaserTower && complete.types[9] == BuildingType::RepairStation &&
+        complete.types[10] == BuildingType::DecoyBeacon && complete.types[12] == BuildingType::SpikeTrap &&
+        complete.types[13] == BuildingType::SlowTrap && !complete.indexOf(BuildingType::Wall),
+        "defense hotbar ends with traps while walls use the modular section");
     place.placeBuilding=PlaceBuildingCommand{BuildingType::Flamethrower,{3,0},3};
     simulation->tick(0,place);
     auto findFlame=[&]() {
@@ -75,7 +80,7 @@ inline void checkFlamethrowerBuilding() {
     const auto checkpoint=simulation->saveSuspendedRunState();
     simulation->tick(0,start);
     simulation->tick(3);
-    require(simulation->snapshot().defenseProjectiles.empty(), "flamethrower does not accidentally fire another weapon's projectiles");
+    require(simulation->snapshot().defenseProjectiles.empty(), "flamethrower uses an area stream, not another weapon's projectiles");
     simulation->returnToMainMenu();
     require(simulation->loadSuspendedRunState(checkpoint), "flamethrower checkpoint loads");
     require(findFlame()!=simulation->snapshot().buildings.end() && findFlame()->level==3 && findFlame()->rotation==4,

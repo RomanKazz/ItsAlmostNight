@@ -18,7 +18,7 @@ inline void checkWeaponCardProgression() {
         RunUpgradeEffect::UnlockClub,RunUpgradeEffect::UnlockIceWand,RunUpgradeEffect::UnlockFireWand};
     std::uint64_t random=578421;int owned=0;
     for(int i=0;i<40000;++i) owned+=chooseRunUpgradeOffer(pool,levels,random)==0;
-    require(owned>7600 && owned<8400,"owned weapon has one card's weight beside four new acquisitions");
+    require(owned>17500 && owned<18500,"owned weapon uses the fixed existing-category chance");
     ResourceSystem nodes({{ResourceType::Wood,{0,0,0},.8,100,100,1},
         {ResourceType::Stone,{10,0,0},.8,100,100,1},
         {ResourceType::Crystal,{20,0,0},.8,100,100,1},
@@ -95,14 +95,12 @@ inline void checkWeaponCardProgression() {
         run->snapshot().upgradeStats.resourceYield==yield,"world capacity preserves player storage and yield bonuses");
     for (std::size_t i=0;i<baseNodes.size();++i) {
         const auto& grown=run->snapshot().resourceNodes[i];
-        requireNear(grown.maxHealth,baseNodes[i].maxHealth*1.4,1e-9,"capacity raises resource durability");
-        require(grown.yield==static_cast<int>(std::lround(baseNodes[i].yield*1.4)),
+        requireNear(grown.maxHealth,baseNodes[i].maxHealth*1.28,1e-9,"capacity raises resource durability");
+        require(grown.yield==static_cast<int>(std::lround(baseNodes[i].yield*1.28)),
             "capacity increases the resource stock in the world");
     }
-    require(run->openRunShop(true),"level-capped weapons can be inspected in the shop pool");
-    for(const auto& offer:run->snapshot().runShop.offers)
-        require(!offer.present || !runWeaponLevelCard(offer.effect),"capped weapons are filtered out of shop offers");
-    require(run->closeRunShop(),"weapon fixture leaves the shop");
+    require(!run->openRunShop(true) && !run->snapshot().runShop.pending,
+        "temporarily disabled shop stays closed even for capped weapons");
     auto saved=run->saveSuspendedRunState();
     run->returnToMainMenu();require(run->loadSuspendedRunState(saved),"weapon levels resume from save");
     require(run->snapshot().weaponLevels[static_cast<std::size_t>(PlayerWeapon::FireWand)]==2 &&

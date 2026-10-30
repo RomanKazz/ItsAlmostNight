@@ -13,6 +13,11 @@ namespace {
 
 std::string_view classId(PlayerClass type) {
     switch (type) {
+    case PlayerClass::Lumberjack: return "lumberjack";
+    case PlayerClass::Sharpshooter: return "sharpshooter";
+    case PlayerClass::Mechanic: return "engineer"; // Stable quest role ID across roster replacement.
+    case PlayerClass::Miner: return "miner";
+    case PlayerClass::Stump: return "stump";
     case PlayerClass::Vanguard: return "vanguard";
     case PlayerClass::Ranger: return "ranger";
     case PlayerClass::Engineer: return "engineer";
@@ -73,20 +78,7 @@ std::string_view enemyId(EnemyType type) {
 }
 
 constexpr std::array<std::string_view, RunUpgradeEffectCount> UpgradeIds{{
-    "damage", "attack_speed", "move_speed", "maximum_health", "recoverable_armor",
-    "building_health", "build_radius", "defense_damage", "defense_fire_rate",
-    "production_speed", "nightly_bomb", "wider_choice", "blood_harvest", "overkill",
-    "ricochet", "double_down", "lock_choice", "reroll_token", "risky_investment",
-    "salvager", "twin_batteries", "cluster_payload", "reactive_traps", "gun_piercing",
-    "gun_shrapnel", "gathering_speed", "longer_day", "rich_resources", "luck",
-    "unlock_gun_turret", "unlock_turret", "unlock_cannon", "unlock_catapult",
-    "unlock_spike_trap", "unlock_slow_trap",
-    "cannon_heavy_shell", "cannon_scattershot", "cannon_cluster_shell",
-    "unlock_lumber_mill", "unlock_quarry", "unlock_crystal_mine",
-    "lumber_mill_production", "quarry_production", "crystal_mine_production",
-    "regeneration", "unlock_club", "unlock_rifle", "unlock_bomb", "unlock_ice_wand", "unlock_fire_wand",
-    "projectile_speed", "attack_duration", "attack_size", "critical_chance", "critical_damage", "attack_knockback",
-    "poison_chance", "upgrade_axe", "upgrade_pickaxe", "unlock_flamethrower", "unlock_wall", "unlock_missile_launcher", "unlock_tesla_tower",
+    "damage", "attack_speed", "move_speed", "maximum_health", "recoverable_armor", "building_health", "build_radius", "defense_damage", "defense_fire_rate", "production_speed", "nightly_bomb", "wider_choice", "blood_harvest", "overkill", "bounces", "double_down", "lock_choice", "reroll_token", "risky_investment", "salvager", "projectile_count", "cluster_payload", "reactive_traps", "pierce", "gun_shrapnel", "gathering_speed", "longer_day", "rich_resources", "luck", "unlock_gun_turret", "unlock_turret", "unlock_cannon", "unlock_catapult", "unlock_spike_trap", "unlock_slow_trap", "cannon_heavy_shell", "cannon_scattershot", "cannon_cluster_shell", "unlock_lumber_mill", "unlock_quarry", "unlock_crystal_mine", "lumber_mill_production", "quarry_production", "crystal_mine_production", "regeneration", "unlock_club", "unlock_rifle", "unlock_bomb", "unlock_ice_wand", "unlock_fire_wand", "projectile_speed", "attack_duration", "attack_size", "critical_chance", "critical_damage", "attack_knockback", "poison_chance", "upgrade_axe", "upgrade_pickaxe", "unlock_flamethrower", "unlock_wall", "unlock_missile_launcher", "unlock_tesla_tower", "unlock_laser_tower", "unlock_mortar", "unlock_repair_station", "unlock_decoy_beacon", "unlock_wind_blower", "building_capacity", "extra_building", "upgrade_core", "experience_gain"
 }};
 
 } // namespace
@@ -111,7 +103,7 @@ void QuestGameplayTracker::observeStats(const SimulationSnapshot& snapshot) {
 QuestUpdate QuestGameplayTracker::record(
     const QuestSystem& system, MetaProgression& progression,
     std::span<const GameEvent> events, const SimulationSnapshot& snapshot) {
-    if (snapshot.sandboxMode) return {};
+    if (snapshot.sandboxMode || snapshot.unlimitedResources) return {};
     if (!progression.quests.initialized) system.initialize(progression);
     signals_.clear();
     QuestUpdate result;
@@ -136,6 +128,11 @@ QuestUpdate QuestGameplayTracker::record(
             continue;
         }
         if (!progression.quests.runActive) continue;
+        if (event.type == GameEventType::MetaSilverCollected && event.amount > 0) {
+            progression.silver = saturatingAdd(progression.silver,event.amount);
+            result.changed = true;
+            continue;
+        }
         if (event.type == GameEventType::RunEnded) {
             observeStats(snapshot);
             flush();
@@ -156,6 +153,8 @@ QuestUpdate QuestGameplayTracker::record(
             break;
         case GameEventType::BuildingPlaced:
             signal(QuestMetric::BuildingsPlaced, 1.0, subject);
+            if (event.buildingType && std::ranges::find(RunEconomyBuildingTypes, *event.buildingType) != RunEconomyBuildingTypes.end())
+                signal(QuestMetric::ProducersBuilt);
             break;
         case GameEventType::ModularBuildingPlaced:
             signal(QuestMetric::BuildingsPlaced, 1.0, "modular");
@@ -177,6 +176,11 @@ QuestUpdate QuestGameplayTracker::record(
         case GameEventType::CoinCollected:
             signal(QuestMetric::CoinsCollected, event.amount);
             break;
+        case GameEventType::ResourceCollected:
+            if (event.resourceType && event.entityId)
+                signal(QuestMetric::NodesDepleted, 1.0, *event.resourceType == ResourceType::Wood ? "wood" :
+                    *event.resourceType == ResourceType::Stone ? "stone" : "crystal");
+            break;
         case GameEventType::ResourceGranted:
             progression.resourcesGathered = saturatingAdd(
                 progression.resourcesGathered, std::max(0, event.amount));
@@ -186,7 +190,35 @@ QuestUpdate QuestGameplayTracker::record(
         case GameEventType::WaveCompleted:
             progression.bestWave = std::max(progression.bestWave, event.amount);
             signal(QuestMetric::WaveReached, event.amount);
-            if (event.type == GameEventType::WaveCompleted) signal(QuestMetric::WavesCompleted);
+            if (event.type == GameEventType::WaveCompleted) {
+                signal(QuestMetric::WavesCompleted);
+                signal(QuestMetric::DawnReserve, snapshot.crystals, "crystal");
+            }
+            break;
+        case GameEventType::WorldLandmarkActivated:
+            if (event.entityId) {
+                const auto landmark = std::ranges::find(snapshot.worldLandmarks, *event.entityId, &WorldLandmarkInstance::id);
+                if (landmark != snapshot.worldLandmarks.end() && landmarkShrineKind(landmark->type) != ShrineKind::None)
+                    signal(QuestMetric::ShrinesActivated);
+            }
+            break;
+        case GameEventType::TowerFired:
+        case GameEventType::CannonFired:
+            signal(QuestMetric::DefenseShots);
+            break;
+        case GameEventType::PlayerDamaged:
+            signal(QuestMetric::DamageTaken, std::max(1, event.amount));
+            break;
+        case GameEventType::CoreDamaged:
+            signal(QuestMetric::CoreDamageTaken, std::max(1, event.amount));
+            break;
+        case GameEventType::BuildingDestroyed:
+        case GameEventType::ModularBuildingDestroyed:
+            signal(QuestMetric::StructuresLost, 1.0,
+                event.buildingType && runCombatBuilding(*event.buildingType) && *event.buildingType != BuildingType::Wall ? "defense" : subject);
+            break;
+        case GameEventType::PlayerDied:
+            signal(QuestMetric::PlayerDeaths);
             break;
         case GameEventType::StageCleared:
             progression.stageClears = saturatingAdd(progression.stageClears, 1);

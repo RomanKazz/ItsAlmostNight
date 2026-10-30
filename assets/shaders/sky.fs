@@ -119,47 +119,51 @@ void main()
     float lowerBlend = smoothstep(0.0, 0.42, -viewDirection.y);
     sky = mix(sky, lowerSkyColor, lowerBlend);
 
-    vec2 skyboxUv = equirectangularCoordinates(viewDirection);
-    vec2 skyboxUvDx = dFdx(skyboxUv);
-    vec2 skyboxUvDy = dFdy(skyboxUv);
-    // atan wraps U from 1 back to 0. Correct that discontinuity before the
-    // GPU selects a mip level, otherwise it produces a vertical seam.
-    skyboxUvDx.x -= round(skyboxUvDx.x);
-    skyboxUvDy.x -= round(skyboxUvDy.x);
-    vec3 authoredSky;
-    if (nightAmount <= 0.16) {
-        authoredSky = sampleSkybox(
-            daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
-    } else if (nightAmount < 0.42) {
-        float blend = smoothstep(0.16, 0.42, nightAmount);
+    // This uniform branch also keeps texture derivatives well-defined.
+    if (skyboxEnabled > 0.0) {
+        vec2 skyboxUv = equirectangularCoordinates(viewDirection);
+        vec2 skyboxUvDx = dFdx(skyboxUv);
+        vec2 skyboxUvDy = dFdy(skyboxUv);
+        // atan wraps U from 1 back to 0. Correct that discontinuity before the
+        // GPU selects a mip level, otherwise it produces a vertical seam.
+        skyboxUvDx.x -= round(skyboxUvDx.x);
+        skyboxUvDy.x -= round(skyboxUvDy.x);
+        vec3 authoredSky;
+        if (nightAmount <= 0.16) {
+            authoredSky = sampleSkybox(
+                daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
+        } else if (nightAmount < 0.42) {
+            float blend = smoothstep(0.16, 0.42, nightAmount);
+            authoredSky = mix(
+                sampleSkybox(
+                    daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+                sampleSkybox(
+                    morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+                blend);
+        } else if (nightAmount <= 0.58) {
+            authoredSky = sampleSkybox(
+                morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
+        } else if (nightAmount < 0.90) {
+            float blend = smoothstep(0.58, 0.90, nightAmount);
+            authoredSky = mix(
+                sampleSkybox(
+                    morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+                sampleSkybox(
+                    nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+                blend);
+        } else {
+            authoredSky = sampleSkybox(
+                nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
+        }
+        // Retain a little procedural color underneath. This ties the authored
+        // panorama to fog/time profiles and prevents harsh profile transitions.
+        float authoredLuminance = dot(
+            authoredSky, vec3(0.2126, 0.7152, 0.0722));
         authoredSky = mix(
-            sampleSkybox(
-                daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
-            sampleSkybox(
-                morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
-            blend);
-    } else if (nightAmount <= 0.58) {
-        authoredSky = sampleSkybox(
-            morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
-    } else if (nightAmount < 0.90) {
-        float blend = smoothstep(0.58, 0.90, nightAmount);
-        authoredSky = mix(
-            sampleSkybox(
-                morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
-            sampleSkybox(
-                nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
-            blend);
-    } else {
-        authoredSky = sampleSkybox(
-            nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
+            vec3(authoredLuminance), authoredSky, 1.08)*0.91;
+        sky = mix(sky, authoredSky, skyboxEnabled*0.72);
     }
-    // Retain a little procedural color underneath. This ties the authored
-    // panorama to fog/time profiles and prevents harsh profile transitions.
-    float authoredLuminance = dot(
-        authoredSky, vec3(0.2126, 0.7152, 0.0722));
-    authoredSky = mix(
-        vec3(authoredLuminance), authoredSky, 1.08)*0.91;
-    sky = mix(sky, authoredSky, skyboxEnabled*0.72);
+
     float proceduralDetail = mix(1.0, 0.18, skyboxEnabled);
     float proceduralStarDetail = mix(1.0, 0.68, skyboxEnabled);
 
@@ -179,64 +183,71 @@ void main()
         sky, warmDiscColor*(1.05 + celestialIntensity*0.12),
         disc*mix(0.72, 0.94, dayCelestial)*proceduralDetail);
 
-    vec3 starCoordinates = cubeStarCoordinates(viewDirection);
-    vec2 starGrid = starCoordinates.xy*68.0;
-    vec2 starCell = floor(starGrid);
-    vec2 starLocal = fract(starGrid);
-    vec2 faceOffset = vec2(
-        starCoordinates.z*137.0,
-        starCoordinates.z*59.0);
-    float starSeed = hash21(starCell + faceOffset);
-    float starExists = smoothstep(0.978, 0.998, starSeed);
-    vec2 starPosition = vec2(
-        hash21(starCell + faceOffset + vec2(17.3, 4.1)),
-        hash21(starCell + faceOffset + vec2(7.7, 29.6)));
-    starPosition = mix(vec2(0.16), vec2(0.84), starPosition);
-    float starDistance = length(starLocal - starPosition);
-    float starSize = mix(
-        0.045, 0.090,
-        hash21(starCell + faceOffset + vec2(41.2, 11.8)));
-    float starAntialias =
-        max(fwidth(starDistance)*0.85, 0.012);
-    float starCore =
-        (1.0 - smoothstep(
-            starSize, starSize + starAntialias,
-            starDistance))*starExists;
-    float starGlow =
-        (1.0 - smoothstep(
-            starSize + 0.02, starSize + 0.28,
-            starDistance))*starExists;
-    float twinkle =
-        0.72 + 0.28*
-        sin(timeSeconds*(1.0 + starSeed*1.6) +
-            starSeed*83.0);
-    float starVisibility =
-        smoothstep(0.12, 0.72, nightAmount)*
-        smoothstep(-0.08, 0.16, viewDirection.y);
-    vec3 starColor = mix(
-        vec3(0.72, 0.82, 1.0),
-        vec3(1.0, 0.88, 0.68),
-        hash21(starCell + faceOffset + vec2(8.2, 73.1)));
-    sky += starColor*
-        (starCore*1.45 + starGlow*0.22)*
-        twinkle*starVisibility*proceduralStarDetail;
+    // Daylight makes the entire star contribution exactly zero. Keep the
+    // branch uniform: star antialiasing uses derivatives across pixels.
+    if (nightAmount > 0.12) {
+        vec3 starCoordinates = cubeStarCoordinates(viewDirection);
+        vec2 starGrid = starCoordinates.xy*68.0;
+        vec2 starCell = floor(starGrid);
+        vec2 starLocal = fract(starGrid);
+        vec2 faceOffset = vec2(
+            starCoordinates.z*137.0,
+            starCoordinates.z*59.0);
+        float starSeed = hash21(starCell + faceOffset);
+        float starExists = smoothstep(0.978, 0.998, starSeed);
+        vec2 starPosition = vec2(
+            hash21(starCell + faceOffset + vec2(17.3, 4.1)),
+            hash21(starCell + faceOffset + vec2(7.7, 29.6)));
+        starPosition = mix(vec2(0.16), vec2(0.84), starPosition);
+        float starDistance = length(starLocal - starPosition);
+        float starSize = mix(
+            0.045, 0.090,
+            hash21(starCell + faceOffset + vec2(41.2, 11.8)));
+        float starAntialias =
+            max(fwidth(starDistance)*0.85, 0.012);
+        float starCore =
+            (1.0 - smoothstep(
+                starSize, starSize + starAntialias,
+                starDistance))*starExists;
+        float starGlow =
+            (1.0 - smoothstep(
+                starSize + 0.02, starSize + 0.28,
+                starDistance))*starExists;
+        float twinkle =
+            0.72 + 0.28*
+            sin(timeSeconds*(1.0 + starSeed*1.6) +
+                starSeed*83.0);
+        float starVisibility =
+            smoothstep(0.12, 0.72, nightAmount)*
+            smoothstep(-0.08, 0.16, viewDirection.y);
+        vec3 starColor = mix(
+            vec3(0.72, 0.82, 1.0),
+            vec3(1.0, 0.88, 0.68),
+            hash21(starCell + faceOffset + vec2(8.2, 73.1)));
+        sky += starColor*
+            (starCore*1.45 + starGlow*0.22)*
+            twinkle*starVisibility*proceduralStarDetail;
+    }
 
     // A faint galactic band gives the night sky large-scale structure behind
     // the stars without making the ground brighter.
-    vec3 galacticNormal = normalize(vec3(0.38, 0.72, 0.58));
-    float galacticDistance = abs(dot(viewDirection, galacticNormal));
-    float galacticBand = exp(-galacticDistance*galacticDistance*58.0);
-    float galacticDust = cloudFbm(
-        viewDirection.xz*5.4 +
-        viewDirection.xy*2.1 + vec2(31.7, -12.4));
-    float galaxy = galacticBand*
-        smoothstep(0.18, 0.82, galacticDust)*
-        smoothstep(-0.05, 0.28, viewDirection.y)*
-        smoothstep(0.34, 0.92, nightAmount);
-    sky += mix(
-        vec3(0.16, 0.24, 0.48),
-        vec3(0.42, 0.22, 0.58),
-        galacticDust)*galaxy*0.16*proceduralDetail;
+    // Skip FBM where either visibility factor is exactly zero.
+    if (nightAmount > 0.34 && viewDirection.y > -0.05) {
+        vec3 galacticNormal = normalize(vec3(0.38, 0.72, 0.58));
+        float galacticDistance = abs(dot(viewDirection, galacticNormal));
+        float galacticBand = exp(-galacticDistance*galacticDistance*58.0);
+        float galacticDust = cloudFbm(
+            viewDirection.xz*5.4 +
+            viewDirection.xy*2.1 + vec2(31.7, -12.4));
+        float galaxy = galacticBand*
+            smoothstep(0.18, 0.82, galacticDust)*
+            smoothstep(-0.05, 0.28, viewDirection.y)*
+            smoothstep(0.34, 0.92, nightAmount);
+        sky += mix(
+            vec3(0.16, 0.24, 0.48),
+            vec3(0.42, 0.22, 0.58),
+            galacticDust)*galaxy*0.16*proceduralDetail;
+    }
 
     // A cold lunar halo keeps the moon readable through the richer sky.
     float lunarNight = smoothstep(0.42, 0.90, nightAmount);
@@ -250,66 +261,72 @@ void main()
     float auroraNight = smoothstep(0.36, 0.88, nightAmount);
     float auroraNorth =
         smoothstep(-0.10, 0.82, -viewDirection.z);
-    float azimuth = atan(viewDirection.x, -viewDirection.z);
-    float elevation = viewDirection.y;
-    float slowTime = timeSeconds*0.035;
-    float auroraWarp = cloudFbm(
-        vec2(azimuth*1.35 + slowTime*0.13,
-             elevation*3.4 - slowTime*0.035) +
-        vec2(13.7, 4.1));
-    float lowerEdge =
-        0.055 + 0.045*sin(azimuth*2.15 + slowTime) +
-        0.032*sin(azimuth*5.3 - slowTime*0.48) +
-        (auroraWarp - 0.5)*0.055;
-    float curtainBody =
-        smoothstep(lowerEdge, lowerEdge + 0.055, elevation)*
-        (1.0 - smoothstep(0.56, 0.82, elevation));
-    float broadFold = 0.5 + 0.5*sin(
-        azimuth*7.5 + auroraWarp*5.0 + slowTime*0.72);
-    float fineFold = 0.5 + 0.5*sin(
-        azimuth*23.0 - auroraWarp*9.0 - slowTime*1.4);
-    float verticalRays = mix(
-        0.30 + broadFold*0.70,
-        pow(fineFold, 5.0), 0.46);
+    // Both curtains and their veil are zero outside these elevation bounds:
+    // the first lower edge is at least -0.0495, the second at least 0.05;
+    // both upper fades have finished by 0.82. FBM is bounded to [0, 1].
+    if (auroraNight > 0.0 && auroraNorth > 0.0 &&
+        viewDirection.y > -0.05 && viewDirection.y < 0.82) {
+        float azimuth = atan(viewDirection.x, -viewDirection.z);
+        float elevation = viewDirection.y;
+        float slowTime = timeSeconds*0.035;
+        float auroraWarp = cloudFbm(
+            vec2(azimuth*1.35 + slowTime*0.13,
+                 elevation*3.4 - slowTime*0.035) +
+            vec2(13.7, 4.1));
+        float lowerEdge =
+            0.055 + 0.045*sin(azimuth*2.15 + slowTime) +
+            0.032*sin(azimuth*5.3 - slowTime*0.48) +
+            (auroraWarp - 0.5)*0.055;
+        float curtainBody =
+            smoothstep(lowerEdge, lowerEdge + 0.055, elevation)*
+            (1.0 - smoothstep(0.56, 0.82, elevation));
+        float broadFold = 0.5 + 0.5*sin(
+            azimuth*7.5 + auroraWarp*5.0 + slowTime*0.72);
+        float fineFold = 0.5 + 0.5*sin(
+            azimuth*23.0 - auroraWarp*9.0 - slowTime*1.4);
+        float verticalRays = mix(
+            0.30 + broadFold*0.70,
+            pow(fineFold, 5.0), 0.46);
 
-    float secondWarp = cloudFbm(
-        vec2(azimuth*1.8 - slowTime*0.10,
-             elevation*4.1 + slowTime*0.025) +
-        vec2(-8.3, 19.6));
-    float secondEdge =
-        0.14 + 0.055*sin(azimuth*3.4 - slowTime*0.62) +
-        (secondWarp - 0.5)*0.07;
-    float secondCurtain =
-        smoothstep(secondEdge, secondEdge + 0.045, elevation)*
-        (1.0 - smoothstep(0.48, 0.70, elevation));
-    float secondRays = pow(
-        0.5 + 0.5*sin(
-            azimuth*16.0 + secondWarp*7.0 + slowTime),
-        4.0);
+        float secondWarp = cloudFbm(
+            vec2(azimuth*1.8 - slowTime*0.10,
+                 elevation*4.1 + slowTime*0.025) +
+            vec2(-8.3, 19.6));
+        float secondEdge =
+            0.14 + 0.055*sin(azimuth*3.4 - slowTime*0.62) +
+            (secondWarp - 0.5)*0.07;
+        float secondCurtain =
+            smoothstep(secondEdge, secondEdge + 0.045, elevation)*
+            (1.0 - smoothstep(0.48, 0.70, elevation));
+        float secondRays = pow(
+            0.5 + 0.5*sin(
+                azimuth*16.0 + secondWarp*7.0 + slowTime),
+            4.0);
 
-    float auroraFolds = clamp(
-        curtainBody*verticalRays +
-        secondCurtain*secondRays*0.58,
-        0.0, 1.0);
-    float auroraVeil = smoothstep(
-        0.40, 0.76, auroraWarp)*curtainBody;
-    float aurora =
-        auroraNight*auroraNorth*
-        clamp(auroraFolds + auroraVeil*0.30, 0.0, 1.0);
-    vec3 auroraGreen = vec3(0.10, 1.00, 0.52);
-    vec3 auroraBlue = vec3(0.16, 0.68, 1.00);
-    vec3 auroraViolet = vec3(0.72, 0.20, 1.00);
-    vec3 auroraColor = mix(
-        auroraGreen, auroraBlue,
-        smoothstep(0.13, 0.50, elevation));
-    auroraColor = mix(
-        auroraColor, auroraViolet,
-        smoothstep(0.38, 0.68, elevation)*
-        (0.26 + secondWarp*0.48));
-    float authoredAuroraScale = mix(1.0, 0.58, skyboxEnabled);
-    sky += auroraColor*aurora*0.88*authoredAuroraScale;
-    sky += auroraBlue*auroraVeil*
-        auroraNight*auroraNorth*0.12*authoredAuroraScale;
+        float auroraFolds = clamp(
+            curtainBody*verticalRays +
+            secondCurtain*secondRays*0.58,
+            0.0, 1.0);
+        float auroraVeil = smoothstep(
+            0.40, 0.76, auroraWarp)*curtainBody;
+        float aurora =
+            auroraNight*auroraNorth*
+            clamp(auroraFolds + auroraVeil*0.30, 0.0, 1.0);
+        vec3 auroraGreen = vec3(0.10, 1.00, 0.52);
+        vec3 auroraBlue = vec3(0.16, 0.68, 1.00);
+        vec3 auroraViolet = vec3(0.72, 0.20, 1.00);
+        vec3 auroraColor = mix(
+            auroraGreen, auroraBlue,
+            smoothstep(0.13, 0.50, elevation));
+        auroraColor = mix(
+            auroraColor, auroraViolet,
+            smoothstep(0.38, 0.68, elevation)*
+            (0.26 + secondWarp*0.48));
+        float authoredAuroraScale = mix(1.0, 0.58, skyboxEnabled);
+        sky += auroraColor*aurora*0.88*authoredAuroraScale;
+        sky += auroraBlue*auroraVeil*
+            auroraNight*auroraNorth*0.12*authoredAuroraScale;
+    }
 
     sky *= exposure;
     float luminance = dot(sky, vec3(0.2126, 0.7152, 0.0722));

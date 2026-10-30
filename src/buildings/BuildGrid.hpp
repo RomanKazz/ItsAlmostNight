@@ -4,7 +4,6 @@
 #include "world/WorldConfig.hpp"
 
 #include <cstdint>
-#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -84,8 +83,6 @@ class BuildGrid {
 
     [[nodiscard]] bool isOccupied(
         GridCoord coord, OccupancyLayer layer) const;
-    [[nodiscard]] std::span<const OccupancyRecord>
-    occupants(GridCoord coord) const;
     [[nodiscard]] std::size_t occupiedCellCount() const;
     [[nodiscard]] const WorldConfig& config() const;
 

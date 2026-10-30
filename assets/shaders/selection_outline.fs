@@ -31,11 +31,30 @@ float viewDepthAt(vec2 uv, float depth)
     return max(-view.z/max(view.w, 0.000001), 0.001);
 }
 
+// Project the local occluder plane to the selected silhouette sample.
+// Comparing depths at different pixels clips the lower stroke on receding
+// ground: the ground under the expanded pixel is naturally nearer than the
+// selected sample a few pixels higher. Window depth is affine on a plane,
+// so two samples let us compare both surfaces along the same view ray.
+float occluderDepthAtSource(sampler2D depths, vec2 sourceUv, float centerDepth)
+{
+    vec2 awayUv = clamp(2.0*fragTexCoord - sourceUv, texelSize*0.5, vec2(1.0) - texelSize*0.5);
+    float awayDepth = texture(depths, awayUv).r;
+    if (awayDepth >= 0.999999) return viewDepthAt(fragTexCoord, centerDepth);
+    float projectedDepth = clamp(2.0*centerDepth - awayDepth, 0.0, 1.0);
+    return viewDepthAt(sourceUv, projectedDepth);
+}
+
 void main()
 {
     vec4 centerSample = selectionSample(fragTexCoord);
     vec3 centerColor = centerSample.rgb;
     float centerMask = max(centerColor.r, max(centerColor.g, centerColor.b));
+    // Filled pixels never contribute to the exterior contour.
+    if (centerMask >= 0.95)
+    {
+        discard;
+    }
     float exteriorCoverage = 1.0 -
         smoothstep(0.05, 0.95, centerMask);
 
@@ -84,23 +103,29 @@ void main()
 
     float alpha = exteriorCoverage*
         smoothstep(0.05, 0.95, outsideMask);
+    if (alpha <= 0.001)
+    {
+        discard;
+    }
     // Use the mask's actual depth attachment, not its quantised RGBA8 alpha.
     // Alpha precision allowed close terrain to look level with a selected
     // surface, drawing a contour along the terrain's cut through the object.
     float selectedDepth = viewDepthAt(outsideUv, texture(selectionDepth, outsideUv).r);
     if (centerMask < 0.001 && centerSample.a > 0.0)
     {
-        float maskDepth = viewDepthAt(fragTexCoord, texture(selectionDepth, fragTexCoord).r);
-        if (maskDepth + 0.002 < selectedDepth) discard;
+        float maskRawDepth = texture(selectionDepth, fragTexCoord).r;
+        float maskDepth = viewDepthAt(fragTexCoord, maskRawDepth);
+        if (maskDepth + 0.002 < selectedDepth &&
+            occluderDepthAtSource(selectionDepth, outsideUv, maskRawDepth) + 0.002 < selectedDepth) discard;
     }
     if (depthOcclusionEnabled > 0.5)
     {
-        // Selection is rendered after the world. Hide a dilated outline pixel
-        // whenever the visible scene surface is in front of the selected
-        // sample that produced it. A 2 mm tolerance leaves the true silhouette
-        // intact while suppressing even shallow terrain intersections.
-        float visibleDepth = viewDepthAt(fragTexCoord, texture(sceneDepth, fragTexCoord).r);
-        if (visibleDepth + 0.002 < selectedDepth) discard;
+        // Keep real foreground occluders, but do not let the perspective
+        // gradient of ground shave an otherwise visible exterior contour.
+        float visibleRawDepth = texture(sceneDepth, fragTexCoord).r;
+        float visibleDepth = viewDepthAt(fragTexCoord, visibleRawDepth);
+        if (visibleDepth + 0.002 < selectedDepth &&
+            occluderDepthAtSource(sceneDepth, outsideUv, visibleRawDepth) + 0.002 < selectedDepth) discard;
     }
     if (alpha <= 0.001)
     {

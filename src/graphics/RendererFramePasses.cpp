@@ -129,6 +129,13 @@ void Renderer::warmCombatRendering() {
 #endif
 }
 
+void Renderer::beginOverlayPass() {
+    BeginDrawing();
+    ClearBackground(BLACK);
+    frameOpen_ = true;
+    worldPassOpen_ = false;
+}
+
 void Renderer::beginWorldPass(
     Color clearColor, const Camera3D& camera) {
     performanceStats_.instancedEnemyCount = 0U;
@@ -511,6 +518,14 @@ void Renderer::drawClouds(
     EndBlendMode();
 }
 
+WorldUiOcclusion Renderer::worldUiOcclusion() const {
+    if (!resources_.sceneTargetValid()) return {.nativeDepth = true};
+    if (!worldUiOcclusionShader_.valid()) return {};
+    return {false, worldUiOcclusionShader_.get(), resources_.sceneTarget().depth,
+        {static_cast<float>(GetRenderWidth()), static_cast<float>(GetRenderHeight())},
+        worldUiDepthLocation_, worldUiViewportLocation_};
+}
+
 void Renderer::endWorldPass() {
     if (!worldPassOpen_) {
         return;
@@ -540,7 +555,6 @@ void Renderer::endWorldPass() {
             const RenderTexture2D& postTarget =
                 resources_.postProcessTarget();
             BeginTextureMode(postTarget);
-            ClearBackground(BLACK);
             BeginShaderMode(
                 resources_.postProcessShader().get());
             // Additional sampler textures must be registered after entering
@@ -557,7 +571,6 @@ void Renderer::endWorldPass() {
             EndTextureMode();
 
             BeginDrawing();
-            ClearBackground(BLACK);
             BeginShaderMode(resources_.fxaaShader().get());
             DrawTexturePro(
                 postTarget.texture,
@@ -568,7 +581,6 @@ void Renderer::endWorldPass() {
             EndShaderMode();
         } else {
             BeginDrawing();
-            ClearBackground(BLACK);
             if (settings_.postProcessing &&
                 resources_.postProcessShader().valid()) {
                 BeginShaderMode(
@@ -623,7 +635,6 @@ void Renderer::drawSsaoPass() {
         sampleCount = 6;
     }
     BeginTextureMode(target);
-    ClearBackground(BLACK);
     BeginShaderMode(shader);
     // SetShaderValueTexture must happen inside shader mode; otherwise the
     // batch flush in BeginShaderMode silently drops the auxiliary textures.
@@ -804,56 +815,14 @@ void Renderer::compositeFirstPersonTool(const FirstPersonToolTuning& tuning) {
                    {}, 0.0F, WHITE);
 }
 
-void Renderer::drawScenePreview(Rectangle bounds) {
-    if (!resources_.sceneTargetValid() ||
-        bounds.width <= 0.0F || bounds.height <= 0.0F) {
-        return;
-    }
-    const auto& target = resources_.sceneTarget();
-    const Rectangle source{
-        0.0F, 0.0F,
-        static_cast<float>(target.texture.width),
-        -static_cast<float>(target.texture.height),
-    };
-    if (resources_.postProcessShader().valid()) {
-        BeginShaderMode(
-            resources_.postProcessShader().get());
-        uploadPostProcessSettings();
-        DrawTexturePro(
-            target.texture, source, bounds,
-            {0.0F, 0.0F}, 0.0F, WHITE);
-        EndShaderMode();
-    } else {
-        DrawTexturePro(
-            target.texture, source, bounds,
-            {0.0F, 0.0F}, 0.0F, WHITE);
-    }
-}
-
-void Renderer::beginUiOnlyFrame(Color clearColor) {
-    performanceStats_.instancedEnemyCount = 0U;
-    performanceStats_.enemyBatchCount = 0U;
-    performanceStats_.lowDetailEnemyCount = 0U;
-    performanceStats_.blobShadowCount = 0U;
-    performanceStats_.blobShadowTriangles = 0U;
-    instancedEnemyMillisecondsThisFrame_ = 0.0;
-    resources_.updateFramebuffer(settings_);
-    usingOffscreenTarget_ = false;
-    ssaoFrameReady_ = false;
-    BeginDrawing();
-    ClearBackground(clearColor);
-    frameOpen_ = true;
-    worldPassOpen_ = false;
-}
-
-void Renderer::endFrame() {
+void Renderer::endFrame(bool includeDebugOverlays) {
     if (!frameOpen_) {
         return;
     }
     if (worldPassOpen_) {
         endWorldPass();
     }
-    if (showShadowMap_) {
+    if (includeDebugOverlays && showShadowMap_) {
         drawShadowMapDebug();
     }
     performanceStats_.instancedEnemyDraw.sample(
@@ -1048,25 +1017,46 @@ void Renderer::setSelectionOutlineBounds(
     const Vector3 cameraForward = Vector3Normalize(Vector3Subtract(
         selectionMaskCamera_.target,
         selectionMaskCamera_.position));
-    for (const Vector3 corner : corners) {
-        if (Vector3DotProduct(
-                Vector3Subtract(
-                    corner, selectionMaskCamera_.position),
-                cameraForward) <= 0.01F) {
-            return;
-        }
-    }
+    constexpr float ProjectionDistance = 0.05F;
+    std::array<float, 8> forwardDistances{};
     float minimumX = static_cast<float>(width);
     float minimumY = static_cast<float>(height);
     float maximumX = 0.0F;
     float maximumY = 0.0F;
-    for (const Vector3 corner : corners) {
+    const auto includePoint = [&](Vector3 point) {
         const Vector2 screen = GetWorldToScreenEx(
-            corner, selectionMaskCamera_, width, height);
+            point, selectionMaskCamera_, width, height);
         minimumX = std::min(minimumX, screen.x);
         minimumY = std::min(minimumY, screen.y);
         maximumX = std::max(maximumX, screen.x);
         maximumY = std::max(maximumY, screen.y);
+    };
+    for (std::size_t index = 0; index < corners.size(); ++index) {
+        forwardDistances[index] = Vector3DotProduct(
+            Vector3Subtract(corners[index], selectionMaskCamera_.position),
+            cameraForward);
+        if (forwardDistances[index] > ProjectionDistance) {
+            includePoint(corners[index]);
+        }
+    }
+    // An AABB can straddle the camera. Project its intersections with the
+    // near plane instead of dropping the scissor and shading the full screen.
+    constexpr std::array<std::array<std::size_t, 2>, 12> Edges{{
+        {{0, 1}}, {{2, 3}}, {{4, 5}}, {{6, 7}},
+        {{0, 2}}, {{1, 3}}, {{4, 6}}, {{5, 7}},
+        {{0, 4}}, {{1, 5}}, {{2, 6}}, {{3, 7}},
+    }};
+    for (const auto& edge : Edges) {
+        const float first = forwardDistances[edge[0]];
+        const float second = forwardDistances[edge[1]];
+        if ((first > ProjectionDistance) ==
+            (second > ProjectionDistance)) {
+            continue;
+        }
+        const float amount = (ProjectionDistance - first) /
+            (second - first);
+        includePoint(Vector3Lerp(
+            corners[edge[0]], corners[edge[1]], amount));
     }
     constexpr float Padding = 16.0F;
     minimumX = std::clamp(minimumX - Padding, 0.0F,
@@ -1139,10 +1129,6 @@ void Renderer::setSelectionOutlineRadius(float radiusPixels) {
         radiusPixels, 1.0F, 12.0F);
 }
 
-void Renderer::setSelectionOutlineDepthOcclusion(bool enabled) {
-    selectionOutlineDepthOcclusion_ = enabled;
-}
-
 void Renderer::endSelectionMaskPass() {
     if (!selectionMaskPassOpen_) {
         return;
@@ -1161,7 +1147,6 @@ void Renderer::clearSelectionOutline() {
     selectionOutlineBounds_.reset();
     selectionOutlineTint_ = WHITE;
     selectionOutlineRadiusPixels_ = 6.0F;
-    selectionOutlineDepthOcclusion_ = true;
 }
 
 void Renderer::drawSelectionOutline() {
@@ -1199,8 +1184,7 @@ void Renderer::drawSelectionOutline() {
     SetShaderValue(shader, selectionOutlineRadiusLocation_,
                    &outlineRadius, SHADER_UNIFORM_INT);
     const float depthOcclusionEnabled =
-        selectionOutlineDepthOcclusion_ && usingOffscreenTarget_ &&
-                resources_.sceneScreenSpaceBuffers() &&
+        usingOffscreenTarget_ && resources_.sceneScreenSpaceBuffers() &&
                 resources_.sceneTargetValid()
             ? 1.0F : 0.0F;
     SetShaderValue(
@@ -1465,6 +1449,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         sameVector3(material.hitFlashPosition,
                     worldMaterial_.hitFlashPosition) &&
         material.hitFlashRadius == worldMaterial_.hitFlashRadius &&
+        sameVector3(material.buildingFeedback.sweep, worldMaterial_.buildingFeedback.sweep) &&
+        sameVector3(material.buildingFeedback.tint, worldMaterial_.buildingFeedback.tint) &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
         material.selectionTint.y == worldMaterial_.selectionTint.y &&
@@ -1484,6 +1470,16 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
     rlDrawRenderBatchActive();
     worldMaterial_ = material;
     uploadWorldMaterial(worldMaterial_);
+}
+
+void Renderer::setBuildingFeedbackHighlight(const BuildingFeedbackHighlight& feedback) {
+    WorldMaterialState material = worldMaterial_;
+    if (feedback.removalAmount > 0 || material.buildingFeedback.removalAmount > 0) {
+        material.selectionAmount = feedback.removalAmount;
+        material.selectionTint = {0.95F, 0.065F, 0.035F};
+    }
+    material.buildingFeedback = feedback;
+    setWorldMaterial(material);
 }
 
 void Renderer::beginGhostPreviewMaterial() {

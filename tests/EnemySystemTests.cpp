@@ -281,17 +281,17 @@ void runEnemySystemTests() {
     require(core.has_value(), "enemy fixture creates core");
     std::optional<ian::PlacedBuilding> frontWall;
     for (int x = -2; x <= 2; ++x) {
-        const auto front = buildings.place(ian::BuildingType::Wall, {x, -2}, 0, 10, 0);
-        const auto back = buildings.place(ian::BuildingType::Wall, {x, 2}, 0, 10, 0);
+        const auto front = buildings.place(ian::BuildingType::Wall, {x, -2}, 0, 1000, 1000);
+        const auto back = buildings.place(ian::BuildingType::Wall, {x, 2}, 0, 1000, 1000);
         require(front.has_value() && back.has_value(), "enemy fixture creates horizontal walls");
         if (x == 0) {
             frontWall = front;
         }
     }
     for (int z = -1; z <= 1; ++z) {
-        require(buildings.place(ian::BuildingType::Wall, {-2, z}, 0, 10, 0).has_value(),
+        require(buildings.place(ian::BuildingType::Wall, {-2, z}, 0, 1000, 1000).has_value(),
                 "enemy fixture creates left wall");
-        require(buildings.place(ian::BuildingType::Wall, {2, z}, 0, 10, 0).has_value(),
+        require(buildings.place(ian::BuildingType::Wall, {2, z}, 0, 1000, 1000).has_value(),
                 "enemy fixture creates right wall");
     }
     require(frontWall.has_value(), "enemy fixture tracks front wall");
@@ -1383,6 +1383,8 @@ void runEnemySystemTests() {
             ian::EnemySystem::MaxActiveEnemies))));
     const double blastCenter =
         static_cast<double>(blastColumns - 1U) * 0.1;
+    const double blastRadius = std::max(
+        4.0, std::sqrt(2.0) * blastCenter + 1.0);
     for (std::size_t index = 0;
          index < ian::EnemySystem::MaxActiveEnemies; ++index) {
         blastSpawns.push_back({
@@ -1401,13 +1403,13 @@ void runEnemySystemTests() {
     const ian::EntityId firstBlastId =
         blastEnemies.enemies().front().id;
     const auto blastDamage = blastEnemies.damageInRadius(
-        {0.0, 0.8, 0.0}, 4.0, 1000.0, 2.0);
+        {0.0, 0.8, 0.0}, blastRadius, 1000.0, 2.0);
     require(
         blastDamage.size() ==
                 ian::EnemySystem::MaxActiveEnemies &&
             blastEnemies.activeCount() == 0 &&
             !blastEnemies.nearestEnemy(
-                {0.0, 0.8, 0.0}, 4.0),
+                {0.0, 0.8, 0.0}, blastRadius),
         "area damage atomically removes a full active wave from the spatial index");
 
     constexpr std::array<ian::EnemySpawn, 2> CloseBlastSpawns{{

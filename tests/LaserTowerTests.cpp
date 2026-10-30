@@ -59,7 +59,7 @@ void scaling() {
     require(damage[1]>damage[0]*1.8 && damage[1]<damage[0]*2.2,"attack speed increases throughput without changing focus speed");
     require(supportsAttackStat(BuildingType::LaserTower,AttackStat::Quantity) &&
         supportsAttackStat(BuildingType::LaserTower,AttackStat::Bounces) &&
-        !supportsAttackStat(BuildingType::LaserTower,AttackStat::Pierce) &&
+        supportsAttackStat(BuildingType::LaserTower,AttackStat::Pierce) &&
         supportsAttackStat(BuildingType::LaserTower,AttackStat::CritChance),"laser compatibility includes independent beam instances and chains");
     auto enemies=crowd();TowerSystem crit;AttackModifiers modifier;modifier[AttackStat::CritChance].flat=1;
     crit.setAttackModifiers(modifier);crit.syncBuildings({building});bool critical=false;
@@ -70,6 +70,33 @@ void scaling() {
         const auto after=TowerSystem::baseStats(building.type,level);
         require(after.damage>before.damage && after.range>before.range && after.attackInterval<before.attackInterval,"eight stat levels");
     }
+}
+void localPierceAndDuration() {
+    const BuildingInstance building{.id={985,1},.type=BuildingType::LaserTower,.gridPosition={0,0}};
+    const auto evaluate = [&](bool pierce, bool longerFocus) {
+        auto definitions=GameBalance::defaults().enemies;
+        for(auto& definition:definitions)definition.health=100000;
+        EnemySystem enemies(definitions);
+        enemies.spawnWave(std::vector<EnemySpawn>{
+            {.type=EnemyType::Basic,.position={0,0,-4}},
+            {.type=EnemyType::Basic,.position={0,0,-6}}});
+        TowerSystem towers;
+        AttackModifiers modifiers;
+        if (pierce) modifiers[AttackStat::Pierce].flat=1;
+        if (longerFocus) modifiers[AttackStat::Duration].multiplier=2;
+        towers.setAttackModifiers(modifiers);
+        towers.syncBuildings({building});
+        std::size_t largestHitCount=0;
+        for(int frame=0;frame<90;++frame)
+            largestHitCount=std::max(largestHitCount,towers.tick(Step,{building},enemies).size());
+        return std::pair{largestHitCount,towers.towers().front().laserFocusSeconds};
+    };
+    const auto normal=evaluate(false,false);
+    const auto pierced=evaluate(true,false);
+    require(normal.first==1 && pierced.first==2,
+        "laser pierce hits an additional target on the beam axis");
+    require(evaluate(false,true).second > normal.second * 1.8,
+        "laser duration accelerates sustained focus in combat");
 }
 void multipleRaysAndBounces() {
     const BuildingInstance building{.id={985,1},.type=BuildingType::LaserTower,.gridPosition={0,0}};
@@ -126,7 +153,6 @@ void progression() {
     world.pondMinimumCount=world.pondMaximumCount=0;
     auto game=std::make_unique<Simulation>(GameBalance::defaults(),map,world);game->startRunFromSeed(PlayerClass::Vanguard,702314);
     require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockLaserTower),"laser can be acquired through card/debug progression");
-    require(!game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockLaserTower),"laser upgrade obeys core cap");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};game->tick(0,god);
     PlayerCommand core;core.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};game->tick(0,core);
     PlayerCommand up;up.upgradeBuilding=UpgradeBuildingCommand{*game->snapshot().coreId,false};game->tick(0,up);game->tick(0,up);
@@ -139,4 +165,4 @@ void progression() {
     require(restored->loadSuspendedRunState(*saved) && restored->snapshot().buildingBlueprintLevels[slot]==2,"laser save/load");
 }
 }
-int main(){defense_tome_scaling_checks::run();focus();scaling();multipleRaysAndBounces();denseVolley();progression();}
+int main(){defense_tome_scaling_checks::run();focus();scaling();localPierceAndDuration();multipleRaysAndBounces();denseVolley();progression();}

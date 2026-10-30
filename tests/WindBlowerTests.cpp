@@ -100,7 +100,6 @@ void progression() {
     auto map=MapDefinition::defaults();map.obstacles.clear();auto world=WorldConfig::defaults();world.terrainAmplitude=0;world.pondMinimumCount=world.pondMaximumCount=0;
     auto run=std::make_unique<Simulation>(GameBalance::defaults(),map,world);run->startRunFromSeed(PlayerClass::Vanguard,73421);
     require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockWindBlower),"shared card unlocks fan");
-    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockWindBlower),"no-core level capped at one");
     require(run->snapshot().buildingArsenalCount==2 && run->snapshot().buildingBlueprintLevels[22]==1,"takes a defense slot and is available in snapshot");
     require(run->snapshot().buildingCosts[22].wood==30,"construction price exposed");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};run->tick(0,god);
@@ -115,7 +114,9 @@ void progression() {
     require(restored->snapshot().buildingBlueprintLevels[22]==2 && restored->snapshot().unlockedBuildings[22],"fan level and unlock persist");
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto bar=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(bar.count==15 && bar.types[11]==BuildingType::WindBlower && bar.types[14]==BuildingType::SlowTrap,"support fan precedes walls and traps");
+    require(bar.count==DefenseBuildingOrder.size() && bar.types[11]==BuildingType::WindBlower &&
+        bar.types[13]==BuildingType::SlowTrap && !bar.indexOf(BuildingType::Wall),
+        "support fan precedes defense traps while walls remain in the modular section");
 }
 }
 int main(){gust();targetingAndAnimation();flyingTarget();modifiersAndLevels();progression();}

@@ -38,7 +38,7 @@ rerollTargetLootItemVisual(
 [[nodiscard]] EnemyAnimationVisual enemyAnimationVisual(
     const EnemyInstance& enemy);
 [[nodiscard]] float enemyVisualScale(EnemyType type);
-[[nodiscard]] float enemyHitScale(
+[[nodiscard]] float enemyAppearanceScale(
     const EnemyInstance& enemy);
 [[nodiscard]] SplitterPose enemySplitPose(
     const EnemyInstance& enemy, double subTickSeconds = 0.0);
@@ -47,7 +47,9 @@ rerollTargetLootItemVisual(
 [[nodiscard]] Vector3 enemyRenderPosition(
     const EnemyInstance& enemy, double subTickSeconds = 0.0);
 [[nodiscard]] float enemyAnimationSeconds(
-    const EnemyInstance& enemy, double elapsedSeconds);
+    const EnemyInstance& enemy, double elapsedSeconds, double subTickSeconds = 0.0);
+[[nodiscard]] double enemyAnimationSubTickSeconds(
+    const SimulationSnapshot& snapshot, double interpolationAlpha);
 [[nodiscard]] float spikeTrapAnimationSeconds(
     const SimulationSnapshot& snapshot, EntityId id);
 void drawCentered(
@@ -135,7 +137,7 @@ void drawPlacementFootprint(
 void drawPlacementPreviewGeometry(
     Renderer& renderer, BuildingType type, Vector3 position,
     float yawRadians, std::uint8_t rotation,
-    std::uint8_t wallConnections = 0U);
+    std::uint8_t wallConnections = 0U, int level = 1);
 [[nodiscard]] std::optional<PlatformFrameInstance>
 automaticBuildingFoundation(
     BuildingType type, GridPosition position,

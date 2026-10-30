@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "combat/TrapSystem.hpp"
+#include "progression/BuildingStatUpgrades.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "navigation/FlowField.hpp"
 
@@ -16,7 +17,11 @@ void runTrapSystemTests() {
     const auto trap =
         buildings.place(ian::BuildingType::SlowTrap, {0, -4}, 0, 15, 20, 10);
     require(trap.has_value(), "trap fixture creates slow trap");
-    require(buildings.upgrade(trap->building.id, 8, 10, 15).valid(),
+    const auto trapUpgradeCost = buildings.upgradeCost(trap->building);
+    require(buildings.upgrade(
+                trap->building.id,
+                trapUpgradeCost.wood, trapUpgradeCost.stone,
+                trapUpgradeCost.crystals).valid(),
             "trap fixture upgrades slow trap");
 
     ian::EnemySystem enemies;
@@ -31,8 +36,24 @@ void runTrapSystemTests() {
             "trap activates for enemy in area");
     requireNear(activation[0].wearDamage, 10.0 / 1.12, 1e-12,
                 "upgraded trap wears more slowly");
-    requireNear(enemies.enemies()[0].movementMultiplier, 0.42, 1e-12,
+    requireNear(enemies.enemies()[0].movementMultiplier, 0.40, 1e-12,
                 "upgraded trap applies stronger slow");
+    {
+        ian::EnemySystem strongerEnemies;
+        strongerEnemies.spawnWave(Spawn);
+        ian::TrapSystem strongerTrap;
+        ian::BuildingUpgradePowers powers{};
+        ian::applyBuildingStatUpgrade(powers,ian::BuildingType::SlowTrap,
+            {{ian::AttackStat::SlowStrength},1},ian::RunUpgradeRarity::Common);
+        std::array<ian::AttackModifiers,ian::GameBalance::BuildingTypeCount> local{};
+        local[static_cast<std::size_t>(ian::BuildingType::SlowTrap)] =
+            ian::buildingStatUpgradeModifiers(ian::BuildingType::SlowTrap,powers);
+        strongerTrap.setBuildingUpgradeModifiers(local);
+        strongerTrap.syncBuildings(buildings.buildings());
+        strongerTrap.tick(1.0 / 60.0,buildings.buildings(),strongerEnemies);
+        requireNear(strongerEnemies.enemies()[0].movementMultiplier,0.328,1e-12,
+            "Slow Strength card increases the actual slow applied to enemies");
+    }
     requireNear(traps.traps().front().cooldownRemaining,
         ian::TrapSystem::cooldown(2) / 1.35, 1e-12,
         "Chronomancer trap perk reduces the actual trigger cooldown");
@@ -90,8 +111,8 @@ void runTrapSystemTests() {
         "spike trap damages and kills an enemy on its cell");
     requireNear(
         spikeActivation.front().wearDamage,
-        ian::TrapSystem::WearDamage, 1e-12,
-        "spike trap wears on activation");
+        0.0, 1e-12,
+        "spike trap activation never wears down its health");
     require(
         spikeTraps.traps().front().activationRemaining > 1.1,
         "spike trap exposes its trigger animation state");

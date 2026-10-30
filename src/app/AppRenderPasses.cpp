@@ -2,6 +2,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "graphics/EnemyAnimationSampling.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
 #include <raylib.h>
@@ -61,10 +62,16 @@ void App::drawShadowPass(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
     const float interpolationAlpha = worldInterpolationAlpha(snapshot, fixedStep_.interpolationAlpha());
+    const bool menuCameraActive = menuBackgroundEditing_ ||
+        (snapshot.state == RunState::MainMenu && menuBackgroundTerrainSeed_);
     const Vector3 shadowFocus{
-        static_cast<float>(snapshot.playerPosition.x),
+        menuCameraActive
+            ? menuBackgroundCamera_.position.x
+            : static_cast<float>(snapshot.playerPosition.x),
         0.0F,
-        static_cast<float>(snapshot.playerPosition.z),
+        menuCameraActive
+            ? menuBackgroundCamera_.position.z
+            : static_cast<float>(snapshot.playerPosition.z),
     };
     if (renderer_->beginShadowPass(lighting, shadowFocus)) {
         // Terrain remains a shadow receiver, but rendering it into its own
@@ -342,6 +349,8 @@ void App::drawShadowPass(
                 static_cast<float>(landmark.yaw), WHITE));
         }
 
+        renderer_->drawWorldScenery(snapshot.worldScenery, shadowFocus, 85.0F);
+
         const double modularCellSize =
             simulation_.terrain().config().cellSize;
         const auto animationScales =
@@ -374,18 +383,19 @@ void App::drawShadowPass(
                 continue;
             }
             if (const auto foundation =
-                    automaticBuildingFoundation(
+                    building.platformStorey < 0 ? automaticBuildingFoundation(
                         building.type,
                         building.gridPosition,
                         building.baseHeight,
                         building
                             .foundationBottomHeight,
                         modularCellSize,
-                        building.id)) {
+                        building.id) : std::nullopt) {
                 const std::array<ModularAnimationScale, 1>
                     foundationAnimation{{{
                         .id = building.id,
                         .scale = spawnScale,
+                        .scaleOrigin = center,
                     }}};
                 modularBuildingRenderer_.drawShadow({
                     std::span<
@@ -488,7 +498,9 @@ void App::drawShadowPass(
                     towerYaw(snapshot, building, interpolationAlpha), building.level));
             } else if (building.type == BuildingType::Flamethrower) {
                 static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
-                    flamethrowerVisualYaw(building), WHITE, spawnScale));
+                    towerBaseYaw(snapshot, building), WHITE, spawnScale,
+                    towerPitch(snapshot, building, interpolationAlpha),
+                    towerYaw(snapshot, building, interpolationAlpha), building.level));
             } else if (building.type == BuildingType::GunTurret) {
                 static_cast<void>(renderer_->drawGunTurret(
                     {x, groundY, z},
@@ -626,13 +638,6 @@ void App::drawSelectionPass(
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
-        if (!foundationBuildMode_ &&
-            snapshot.aimedModularBuilding) {
-            // A selected modular section must retain its complete perimeter
-            // when an adjacent section is closer to the camera. This is a
-            // readability overlay, so draw it above the assembled structure.
-            renderer_->setSelectionOutlineDepthOcclusion(false);
-        }
         if (hasPlacementPreview) {
             renderer_->setSelectionOutlineRadius(2.0F);
             renderer_->setSelectionOutlineTint(
@@ -730,7 +735,8 @@ void App::drawSelectionPass(
             drawPlacementPreviewGeometry(
                 *renderer_, preview.type,
                 {visualCenter.x, baseHeight, visualCenter.y},
-                yaw, preview.rotation, connections);
+                yaw, preview.rotation, connections,
+                snapshot.buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]);
             rlPopMatrix();
             }
         }
@@ -781,7 +787,7 @@ void App::drawSelectionPass(
                 simulation_.terrain().getHeight(
                     enemy.position.x, enemy.position.z));
             const float scale = enemyVisualScale(enemy.type) *
-                enemyHitScale(enemy) * 1.08F;
+                enemyAppearanceScale(enemy) * 1.08F;
             renderer_->setSelectionMaskColor(
                 eliteOutlineColor(enemy));
             renderer_->setSelectionOutlineBounds(
@@ -794,9 +800,12 @@ void App::drawSelectionPass(
                 enemyModelVisual(enemy),
                 enemyAnimationVisual(enemy),
                 enemyAnimationSeconds(
-                    enemy, snapshot.elapsedSeconds),
+                    enemy, snapshot.elapsedSeconds,
+                    enemyAnimationSubTickSeconds(snapshot, fixedStep_.interpolationAlpha())),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                WHITE, scale, true, true, false, enemy.eliteAffixes,
+                WHITE, scale, true, true,
+                Vector3DistanceSqr(enemyPosition, camera.position) >
+                    EnemySmoothAnimationDistance * EnemySmoothAnimationDistance, enemy.eliteAffixes,
                 splitPose.stretch, splitPose.roll));
         }
         renderer_->setSelectionMaskColor(WHITE);
@@ -1132,7 +1141,9 @@ void App::drawSelectionPass(
                         towerYaw(snapshot, *building, interpolationAlpha), building->level));
                 } else if (building->type == BuildingType::Flamethrower) {
                     static_cast<void>(renderer_->drawFlamethrower({x, groundY, z},
-                        flamethrowerVisualYaw(*building), WHITE, spawnScale));
+                        towerBaseYaw(snapshot, *building), WHITE, spawnScale,
+                        towerPitch(snapshot, *building, interpolationAlpha),
+                        towerYaw(snapshot, *building, interpolationAlpha), building->level));
                 } else if (building->type == BuildingType::GunTurret) {
                     static_cast<void>(renderer_->drawGunTurret(
                         {x, groundY, z},
@@ -1270,16 +1281,13 @@ void App::drawSelectionPass(
                     simulation_.terrain().getHeight(
                         enemy->position.x,
                         enemy->position.z));
-                // The visible enemy briefly squashes on hit. Keep the mask
-                // on the exact same transform so the outline follows it.
+                // Match the visible enemy's appearance scale so the
+                // outline follows its spawn or split animation.
                 const float scale =
                     enemyVisualScale(enemy->type) *
-                    enemyHitScale(*enemy) *
+                    enemyAppearanceScale(*enemy) *
                     (enemy->eliteAffixes != 0U ? 1.08F : 1.0F);
-                renderer_->setSelectionMaskColor(
-                    enemy->eliteAffixes != 0U
-                        ? eliteOutlineColor(*enemy)
-                        : WHITE);
+                renderer_->setSelectionMaskColor(WHITE);
                 renderer_->setSelectionOutlineBounds(
                     renderer_->enemyWorldBounds(
                         enemyModelVisual(*enemy), enemyPosition,
@@ -1290,7 +1298,8 @@ void App::drawSelectionPass(
                     enemyModelVisual(*enemy),
                     enemyAnimationVisual(*enemy),
                     enemyAnimationSeconds(
-                        *enemy, snapshot.elapsedSeconds),
+                        *enemy, snapshot.elapsedSeconds,
+                        enemyAnimationSubTickSeconds(snapshot, fixedStep_.interpolationAlpha())),
                     enemyPosition,
                     static_cast<float>(enemy->yaw), WHITE,
                     scale, true, true, false, enemy->eliteAffixes,
@@ -1325,6 +1334,50 @@ void App::drawSelectionPass(
                 [target](const RampInstance& candidate) {
                     return candidate.id == target;
                 });
+            const float cell = static_cast<float>(cellSize);
+            const float margin = cell * 0.4F;
+            if (frame != snapshot.platformFrames.end()) {
+                float bottom = static_cast<float>(frame->floorHeight);
+                for (const FoundationSupport& support : frame->supports) {
+                    bottom = std::min(
+                        bottom, static_cast<float>(support.bottom.y));
+                }
+                renderer_->setSelectionOutlineBounds({
+                    {frame->anchor.x * cell - margin,
+                     bottom - margin,
+                     frame->anchor.z * cell - margin},
+                    {(frame->anchor.x + PlatformFrameWidthCells) * cell +
+                         margin,
+                     static_cast<float>(frame->floorHeight) + margin,
+                     (frame->anchor.z + PlatformFrameWidthCells) * cell +
+                         margin},
+                });
+            } else if (wall != snapshot.modularWalls.end()) {
+                renderer_->setSelectionOutlineBounds({
+                    {wall->anchor.x * cell - margin,
+                     static_cast<float>(wall->bottomHeight) - margin,
+                     wall->anchor.z * cell - margin},
+                    {(wall->anchor.x + 1) * cell + margin,
+                     static_cast<float>(wall->topHeight) + margin,
+                     (wall->anchor.z + 1) * cell + margin},
+                });
+            } else if (ramp != snapshot.ramps.end()) {
+                const bool alongZ =
+                    ramp->rotation == Rotation::Deg0 ||
+                    ramp->rotation == Rotation::Deg180;
+                const int widthCells = alongZ
+                    ? ModularRampWidthCells : ModularRampRunCells;
+                const int depthCells = alongZ
+                    ? ModularRampRunCells : ModularRampWidthCells;
+                renderer_->setSelectionOutlineBounds({
+                    {ramp->anchor.x * cell - margin,
+                     static_cast<float>(ramp->bottomHeight) - margin,
+                     ramp->anchor.z * cell - margin},
+                    {(ramp->anchor.x + widthCells) * cell + margin,
+                     static_cast<float>(ramp->topHeight) + margin,
+                     (ramp->anchor.z + depthCells) * cell + margin},
+                });
+            }
             ModularBuildingView selectionView{
                     !snapshot.selectedBuilding &&
                             frame !=
@@ -1348,10 +1401,10 @@ void App::drawSelectionPass(
                     animationScales,
                     1.0F,
                 };
-            // The selection mask needs the complete standalone mesh. The
-            // regular visibility contexts deliberately hide shared edges and
-            // supports, which makes adjacent platforms merge into one mask
-            // and removes the outline along their common boundary.
+            // Match the visible mesh: a standalone mask would resurrect
+            // removed interior posts and rails as floating white contours.
+            selectionView.platformVisibilityContext = snapshot.platformFrames;
+            selectionView.sharedSupportVisibilityContext = snapshot.sharedSupports;
             modularBuildingRenderer_.drawWorld(selectionView, {});
         }
         renderer_->endSelectionMaskPass();

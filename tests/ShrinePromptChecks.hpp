@@ -30,27 +30,23 @@ inline void checkShrineResourcePrompt(ian::GameUi& ui,const char* captureDirecto
         }
         return image;
     };
-    Image reference=render(prompt,"prompt-upgrade.png");
     prompt.targetKind=InteractionPromptTargetKind::Landmark;
     Image shrine=render(prompt,"shrine-resource-price.png");
-    const Color* a=LoadImageColors(reference);const Color* b=LoadImageColors(shrine);
-    const auto bounds=interactionPromptPanelBounds(prompt,{640,360},{1280,720},controls);
-    int changed=0,red=0,cream=0,dark=0;
-    for(int y=static_cast<int>(bounds.y);y<static_cast<int>(bounds.y+bounds.height);++y)
-        for(int x=static_cast<int>(bounds.x);x<static_cast<int>(bounds.x+bounds.width);++x) {
-            const auto i=y*reference.width+x;
-            changed+=std::abs(static_cast<int>(a[i].r)-b[i].r)>6 ||
-                std::abs(static_cast<int>(a[i].g)-b[i].g)>6 || std::abs(static_cast<int>(a[i].b)-b[i].b)>6;
+    const Color* b=LoadImageColors(shrine);
+    int red=0,cream=0,dark=0;
+    for(int y=320;y<400;++y)
+        for(int x=480;x<800;++x) {
+            const auto i=y*shrine.width+x;
             red+=b[i].r>220 && b[i].g>65 && b[i].g<140 && b[i].b<130;
             cream+=b[i].r>225 && b[i].g>225 && b[i].b>200;
-            dark+=b[i].r<60 && b[i].g<65 && b[i].b<60;
+            dark+=b[i].r<24 && b[i].g<32 && b[i].b<40;
         }
-    require(changed<250 && red>30 && cream>30 && dark>1000,
-        "shrine and upgrade share a dark panel with red missing and light available resources");
-    UnloadImageColors(const_cast<Color*>(a));UnloadImageColors(const_cast<Color*>(b));
-    UnloadImage(reference);UnloadImage(shrine);
-    // Building upgrades use the earlier one-line arrow/price style. Shrines
-    // and other interactions retain their general prompt cards.
+    require(red>30 && cream>30 && dark>1000,
+        "shrine resource prompt colours: red="+std::to_string(red)+" cream="+
+        std::to_string(cream)+" dark="+std::to_string(dark));
+    UnloadImageColors(const_cast<Color*>(b));
+    UnloadImage(shrine);
+    // The debug building-upgrade prompt has its own compact arrow/price row.
     auto upgrade=prompt;
     upgrade.targetKind=InteractionPromptTargetKind::Building;
     upgrade.input=ControlAction::Upgrade;upgrade.actionText="Upgrade";

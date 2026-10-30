@@ -21,7 +21,23 @@ void approach(Simulation& run,EntityId id,bool funded=true) {
     auto saved=run.saveSuspendedRunState();
     const auto landmark=std::ranges::find(saved.worldLandmarks,id,&WorldLandmarkInstance::id);
     require(landmark!=saved.worldLandmarks.end(),"shrine exists in checkpoint");
-    saved.playerPosition={landmark->position.x,landmark->position.y+1.8,landmark->position.z+3};
+    const auto landmarkType=landmark->type;
+    const auto landmarkPosition=landmark->position;
+    if (landmarkType==WorldLandmarkType::BuildingShrine &&
+        std::ranges::none_of(saved.buildings,[](const auto& building){return building.type==BuildingType::Core;})) {
+        saved.playerPosition={0.0,1.8,3.0};
+        restore(run,saved);
+        PlayerCommand place{};
+        place.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};
+        place.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};
+        run.tick(0,place);
+        require(std::ranges::any_of(run.snapshot().buildings,[](const auto& building){return building.type==BuildingType::Core;}),
+            "defense shrine fixture has a Core");
+        while(run.snapshot().runUpgradeChoicePending)
+            require(run.selectRunUpgrade(0),"core fixture resolves starting reward");
+        saved=run.saveSuspendedRunState();
+    }
+    saved.playerPosition={landmarkPosition.x,landmarkPosition.y+1.8,landmarkPosition.z+3};
     if(funded) {saved.wood=10000;saved.stone=10000;saved.crystals=10000;}
     restore(run,saved);
 }
@@ -30,9 +46,11 @@ void interact(Simulation& run,EntityId id) {
     run.tick(1.0/60,command);
 }
 int main() {
+    require(!availableShrineBlessing(RunUpgradeEffect::AttackSpeed), "standalone weapon speed is excluded from shrine offers");
+    require(availableShrineBlessing(RunUpgradeEffect::DefenseFireRate), "defense speed remains in building shrines");
     for(const auto& tome:RunTomeDefinitions) {
         const bool present=std::ranges::any_of(ShrineBlessings,[&](const auto& blessing){return blessing.icon==tome.effect;});
-        require(present!=retiredRunUpgrade(tome.effect),"shrine pool covers active tomes and excludes retired ones");
+        require(present || retiredRunUpgrade(tome.effect),"shrine pool covers active tomes");
     }
     for(const auto& blessing:ShrineBlessings)
         require(blessing.name==runTomeDefinition(blessing.icon)->name,"shrine offers reuse tome names/icons");
@@ -59,7 +77,7 @@ int main() {
         require(count==24,"default natural terrain has all twenty-four safe shrine sites");
     }
     auto run=shrineRun();
-    for (const auto effect:{RunUpgradeEffect::Luck,RunUpgradeEffect::Damage,RunUpgradeEffect::AttackSpeed,RunUpgradeEffect::MaximumHealth})
+    for (const auto effect:{RunUpgradeEffect::Luck,RunUpgradeEffect::Damage,RunUpgradeEffect::AttackSpeed,RunUpgradeEffect::BuildingHealth})
         require(run->grantDebugRunUpgrade(effect),"fixture fills all tome slots");
     require(run->snapshot().tomeCount==4,"fixture has no free tome slots");
     const auto original=run->saveSuspendedRunState();
@@ -82,6 +100,13 @@ int main() {
     require(offered.size()==3 && !run->rerollRunUpgrades(),"blessings are distinct and cannot use normal rerolls");
     const auto pending=run->saveSuspendedRunState();restore(*run,pending);
     require(run->snapshot().shrines.offer==ShrineKind::Player && run->snapshot().runUpgradeChoices==pending.runUpgradeChoices,"paid unselected offer survives resume");
+    auto legacyPoisonOffer = pending;
+    legacyPoisonOffer.runUpgradeChoices[0] = RunUpgradeEffect::PoisonChance;
+    restore(*run, legacyPoisonOffer);
+    for (std::size_t i = 0; i < run->snapshot().runUpgradeChoiceCount; ++i)
+        require(availableShrineBlessing(run->snapshot().runUpgradeChoices[i]),
+            "retired poison shrine choice is replaced on resume");
+    restore(*run, pending);
     const auto stacks=run->snapshot().runUpgradeStacks;
     require(run->selectRunUpgrade(0),"one blessing can be selected");
     require(run->snapshot().runUpgradeStacks==stacks && run->snapshot().tomeCount==before.tomeCount,"blessings never create tomes or consume slots");
@@ -90,16 +115,125 @@ int main() {
     const auto nextCost=shrineActivationCost(ShrineKind::Buildings,1),baseCost=shrineActivationCost(ShrineKind::Buildings,0);
     require(nextCost.wood>baseCost.wood && nextCost.stone>baseCost.stone && nextCost.crystals>baseCost.crystals,"both types share increasing resource prices");
     approach(*run,building);interact(*run,building);
-    for(std::size_t i=0;i<3;++i) require(shrineBlessing(ShrineKind::Buildings,run->snapshot().runUpgradeChoices[i]),"building pool contains only structure stats");
+    int coreOffers=0;
+    for(std::size_t i=0;i<3;++i) {
+        require(shrineBlessing(ShrineKind::Buildings,run->snapshot().runUpgradeChoices[i]),"building pool contains only structure stats and Core");
+        coreOffers+=run->snapshot().runUpgradeChoices[i]==RunUpgradeEffect::UpgradeCore;
+    }
+    require(coreOffers==1,"every defense shrine reserves exactly one Core card");
+    for (const auto kind:{ShrineKind::Player,ShrineKind::Buildings}) {
+        auto rareRun=shrineRun();
+        approach(*rareRun,kind==ShrineKind::Player ? player : building);
+        interact(*rareRun,kind==ShrineKind::Player ? player : building);
+        auto rareOffer=rareRun->saveSuspendedRunState();
+        const auto effect=kind==ShrineKind::Player ? RunUpgradeEffect::Damage : RunUpgradeEffect::DefenseDamage;
+        rareOffer.runUpgradeChoices[0]=effect;
+        rareOffer.runUpgradeRarities[0]=RunUpgradeRarity::Rare;
+        restore(*rareRun,rareOffer);
+        const auto initial=rareRun->snapshot();
+        require(rareRun->selectRunUpgrade(0),"Rare shrine blessing can be selected");
+        const auto upgraded=rareRun->snapshot();
+        requireNear(shrineBonusPower(upgraded.shrines,kind,effect),1.4,1e-10,
+            "Rare shrine blessing saves 1.4x power");
+        if(kind==ShrineKind::Player)
+            requireNear(upgraded.playerDamageMultiplier,initial.playerDamageMultiplier*1.14,1e-10,
+                "Rare personal blessing scales gameplay damage");
+        else
+            requireNear(upgraded.upgradeStats.defenseDamage,initial.upgradeStats.defenseDamage*1.168,1e-10,
+                "Rare defense blessing scales gameplay damage");
+        restore(*rareRun,rareRun->saveSuspendedRunState());
+        requireNear(shrineBonusPower(rareRun->snapshot().shrines,kind,effect),1.4,1e-10,
+            "Rare blessing power survives resume");
+    }
+    {
+        auto coreRun=shrineRun();
+        approach(*coreRun,building);interact(*coreRun,building);
+        const auto coreOffer=coreRun->snapshot();
+        const auto coreIndex=static_cast<std::size_t>(std::ranges::find(coreOffer.runUpgradeChoices,RunUpgradeEffect::UpgradeCore)-coreOffer.runUpgradeChoices.begin());
+        require(coreIndex<coreOffer.runUpgradeChoiceCount,"Core card appears in defense shrine");
+        const auto initialLevel=coreOffer.coreLevel;
+        const auto initialStacks=coreOffer.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UpgradeCore)];
+        require(coreRun->selectRunUpgrade(coreIndex),"Core shrine card applies");
+        const auto selected=coreRun->snapshot();
+        require(selected.coreLevel==initialLevel+1 &&
+            selected.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UpgradeCore)]==initialStacks+1 &&
+            shrineBonusCount(selected.shrines,ShrineKind::Buildings,RunUpgradeEffect::UpgradeCore)==1,
+            "Core shrine card uses real Core progression and persists shrine count");
+        restore(*coreRun,coreRun->saveSuspendedRunState());
+    }
+    {
+        require(shrineBlessing(ShrineKind::Buildings, RunUpgradeEffect::ProductionSpeed) &&
+            availableShrineBlessing(RunUpgradeEffect::ProductionSpeed) &&
+            !shrineBlessing(ShrineKind::Player, RunUpgradeEffect::ProductionSpeed),
+            "production blessing is available only in building shrines");
+        auto productionRun = shrineRun();
+        approach(*productionRun, building);
+        auto producers = productionRun->saveSuspendedRunState();
+        for (std::size_t i = 0; i < RunEconomyBuildingTypes.size(); ++i) {
+            const auto type = RunEconomyBuildingTypes[i];
+            producers.buildings.push_back({.id={static_cast<std::uint32_t>(2000+i),1},
+                .type=type, .gridPosition={3+static_cast<int>(i)*3,0},
+                .health=100, .maxHealth=100});
+            const auto card = runUpgradeIndex(*buildingRunUpgrade(type));
+            producers.runUpgradeStacks[card] = 1;
+            producers.runUpgradePower[card] = 1;
+        }
+        producers.producerRuntimes.clear();
+        restore(*productionRun, producers);
+        const auto baseRates = productionRun->snapshot().producerRatesPerSecond;
+        double expectedPower = 0;
+        for (const auto rarity : {RunUpgradeRarity::Common, RunUpgradeRarity::Legendary}) {
+            const auto state = productionRun->saveSuspendedRunState();
+            const auto unused = std::ranges::find_if(state.worldLandmarks, [](const auto& landmark) {
+                return landmark.type == WorldLandmarkType::BuildingShrine && !landmark.activated;
+            });
+            require(unused != state.worldLandmarks.end(), "production fixture has an unused building shrine");
+            approach(*productionRun, unused->id);
+            interact(*productionRun, unused->id);
+            auto offer = productionRun->saveSuspendedRunState();
+            offer.runUpgradeChoices = {RunUpgradeEffect::ProductionSpeed,
+                RunUpgradeEffect::DefenseDamage, RunUpgradeEffect::UpgradeCore};
+            offer.runUpgradeRarities[0] = rarity;
+            restore(*productionRun, offer);
+            const auto tomeStacks = productionRun->snapshot().runUpgradeStacks;
+            require(productionRun->selectRunUpgrade(0), "production shrine blessing applies");
+            expectedPower += runUpgradeRarityMultiplier(rarity);
+            const auto after = productionRun->snapshot();
+            requireNear(after.upgradeStats.productionSpeed, 1 + .12 * expectedPower, 1e-12,
+                "production blessings stack their rarity power without occupying tome slots");
+            require(after.runUpgradeStacks == tomeStacks, "production blessing leaves tome and blueprint levels unchanged");
+            for (const auto type : RunEconomyBuildingTypes) {
+                const auto i = static_cast<std::size_t>(type);
+                require(after.producerRatesPerSecond[i] > baseRates[i],
+                    "production blessing accelerates lumber mills, quarries and crystal mines");
+                const auto card = std::ranges::find_if(after.producerCards, [&](const auto& view) {
+                    return view.stats.current.productionInterval &&
+                        std::ranges::any_of(after.buildings, [&](const auto& b) {
+                            return b.id == view.buildingId && b.type == type;
+                        });
+                });
+                require(card != after.producerCards.end(), "each producer has a real runtime card");
+                requireNear(after.producerRatesPerSecond[i],
+                    *card->stats.current.productionPerCycle / *card->stats.current.productionInterval,
+                    1e-12, "production blessing preview agrees with the actual producer cycle");
+            }
+            restore(*productionRun, productionRun->saveSuspendedRunState());
+            requireNear(productionRun->snapshot().upgradeStats.productionSpeed,
+                1 + .12 * expectedPower, 1e-12, "stacked production blessings survive resume");
+        }
+    }
     // Exercise every stat and verify side isolation, stacking and resume.
     for(const auto& blessing:ShrineBlessings) {
+        if (!availableShrineBlessing(blessing.effect)) continue;
         auto test=shrineRun();
         approach(*test,blessing.kind==ShrineKind::Player ? player : building);
         interact(*test,blessing.kind==ShrineKind::Player ? player : building);
         auto state=test->saveSuspendedRunState();state.runUpgradeChoices[0]=blessing.effect;
+        state.runUpgradeRarities[0]=RunUpgradeRarity::Common;
         std::size_t index=1;
+        if(blessing.kind==ShrineKind::Buildings) state.runUpgradeChoices[index++]=RunUpgradeEffect::UpgradeCore;
         for(const auto& other:ShrineBlessings)
-            if(other.kind==blessing.kind && other.effect!=blessing.effect && index<3) state.runUpgradeChoices[index++]=other.effect;
+            if(other.kind==blessing.kind && other.effect!=blessing.effect && availableShrineBlessing(other.effect) && index<3) state.runUpgradeChoices[index++]=other.effect;
         restore(*test,state);const auto stats=test->snapshot();
         require(test->selectRunUpgrade(0),"every shrine blessing applies");
         const auto after=test->snapshot();
@@ -110,7 +244,7 @@ int main() {
         switch(blessing.effect) {
         case RunUpgradeEffect::Damage: requireNear(after.playerDamageMultiplier,stats.playerDamageMultiplier*1.10,1e-10,"player damage multiplier");break;
         case RunUpgradeEffect::AttackSpeed: requireNear(after.upgradeStats.playerAttackSpeed,stats.upgradeStats.playerAttackSpeed*1.15,1e-10,"personal attack speed multiplier");break;
-        case RunUpgradeEffect::MoveSpeed: requireNear(after.playerMoveSpeedMultiplier,stats.playerMoveSpeedMultiplier*1.07,1e-10,"personal movement multiplier");break;
+        case RunUpgradeEffect::MoveSpeed: requireNear(after.playerMoveSpeedMultiplier,stats.playerMoveSpeedMultiplier*1.08,1e-10,"personal movement multiplier");break;
         case RunUpgradeEffect::MaximumHealth: requireNear(after.playerMaxHealth,stats.playerMaxHealth+12,1e-10,"flat HP blessing");break;
         case RunUpgradeEffect::RecoverableArmor: requireNear(after.playerMaxRecoverableArmor,stats.playerMaxRecoverableArmor+8,1e-10,"flat shield blessing");break;
         case RunUpgradeEffect::DefenseDamage: requireNear(after.upgradeStats.defenseDamage,stats.upgradeStats.defenseDamage*1.12,1e-10,"global defense damage multiplier");break;
@@ -119,8 +253,9 @@ int main() {
             require(after.totalBuildingLimit == stats.totalBuildingLimit + 1 && after.tomeCount == stats.tomeCount &&
                 after.buildingLimitBonus == stats.buildingLimitBonus + 1,
                 "building shrine adds exactly one shared place without a tome slot"); break;
-        case RunUpgradeEffect::BuildingHealth: requireNear(after.upgradeStats.buildingHealth,stats.upgradeStats.buildingHealth*1.12,1e-10,"global structure durability multiplier");break;
-        case RunUpgradeEffect::ProductionSpeed: requireNear(after.upgradeStats.productionSpeed,stats.upgradeStats.productionSpeed*1.15,1e-10,"global producer speed multiplier");break;
+        case RunUpgradeEffect::BuildingHealth: requireNear(after.upgradeStats.buildingHealth,stats.upgradeStats.buildingHealth*1.15,1e-10,"global structure durability multiplier");break;
+        case RunUpgradeEffect::ProductionSpeed: requireNear(after.upgradeStats.productionSpeed,stats.upgradeStats.productionSpeed*1.12,1e-10,"global producer speed multiplier");break;
+        case RunUpgradeEffect::ExperienceGain: requireNear(after.upgradeStats.experienceGain,stats.upgradeStats.experienceGain+.10,1e-10,"personal experience blessing applies without a tome slot");break;
         case RunUpgradeEffect::Luck: requireNear(after.upgradeStats.luck,stats.upgradeStats.luck+.10,1e-10,"same luck as tome");break;
         case RunUpgradeEffect::Regeneration: requireNear(after.upgradeStats.healthRegeneration,stats.upgradeStats.healthRegeneration+.5,1e-10,"same regeneration as tome");break;
         case RunUpgradeEffect::GatheringSpeed: requireNear(after.upgradeStats.toolAttackSpeed,stats.upgradeStats.toolAttackSpeed*1.15,1e-10,"same gathering as tome");break;
@@ -131,7 +266,7 @@ int main() {
         case RunUpgradeEffect::ProjectileSpeed: requireNear(after.upgradeStats.projectileSpeed,stats.upgradeStats.projectileSpeed*1.20,1e-10,"same velocity as tome");break;
         case RunUpgradeEffect::AttackDuration: requireNear(after.upgradeStats.attackDuration,stats.upgradeStats.attackDuration*1.20,1e-10,"same duration as tome");break;
         case RunUpgradeEffect::AttackSize: requireNear(after.upgradeStats.attackSize,stats.upgradeStats.attackSize*1.15,1e-10,"same size as tome");break;
-        case RunUpgradeEffect::CriticalChance: requireNear(after.upgradeStats.critChance,stats.upgradeStats.critChance+.05,1e-10,"same crit chance as tome");break;
+        case RunUpgradeEffect::CriticalChance: requireNear(after.upgradeStats.critChance,stats.upgradeStats.critChance+.075,1e-10,"same crit chance as tome");break;
         case RunUpgradeEffect::CriticalDamage: requireNear(after.upgradeStats.critDamage,stats.upgradeStats.critDamage*1.25,1e-10,"same crit multiplier as tome");break;
         case RunUpgradeEffect::AttackKnockback: requireNear(after.upgradeStats.knockback,stats.upgradeStats.knockback*1.20,1e-10,"same knockback as tome");break;
         case RunUpgradeEffect::PoisonChance:
@@ -149,6 +284,7 @@ int main() {
         auto poison=shrineRun();auto doses=poison->saveSuspendedRunState();
         doses.shrines.activations=10;
         shrineBonusCounts(doses.shrines,kind)[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]=10;
+        shrineBonusPowers(doses.shrines,kind)[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]=10.0;
         int marked=0;
         for(auto& landmark:doses.worldLandmarks)
             if(landmarkShrineKind(landmark.type)==kind && marked++<10) landmark.activated=true;
@@ -206,7 +342,11 @@ int main() {
         auto purchase=exhausted->saveSuspendedRunState();
         const auto effect=kind==ShrineKind::Player ? RunUpgradeEffect::Damage : RunUpgradeEffect::DefenseDamage;
         purchase.runUpgradeChoices[0]=effect;std::size_t i=1;
-        for(const auto& other:ShrineBlessings) if(other.kind==kind && other.effect!=effect && i<3) purchase.runUpgradeChoices[i++]=other.effect;
+        purchase.runUpgradeRarities[0]=RunUpgradeRarity::Common;
+        if(kind==ShrineKind::Buildings) purchase.runUpgradeChoices[i++]=RunUpgradeEffect::UpgradeCore;
+        for(const auto& other:ShrineBlessings)
+            if(other.kind==kind && other.effect!=effect && availableShrineBlessing(other.effect) && i<3)
+                purchase.runUpgradeChoices[i++]=other.effect;
         restore(*exhausted,purchase);require(exhausted->selectRunUpgrade(0),"all twenty-four shrines remain usable once each");
     }
     require(exhausted->snapshot().shrines.activations==24,"all paid activations are counted");

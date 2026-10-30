@@ -6,6 +6,11 @@ namespace ian {
 
 void App::resetRunClientState(
     const SimulationSnapshot& snapshot) {
+    // Build the static landscape before the HUD arrival fade. The first
+    // visible minimap refresh must not generate/upload a million-pixel atlas.
+    const auto minimapStart = PerformanceClock::now();
+    ui_.prepareMinimapLandscape(snapshot);
+    performanceStats_.minimapPreparation.sample(performanceMilliseconds(minimapStart));
     restartHold_.resetProgress();
     runShopWasVisible_=false;
     runShopOverlayEntranceSeconds_=0;
@@ -14,7 +19,6 @@ void App::resetRunClientState(
     statusMessageRemaining_ = 0.0;
     statusMessageShakeRemaining_ = 0.0;
     effects_.clear();
-    arrowVisuals_.clear();
     floatingDamageNumbers_.clear();
     resourceGainVisuals_.clear();
     productionVisuals_.clear();
@@ -71,7 +75,6 @@ void App::resetRunClientState(
     buildingContextCardUpgradeCost_.reset();
     buildingContextCardStats_.reset();
     buildingImpactVisuals_.clear();
-    flamethrowerRotationVisuals_.clear();
     placementPreviewCenter_.reset();
     placementPreviewGrid_.reset();
     placementPreviewType_.reset();

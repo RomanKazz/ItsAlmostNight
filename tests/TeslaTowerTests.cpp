@@ -99,17 +99,17 @@ void progressionChecks() {
     world.pondMinimumCount=world.pondMaximumCount=0;
     auto game=std::make_unique<Simulation>(GameBalance::defaults(),map,world);game->startRunFromSeed(PlayerClass::Vanguard,702314);
     require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTeslaTower),"acquire tesla");
-    require(!game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTeslaTower),"no core means level one limit");
+    require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTeslaTower),"tesla may level before core placement");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};game->tick(0,god);
     PlayerCommand core;core.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};game->tick(0,core);
     PlayerCommand up;up.upgradeBuilding=UpgradeBuildingCommand{*game->snapshot().coreId,false};game->tick(0,up);game->tick(0,up);
     PlayerCommand place;place.placeBuilding=PlaceBuildingCommand{BuildingType::TeslaTower,{3,0},0};game->tick(0,place);game->tick(0,god);
-    require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTeslaTower),"upgrade tesla with level-three core");
+    require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTeslaTower),"upgrade tesla independently of core level");
     const auto slot=static_cast<std::size_t>(BuildingType::TeslaTower);
-    require(game->snapshot().buildingBlueprintLevels[slot]==2,"shared tesla blueprint level");
-    require(std::ranges::any_of(game->snapshot().buildings,[](const auto& b){return b.type==BuildingType::TeslaTower && b.level==2;}),"tesla existing copies upgraded");
+    require(game->snapshot().buildingBlueprintLevels[slot]==3,"shared tesla blueprint level");
+    require(std::ranges::any_of(game->snapshot().buildings,[](const auto& b){return b.type==BuildingType::TeslaTower && b.level==3;}),"tesla existing copies upgraded");
     auto saved=std::make_unique<SuspendedRunState>(game->saveSuspendedRunState());auto restored=std::make_unique<Simulation>(GameBalance::defaults(),map,world);
-    require(restored->loadSuspendedRunState(*saved) && restored->snapshot().buildingBlueprintLevels[slot]==2,"tesla save/load");
+    require(restored->loadSuspendedRunState(*saved) && restored->snapshot().buildingBlueprintLevels[slot]==3,"tesla save/load");
 }
 }
 int main(){chainChecks();towerChecks();progressionChecks();}

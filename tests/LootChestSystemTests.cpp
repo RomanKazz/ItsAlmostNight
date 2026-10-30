@@ -3,6 +3,7 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 
 void runLootChestSystemTests() {
@@ -58,28 +59,9 @@ void runLootChestSystemTests() {
                     "chest stores the placement surface normal");
         requireNear(chest.surfaceNormal.y, sampledNormal.y, 1e-12,
                     "chest normal is deterministic on the same terrain");
-        const bool common =
-            chest.loot.rarity == ian::LootRarity::Common &&
-            (chest.loot.effect == ian::LootUpgradeEffect::Apple ||
-             chest.loot.effect == ian::LootUpgradeEffect::Bread ||
-             chest.loot.effect == ian::LootUpgradeEffect::IronBar ||
-             chest.loot.effect == ian::LootUpgradeEffect::FuelJerrycan ||
-             chest.loot.effect == ian::LootUpgradeEffect::Compass ||
-             chest.loot.effect == ian::LootUpgradeEffect::Nail ||
-             chest.loot.effect == ian::LootUpgradeEffect::Key ||
-             chest.loot.effect == ian::LootUpgradeEffect::Magnet ||
-             chest.loot.effect == ian::LootUpgradeEffect::HealthAid);
-        const bool rare =
-            chest.loot.rarity == ian::LootRarity::Rare &&
-            (chest.loot.effect == ian::LootUpgradeEffect::Map ||
-             chest.loot.effect == ian::LootUpgradeEffect::Anvil ||
-             chest.loot.effect == ian::LootUpgradeEffect::Saw ||
-             chest.loot.effect == ian::LootUpgradeEffect::Potion ||
-             chest.loot.effect == ian::LootUpgradeEffect::Blueprint ||
-             chest.loot.effect == ian::LootUpgradeEffect::Hourglass ||
-             chest.loot.effect == ian::LootUpgradeEffect::Rope);
-        require(common || rare,
-                "loot rarity matches the configured common or rare pool");
+        require(std::ranges::find(ian::ActiveLootEffects,chest.loot.effect) != ian::ActiveLootEffects.end() &&
+                chest.loot.rarity == ian::lootUpgradeRarity(chest.loot.effect),
+                "new chest loot uses an active item with its fixed tier");
     }
     require(hasWooden && hasStone,
             "terrain population uses both supplied chest models");
@@ -134,11 +116,14 @@ void runLootChestSystemTests() {
         1e-8, "trial reward chest rests on terrain");
 
     const ian::EntityId id = chests.chests().front().id;
-    chests.setOpeningCostSurcharge(8);
     const int cost = chests.openingCost(chests.chests().front());
     require(
-        cost == chests.chests().front().coinCost + 8,
-        "exploration chest opening cost scales with wave surcharge");
+        cost == 20,
+        "first exploration chest keeps its base price");
+    require(ian::scaledChestOpeningCost(20, 0, 1.0, 1) == 25 &&
+            ian::scaledChestOpeningCost(20, 0, 1.0, 3) == 30 &&
+            ian::scaledChestOpeningCost(20, 0, 1.0, 0) == 20,
+        "chest opening price grows multiplicatively per opening and rounds to five");
     require(
         std::ranges::none_of(
             chests.chests(),
@@ -174,11 +159,14 @@ void runLootChestSystemTests() {
     require(
         chests.open(freeChest->id, keyCoins, true) ==
                 ian::ChestOpenResult::Opened &&
-            keyCoins == 3,
+            keyCoins == 3 &&
+            chests.openedPaidChestCount() == 1 &&
+            chests.openingCost(chests.chests().front()) == 25,
         "free key opening does not spend coins");
-    int coins = cost + 4;
+    int coins = chests.openingCost(chests.chests().front()) + 4;
     require(chests.open(id, coins) == ian::ChestOpenResult::Opened &&
-                coins == 4,
+                coins == 4 &&
+                chests.openedPaidChestCount() == 2,
             "chest purchase spends configured coins once");
     require(chests.open(id, coins) ==
                 ian::ChestOpenResult::AlreadyOpen &&

@@ -11,6 +11,11 @@
 
 namespace ian::app_detail {
 
+inline constexpr double RunUpgradeOverlayEntranceDuration = 0.18;
+inline constexpr double RunUpgradeOverlayExitDuration = 0.10;
+inline constexpr double RunUpgradeChoiceFeedbackDuration = 0.24;
+inline constexpr double RunUpgradeChoiceTotalDuration =
+    RunUpgradeChoiceFeedbackDuration + RunUpgradeOverlayExitDuration;
 inline constexpr double RunUpgradeChoiceInputQuietDuration = 0.35;
 
 // Attack clicks must stop before a fresh press can select an upgrade. A long
@@ -21,14 +26,24 @@ inline constexpr double RunUpgradeChoiceInputQuietDuration = 0.35;
     return std::max(0.0, remaining - std::clamp(frameSeconds, 0.0, 0.05));
 }
 
-inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
+struct RunUpgradeOverlayTransition { float opacity; float scale; };
+[[nodiscard]] RunUpgradeOverlayTransition runUpgradeOverlayTransition(
+    double entranceSeconds, double exitSeconds, bool closing);
 
+// Bounds use logical coordinates inside a UI canvas, physical screen pixels
+// for gameplay input/update callers outside it.
 [[nodiscard]] Rectangle runUpgradeCardBounds(
     std::size_t index, std::size_t count);
 [[nodiscard]] Rectangle runUpgradeRerollBounds(std::size_t count);
 [[nodiscard]] Rectangle runUpgradeUtilityBounds(std::size_t count,std::size_t action);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
     const SimulationSnapshot& snapshot, Vector2 mousePosition);
+[[nodiscard]] inline bool canSelectRunUpgradeChoice(
+    const SimulationSnapshot& snapshot, std::size_t index) {
+    return index < snapshot.runUpgradeChoiceCount &&
+        (snapshot.unlimitedResources || snapshot.coins >=
+            runUpgradeChoicePrice(index, snapshot.runUpgradePaidChoicePrice));
+}
 // Effective attack/trigger distance, including base levels and the offered roll.
 [[nodiscard]] std::pair<double,double> buildingRangeUpgradePreview(
     const SimulationSnapshot& snapshot, BuildingType type, RunUpgradeRarity rarity,

@@ -5,6 +5,7 @@
 #include "core/PerformanceStats.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiMenuStyle.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -198,6 +199,11 @@ void drawExpandedObjectiveList(
         case TutorialObjective::SurviveFirstWave:
             drawRow(
                 "SURVIVE THE NIGHT", 0.0, 0.0,
+                {184, 151, 255, 255}, 0);
+            break;
+        case TutorialObjective::OpenBuildMode:
+            drawRow(
+                "OPEN BUILD MODE", 0.0, 0.0,
                 {184, 151, 255, 255}, 0);
             break;
         }

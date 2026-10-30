@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.hpp"
+#include "ui/WorldUiOcclusion.hpp"
 
 #include <raylib.h>
 
@@ -28,7 +29,8 @@ class TargetHealthBar {
               EnemyBoundsProvider enemyBoundsProvider = {},
               std::optional<EntityId> upgradePromptTarget = std::nullopt,
               BuildingHeightProvider buildingHeightProvider = {},
-              std::optional<EntityId> buildingLevelTarget = std::nullopt);
+              std::optional<EntityId> buildingLevelTarget = std::nullopt,
+              WorldUiOcclusion enemyOcclusion = {});
     void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id, double damage = 0.0);
@@ -36,6 +38,7 @@ class TargetHealthBar {
     void reset();
 
   private:
+    WorldUiOcclusion enemyOcclusion_;
     enum class TargetKind {
         Resource,
         Building,

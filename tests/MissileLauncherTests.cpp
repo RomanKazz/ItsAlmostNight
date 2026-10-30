@@ -107,8 +107,18 @@ void curvedFlightChecks() {
             AttackProjectileSystem pool;
             pool.spawn({999,1},BuildingType::MissileLauncher,{0,1.2,0},{0,.5,-.8660254},tuned,0,muzzle,false,nearby.enemies()[0].id);
             bool hit=false;
-            for(int frame=0;frame<540;++frame) hit |= !pool.tick(Step,nearby).empty();
-            require(hit,"all four arcs intercept close/far targets with speed modifiers");
+            double closest=1000; int finalFrame=0;
+            for(int frame=0;frame<540;++frame) {
+                hit |= !pool.tick(Step,nearby).empty();
+                if(pool.projectiles()[0].active) {
+                    const auto p=pool.projectiles()[0].position;
+                    closest=std::min(closest,geometry::length(geometry::subtract(p,{0,1.1,-distance})));
+                    finalFrame=frame;
+                }
+            }
+            require(hit,"rocket miss speed="+std::to_string(speed)+" distance="+
+                std::to_string(distance)+" muzzle="+std::to_string(muzzle)+" closest="+
+                std::to_string(closest)+" frame="+std::to_string(finalFrame));
         }
     }
     auto changed=crowd({{0,0,-14},{5,0,-5}});
@@ -176,7 +186,9 @@ void towerChecks() {
     require(static_cast<int>(building.type)==16 && static_cast<int>(RunUpgradeEffect::UnlockMissileLauncher)==61,"append-only save IDs");
     std::array<bool,GameBalance::BuildingTypeCount> unlocked;unlocked.fill(true);
     const auto hotbar=makeBuildingHotbarLayout(unlocked,BuildingHotbarCategory::Defense,true,8,true);
-    require(hotbar.count==15 && hotbar.types[5]==building.type && hotbar.types[7]==BuildingType::LaserTower && hotbar.types[14]==BuildingType::SlowTrap,"new slot before walls and traps");
+    require(hotbar.count==DefenseBuildingOrder.size() && hotbar.types[5]==building.type &&
+        hotbar.types[7]==BuildingType::LaserTower && hotbar.types[13]==BuildingType::SlowTrap &&
+        !hotbar.indexOf(BuildingType::Wall),"rocket appears among defenses; walls are modular");
     const Vec3 socket=missileLauncherMuzzleWorldPosition({},0,0,0);
     requireNear(socket.x,-.113,1e-10,"socket x");requireNear(socket.y,1.203,1e-10,"socket y");requireNear(socket.z,-.4388,1e-10,"socket z");
     const Vec3 raised=missileLauncherMuzzleWorldPosition({},0,MissileLauncherMaximumPitch,0);
@@ -191,7 +203,6 @@ void progressionChecks() {
     require(game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher), "acquire launcher card before core");
     const auto slot=static_cast<std::size_t>(BuildingType::MissileLauncher);
     require(game->snapshot().buildingBlueprintLevels[slot]==1 && game->snapshot().buildingArsenalCount==2,"launcher blueprint unlocks");
-    require(!game->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher),"core-less launcher level capped at one");
     PlayerCommand god;god.enableUnlimitedResources=EnableUnlimitedResourcesCommand{};game->tick(0,god);
     PlayerCommand core;core.placeBuilding=PlaceBuildingCommand{BuildingType::Core,{0,0},0};game->tick(0,core);
     require(game->snapshot().coreId.has_value(),"core fixture placement");
@@ -211,6 +222,5 @@ void progressionChecks() {
     auto restored=std::make_unique<Simulation>(GameBalance::defaults(),map,world);require(restored->loadSuspendedRunState(*saved),"launcher run saves and restores");
     require(restored->snapshot().buildingBlueprintLevels[slot]==2 && restored->snapshot().unlockedBuildings[slot],"restored level and unlock stable");
     require(restored->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher),"restored launcher can reach level three core");
-    require(!restored->grantDebugRunUpgrade(RunUpgradeEffect::UnlockMissileLauncher),"restored launcher respects core cap");
 }
 int main(){projectileChecks();curvedFlightChecks();towerChecks();progressionChecks();}

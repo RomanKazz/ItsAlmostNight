@@ -65,12 +65,11 @@ inline Rgb shiftPalette(Rgb color, float hueShift, float saturationShift, float 
         {0.64F, 0.39F, 0.47F}, {0.60F, 0.43F, 0.23F}, {0.32F, 0.53F, 0.65F}}};
     constexpr std::array<Rgb, Count> Leaves{{GreenLeaves,
         {0.86F, 0.43F, 0.63F}, {0.82F, 0.39F, 0.13F}, {0.48F, 0.66F, 0.77F}}};
-    // Shuffle palette identities independently of the spatial anchors. The
-    // central region can be any biome; the other three have no fixed neighbors.
+    // Keep the green biome at the spawn while varying the three outer regions.
     std::array<std::size_t, Count> regions{0, 1, 2, 3};
-    for (std::size_t remaining = Count; remaining > 1; --remaining) {
+    for (std::size_t remaining = Count; remaining > 2; --remaining) {
         const auto picked = static_cast<std::size_t>(
-            randomUnit(seed, static_cast<std::uint32_t>(70 + remaining)) * static_cast<float>(remaining));
+            1 + randomUnit(seed, static_cast<std::uint32_t>(70 + remaining)) * static_cast<float>(remaining - 1));
         std::swap(regions[remaining - 1], regions[picked]);
     }
     for (std::size_t anchor = 0; anchor < Count; ++anchor) {

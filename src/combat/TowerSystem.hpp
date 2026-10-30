@@ -44,7 +44,7 @@ struct TowerRuntime {
     double laserRemaining{};
     Vec3 laserOrigin{};
     Vec3 laserEnd{};
-    double windAge{WindBlowerPulseSeconds};
+    double windAge{1000.0};
     double windYaw{};
     Vec3 windOrigin{};
     double windRotor{};
@@ -109,8 +109,12 @@ class TowerSystem {
 
     [[nodiscard]] static AttackStats baseStats(BuildingType type, std::uint8_t level);
     [[nodiscard]] FinalAttackStats finalStats(const BuildingInstance& building) const;
+    void setSirenStacks(int count) { sirenStacks_ = std::max(0, count); }
     void setPreferMarkedTargets(bool enabled) { preferMarkedTargets_ = enabled; }
     void setAttackModifiers(const AttackModifiers& modifiers) { modifiers_ = modifiers; }
+    void setBuildingUpgradeModifiers(const std::array<AttackModifiers, GameBalance::BuildingTypeCount>& modifiers) {
+        buildingUpgradeModifiers_ = modifiers;
+    }
     [[nodiscard]] const std::vector<AttackProjectile>& projectiles() const { return projectiles_.projectiles(); }
     [[nodiscard]] std::span<const AttackEvent> attacks() const { return attackBuffer_; }
     [[nodiscard]] std::size_t droppedProjectiles() const { return projectiles_.dropped(); }
@@ -137,7 +141,9 @@ class TowerSystem {
     std::vector<TowerRuntime> towers_;
     std::vector<TowerShot> shotBuffer_;
     AttackModifiers modifiers_;
+    std::array<AttackModifiers, GameBalance::BuildingTypeCount> buildingUpgradeModifiers_{};
     bool preferMarkedTargets_{};
+    int sirenStacks_{};
     AttackModifiers typeModifiers_;
     BuildingType bonusType_{BuildingType::Core};
     double highGroundDamageMultiplier_{1.0};

@@ -14,6 +14,8 @@ constexpr double ResourcePlacementClearance = 0.08;
 constexpr double PropPlacementClearance = 0.80;
 constexpr double StarterCrystalMaximumDistance = 11.0;
 constexpr int StarterCrystalMinimumYield = 12;
+constexpr double StarterTreeDistance = 3.5;
+constexpr int StarterTreeMinimumYield = 20;
 
 std::size_t clusteredTreeVariant(
     std::size_t cluster, std::size_t member,
@@ -114,11 +116,19 @@ std::vector<ResourceNodeDefinition> scatterResources(
         : unitRandom(worldSeed) * Tau;
     const double worldCosine = std::cos(worldRotation);
     const double worldSine = std::sin(worldRotation);
-    // Authored entries are useful as a balanced starter ring, but their
-    // absolute coordinates must not survive a restart. Rotating the whole
-    // ring preserves its distances from the spawn while producing a new
-    // layout for every run seed.
-    for (ResourceNodeDefinition& definition : result) {
+    // Rotate the authored starter ring on restarts, except the tutorial tree
+    // that must remain directly in front of the player.
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        ResourceNodeDefinition& definition = result[index];
+        // The authored first tree marks the tutorial's forward-facing target.
+        // Leave it in front of the player when the rest of the starter ring
+        // rotates on a new run.
+        if (index == 0U && playerSpawn && definition.type == ResourceType::Wood &&
+            std::abs(definition.position.x - playerSpawn->x) < 1e-6 &&
+            std::abs(definition.position.z - (playerSpawn->z - StarterTreeDistance)) < 1e-6) {
+            definition.yield = std::max(definition.yield, StarterTreeMinimumYield);
+            continue;
+        }
         const double x = definition.position.x;
         const double z = definition.position.z;
         definition.position.x = x * worldCosine - z * worldSine;

@@ -22,7 +22,7 @@ struct MetaShopDefinition {
     std::string_view requiredUnlock;
 };
 inline constexpr std::array<MetaShopDefinition, MetaShopUpgradeCount> MetaShopDefinitions{{
-    {MetaShopUpgrade::SilverGain, "silver_gain", "SILVER", "Earn more silver from quest rewards.", 20, 2, 5, {}},
+    {MetaShopUpgrade::SilverGain, "silver_gain", "SILVER", "Earn more silver from quest rewards.", 20, 2, 5, "meta.silver_gain"},
     {MetaShopUpgrade::Rerolls, "rerolls", "REROLLS", "Start each run with more level-up card rerolls.", 5, 4, 1, "meta.refresh"},
     {MetaShopUpgrade::Luck, "luck", "LUCK", "Improve your chance of finding rarer level-up cards.", 10, 3, 2, "meta.luck"},
     {MetaShopUpgrade::DefenseDamage, "defense_damage", "DEFENSE DAMAGE", "Increase damage dealt by your defenses.", 10, 3, 5, "meta.defense_damage"},

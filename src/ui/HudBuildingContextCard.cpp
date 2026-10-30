@@ -27,9 +27,6 @@ std::string actionKeyLabel(
         }
         return "LMB / " + keyboardKeyName(key);
     }
-    if (action == ControlAction::Dash && key == KEY_NULL) {
-        return "RMB";
-    }
     return keyboardKeyName(key);
 }
 
@@ -64,7 +61,8 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
                    double maxHealth, std::optional<double> nextMaxHealth,
                    std::span<const StatRow> rows,
                    const Camera3D& camera,
-                   float entranceSeconds, float buildingHalfWidth, bool isCore) {
+                   float entranceSeconds, float buildingHalfWidth, bool isCore,
+                   bool showHealth = true) {
     const Vector2 viewport{static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())};
     const auto projection = projectBuildingCard(
         Vector3Add(base, {0, isCore ? .95F : 1.15F, 0}), camera, viewport);
@@ -75,7 +73,7 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
     constexpr float CardSizeScale = 1.4F;
     const float panelWidth = 460 * CardSizeScale;
     const float panelHeight =
-        (98 + static_cast<float>(rows.size()) * 29) * CardSizeScale;
+        ((showHealth ? 98 : 69) + static_cast<float>(rows.size()) * 29) * CardSizeScale;
     const auto transform = buildingCardTransform(*projection, viewport,
         easeOutBack(progress), (1.0F-progress)*18.0F,
         panelWidth, panelHeight,
@@ -104,6 +102,7 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
         drawSdfUiText(label, point(444-measureUiText(label,13).x,15),13*scale,
             faded({255,204,25,255}));
     }
+    if (showHealth) {
     drawSdfUiText("MAX HEALTH", point(16,62), 14*scale, faded({202,211,202,255}));
     const std::string hp = statValue(maxHealth,0,"");
     const bool healthChanges = nextMaxHealth && std::abs(*nextMaxHealth-maxHealth)>.0001;
@@ -117,9 +116,10 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
         drawSdfUiText(nextHp,point(444-nextHpWidth,62),14*scale,
             faded({71,236,123,255}));
     }
+    }
     for (std::size_t i=0; i<rows.size(); ++i) {
         const auto& row=rows[i];
-        const float rowY=91+static_cast<float>(i)*29;
+        const float rowY=(showHealth ? 91 : 62)+static_cast<float>(i)*29;
         drawSdfUiText(row.label, point(16,rowY), 13*scale,faded({202,211,202,255}));
         const auto current=statValue(row.value,row.decimals,row.suffix);
         const bool changes=row.next && std::abs(*row.next-row.value)>.0001;
@@ -143,12 +143,28 @@ void drawBuildingContextCard(
     const Camera3D& camera, const ControlSettings&) {
     std::array<StatRow, 20> rows{};
     std::size_t count=0;
+    const bool showUpgradePreview =
+        snapshot.sandboxMode || snapshot.unlimitedResources;
     if (snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats) {
         const auto& comparison=*snapshot.aimedBuildingStats;
+        if (comparison.current.productionPerCycle && comparison.current.productionInterval) {
+            const auto income=[](const BuildingStats& stats) {
+                return 60.0 * stats.productionPerCycle.value_or(0) / std::max(.001, stats.productionInterval.value_or(1));
+            };
+            const StatRow row{"INCOME / MIN",income(comparison.current),
+                showUpgradePreview && comparison.next ? std::optional<double>{income(*comparison.next)} : std::nullopt,1,""};
+            const auto center=buildingWorldPosition(building);
+            drawStatsCard(buildingDisplayName(building.type),building.level,
+                {static_cast<float>(center.x),static_cast<float>(center.y),static_cast<float>(center.z)},
+                0,std::nullopt,std::span{&row,1},camera,view.buildingContextCardEntranceSeconds,
+                static_cast<float>(buildingFootprintHalfExtent(building.type)),false,false);
+            return;
+        }
         const auto add=[&](std::string_view label, std::optional<double> BuildingStats::* member,
                           int decimals=0, const char* suffix="") {
             if (const auto value=comparison.current.*member)
-                rows[count++]={label,*value,comparison.next ? comparison.next.value().*member : std::nullopt,decimals,suffix};
+                rows[count++]={label,*value,showUpgradePreview && comparison.next
+                    ? comparison.next.value().*member : std::nullopt,decimals,suffix};
         };
         add("DAMAGE", &BuildingStats::attackDamage);
         add("RANGE", &BuildingStats::attackRange,1,"m");
@@ -159,7 +175,8 @@ void drawBuildingContextCard(
         if (comparison.current.finalAttack && building.type != BuildingType::WindBlower) {
             const auto addAttack = [&](std::string_view label, auto member, int decimals = 0, const char* suffix = "") {
                 std::optional<double> next;
-                if (comparison.next && comparison.next->finalAttack) next = static_cast<double>(comparison.next->finalAttack.value().*member);
+                if (showUpgradePreview && comparison.next && comparison.next->finalAttack)
+                    next = static_cast<double>(comparison.next->finalAttack.value().*member);
                 rows[count++] = {label, static_cast<double>(comparison.current.finalAttack.value().*member), next, decimals, suffix};
             };
             addAttack("PROJECTILE COUNT", &AttackStats::quantity,1);
@@ -186,17 +203,13 @@ void drawBuildingContextCard(
         add("COOLDOWN", &BuildingStats::cooldown,2,"s");
         add("REPAIR RATE", &BuildingStats::repairPerSecond,1,"/s");
         add("REPAIR INTERVAL", &BuildingStats::repairInterval,1,"s");
-        add("PER CYCLE", &BuildingStats::productionPerCycle);
-        add("CYCLE TIME", &BuildingStats::productionInterval,1,"s");
-        add("CAPACITY", &BuildingStats::producerCapacity);
-        add("BUILDINGS", &BuildingStats::buildingLimit);
         add("WOOD CAPACITY", &BuildingStats::woodCapacity);
         add("STONE CAPACITY", &BuildingStats::stoneCapacity);
         add("CRYSTAL CAPACITY", &BuildingStats::crystalCapacity);
     }
     const Vec3 center=buildingWorldPosition(building);
     const std::optional<double> nextMaxHealth =
-        snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats &&
+        showUpgradePreview && snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats &&
         snapshot.aimedBuildingStats->next
             ? std::optional<double>{snapshot.aimedBuildingStats->next->maxHealth}
             : std::nullopt;

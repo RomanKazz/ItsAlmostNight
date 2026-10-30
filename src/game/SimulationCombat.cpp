@@ -57,7 +57,10 @@ int Simulation::earlyWaveCoinBonus() const {
 int Simulation::earlyWaveInsightBonus() const {
     const int hourglassStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
-    return remainingTimeUnits(phaseTimeRemaining_) * hourglassStacks;
+    return saturatingMultiplyNonNegative(
+        saturatingMultiplyNonNegative(
+            remainingTimeUnits(phaseTimeRemaining_), hourglassStacks),
+        2);
 }
 
 void Simulation::updateRunPhase(
@@ -86,8 +89,7 @@ void Simulation::updateRunPhase(
                 gameplay_.sunsetSeconds;
             advanceBuildingProduction(skippedProductionSeconds);
             advanceWorldLandmarkProduction(
-                skippedProductionSeconds * productionSpeedMultiplier_ *
-                runProductionSpeedMultiplier_);
+                skippedProductionSeconds);
         }
         if (!sandboxMode_) {
             phaseTimeRemaining_ = std::max(
@@ -158,7 +160,7 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseTimeRemaining_ = nightDurationForWave(gameplay_, wave_);
+                phaseTimeRemaining_ = finalNight_ ? 0.0 : nightDurationForWave(gameplay_, wave_);
                 phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,
@@ -177,8 +179,7 @@ void Simulation::updateRunPhase(
                 0.0, phaseTimeRemaining_ - deltaSeconds);
             advanceBuildingProduction(skippedProductionSeconds);
             advanceWorldLandmarkProduction(
-                skippedProductionSeconds * productionSpeedMultiplier_ *
-                runProductionSpeedMultiplier_);
+                skippedProductionSeconds);
         }
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) {
@@ -188,7 +189,7 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseTimeRemaining_ = nightDurationForWave(gameplay_, wave_);
+                phaseTimeRemaining_ = finalNight_ ? 0.0 : nightDurationForWave(gameplay_, wave_);
                 phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,
@@ -236,7 +237,7 @@ void Simulation::updateCombat(double deltaSeconds) {
             modularTargetBuffer_);
         const auto& modularTargets =
             modularTargetBuffer_;
-        const auto attacks = enemies_.tick(
+        const auto attacks = relics_.coreStasisRemaining > 0 ? std::span<const EnemyAttack>{} : enemies_.tick(
             deltaSeconds, buildings_.buildings(), flowField_,
             playerRespawning_ ? std::nullopt
                               : std::optional<Vec3>{playerPosition_},
@@ -249,7 +250,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 structuralRevision_,
             },
             challengeActive());
-        for (const EnemyMagicEvent& magic : enemies_.magicEvents()) {
+        for (const EnemyMagicEvent& magic : (relics_.coreStasisRemaining > 0 ? std::span<const EnemyMagicEvent>{} : enemies_.magicEvents())) {
             events_.push_back({
                 .type = magic.impact ? GameEventType::EnemyMagicImpact
                                      : GameEventType::EnemyMagicFired,
@@ -355,6 +356,7 @@ void Simulation::updateCombat(double deltaSeconds) {
         bool producerRuntimeDirty = false;
         bool worldStructuresDirty = false;
         for (const auto& attack : attacks) {
+            if (relics_.coreStasisRemaining > 0) break;
             const auto attacker = enemies_.enemy(attack.enemyId);
             if (unlimitedResources_) {
                 const auto core = buildings_.core();
@@ -366,7 +368,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 ? attack.damage * 0.65 : attack.damage;
             const auto destroyedVisual = buildingBeforeLethalHit(buildings_,attack.targetId,fortifiedDamage);
             const auto damage =
-                buildings_.damage(
+                damageBuildingWithRelics(
                     attack.targetId, fortifiedDamage);
             if (!damage) {
                 if (unlimitedResources_) {
@@ -459,6 +461,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     removeUnsupportedPlatformBuildings();
                     if (!buildings_.core()) {
                         enemies_.clearProjectiles();
+                        towers_.clearProjectiles();
                         cannons_.clearProjectiles();
                         bombs_.clearProjectiles();
                         iceWand_.clearProjectiles();
@@ -507,6 +510,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 });
             }
             if (damage->destroyed) {
+                rememberDestroyedTower(destroyedVisual);
                 salvageDestroyedBuilding(
                     damage->type, buildingWorldPosition(*damage));
                 events_.push_back({
@@ -520,6 +524,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 worldStructuresDirty = true;
                 if (damage->type == BuildingType::Core) {
                     enemies_.clearProjectiles();
+                    towers_.clearProjectiles();
                     cannons_.clearProjectiles();
                     bombs_.clearProjectiles();
                     iceWand_.clearProjectiles();
@@ -643,7 +648,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
         for (const auto& [id, center] : buildingTargets) {
             const auto destroyedVisual = buildingBeforeLethalHit(buildings_,id,BuildingDamage);
             const auto result =
-                buildings_.damage(id, BuildingDamage);
+                damageBuildingWithRelics(id, BuildingDamage);
             if (!result) {
                 continue;
             }
@@ -666,6 +671,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
                 });
             }
             if (result->destroyed) {
+                rememberDestroyedTower(destroyedVisual);
                 salvageDestroyedBuilding(result->type, center);
                 events_.push_back({
                     .type = GameEventType::BuildingDestroyed,

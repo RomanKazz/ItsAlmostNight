@@ -1,18 +1,25 @@
+#include "ui/UiViewport.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingHotbarLayout.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include "localization/Localization.hpp"
 #include "ui/UiCString.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiLabels.hpp"
 
+#include <nlohmann/json.hpp>
 #include <raylib.h>
 #include <raymath.h>
+#include <rlgl.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <string>
-#include <vector>
 
 namespace ian {
 using namespace app_detail;
@@ -49,11 +56,9 @@ struct MenuLayout {
     }
 };
 
-MenuLayout menuLayout() {
-    constexpr float DesignWidth = 1920.0F;
-    constexpr float DesignHeight = 1080.0F;
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
+MenuLayout menuLayout(float DesignWidth = 1920.0F, float DesignHeight = 1080.0F) {
+    const float screenWidth = static_cast<float>(uiScreenWidth());
+    const float screenHeight = static_cast<float>(uiScreenHeight());
     const float scale = std::min(
         screenWidth / DesignWidth,
         screenHeight / DesignHeight);
@@ -70,6 +75,15 @@ constexpr Color MenuPanelFill{29, 34, 38, 228};
 constexpr Color MenuPanelBorder{116, 79, 48, 255};
 constexpr Color MenuCream{250, 241, 211, 255};
 constexpr Color MenuGold{255, 205, 105, 255};
+constexpr const char* MenuBackgroundViewPath =
+    "user_settings/menu_background_view.json";
+
+std::span<const BuildingType> menuBackgroundCatalog(int category) {
+    if (category == 1) return DefenseBuildingOrder;
+    if (category == 2) return ModularBuildingOrder;
+    return BaseBuildingOrder;
+}
+
 void drawMenuPanel(Rectangle bounds, const MenuLayout& layout) {
     DrawRectangleRounded(
         {bounds.x + 3.0F * layout.scale,
@@ -86,7 +100,7 @@ bool drawMenuButton(
     Rectangle bounds, std::string_view label,
     const MenuLayout& layout, bool primary = false, bool secondary = false) {
     const bool hovered = CheckCollisionPointRec(
-        GetMousePosition(), bounds);
+        uiMousePosition(), bounds);
     const bool pressed = hovered &&
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const Color fill = primary
@@ -128,49 +142,12 @@ bool drawMenuButton(
     return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }
 
-bool drawMainMenuButton(
-    Texture2D texture, Rectangle bounds, std::string_view label,
-    const MenuLayout& layout, float designFontSize = 56.0F) {
-    const bool hovered = CheckCollisionPointRec(GetMousePosition(), bounds);
-    const bool pressed = hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-    Rectangle artwork = bounds;
-    artwork.y += pressed ? 2.0F * layout.scale : 0.0F;
-    if (IsTextureValid(texture)) {
-        DrawTexturePro(texture,
-            {0.0F, 0.0F, static_cast<float>(texture.width),
-             static_cast<float>(texture.height)},
-            artwork, {}, 0.0F,
-            pressed ? Color{210, 210, 210, 255} : WHITE);
-        if (hovered && !pressed) {
-            DrawTexturePro(texture,
-                {0.0F, 0.0F, static_cast<float>(texture.width),
-                 static_cast<float>(texture.height)},
-                artwork, {}, 0.0F, {255, 239, 204, 36});
-        }
-    } else {
-        return drawMenuButton(bounds, label, layout);
-    }
-
-    const ScopedUiFontRole display(UiFontRole::Display);
-    // UiText applies its existing 1.68 scale; Figma specifies actual pixels.
-    const float fontSize = fitUiTextSize(label,
-        designFontSize / 1.68F * layout.scale,
-        14.0F * layout.scale, bounds.width - 44.0F * layout.scale,
-        bounds.height - 28.0F * layout.scale);
-    const Vector2 measured = measureUiText(label, fontSize);
-    SdfUiTextStyle style{};
-    style.fillColor = {254, 247, 229, 255};
-    style.outlineColor = {20, 20, 16, 255};
-    style.outlinePixels = 3.5F * layout.scale;
-    style.shadowColor = {8, 9, 10, 230};
-    style.shadowOffsetPixels = {0.0F, 2.5F * layout.scale};
-    style.softness = 0.6F;
-    drawStyledSdfUiText(label,
-        {artwork.x + (artwork.width - measured.x) * 0.5F,
-         artwork.y + (artwork.height - measured.y) * 0.5F +
-             artwork.height * (5.44F / 101.76F)},
-        fontSize, style);
-    return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+Vector3 menuViewDirection(float yaw, float pitch) {
+    return {
+        std::sin(yaw) * std::cos(pitch),
+        std::sin(pitch),
+        -std::cos(yaw) * std::cos(pitch),
+    };
 }
 
 void drawOutlinedTitle(
@@ -194,32 +171,320 @@ void drawOutlinedTitle(
     drawStyledSdfUiText(text,position,logicalSize*layout.scale,style);
 }
 
-void drawStatRow(
-    const MenuLayout& layout, float x, float y,
-    float width, std::string_view label,
-    std::string value, Color valueColor) {
-    const ScopedUiFontRole body(UiFontRole::BodyBold);
-    const float valueSize = 18.0F * layout.scale;
-    const Vector2 measured = measureUiText(value, valueSize);
-    const float labelSize = fitUiTextSize(label, 17.0F * layout.scale,
-        12.0F * layout.scale, width * layout.scale - measured.x - 44.0F * layout.scale);
-    drawUiText(label, layout.point(x + 8.0F, y + 10.0F),
-        labelSize, {216, 219, 200, 255});
-    drawUiText(value,
-        {layout.point(x + width - 8.0F, y + 9.0F).x - measured.x,
-         layout.point(x + width - 8.0F, y + 9.0F).y},
-        valueSize, valueColor);
-}
-
 } // namespace
 
-void App::drawMainMenuWorld(
+bool App::loadMenuBackgroundView() {
+    for (const char* path : {
+             MenuBackgroundViewPath,
+             "assets/data/default_menu_background_view.json"}) {
+        try {
+        std::ifstream input(path);
+        if (!input) continue;
+        const nlohmann::json document =
+            nlohmann::json::parse(input);
+        const auto& position = document.at("position");
+        const auto& target = document.at("target");
+        if (!position.is_array() || position.size() != 3 ||
+            !target.is_array() || target.size() != 3) {
+            continue;
+        }
+        const std::uint32_t seed =
+            document.at("terrainSeed").get<std::uint32_t>();
+        const Camera3D camera{
+            .position = {
+                position.at(0).get<float>(),
+                position.at(1).get<float>(),
+                position.at(2).get<float>(),
+            },
+            .target = {
+                target.at(0).get<float>(),
+                target.at(1).get<float>(),
+                target.at(2).get<float>(),
+            },
+            .up = {0.0F, 1.0F, 0.0F},
+            .fovy = 61.0F,
+            .projection = CAMERA_PERSPECTIVE,
+        };
+        const auto valid = [](Vector3 value) {
+            return std::isfinite(value.x) &&
+                std::isfinite(value.y) &&
+                std::isfinite(value.z) &&
+                std::abs(value.x) < 1000.0F &&
+                std::abs(value.y) < 1000.0F &&
+                std::abs(value.z) < 1000.0F;
+        };
+        if (seed == 0U || !valid(camera.position) ||
+            !valid(camera.target) ||
+            Vector3LengthSqr(Vector3Subtract(
+                camera.target, camera.position)) < 0.01F) {
+            continue;
+        }
+        std::optional<MenuBackgroundScene> scene;
+        if (document.contains("buildings")) {
+            scene.emplace();
+            if (!scene->loadJson(document.at("buildings"),
+                    simulation_.snapshot().worldLimit)) continue;
+        }
+        menuBackgroundScene_ = std::move(scene);
+        menuBackgroundCamera_ = camera;
+        menuBackgroundTerrainSeed_ = seed;
+        return true;
+        } catch (...) {
+        }
+    }
+    return false;
+}
+
+bool App::saveMenuBackgroundView() {
+    try {
+        const auto path = std::filesystem::path(
+            MenuBackgroundViewPath);
+        std::filesystem::create_directories(
+            path.parent_path());
+        const std::uint32_t seed =
+            simulation_.terrain().seed();
+        nlohmann::json document{
+            {"version", 2},
+            {"terrainSeed", seed},
+            {"position", {
+                menuBackgroundCamera_.position.x,
+                menuBackgroundCamera_.position.y,
+                menuBackgroundCamera_.position.z}},
+            {"target", {
+                menuBackgroundCamera_.target.x,
+                menuBackgroundCamera_.target.y,
+                menuBackgroundCamera_.target.z}},
+        };
+        if (menuBackgroundScene_) {
+            document["buildings"] = menuBackgroundScene_->toJson();
+        }
+        const auto temporary = std::filesystem::path(path.string() + ".tmp");
+        std::ofstream output(temporary);
+        output << document.dump(2) << '\n';
+        output.close();
+        if (!output) return false;
+        std::filesystem::rename(temporary, path);
+        menuBackgroundTerrainSeed_ = seed;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void App::beginMenuBackgroundEdit(
     const SimulationSnapshot& snapshot) {
+    menuBackgroundCameraBeforeEdit_ = menuBackgroundCamera_;
+    menuBackgroundSceneBeforeEdit_ = menuBackgroundScene_;
+    const double ground = simulation_.terrain().getHeight(
+        snapshot.playerPosition.x, snapshot.playerPosition.z);
+    menuBackgroundCamera_ = {
+        .position = {
+            static_cast<float>(snapshot.playerPosition.x) + 13.0F,
+            static_cast<float>(ground) + 6.0F,
+            static_cast<float>(snapshot.playerPosition.z) + 15.0F,
+        },
+        .target = {
+            static_cast<float>(snapshot.playerPosition.x) - 1.0F,
+            static_cast<float>(ground) + 1.8F,
+            static_cast<float>(snapshot.playerPosition.z) - 8.0F,
+        },
+        .up = {0.0F, 1.0F, 0.0F},
+        .fovy = 61.0F,
+        .projection = CAMERA_PERSPECTIVE,
+    };
+    const bool savedViewMatches = menuBackgroundTerrainSeed_ &&
+        *menuBackgroundTerrainSeed_ ==
+            simulation_.terrain().seed();
+    if (savedViewMatches) {
+        static_cast<void>(loadMenuBackgroundView());
+    }
+    if (!menuBackgroundScene_ || !savedViewMatches) {
+        menuBackgroundScene_.emplace();
+        static_cast<void>(menuBackgroundScene_->copyBuildings(snapshot.buildings));
+    }
+    menuBackgroundBuildingCategory_ = std::any_of(
+        menuBackgroundScene_->buildings().begin(),
+        menuBackgroundScene_->buildings().end(),
+        [](const BuildingInstance& building) {
+            return building.type == BuildingType::Core;
+        }) ? 2 : 0;
+    menuBackgroundBuildingSlot_ = 0;
+    menuBackgroundBuildingRotation_ = 0U;
+    menuBackgroundBuildingEnabled_ = true;
+    menuBackgroundMenuPreviewVisible_ = true;
+    menuBackgroundBuildingPreview_.reset();
+    const Vector3 direction = Vector3Normalize(Vector3Subtract(
+        menuBackgroundCamera_.target,
+        menuBackgroundCamera_.position));
+    menuBackgroundYaw_ = std::atan2(direction.x, -direction.z);
+    menuBackgroundPitch_ = std::asin(direction.y);
+    menuBackgroundEditing_ = true;
+    DisableCursor();
+}
+
+void App::processMenuBackgroundInput(
+    const SimulationSnapshot& snapshot) {
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        menuBackgroundEditing_ = false;
+        menuBackgroundCamera_ = menuBackgroundCameraBeforeEdit_;
+        menuBackgroundScene_ = std::move(menuBackgroundSceneBeforeEdit_);
+        menuBackgroundBuildingPreview_.reset();
+        EnableCursor();
+        audio_.playUiConfirm();
+        return;
+    }
+    if (IsKeyPressed(KEY_ENTER)) {
+        if (saveMenuBackgroundView()) {
+            menuBackgroundEditing_ = false;
+            menuBackgroundSceneBeforeEdit_.reset();
+            menuBackgroundBuildingPreview_.reset();
+            EnableCursor();
+            audio_.playUiConfirm();
+        } else {
+            audio_.playUiError();
+        }
+        return;
+    }
+    if (IsKeyPressed(KEY_H)) {
+        menuBackgroundMenuPreviewVisible_ = !menuBackgroundMenuPreviewVisible_;
+        audio_.playUiConfirm();
+    }
+    const float deltaTime = std::clamp(
+        GetFrameTime(), 0.0F, 0.05F);
+    const Vector2 mouse = GetMouseDelta();
+    const float sensitivity = 0.0025F *
+        userSettings_.controls.mouseSensitivity;
+    menuBackgroundYaw_ += mouse.x * sensitivity;
+    menuBackgroundPitch_ = std::clamp(
+        menuBackgroundPitch_ - mouse.y * sensitivity,
+        -1.4F, 1.4F);
+    const Vector3 forward = menuViewDirection(
+        menuBackgroundYaw_, menuBackgroundPitch_);
+    const Vector3 right = Vector3Normalize(Vector3CrossProduct(
+        forward, {0.0F, 1.0F, 0.0F}));
+    Vector3 movement{};
+    if (IsKeyDown(KEY_W)) movement = Vector3Add(movement, forward);
+    if (IsKeyDown(KEY_S)) movement = Vector3Subtract(movement, forward);
+    if (IsKeyDown(KEY_D)) movement = Vector3Add(movement, right);
+    if (IsKeyDown(KEY_A)) movement = Vector3Subtract(movement, right);
+    if (IsKeyDown(KEY_E) || IsKeyDown(KEY_SPACE)) movement.y += 1.0F;
+    if (IsKeyDown(KEY_Q) || IsKeyDown(KEY_LEFT_CONTROL) ||
+        IsKeyDown(KEY_RIGHT_CONTROL)) movement.y -= 1.0F;
+    if (Vector3LengthSqr(movement) > 0.0F) {
+        const float speed =
+            (IsKeyDown(KEY_LEFT_SHIFT) ||
+             IsKeyDown(KEY_RIGHT_SHIFT)) ? 26.0F : 10.0F;
+        menuBackgroundCamera_.position = Vector3Add(
+            menuBackgroundCamera_.position,
+            Vector3Scale(Vector3Normalize(movement),
+                         speed * deltaTime));
+    }
+    const float limit = static_cast<float>(snapshot.worldLimit) - 3.0F;
+    menuBackgroundCamera_.position.x = std::clamp(
+        menuBackgroundCamera_.position.x, -limit, limit);
+    menuBackgroundCamera_.position.z = std::clamp(
+        menuBackgroundCamera_.position.z, -limit, limit);
+    const float ground = static_cast<float>(
+        simulation_.terrain().getHeight(
+            menuBackgroundCamera_.position.x,
+            menuBackgroundCamera_.position.z));
+    menuBackgroundCamera_.position.y = std::clamp(
+        menuBackgroundCamera_.position.y,
+        ground + 0.12F, ground + 90.0F);
+    menuBackgroundCamera_.target = Vector3Add(
+        menuBackgroundCamera_.position, forward);
+
+    // The composition preview keeps camera controls, but hides construction
+    // tools and ignores clicks so neither menu actions nor unseen edits occur.
+    if (menuBackgroundMenuPreviewVisible_) {
+        menuBackgroundBuildingPreview_.reset();
+        return;
+    }
+
+    if (IsKeyPressed(KEY_B)) {
+        menuBackgroundBuildingEnabled_ = !menuBackgroundBuildingEnabled_;
+    }
+    if (IsKeyPressed(KEY_TAB)) {
+        menuBackgroundBuildingCategory_ = (menuBackgroundBuildingCategory_ + 1) % 3;
+        menuBackgroundBuildingSlot_ = 0;
+        menuBackgroundBuildingRotation_ = 0U;
+    }
+    const auto catalog = menuBackgroundCatalog(menuBackgroundBuildingCategory_);
+    const int count = static_cast<int>(catalog.size());
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0F) {
+        menuBackgroundBuildingSlot_ =
+            (menuBackgroundBuildingSlot_ + (wheel > 0.0F ? -1 : 1) + count) % count;
+        menuBackgroundBuildingRotation_ = 0U;
+    }
+    for (int slot = 0; slot < count; ++slot) {
+        if (IsKeyPressed(KEY_ONE + slot)) {
+            menuBackgroundBuildingSlot_ = slot;
+            menuBackgroundBuildingRotation_ = 0U;
+        }
+    }
+    const BuildingType type = catalog[static_cast<std::size_t>(menuBackgroundBuildingSlot_)];
+    if (IsKeyPressed(KEY_R)) {
+        menuBackgroundBuildingRotation_ = static_cast<std::uint8_t>(
+            (menuBackgroundBuildingRotation_ + 1U) % buildingRotationStepCount(type));
+    }
+    menuBackgroundBuildingPreview_.reset();
+    if (!menuBackgroundBuildingEnabled_ || !menuBackgroundScene_) return;
+    const Vec3 origin{
+        menuBackgroundCamera_.position.x,
+        menuBackgroundCamera_.position.y,
+        menuBackgroundCamera_.position.z};
+    const Vec3 direction{forward.x, forward.y, forward.z};
+    constexpr double MaximumBuildDistance = 120.0;
+    const auto terrainHit = simulation_.terrain().raycast(
+        origin, direction, MaximumBuildDistance);
+    if (terrainHit) {
+        menuBackgroundBuildingPreview_ = menuBackgroundScene_->preview(
+            type, *terrainHit, menuBackgroundBuildingRotation_,
+            simulation_.terrain(), snapshot.worldLimit);
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        const double terrainDistance = terrainHit
+            ? std::sqrt((terrainHit->x - origin.x) * (terrainHit->x - origin.x) +
+                        (terrainHit->y - origin.y) * (terrainHit->y - origin.y) +
+                        (terrainHit->z - origin.z) * (terrainHit->z - origin.z))
+            : MaximumBuildDistance;
+        if (menuBackgroundScene_->remove(origin, direction, terrainDistance)) {
+            audio_.playUiConfirm();
+        } else {
+            audio_.playUiError();
+        }
+    } else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (menuBackgroundBuildingPreview_ &&
+            menuBackgroundScene_->place(*menuBackgroundBuildingPreview_)) {
+            audio_.playUiConfirm();
+        } else {
+            audio_.playUiError();
+        }
+    }
+    // Revalidate immediately after placement/removal for the same-frame ghost.
+    if (terrainHit) {
+        menuBackgroundBuildingPreview_ = menuBackgroundScene_->preview(
+            type, *terrainHit, menuBackgroundBuildingRotation_,
+            simulation_.terrain(), snapshot.worldLimit);
+    }
+}
+
+void App::drawMainMenuWorld(
+    const SimulationSnapshot& sourceSnapshot) {
+    auto snapshot = sourceSnapshot;
+    snapshot.relicGhosts={};
+    snapshot.relicCombatBuildings={};
+    if (menuBackgroundScene_ && (menuBackgroundEditing_ ||
+            (menuBackgroundTerrainSeed_ &&
+             *menuBackgroundTerrainSeed_ == snapshot.terrainSeed))) {
+        snapshot.buildings = menuBackgroundScene_->buildings();
+    }
     const double terrainY = simulation_.terrain().getHeight(
         snapshot.playerPosition.x, snapshot.playerPosition.z);
     const float drift = static_cast<float>(
         std::sin(GetTime() * 0.12) * 1.6);
-    const Camera3D camera{
+    const Camera3D defaultCamera{
         .position = {
             static_cast<float>(snapshot.playerPosition.x) + 13.0F + drift,
             static_cast<float>(terrainY) + 6.0F,
@@ -234,6 +499,9 @@ void App::drawMainMenuWorld(
         .fovy = 61.0F,
         .projection = CAMERA_PERSPECTIVE,
     };
+    const Camera3D camera =
+        (menuBackgroundEditing_ || menuBackgroundTerrainSeed_)
+            ? menuBackgroundCamera_ : defaultCamera;
 
     environment_.setAutomaticTime(0.22F);
     const EnvironmentState environment = environment_.state();
@@ -243,10 +511,7 @@ void App::drawMainMenuWorld(
         Vector3CrossProduct(forward, {0.0F, 1.0F, 0.0F}));
     const Vector3 cameraUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, forward));
-    // The live landscape is the deliberately soft backdrop. The hero prop
-    // is rendered in a separate transparent foreground pass below, so it
-    // can never disappear behind random world generation.
-    renderer_->setMenuDepthOfField(true, 0.1F, 0.1F, 8.5F);
+    renderer_->setMenuDepthOfField(false);
     const WorldLighting lighting{
         .cameraPosition = camera.position,
         .sunDirection = Vector3Scale(
@@ -311,84 +576,96 @@ void App::drawMainMenuWorld(
             camera, environment.nightFactor, lighting);
         drawBlobShadows(snapshot, camera);
     }
+    if (menuBackgroundEditing_ && !menuBackgroundMenuPreviewVisible_ &&
+        menuBackgroundBuildingPreview_) {
+        const auto& preview = *menuBackgroundBuildingPreview_;
+        const Vec3 center = buildingWorldPosition(preview.type, preview.gridPosition);
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState ghost{};
+        ghost.ghostAmount = 1.0F;
+        ghost.ghostTint = preview.placement.valid()
+            ? Vector3{0.25F, 0.95F, 0.5F} : Vector3{1.0F, 0.25F, 0.2F};
+        ghost.ghostOpacity = 0.35F;
+        ghost.screenAoAmount = 0.0F;
+        renderer_->setWorldMaterial(ghost);
+        rlDisableDepthMask();
+        drawPlacementPreviewGeometry(
+            *renderer_, preview.type,
+            {static_cast<float>(center.x), static_cast<float>(preview.baseHeight),
+             static_cast<float>(center.z)},
+            static_cast<float>(buildingRotationYaw(preview.type, preview.rotation)),
+            preview.rotation,
+            wallConnectionMask(snapshot.buildings, preview.gridPosition, preview.baseHeight));
+        renderer_->endWorldShader();
+        rlEnableDepthMask();
+        drawPlacementFootprint(preview,
+            {static_cast<float>(center.x), static_cast<float>(center.z)}, 0.0F);
+    }
     EndMode3D();
     renderer_->endWorldPass();
     renderer_->setMenuDepthOfField(false);
-
-    // A restrained cool grade keeps the warm focused prop readable while
-    // preserving the live world behind the menu.
-    DrawRectangle(
-        0, 0, GetScreenWidth(), GetScreenHeight(),
-        {12, 18, 24, 60});
-    DrawRectangleGradientH(
-        0, 0, GetScreenWidth() / 3, GetScreenHeight(),
-        {8, 17, 20, 82}, {8, 17, 20, 0});
-    DrawRectangleGradientH(
-        GetScreenWidth() * 2 / 3, 0,
-        GetScreenWidth() / 3 + 1, GetScreenHeight(),
-        {8, 17, 20, 0}, {8, 17, 20, 82});
-
-    // Crisp foreground showcase, analogous to Megabonk's microwave. It is
-    // composited after background post-processing and owns an independent
-    // depth buffer, producing stable framing for every generated world.
-    if (!MinimalWorldVisuals &&
-        renderer_->beginFirstPersonToolPass()) {
-        const Camera3D showcaseCamera{
-            .position = {5.0F, 4.0F, 8.0F},
-            .target = {1.8F, 2.6F, 0.0F},
-            .up = {0.0F, 1.0F, 0.0F},
-            .fovy = 31.0F,
-            .projection = CAMERA_PERSPECTIVE,
-        };
-        WorldLighting showcaseLighting = lighting;
-        showcaseLighting.cameraPosition = showcaseCamera.position;
-        showcaseLighting.fogStart = 1000.0F;
-        showcaseLighting.fogEnd = 1001.0F;
-        BeginMode3D(showcaseCamera);
-        if (renderer_->beginBlobShadowBatch(
-                showcaseCamera.position)) {
-            renderer_->drawBlobShadow(
-                {0.0F, 0.025F, 0.0F},
-                1.95F, 1.65F, 0.38F, 24);
-            renderer_->endBlobShadowBatch();
-        }
-        renderer_->beginWorldShader(showcaseLighting);
-        WorldMaterialState showcaseMaterial{};
-        showcaseMaterial.bakedAo = 0.84F;
-        showcaseMaterial.screenAoAmount = 0.0F;
-        renderer_->setWorldMaterial(showcaseMaterial);
-        static_cast<void>(renderer_->drawPlatformFrameModel(
-            {0.0F, 0.0F, 0.0F}, WHITE, 1.35F,
-            {0.52F, 0.52F, 0.52F, 0.52F}));
-        constexpr float ShowcaseYaw = 2.56F;
-        const float turretSweep = static_cast<float>(
-            std::sin(GetTime() * 0.42) * 0.11);
-        static_cast<void>(renderer_->drawGunTurret(
-            {0.0F, 0.08F, 0.0F},
-            ShowcaseYaw, ShowcaseYaw + turretSweep,
-            WHITE, 1.58F));
-        renderer_->endWorldShader();
-        EndMode3D();
-        FirstPersonToolTuning showcaseComposite{};
-        showcaseComposite.outlineEnabled = true;
-        showcaseComposite.outlineWidth = 2.2F;
-        showcaseComposite.outlineStrength = 0.34F;
-        showcaseComposite.rimStrength = 0.18F;
-        showcaseComposite.brightness = 1.04F;
-        showcaseComposite.saturation = 1.0F;
-        renderer_->endFirstPersonToolPass(showcaseComposite);
-    }
 }
 
-void App::drawMainMenu(const SimulationSnapshot&) {
+void App::drawMainMenu() {
+    const ScopedUiCanvas canvas;
+    if (renderer_->graphicsPanelVisible() || classSelectionVisible_ ||
+        mainMenuPage_ != MainMenuPage::None || menuBackgroundEditing_ ||
+        IsKeyPressed(KEY_ESCAPE)) {
+        // Keyboard navigation can leave home while a mouse transition is
+        // pending. Do not replay that old click when home becomes visible.
+        mainMenuHomeState_.pendingAction = MainMenuHomeAction::None;
+        mainMenuHomeState_.pointerWasDown = false;
+    }
     if (renderer_->graphicsPanelVisible()) {
         return;
     }
+    if (classSelectionVisible_) {
+        auto navigation = readMenuNavigationInput();
+        if (!navigation.horizontalStep) navigation.horizontalStep = IsKeyPressed(KEY_D) ? 1 : IsKeyPressed(KEY_A) ? -1 : 0;
+        const int previousFocus = classSelectionState_.focused;
+        const auto result = drawClassSelectionMenu(ui_, metaProgression_, selectedPlayerClass_,
+            sandboxClassSelection_, classCollectionOnly_, classSelectionState_,
+            {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, navigation);
+        pendingStartFromUi_ = pendingStartFromUi_ || result.start;
+        if (result.back) {
+            classSelectionVisible_ = false;
+            classCollectionOnly_ = false;
+            sandboxClassSelection_ = false;
+            pendingStartFromUi_ = false;
+        }
+        if (previousFocus != classSelectionState_.focused &&
+            (navigation.tabStep || navigation.horizontalStep || navigation.verticalStep)) audio_.playUiSelect();
+        if (result.back || (result.interaction &&
+            (navigation.click || navigation.activate))) audio_.playUiConfirm();
+        return;
+    }
     const MenuLayout layout = menuLayout();
+    const auto drawHome = [&](MainMenuHomeState& state, const MainMenuHomeInput& input) {
+        const auto featured = questSystem_.recommendedStatuses(metaProgression_, MainMenuFeaturedQuestCount);
+        const auto progress = questSystem_.categoryProgress(metaProgression_);
+        state.totalQuestCount = progress.total;
+        state.completedQuestCount = progress.completed;
+        state.unclaimedQuestRewards = progress.unclaimedRewards;
+        if (featured.empty()) {
+            const auto rows = questSystem_.statuses(metaProgression_);
+            state.allQuestsCompleted = std::ranges::all_of(
+                rows, [](const auto& row) { return row.completed; });
+        }
+        const bool previousFriends = state.friendsLeaderboardVisible;
+        const auto previousFocus = state.selectedButton;
+        const auto homeResult = drawMainMenuHome(ui_, metaProgression_, featured,
+            suspendedRunAvailable(), state,
+            {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())},
+            input);
+        if (previousFriends != state.friendsLeaderboardVisible ||
+            (previousFocus != state.selectedButton && (input.tabStep || input.horizontalStep || input.verticalStep)))
+            audio_.playUiSelect();
+        return homeResult;
+    };
     if (mainMenuPage_ == MainMenuPage::Quests) {
         const bool reverseTab = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
         const QuestMenuInput questInput{
-            .pointer = GetMousePosition(),
+            .pointer = uiMousePosition(),
             .wheel = GetMouseWheelMove(),
             .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
             .pointerDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
@@ -396,40 +673,52 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
             .deltaTime = GetFrameTime(),
         };
+        const auto previousSelection = questMenuState_.selectedId;
+        const auto previousCategory = questMenuState_.category;
+        const bool previousCompletedLast = questMenuState_.completedLast;
         const auto result = drawQuestMenu(ui_, questSystem_, metaProgression_, questMenuState_,
-            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, questInput);
+            {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, questInput);
         if (result.purchase || result.rewardClaimed) persistMetaProgression();
         if (result.close) mainMenuPage_ = MainMenuPage::None;
-        if (result.interaction || result.close) audio_.playUiConfirm();
+        if (result.purchase) audio_.playUiPurchase();
+        else if (result.rewardClaimed) audio_.playUiReward();
+        else if (!result.close && (questInput.click || questInput.selectionStep || questInput.categoryStep) &&
+            (previousSelection != questMenuState_.selectedId || previousCategory != questMenuState_.category ||
+             previousCompletedLast != questMenuState_.completedLast)) audio_.playUiSelect();
+        else if (result.close || (result.interaction && questInput.click)) audio_.playUiConfirm();
         return;
     }
 
     if (mainMenuPage_ == MainMenuPage::Shop) {
         const ShopMenuInput input{
-            .pointer = GetMousePosition(),
+            .pointer = uiMousePosition(),
             .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
             .confirm = IsKeyPressed(KEY_ENTER),
             .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
                 : IsKeyPressed(KEY_DOWN) ? MetaShopGridColumns : IsKeyPressed(KEY_UP) ? -MetaShopGridColumns : 0,
         };
+        const auto previousSelection = shopMenuState_.selected;
         const auto result = drawShopMenu(ui_, metaProgression_, shopMenuState_,
-            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, input);
+            {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
         if (result.purchase) persistMetaProgression();
         if (result.close) mainMenuPage_ = MainMenuPage::None;
         if (result.openUnlocks) {
             unlockMenuState_ = {};
             unlockMenuState_.category = UnlockCategory::Meta;
-            unlockMenuState_.selectedId = "meta.refresh";
+            unlockMenuState_.selectedId = std::string(MetaShopDefinitions[static_cast<std::size_t>(shopMenuState_.selected)].requiredUnlock);
             mainMenuPage_ = MainMenuPage::Unlocks;
         }
-        if (result.interaction || result.close) audio_.playUiConfirm();
+        if (result.purchase) audio_.playUiPurchase();
+        else if (!result.close && !result.openUnlocks && previousSelection != shopMenuState_.selected &&
+            (input.click || input.selectionStep)) audio_.playUiSelect();
+        else if (result.close || (result.interaction && (input.click || input.confirm))) audio_.playUiConfirm();
         return;
     }
 
     if (mainMenuPage_ == MainMenuPage::Unlocks) {
         const bool reverseTab = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
         const UnlockMenuInput input{
-            .pointer = GetMousePosition(),
+            .pointer = uiMousePosition(),
             .wheel = GetMouseWheelMove(),
             .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
             .pointerDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
@@ -437,10 +726,17 @@ void App::drawMainMenu(const SimulationSnapshot&) {
                 : IsKeyPressed(KEY_DOWN) ? 9 : IsKeyPressed(KEY_UP) ? -9 : 0,
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
         };
+        const auto previousSelection = unlockMenuState_.selectedId;
+        const auto previousCategory = unlockMenuState_.category;
         const auto result = drawUnlockMenu(ui_, questSystem_, metaProgression_, unlockMenuState_,
             {static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, input);
         if (result.purchase || result.toggled) persistMetaProgression();
         if (result.close) mainMenuPage_ = MainMenuPage::None;
+        if (!result.shopUnlockId.empty()) {
+            for (const auto& upgrade : MetaShopDefinitions)
+                if (upgrade.requiredUnlock == result.shopUnlockId) shopMenuState_.selected = upgrade.upgrade;
+            mainMenuPage_ = MainMenuPage::Shop;
+        }
         if (!result.questId.empty()) {
             questMenuState_ = {};
             questMenuState_.selectedId = result.questId;
@@ -449,282 +745,256 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             }
             mainMenuPage_ = MainMenuPage::Quests;
         }
-        if (result.interaction || result.close) audio_.playUiConfirm();
+        if (result.purchase) audio_.playUiPurchase();
+        else if (!result.close && (input.click || input.selectionStep || input.categoryStep) &&
+            (previousSelection != unlockMenuState_.selectedId || previousCategory != unlockMenuState_.category))
+            audio_.playUiSelect();
+        else if (result.close || (result.interaction && input.click)) audio_.playUiConfirm();
         return;
     }
 
-    const Texture2D logo = ui_.mainMenuLogoTexture();
-    if (IsTextureValid(logo)) {
-        DrawTexturePro(logo,
-            {0.0F, 0.0F, static_cast<float>(logo.width),
-             static_cast<float>(logo.height)},
-            layout.rect(618.0F, 24.0F, 684.0F, 235.0F),
-            {}, 0.0F, WHITE);
-    } else {
-        drawOutlinedTitle("FORTBONK", layout,
-            960.0F, 82.0F, 62.0F, 820.0F);
+    if (menuBackgroundEditing_) {
+        if (menuBackgroundMenuPreviewVisible_) {
+            // Render the same live menu with an isolated state and no input.
+            auto previewState = mainMenuHomeState_;
+            previewState.pendingAction = MainMenuHomeAction::None;
+            previewState.pointerWasDown = false;
+            static_cast<void>(drawHome(previewState,
+                {.pointer = {-1000.0F, -1000.0F}, .deltaTime = GetFrameTime()}));
+
+            return;
+        }
+        drawMenuPanel(
+            layout.rect(260.0F, 835.0F, 1400.0F, 140.0F),
+            layout);
+        const std::string title = localizeText(
+            currentLanguage() == Language::Russian ? "ФОН МЕНЮ" : "MENU BACKGROUND");
+        const Vector2 titleSize = measureUiText(
+            title, 22.0F * layout.scale);
+        drawUiText(
+            title,
+            {layout.origin.x + 960.0F * layout.scale -
+                 titleSize.x * 0.5F,
+             layout.origin.y + 849.0F * layout.scale},
+            22.0F * layout.scale, MenuCream);
+        const auto catalog = menuBackgroundCatalog(menuBackgroundBuildingCategory_);
+        const std::string category = localizeText(
+            menuBackgroundBuildingCategory_ == 0 ? "BASE" :
+            menuBackgroundBuildingCategory_ == 1 ? "DEFENSE" : "CONSTRUCTION");
+        const std::string selection = menuBackgroundBuildingEnabled_
+            ? category + "  /  " + localizeText(buildingDisplayName(
+                catalog[static_cast<std::size_t>(menuBackgroundBuildingSlot_)]))
+            : localizeText("CAMERA ONLY");
+        const Vector2 selectionSize = measureUiText(selection, 20.0F * layout.scale);
+        drawUiText(selection,
+            {layout.point(960.0F, 886.0F).x - selectionSize.x * 0.5F,
+             layout.point(960.0F, 886.0F).y},
+            20.0F * layout.scale, MenuGold);
+        std::string slots;
+        for (std::size_t index = 0; index < catalog.size(); ++index) {
+            if (!slots.empty()) slots += "   |   ";
+            slots += std::to_string(index + 1U) + " " +
+                localizeText(buildingDisplayName(catalog[index]));
+        }
+        const float slotSize = fitUiTextSize(slots,
+            16.0F * layout.scale, 12.0F * layout.scale, 1320.0F * layout.scale);
+        const Vector2 slotBounds = measureUiText(slots, slotSize);
+        drawUiText(slots,
+            {layout.point(960.0F, 925.0F).x - slotBounds.x * 0.5F,
+             layout.point(960.0F, 925.0F).y}, slotSize, MenuCream);
+        DrawCircleV(
+            {static_cast<float>(uiScreenWidth()) * 0.5F,
+             static_cast<float>(uiScreenHeight()) * 0.5F},
+            3.0F * layout.scale, MenuCream);
+        return;
     }
 
-    const auto featured = questSystem_.recommendedStatuses(metaProgression_);
+    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
+        const Texture2D logo = ui_.mainMenuLogoTexture();
+        if (IsTextureValid(logo)) {
+            DrawTexturePro(logo,
+                {0.0F, 0.0F, static_cast<float>(logo.width),
+                 static_cast<float>(logo.height)},
+                layout.rect(618.0F, 24.0F, 684.0F, 235.0F),
+                {}, 0.0F, WHITE);
+        } else {
+            drawOutlinedTitle("FORTBONK", layout,
+                960.0F, 82.0F, 62.0F, 820.0F);
+        }
 
-    if (classSelectionVisible_) {
+    }
+
+    const std::string silverText = std::to_string(
+        std::max(0, metaProgression_.silver));
+    const float silverFontSize = 22.0F * layout.scale;
+    const Vector2 silverTextSize = measureUiText(
+        silverText, silverFontSize);
+    constexpr float SilverRight = 1884.0F;
+    constexpr float SilverIconSize = 33.0F;
+    constexpr float SilverGap = 8.0F;
+    const float silverTextX = layout.origin.x +
+        SilverRight * layout.scale - silverTextSize.x;
+    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
+        ui_.drawResourceIcon(
+            {silverTextX - (SilverIconSize + SilverGap) * layout.scale,
+             25.0F * layout.scale,
+             SilverIconSize * layout.scale,
+             SilverIconSize * layout.scale},
+            UiResourceIcon::Silver);
+    }
+    SdfUiTextStyle silverStyle{};
+    silverStyle.fillColor = {250, 245, 224, 255};
+    silverStyle.outlineColor = {34, 35, 38, 255};
+    silverStyle.outlinePixels = 3.0F;
+    silverStyle.shadowColor = {68, 70, 74, 255};
+    silverStyle.shadowOffsetPixels = {0.0F, 2.0F * layout.scale};
+    if (classSelectionVisible_ || mainMenuPage_ != MainMenuPage::None) {
+        drawStyledSdfUiText(
+            silverText,
+            {silverTextX,
+             27.0F * layout.scale},
+            silverFontSize, silverStyle);
+
+    }
+
+    if (mainMenuPage_ != MainMenuPage::None) {
         DrawRectangle(
-            0, 0, GetScreenWidth(), GetScreenHeight(),
-            {6, 9, 13, 224});
+            0, 0, uiScreenWidth(), uiScreenHeight(),
+            {6, 9, 13, 205});
         const Rectangle panel =
-            layout.rect(100.0F, 110.0F, 1720.0F, 850.0F);
-        ui_.drawPanel(panel, 250);
-        drawOutlinedTitle(
-            classCollectionOnly_
-                ? "CLASS COLLECTION"
-                : sandboxClassSelection_
-                    ? "CHOOSE SANDBOX CLASS"
-                    : "CHOOSE YOUR CLASS",
-            layout, 960.0F, 142.0F, 34.0F, 900.0F);
-        drawUiText(
-            classCollectionOnly_
-                ? "COMPLETE CHALLENGES TO UNLOCK NEW PLAYSTYLES"
-                : "EACH CLASS CHANGES THE WHOLE RUN",
-            layout.point(classCollectionOnly_ ? 678.0F : 744.0F, 222.0F),
-            12.0F * layout.scale,
-            {218, 204, 174, 235});
-
-        constexpr std::array<Color, 8> ClassColors{{
-            {86, 174, 225, 255},
-            {231, 117, 66, 255},
-            {238, 191, 64, 255},
-            {104, 199, 112, 255},
-            {222, 75, 61, 255},
-            {173, 75, 202, 255},
-            {76, 201, 168, 255},
-            {103, 151, 238, 255},
-        }};
-        for (std::size_t index = 0;
-             index < PlayerClassDefinitions.size(); ++index) {
-            const PlayerClassDefinition& definition =
-                PlayerClassDefinitions[index];
-            const bool unlocked = sandboxClassSelection_ ||
-                isPlayerClassUnlocked(
-                    definition.type, metaProgression_);
-            const float column = static_cast<float>(index % 4U);
-            const float row = static_cast<float>(index / 4U);
-            const Rectangle card = layout.rect(
-                150.0F + column * 405.0F,
-                270.0F + row * 238.0F, 375.0F, 214.0F);
-            const bool selected =
-                selectedPlayerClass_ == definition.type;
-            const bool hovered = CheckCollisionPointRec(
-                GetMousePosition(), card);
-            if (unlocked && hovered &&
-                IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                selectedPlayerClass_ = definition.type;
-                audio_.playUiConfirm();
-            }
-            DrawRectangleRounded(
-                card, 0.09F, 8,
-                selected && unlocked
-                    ? Color{46, 43, 35, 252}
-                    : hovered
-                        ? Color{35, 38, 42, 248}
-                        : Color{25, 28, 32, 245});
-            DrawRectangleRoundedLinesEx(
-                card, 0.09F, 8,
-                (selected && unlocked ? 4.0F : 2.0F) * layout.scale,
-                selected && unlocked
-                    ? ClassColors[index]
-                    : Color{106, 103, 91, 220});
-            const Vector2 emblem{
-                card.x + card.width * 0.5F,
-                card.y + 39.0F * layout.scale};
-            DrawCircleV(
-                emblem, 23.0F * layout.scale,
-                ColorAlpha(ClassColors[index], 0.24F));
-            DrawCircleLinesV(
-                emblem, 23.0F * layout.scale,
-                ClassColors[index]);
-            const std::string initial{
-                definition.name.substr(0, 1)};
-            const float initialSize = 18.0F * layout.scale;
-            const Vector2 initialBounds =
-                measureUiText(initial, initialSize);
+            layout.rect(445.0F, 190.0F, 1030.0F, 695.0F);
+        drawMenuPanel(panel, layout);
+        if (mainMenuPage_ == MainMenuPage::Shop) {
+            drawOutlinedTitle(
+                "SHOP", layout, 960.0F, 222.0F,
+                38.0F, 680.0F);
+            const float balanceSize = 27.0F * layout.scale;
+            const Vector2 balanceTextSize = measureUiText(
+                silverText, balanceSize);
+            const float balanceGroupWidth =
+                45.0F * layout.scale +
+                12.0F * layout.scale + balanceTextSize.x;
+            const float balanceX = layout.origin.x +
+                960.0F * layout.scale -
+                balanceGroupWidth * 0.5F;
+            ui_.drawResourceIcon(
+                {balanceX, layout.origin.y + 373.0F * layout.scale,
+                 45.0F * layout.scale, 45.0F * layout.scale},
+                UiResourceIcon::Silver);
+            drawStyledSdfUiText(
+                silverText,
+                {balanceX + 57.0F * layout.scale,
+                 layout.origin.y + 382.0F * layout.scale},
+                balanceSize, silverStyle);
+            const std::string shopMessage =
+                "META UPGRADES ARE COMING SOON";
+            const float fontSize = 19.0F * layout.scale;
+            const Vector2 size = measureUiText(shopMessage, fontSize);
             drawUiText(
-                initial,
-                {emblem.x - initialBounds.x * 0.5F,
-                 emblem.y - initialBounds.y * 0.5F},
-                initialSize, ClassColors[index]);
-            const float nameSize = 16.0F * layout.scale;
-            const std::string localizedName =
-                localizeText(definition.name);
-            const Vector2 nameBounds = measureUiText(
-                localizedName, nameSize);
-            drawUiText(
-                localizedName,
-                {card.x + (card.width - nameBounds.x) * 0.5F,
-                 card.y + 69.0F * layout.scale},
-                nameSize, {250, 239, 207, 255});
-            const float roleSize = 9.0F * layout.scale;
-            const std::string localizedRole =
-                localizeText(definition.role);
-            const Vector2 roleBounds = measureUiText(
-                localizedRole, roleSize);
-            drawUiText(
-                localizedRole,
-                {card.x + (card.width - roleBounds.x) * 0.5F,
-                 card.y + 96.0F * layout.scale},
-                roleSize, {190, 188, 177, 235});
-            for (std::size_t trait = 0;
-                 trait < definition.traits.size(); ++trait) {
-                const std::string_view text = definition.traits[trait];
+                shopMessage,
+                {layout.origin.x + 960.0F * layout.scale -
+                     size.x * 0.5F,
+                 layout.origin.y + 478.0F * layout.scale},
+                fontSize, {237, 223, 188, 255});
+        } else {
+            drawOutlinedTitle(
+                "CREDITS", layout, 960.0F, 222.0F,
+                38.0F, 680.0F);
+            constexpr std::array<std::string_view, 5> Credits{{
+                "MADE WITH RAYLIB",
+                "ASSETS: KENNEY",
+                "ASSETS: KAYKIT",
+                "FONT: LILITA ONE",
+                "EFFECTS: BRACKEYS",
+            }};
+            for (std::size_t index = 0;
+                 index < Credits.size(); ++index) {
+                const float fontSize = 15.0F * layout.scale;
+                const Vector2 size = measureUiText(
+                    Credits[index], fontSize);
                 drawUiText(
-                    text,
-                    {card.x + 35.0F * layout.scale,
-                     card.y +
-                         (121.0F + static_cast<float>(trait) * 22.0F) *
+                    Credits[index],
+                    {layout.origin.x +
+                         960.0F * layout.scale - size.x * 0.5F,
+                     layout.origin.y +
+                         (355.0F + static_cast<float>(index) * 60.0F) *
                              layout.scale},
-                    8.5F * layout.scale,
-                    text.starts_with('-')
-                        ? Color{242, 112, 91, 255}
-                        : Color{116, 220, 132, 255});
-            }
-            const std::string localizedLoadout =
-                localizeText(definition.startingLoadoutLabel);
-            const float loadoutSize = fitUiTextSize(
-                localizedLoadout,
-                7.5F * layout.scale,
-                6.0F * layout.scale,
-                card.width - 70.0F * layout.scale);
-            drawUiText(
-                localizedLoadout,
-                {card.x + 35.0F * layout.scale,
-                 card.y + 191.0F * layout.scale},
-                loadoutSize, ClassColors[index]);
-            if (!unlocked) {
-                DrawRectangleRounded(
-                    card, 0.09F, 8, {7, 9, 12, 218});
-                drawUiText(
-                    "LOCKED",
-                    {card.x + 145.0F * layout.scale,
-                     card.y + 76.0F * layout.scale},
-                    16.0F * layout.scale, {194, 190, 178, 255});
-                const std::string requirement = localizeText(
-                    playerClassUnlockRequirement(definition.type));
-                const Vector2 requirementSize = measureUiText(
-                    requirement, 9.0F * layout.scale);
-                drawUiText(
-                    requirement,
-                    {card.x + (card.width - requirementSize.x) * 0.5F,
-                     card.y + 119.0F * layout.scale},
-                    9.0F * layout.scale, {238, 190, 83, 255});
-                ui_.drawProgressBar(
-                    {card.x + 48.0F * layout.scale,
-                     card.y + 158.0F * layout.scale,
-                     card.width - 96.0F * layout.scale,
-                     11.0F * layout.scale},
-                    playerClassUnlockProgress(
-                        definition.type, metaProgression_),
-                    UiBarColor::Yellow);
+                    fontSize, {237, 223, 188, 255});
             }
         }
-        if (!classCollectionOnly_) {
-            pendingStartFromUi_ = ui_.drawButton(
-                layout.rect(690.0F, 776.0F, 540.0F, 72.0F),
-                sandboxClassSelection_
-                    ? "START SANDBOX"
-                    : "START AS SELECTED CLASS") || pendingStartFromUi_;
+        if (drawMenuButton(
+                layout.rect(810.0F, 774.0F, 300.0F, 70.0F),
+                "BACK", layout)) {
+            mainMenuPage_ = MainMenuPage::None;
+            audio_.playUiConfirm();
         }
-        drawUiText(
-            classCollectionOnly_
-                ? "ESC  BACK"
-                : "ESC  BACK     LEFT / RIGHT  SELECT     ENTER  START",
-            layout.point(classCollectionOnly_ ? 915.0F : 692.0F, 873.0F),
-            10.0F * layout.scale, {201, 195, 174, 220});
         return;
     }
 
     const bool acceptsInput = mainMenuInputBarrier_.allowsInput(
         IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_ENTER) || IsKeyDown(KEY_SPACE));
-    const bool canContinue = suspendedRunAvailable();
-    for (std::size_t index = 0; index < featured.size(); ++index) {
-        if (drawQuestSummaryCard(ui_, featured[index],
-                layout.topRect(30.0F, 30.0F + static_cast<float>(index) * 96.0F, 440.0F, 84.0F),
-                layout.scale, GetMousePosition(), acceptsInput && IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
-            questMenuState_ = {};
-            questMenuState_.selectedId = featured[index].definition->id;
-            mainMenuPage_ = MainMenuPage::Quests;
-            audio_.playUiConfirm();
+    if (!acceptsInput) {
+        mainMenuHomeState_.pendingAction = MainMenuHomeAction::None;
+        mainMenuHomeState_.activationRemaining = 0.0F;
+        mainMenuHomeState_.pointerWasDown = false;
+    }
+    const auto navigation = acceptsInput ? readMenuNavigationInput() : MenuNavigationInput{};
+    const auto result = drawHome(mainMenuHomeState_,
+        {.pointer = uiMousePosition(),
+         .click = acceptsInput && IsMouseButtonReleased(MOUSE_BUTTON_LEFT),
+         .pointerDown = acceptsInput && IsMouseButtonDown(MOUSE_BUTTON_LEFT),
+         .deltaTime = GetFrameTime(),
+         .tabStep = navigation.tabStep,
+         .horizontalStep = navigation.horizontalStep,
+         .verticalStep = navigation.verticalStep,
+         .activate = navigation.activate});
+    switch (result.action) {
+    case MainMenuHomeAction::None: break;
+    case MainMenuHomeAction::Play:
+        classSelectionState_ = {};
+        for (std::size_t i = 0; i < PlayerClassDefinitions.size(); ++i) {
+            if (PlayerClassDefinitions[i].type == selectedPlayerClass_) classSelectionState_.focused = static_cast<int>(i);
         }
-    }
-    if (featured.empty()) {
-        const ScopedUiFontRole body(UiFontRole::BodyBold);
-        const auto rows = questSystem_.statuses(metaProgression_);
-        const bool allCompleted = std::ranges::all_of(rows, [](const auto& row) { return row.completed; });
-        drawUiText(allCompleted ? "ALL QUESTS COMPLETED" : "NO AVAILABLE QUESTS",
-            layout.topPoint(34.0F, 38.0F), 17.0F * layout.scale, MenuCream);
-    }
-
-    const Texture2D menuButton = ui_.mainMenuButtonTexture();
-    if (canContinue) {
-        pendingContinueFromUi_ = (drawMainMenuButton(menuButton,
-            layout.rect(815.208F, 320.972F, 285.184F, 81.408F),
-            "CONTINUE RUN", layout, 34.0F) && acceptsInput) || pendingContinueFromUi_;
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 414.38F, 356.48F, 101.76F), "PLAY", layout) && acceptsInput) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
         sandboxClassSelection_ = false;
         audio_.playUiConfirm();
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 528.14F, 356.48F, 101.76F), "UNLOCKS", layout) && acceptsInput) {
+        break;
+    case MainMenuHomeAction::Continue:
+        pendingContinueFromUi_ = true;
+        break;
+    case MainMenuHomeAction::Unlocks:
         mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 641.90F, 356.48F, 101.76F), "QUESTS", layout) && acceptsInput) {
+        break;
+    case MainMenuHomeAction::Quests:
+        if (!result.questId.empty()) {
+            questMenuState_ = {};
+            questMenuState_.selectedId = result.questId;
+            for (const auto& definition : questSystem_.definitions()) {
+                if (definition.id == result.questId) {
+                    questMenuState_.category = definition.category;
+                    break;
+                }
+            }
+        }
         mainMenuPage_ = MainMenuPage::Quests;
         audio_.playUiConfirm();
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 755.66F, 356.48F, 101.76F), "SHOP", layout) && acceptsInput) {
+        break;
+    case MainMenuHomeAction::Shop:
         mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
-    }
-
-    if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 785.0F, 285.184F, 81.408F), "SETTINGS", layout, 44.8F) && acceptsInput) {
-        renderer_->setGraphicsPanelVisible(true);
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 876.008F, 285.184F, 81.408F), "CREDITS", layout, 44.8F) && acceptsInput) {
+        break;
+    case MainMenuHomeAction::Settings:
+        openSettings();
+        break;
+    case MainMenuHomeAction::Credits:
         mainMenuPage_ = MainMenuPage::Credits;
         audio_.playUiConfirm();
-    }
-    if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 967.016F, 285.184F, 81.408F), "EXIT", layout, 44.8F) && acceptsInput) {
+        break;
+    case MainMenuHomeAction::Exit:
         exitRequested_ = true;
-    }
-
-    drawMenuPanel(layout.rect(1500.0F, 744.0F, 390.0F, 292.0F), layout);
-    drawUiText("RUN RECORDS", layout.point(1524.0F, 765.0F), 16.0F * layout.scale, MenuGold);
-    DrawLineEx(layout.point(1524.0F, 803.0F), layout.point(1866.0F, 803.0F),
-        1.5F * layout.scale, {155, 116, 75, 180});
-    drawStatRow(layout, 1524.0F, 816.0F, 342.0F, "BEST WAVE",
-        std::to_string(metaProgression_.bestWave), {250, 206, 71, 255});
-    drawStatRow(layout, 1524.0F, 860.0F, 342.0F, "STAGE CLEARS",
-        std::to_string(metaProgression_.stageClears), {188, 150, 255, 255});
-    drawStatRow(layout, 1524.0F, 904.0F, 342.0F, "ENEMIES DEFEATED",
-        std::to_string(metaProgression_.enemiesDefeated), {121, 213, 124, 255});
-    drawStatRow(layout, 1524.0F, 948.0F, 342.0F, "ITEMS COLLECTED",
-        std::to_string(metaProgression_.lootCollected), {136, 204, 245, 255});
-
-    {
-        const ScopedUiFontRole body(UiFontRole::Body);
-        const std::string hint = localizeText("ENTER  PLAY     F2  SETTINGS");
-        const float fontSize = 15.0F * layout.scale;
-        const Vector2 measured = measureUiText(hint, fontSize);
-        drawUiText(hint, {layout.point(960.0F, 1032.0F).x - measured.x * 0.5F,
-            layout.point(960.0F, 1032.0F).y}, fontSize, {219, 218, 201, 200});
+        break;
     }
 
 }

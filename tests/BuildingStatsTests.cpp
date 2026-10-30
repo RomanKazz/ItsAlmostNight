@@ -1,8 +1,92 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingStats.hpp"
+#include "combat/CannonSystem.hpp"
+#include "combat/TowerSystem.hpp"
+#include "combat/TrapSystem.hpp"
 #include "economy/CrystalMineSystem.hpp"
+#include "progression/BuildingStatUpgrades.hpp"
+
+#include <array>
+#include <cmath>
 
 void runBuildingStatsTests() {
+    {
+        ian::BuildingUpgradePowers powers{};
+        for (const auto [building, stat] : {
+                std::pair{ian::BuildingType::GunTurret, ian::AttackStat::Quantity},
+                std::pair{ian::BuildingType::TeslaTower, ian::AttackStat::Bounces},
+                std::pair{ian::BuildingType::Turret, ian::AttackStat::Pierce}}) {
+            const auto [before, after] = ian::buildingStatBonusPreview(
+                powers, building, stat, ian::RunUpgradeRarity::Common);
+            requireNear(before, 0.0, 1e-12, "first discrete card starts at zero bonus despite built-in attacks");
+            requireNear(after, 1.0, 1e-12, "first discrete card adds one local bonus");
+            powers[static_cast<std::size_t>(building)][static_cast<std::size_t>(stat)] = 1.0;
+            const auto [existing, upgraded] = ian::buildingStatBonusPreview(
+                powers, building, stat, ian::RunUpgradeRarity::Common);
+            requireNear(existing, 1.0, 1e-12, "later card shows the previously earned bonus");
+            requireNear(upgraded, 2.0, 1e-12, "later card previews cumulative bonus");
+        }
+    }
+    constexpr std::array ActiveBuildings{
+        ian::BuildingType::Core, ian::BuildingType::Wall,
+        ian::BuildingType::Turret, ian::BuildingType::CrystalMine,
+        ian::BuildingType::Cannon, ian::BuildingType::SlowTrap,
+        ian::BuildingType::Gate, ian::BuildingType::LumberMill,
+        ian::BuildingType::Quarry, ian::BuildingType::SpikeTrap,
+        ian::BuildingType::GunTurret,
+        ian::BuildingType::Catapult};
+    const auto balance = ian::GameBalance::defaults();
+    for (const ian::BuildingType type : ActiveBuildings) {
+        const double baseHealth = balance.buildings[
+            static_cast<std::size_t>(type)].maxHealth;
+        double previousHealth = 0.0;
+        int previousCost = -1;
+        for (int level = 1; level <= ian::MaxBuildingLevel; ++level) {
+            const double health = ian::buildingMaxHealthAtLevel(
+                baseHealth, static_cast<std::uint8_t>(level));
+            require(std::fmod(health, 5.0) == 0.0 &&
+                        health > previousHealth,
+                    "every building level has increasing five-point health");
+            previousHealth = health;
+            if (level == ian::MaxBuildingLevel) {
+                require(health >= baseHealth * 3.0,
+                        "level-eight buildings have at least triple health");
+                continue;
+            }
+            const ian::BuildingInstance building{
+                .type = type,
+                .level = static_cast<std::uint8_t>(level),
+            };
+            const ian::ResourceCost cost =
+                ian::buildingUpgradeCost(building);
+            const int total = cost.wood + cost.stone + cost.crystals;
+            if (type == ian::BuildingType::Core) {
+                require(total == 0, "Core has no resource upgrade cost");
+                continue;
+            }
+            require(cost.wood % 5 == 0 && cost.stone % 5 == 0 &&
+                        cost.crystals % 5 == 0 && total > previousCost,
+                    "upgrade costs are rounded and rise every level");
+            previousCost = total;
+        }
+    }
+    require(
+        ian::TowerSystem::attackDamage(ian::BuildingType::Turret, 8) >=
+            3.0 * ian::TowerSystem::attackDamage(
+                ian::BuildingType::Turret, 1) &&
+        ian::TowerSystem::attackDamage(ian::BuildingType::GunTurret, 8) >=
+            3.0 * ian::TowerSystem::attackDamage(
+                ian::BuildingType::GunTurret, 1) &&
+        ian::CannonSystem::explosionDamage(ian::BuildingType::Cannon, 8) >=
+            3.0 * ian::CannonSystem::explosionDamage(
+                ian::BuildingType::Cannon, 1) &&
+        ian::CannonSystem::explosionDamage(ian::BuildingType::Catapult, 8) >=
+            3.0 * ian::CannonSystem::explosionDamage(
+                ian::BuildingType::Catapult, 1) &&
+        ian::TrapSystem::spikeDamage(8) >=
+            3.0 * ian::TrapSystem::spikeDamage(1),
+        "combat building damage grows at least threefold");
+
     ian::CrystalMineSystem producers;
     for (const auto type : {ian::BuildingType::Turret, ian::BuildingType::GunTurret,
                            ian::BuildingType::Cannon, ian::BuildingType::Catapult}) {
@@ -28,22 +112,22 @@ void runBuildingStatsTests() {
     const auto coreComparison = ian::compareBuildingStats(
         core, producers, ian::MaxBuildingLevel);
     require(
-        coreComparison.current.buildingLimit == 3.0 &&
-            coreComparison.next->buildingLimit == 5.0 &&
-            coreComparison.current.woodCapacity == 120.0 &&
-            coreComparison.current.stoneCapacity == 75.0 &&
-            coreComparison.current.crystalCapacity == 75.0 &&
-            coreComparison.next->woodCapacity == 240.0 &&
+        !coreComparison.current.buildingLimit &&
+            !coreComparison.next->buildingLimit &&
+            coreComparison.current.woodCapacity == 250.0 &&
+            coreComparison.current.stoneCapacity == 150.0 &&
+            coreComparison.current.crystalCapacity == 100.0 &&
+            coreComparison.next->woodCapacity == 250.0 &&
             coreComparison.next->stoneCapacity == 150.0 &&
             coreComparison.next->crystalCapacity == 150.0,
-        "core upgrade preview exposes building and storage growth");
+        "core upgrade preview shows storage growth without a building limit");
     const ian::BuildingInstance turret{
         .id = ian::EntityId{1, 0},
         .type = ian::BuildingType::Turret,
         .gridPosition = {0, 0},
         .level = 2,
-        .health = 115.0,
-        .maxHealth = 115.0,
+        .health = 155.0,
+        .maxHealth = 155.0,
     };
     const auto comparison = ian::compareBuildingStats(
         turret, producers, ian::MaxBuildingLevel);
@@ -61,7 +145,7 @@ void runBuildingStatsTests() {
             comparison.next->piercingCount == 3.0,
         "turret stats expose combat values and upgradeable firing arc");
     requireNear(
-        comparison.previous->maxHealth, 100.0, 1e-9,
+        comparison.previous->maxHealth, 120.0, 1e-9,
         "building stats recover base level health");
     require(
         comparison.next->maxHealth >
@@ -73,8 +157,8 @@ void runBuildingStatsTests() {
         .type = ian::BuildingType::Quarry,
         .gridPosition = {0, 0},
         .level = ian::MaxBuildingLevel,
-        .health = 205.0,
-        .maxHealth = 205.0,
+        .health = 510.0,
+        .maxHealth = 510.0,
     };
     const auto maximum = ian::compareBuildingStats(
         quarry, producers, ian::MaxBuildingLevel);
@@ -85,5 +169,11 @@ void runBuildingStatsTests() {
     require(
         maximum.current.productionPerCycle.has_value() &&
             maximum.current.productionInterval.has_value(),
-        "producer stats expose output and interval");
+        "producer stats expose output and interval without local capacity");
+    const auto extended = ian::compareBuildingStats(
+        quarry, producers, ian::MaxStructureLevel);
+    require(extended.next &&
+        extended.next->maxHealth > extended.current.maxHealth &&
+        extended.next->productionPerCycle > extended.current.productionPerCycle,
+        "level-nine producer preview continues health and production progression");
 }

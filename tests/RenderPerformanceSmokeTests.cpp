@@ -74,6 +74,64 @@ bool selectionTerrainContact(ian::Renderer& renderer) {
     renderer.clearSelectionOutline();renderer.settings()=saved;return valid;
 }
 
+bool selectionGroundStrokeWidth(ian::Renderer& renderer) {
+    const auto saved = renderer.settings();
+    auto& settings = renderer.settings();
+    settings.renderWidth = GetScreenWidth(); settings.renderHeight = GetScreenHeight();
+    settings.pixelSize = 1; settings.postProcessing = true; settings.ssao = false;
+    settings.inkOutlines = true; settings.paperGrain = false; settings.shadows = false;
+    const Camera3D camera{{0, 1.8F, 3}, {0, .8F, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+    const auto ground = [](Color color) {
+        DrawTriangle3D({-20, 0, -20}, {-20, 0, 20}, {20, 0, 20}, color);
+        DrawTriangle3D({-20, 0, -20}, {20, 0, 20}, {20, 0, -20}, color);
+    };
+    const auto render = [&](bool withGround, bool maskGround) {
+        renderer.beginFrame();
+        if (renderer.beginSelectionMaskPass(camera)) {
+            if (withGround && maskGround) { renderer.setSelectionMaskColor(BLACK); ground(WHITE); }
+            renderer.setSelectionMaskColor(WHITE); static_cast<void>(renderer.drawRock({0, .10F, 0}, WHITE));
+            renderer.endSelectionMaskPass();
+        }
+        renderer.beginWorldPass({25, 49, 65, 255}, camera); BeginMode3D(camera);
+        ian::WorldLighting lighting{}; lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{}; material.unlitAmount = 1;
+        material.screenAoAmount = 0; material.inkOutlineEligible = false;
+        renderer.setWorldMaterial(material);
+        static_cast<void>(renderer.drawRock({0, .10F, 0}, {110, 75, 40, 255}));
+        if (withGround) ground({50, 90, 40, 255});
+        renderer.endWorldShader(); EndMode3D(); renderer.endWorldPass();
+        renderer.drawSelectionOutline(); rlDrawRenderBatchActive();
+        auto image = LoadImageFromScreen(); renderer.endFrame(); return image;
+    };
+    auto reference = render(false, false);
+    auto* plain = LoadImageColors(reference);
+    std::cout << "Stroke viewport: " << GetScreenWidth() << "x" << GetScreenHeight()
+        << " backing " << GetRenderWidth() << "x" << GetRenderHeight()
+        << " capture " << reference.width << "x" << reference.height << '\n';
+    const float scale = static_cast<float>(reference.width) / static_cast<float>(GetScreenWidth());
+    const auto edge = Vector2Scale(GetWorldToScreen({0, 1.0F, 0}, camera), scale);
+    bool valid = true;
+    for (const bool maskGround : {false, true}) {
+        auto image = render(true, maskGround); auto* pixels = LoadImageColors(image);
+        int expected = 0, preserved = 0;
+        const auto white = [](Color color) { return color.r > 170 && color.g > 170 && color.b > 140; };
+        for (int y = std::max(0, static_cast<int>(edge.y) - 2); y < image.height; ++y)
+            for (int x = static_cast<int>(edge.x - 90 * scale); x < static_cast<int>(edge.x + 90 * scale); ++x) {
+                const int index = y * image.width + x;
+                if (white(plain[index])) { ++expected; if (white(pixels[index])) ++preserved; }
+            }
+        std::cout << "Ground silhouette stroke, seeded=" << maskGround << ": " << preserved << "/" << expected << '\n';
+        valid = valid && expected > 100 && preserved >= expected * .90;
+        if (const char* folder = std::getenv("IAN_CAPTURE_SELECTION_OCCLUSION")) {
+            std::filesystem::create_directories(folder); ImageFlipVertical(&image);
+            ExportImage(image, (std::string(folder) + (maskGround ? "/ground-stroke-seeded.png" : "/ground-stroke.png")).c_str());
+        }
+        UnloadImageColors(pixels); UnloadImage(image);
+    }
+    UnloadImageColors(plain); UnloadImage(reference); renderer.settings() = saved; return valid;
+}
+
 bool firstCombatDraw(ian::Renderer& renderer) {
 #if defined(_WIN32)
     using GetInteger = void (__stdcall *)(unsigned int, int*);
@@ -323,9 +381,9 @@ bool skyDepthParity(ian::Renderer& renderer) {
 int main() {
     using namespace ian;
     SetTraceLogLevel(LOG_ERROR); SetConfigFlags(FLAG_WINDOW_HIDDEN);
-    InitWindow(64, 64, "Render performance regressions");
+    InitWindow(640, 360, "Render performance regressions");
     if (!IsWindowReady()) return 77;
-    SetWindowPosition(0, 0); SetWindowSize(640, 360); SetTargetFPS(0);
+    SetWindowPosition(0, 0); SetTargetFPS(0);
     bool valid = true;
     const auto crop = viewModelCompositeBounds({{-.5F,-.5F,-.5F},{.5F,.5F,.5F}}, MatrixIdentity(), 640, 360, 4);
     valid = crop && crop->x == 156 && crop->y == 86 && crop->width == 328 && crop->height == 188;
@@ -337,8 +395,14 @@ int main() {
         !frustum.intersects({{-1,-1,2},{1,1,4}}) &&
         frustum.intersects({{-100,-100,-100},{100,100,100}});
     Renderer renderer; renderer.initialize();
+    if (std::getenv("IAN_SELECTION_REGRESSION_ONLY")) {
+        const bool contacts = selectionTerrainContact(renderer);
+        const bool stroke = selectionGroundStrokeWidth(renderer);
+        renderer.shutdown(); CloseWindow(); return contacts && stroke ? 0 : 1;
+    }
     valid = firstCombatDraw(renderer) && valid;
     valid = selectionTerrainContact(renderer) && valid;
+    valid = selectionGroundStrokeWidth(renderer) && valid;
     renderer.settings().frameRateLimit = 0; renderer.applyFrameRateLimit();
     renderer.setGpuProfilingEnabled(true);
     std::size_t issued = 0;

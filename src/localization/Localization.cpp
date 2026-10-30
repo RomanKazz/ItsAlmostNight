@@ -83,6 +83,8 @@ void translateDynamicHudText(std::string& text) {
         {"BOSS RAM INCOMING", "АТАКА БОССА"},
         {"STORM INTERRUPTED", "ШТОРМ ПРЕРВАН"},
         {"OVERTIME", "НАТИСК"},
+    {"Short flame cone burns groups. Upgrade all copies.", "Короткая огненная струя жжёт группы. Улучшает все копии."},
+    {"Short-range flame cone hits groups and leaves a brief afterburn.", "Короткая струя поражает группы и оставляет недолгое горение."},
     {"Flamethrower", "Огнемёт"},
     {"FLAMETHROWER", "ОГНЕМЁТ"},
     {"Defensive flamethrower. Attack not implemented yet.", "Оборонительный огнемёт. Атака пока не реализована."},

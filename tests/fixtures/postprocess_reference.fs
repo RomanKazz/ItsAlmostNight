@@ -63,9 +63,25 @@ float luminanceOf(vec3 color)
 
 vec3 reconstructViewPosition(vec2 uv, float depth)
 {
-    vec4 clip = vec4(uv*2.0 - 1.0, depth*2.0 - 1.0, 1.0);
-    vec4 view = inverseProjection*clip;
-    return view.xyz/max(view.w, 0.000001);
+    // Renderer supplies the inverse of a symmetric MatrixPerspective.
+    // Omit its zero coefficients instead of multiplying a full mat4.
+    vec3 clip = vec3(uv*2.0 - 1.0, depth*2.0 - 1.0);
+    vec3 view = vec3(
+        inverseProjection[0][0]*clip.x,
+        inverseProjection[1][1]*clip.y,
+        inverseProjection[2][2]*clip.z + inverseProjection[3][2]);
+    float viewW = inverseProjection[2][3]*clip.z + inverseProjection[3][3];
+    return view/max(viewW, 0.000001);
+}
+
+float reconstructViewZ(float depth)
+{
+    float clipZ = depth*2.0 - 1.0;
+    float viewZ = inverseProjection[2][2]*clipZ +
+        inverseProjection[3][2];
+    float viewW = inverseProjection[2][3]*clipZ +
+        inverseProjection[3][3];
+    return viewZ/max(viewW, 0.000001);
 }
 
 vec3 decodeOctahedralNormal(vec2 encoded)
@@ -178,6 +194,12 @@ float inkDifference(
         sceneDepth,
         clamp(coordinate, ivec2(0), depthSize - ivec2(1)),
         0).r;
+    // Ground pixels only ink against sky. Most neighbors have ground depth,
+    // so avoid reading the normal buffer for those probes.
+    if (centerIsTerrain > 0.5 && neighborDepth < 0.9999)
+    {
+        return 0.0;
+    }
     vec4 neighborPackedNormal = normalPixel(coordinate);
     float neighborMaterialClass =
         materialClassOf(neighborPackedNormal);
@@ -261,13 +283,35 @@ float inkDifference(
     float frontSurfaceGap = max(
         centerPosition.z - neighborPosition.z, 0.0);
     float viewDistance = length(centerPosition);
-    // Adjacent shells and inset faces inside low-poly props can be several
-    // centimetres apart even though they belong to one visual object. Treat
-    // only a clearly separated rear surface as an overlap silhouette; the
-    // old two-centimetre threshold produced short black scratches on rocks
-    // and tree crowns.
+    // At distance, stacked meshes of the same material class still belong to
+    // one visual object. Raise only their overlap threshold as projected
+    // depth precision falls. Keep cross-class edges and background silhouettes
+    // at their original thresholds so outlines do not become patchy.
+    float sameClass = 1.0 - step(
+        0.5, abs(centerMaterialClass - neighborMaterialClass));
     float separateSurfaceDistance =
-        0.080 + viewDistance*0.0015;
+        0.080 + viewDistance*0.0015 +
+        sameClass*2.5*smoothstep(20.0, 100.0, viewDistance);
+    // Depth already assigns an overlapping-object edge to the front surface.
+    // Drawing a plain class boundary on both surfaces doubles the visible
+    // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
+    // reserved for impact fragments, which still need their own contour when
+    // they sit almost flush with the source object.
+    float centerIsEffect = step(3.5, centerMaterialClass);
+    float frontClassBoundary = smoothstep(
+        separateSurfaceDistance * 0.08,
+        separateSurfaceDistance * 0.30,
+        frontSurfaceGap);
+    float objectClassBoundary = centerIsObject*neighborIsObject*
+        max(centerIsEffect, frontClassBoundary)*
+        step(0.5, abs(centerMaterialClass - neighborMaterialClass));
+    // A continuous face has no depth boundary. Most object neighbours are
+    // on that same face: avoid two extra depth reads and the slope test when
+    // smoothstep(separateSurfaceDistance, ..., frontSurfaceGap) is zero.
+    if (frontSurfaceGap <= separateSurfaceDistance)
+    {
+        return objectClassBoundary*directionWeight;
+    }
     // Hardware depth is affine across a projected planar face. Compare the
     // candidate jump with the one-sided slopes INSIDE each surface. Unlike
     // fwidth, these samples never straddle the candidate edge in 2x2 quads.
@@ -291,19 +335,6 @@ float inkDifference(
         separateSurfaceDistance,
         separateSurfaceDistance * 3.0,
         frontSurfaceGap)*depthDiscontinuity;
-    // Depth already assigns an overlapping-object edge to the front surface.
-    // Drawing a plain class boundary on both surfaces doubles the visible
-    // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
-    // reserved for impact fragments, which still need their own contour when
-    // they sit almost flush with the source object.
-    float centerIsEffect = step(3.5, centerMaterialClass);
-    float frontClassBoundary = smoothstep(
-        separateSurfaceDistance * 0.08,
-        separateSurfaceDistance * 0.30,
-        frontSurfaceGap);
-    float objectClassBoundary = centerIsObject*neighborIsObject*
-        max(centerIsEffect, frontClassBoundary)*
-        step(0.5, abs(centerMaterialClass - neighborMaterialClass));
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
     return max(objectClassBoundary, objectDepthBoundary)*directionWeight;

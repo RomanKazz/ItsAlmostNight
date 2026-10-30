@@ -37,25 +37,31 @@ class BombSystem {
         BombBalanceDefinition definition = GameBalance::defaults().weapons.bomb);
 
     void reset();
-    void addBombs(int amount);
-    bool throwBomb(Vec3 origin, Vec3 direction,
-                   bool consumeBomb = true);
+    void setModifiers(double damageMultiplier, double attackSpeedMultiplier);
+    bool throwBomb(Vec3 origin, Vec3 direction);
     std::span<const BombExplosion> tick(
         double deltaSeconds, EnemySystem& enemies,
         const TerrainHeightfield* terrain = nullptr);
     void clearProjectiles();
 
-    [[nodiscard]] int remainingBombs() const;
+    [[nodiscard]] double cooldownRemaining() const;
+    [[nodiscard]] double cooldownDuration() const;
+    [[nodiscard]] double baseCooldownDuration() const;
+    void restoreCooldown(double remaining);
     [[nodiscard]] const std::vector<BombProjectile>& projectiles() const;
+    [[nodiscard]] std::span<const EnemyDamageResult> hits() const;
 
   private:
     void explode(BombProjectile& projectile, EnemySystem& enemies);
 
     std::vector<BombProjectile> projectiles_;
     std::vector<BombExplosion> explosionBuffer_;
+    std::vector<EnemyDamageResult> hitBuffer_;
     std::uint32_t nextProjectileIndex_{5000};
     BombBalanceDefinition definition_;
-    int remainingBombs_{};
+    double cooldownRemaining_{};
+    double damageMultiplier_{1.0};
+    double attackSpeedMultiplier_{1.0};
 };
 
 } // namespace ian

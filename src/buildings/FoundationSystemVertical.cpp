@@ -185,24 +185,6 @@ bool FoundationSystem::restoreStructures(
         }
     }
 
-    const auto floorSource = [&restored](
-        int x, int z, int storey, double height)
-        -> const PlatformFrameInstance* {
-        const auto source = std::find_if(
-            restored.platformFrames_.begin(),
-            restored.platformFrames_.end(),
-            [=](const PlatformFrameInstance& frame) {
-                return frame.storey == storey &&
-                    std::abs(frame.floorHeight - height) <= 1e-6 &&
-                    x >= frame.anchor.x &&
-                    x < frame.anchor.x + PlatformFrameWidthCells &&
-                    z >= frame.anchor.z &&
-                    z < frame.anchor.z + PlatformFrameWidthCells;
-            });
-        return source == restored.platformFrames_.end()
-            ? nullptr : &*source;
-    };
-
     for (int storey = 0; storey < config.maxStoreys; ++storey) {
         for (const PlatformFrameInstance& saved : platformFrames) {
             if (saved.storey != storey) {
@@ -246,19 +228,20 @@ bool FoundationSystem::restoreStructures(
             }
             frame.supports = placement.supports;
             frame.supportIds = restored.supports_.acquire(placement);
-            const PlatformFrameInstance* previous = storey > 0
-                ? restored.frameAt(frame.anchor, storey - 1)
-                : nullptr;
-            const bool hasExpectedSupport = storey == 0 || previous != nullptr;
+            const auto supports = storey > 0
+                ? restored.floorPlatformSupports(
+                      frame.anchor, storey - 1,
+                      frame.floorHeight - modularStoreyHeight(config), false)
+                : FloorPlatformSupports{};
+            // Existing structures may have lost part of their footprint's
+            // support. Restore the remaining graph links just as for ramps.
+            const bool hasExpectedSupport = storey == 0 || !supports.ids.empty();
             if (!hasExpectedSupport &&
                 saved.supportState == StructuralSupportState::Supported) {
                 return false;
             }
-            const std::span<const EntityId> sources = previous
-                ? std::span<const EntityId>{&previous->id, 1U}
-                : std::span<const EntityId>{};
             if (!restored.structuralGraph_.add(
-                    frame.id, storey == 0, sources)) {
+                    frame.id, storey == 0, supports.ids)) {
                 return false;
             }
             restored.platformFrames_.push_back(frame);
@@ -274,9 +257,9 @@ bool FoundationSystem::restoreStructures(
                     OccupancyLayer::Wall)) {
                 return false;
             }
-            const PlatformFrameInstance* source = floorSource(
+            const PlatformFrameInstance* source = restored.frameAtCell(
                 saved.anchor.x, saved.anchor.z,
-                saved.storey, saved.bottomHeight);
+                saved.storey, saved.bottomHeight, false);
             if (source == nullptr &&
                 saved.supportState == StructuralSupportState::Supported) {
                 return false;
@@ -306,8 +289,8 @@ bool FoundationSystem::restoreStructures(
             std::vector<EntityId> sources;
             for (const GridCoord cell :
                  rampSupportCells(saved.anchor, saved.rotation)) {
-                const PlatformFrameInstance* source = floorSource(
-                    cell.x, cell.z, storey, saved.bottomHeight);
+                const PlatformFrameInstance* source = restored.frameAtCell(
+                    cell.x, cell.z, storey, saved.bottomHeight, false);
                 if (source != nullptr &&
                     std::ranges::find(sources, source->id) ==
                         sources.end()) {

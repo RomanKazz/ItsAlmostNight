@@ -692,6 +692,61 @@ void runFoundationSystemTests() {
                 ian::ModularPlacementError::Occupied,
         "edge extension rejects an already occupied target floor");
 
+    {
+        ian::FoundationSystem slidingFrames{terrain, config};
+        const auto base = slidingFrames.placePlatformFrame(
+            slidingFrames.previewFoundation({0.2, 0.0, 0.2}, player));
+        require(base.has_value(), "one-cell floor fixture has a ground frame");
+        const double upperHeight = base->floorHeight + storeyHeight;
+        require(
+            slidingFrames.previewFloorPlatform({1, 0, 0}, 1, upperHeight, player).error ==
+                ian::ModularPlacementError::NoSupport,
+            "shifted floor rejects a partially supported footprint");
+        const auto adjacent = slidingFrames.placePlatformFrame(
+            slidingFrames.previewFoundationAtHeight(
+                {2.2, 0.0, 0.2}, base->floorHeight, player));
+        require(adjacent.has_value(), "one-cell floor fixture has adjacent support");
+        const auto shifted = slidingFrames.placePlatformFrame(
+            slidingFrames.previewFloorPlatform({1, 0, 0}, 1, upperHeight, player));
+        require(shifted && shifted->anchor.x == 1 &&
+                    slidingFrames.structuralGraph().dependentCount(base->id) == 1U &&
+                    slidingFrames.structuralGraph().dependentCount(adjacent->id) == 1U,
+                "floor shifted by one cell rests on both neighbouring frames");
+        ian::FoundationSystem restoredSliding{terrain, config};
+        require(restoredSliding.restoreStructures(slidingFrames.platformFrames(), {}, {}) &&
+                    restoredSliding.structuralGraph().dependentCount(base->id) == 1U &&
+                    restoredSliding.structuralGraph().dependentCount(adjacent->id) == 1U,
+                "shifted floor restores both structural support dependencies");
+        require(restoredSliding.remove(base->id), "shifted floor can lose one support");
+        ian::FoundationSystem partiallySupported{terrain, config};
+        require(partiallySupported.restoreStructures(restoredSliding.platformFrames(), {}, {}) &&
+                    partiallySupported.structuralGraph().dependentCount(adjacent->id) == 1U,
+                "shifted floor restores after one of its lower frames is removed");
+        require(restoredSliding.remove(adjacent->id) &&
+                    restoredSliding.structuralGraph().state(shifted->id) ==
+                        ian::StructuralSupportState::Unsupported,
+                "shifted floor loses support when its lower frames are removed");
+    }
+    {
+        ian::FoundationSystem slidingRamps{terrain, config};
+        const auto base = slidingRamps.placePlatformFrame(
+            slidingRamps.previewFoundation({0.2, 0.0, 0.2}, player));
+        require(base.has_value(), "one-cell ramp fixture has a ground frame");
+        for (const ian::GridCoord anchor : std::array<ian::GridCoord, 3>{{
+                 {2, 0, 0}, {0, 0, 2}, {2, 0, 2}}}) {
+            require(slidingRamps.placePlatformFrame(
+                        slidingRamps.previewFoundationAtHeight(
+                            {anchor.x + 0.2, 0.0, anchor.z + 0.2},
+                            base->floorHeight, player)).has_value(),
+                    "one-cell ramp fixture covers both sides of the seam");
+        }
+        const auto shifted = slidingRamps.previewRamp(
+            {1.2, 0.0, 0.2}, player, ian::Rotation::Deg0);
+        require(shifted.valid() && shifted.anchor.x == 1 &&
+                    slidingRamps.placeRamp(shifted).has_value(),
+                "ramp can be placed one cell across neighbouring platform frames");
+    }
+
     ian::WorldConfig scaledConfig = config;
     scaledConfig.cellSize = 1.25;
     scaledConfig.verticalGridStep = 0.25;
@@ -891,6 +946,30 @@ void runFoundationSystemTests() {
             std::abs(eastEdgeSnap->marker.x - 2.0) <
                 1e-9,
         "platform edge aim snaps to the adjacent frame and keeps marker on the edge");
+    for (const auto [aim, expected] : std::array<std::pair<double, int>, 3>{{
+             {0.4, -1}, {1.0, 0}, {1.6, 1}}}) {
+        const auto slide = ian::platformEdgeSnapAtAim(
+            {0, 0, 0}, 2.0, {-5.0, 5.0, 1.0},
+            {7.0, -3.0, aim - 1.0}, 1.0);
+        require(slide && slide->extensionAnchor.x == 2 &&
+                    slide->extensionAnchor.z == expected,
+                "platform edge target slides laterally in one-cell steps");
+    }
+    for (const double cellSize : {1.0, 1.25}) {
+        for (int turn = 0; turn < 4; ++turn) {
+            const auto rotation = static_cast<ian::Rotation>(turn);
+            const bool alongZ = turn % 2 == 0;
+            for (const auto [aim, expected] : std::array<std::pair<double, int>, 3>{{
+                     {-0.6, -2}, {0.6, 0}, {1.6, 1}}}) {
+                const auto support = ian::rampSupportAnchorAlongEdge(
+                    {0, 0, 0}, rotation,
+                    {aim * cellSize, 2.0, aim * cellSize}, cellSize);
+                require((alongZ ? support.x : support.z) == expected &&
+                            (alongZ ? support.z : support.x) == 0,
+                        "ramp edge target advances one cell in all rotations and grid scales");
+            }
+        }
+    }
     require(
         !ian::platformEdgeSnapAtAim(
              {0, 0, 0}, 2.0,
@@ -1072,6 +1151,17 @@ void runFoundationSystemTests() {
     const auto edgeRamp =
         rampSupportEnvelope.placeRamp(
             edgeRampPreview);
+    const double rampTopHeight = edgeRampPreview.topHeight;
+    require(edgeRamp &&
+            rampSupportEnvelope.previewFloorPlatform(
+                platformUnderRamp->anchor, 1, rampTopHeight, player).error ==
+                ian::ModularPlacementError::Occupied &&
+            rampSupportEnvelope.previewFloorPlatform(
+                platformUnderRampTop->anchor, 1, rampTopHeight, player).error ==
+                ian::ModularPlacementError::Occupied &&
+            rampSupportEnvelope.previewFloorPlatform(
+                rearPlatform->anchor, 1, rampTopHeight, player).valid(),
+        "ramp blocks floors on its occupied cells but not adjacent supported cells");
     require(
         edgeRampPreview.valid() && edgeRamp &&
             edgeRamp->anchor.x ==

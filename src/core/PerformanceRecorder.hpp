@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/WorldObjectProfiling.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -76,6 +78,55 @@ struct PerformanceFrameRecord {
     double enemyCollisionMs{};
     double enemyDrawMs{};
     double blobShadowsMs{};
+    // Appended columns keep existing CSV readers compatible.
+    int windowWidth{};
+    int windowHeight{};
+    int renderWidth{};
+    int renderHeight{};
+    int frameRateLimit{};
+    int graphicsQuality{};
+    // 0 none, 1 resource, 2 enemy, 3 building, 4 chest, 5 modular,
+    // 6 challenge, 7 landmark, 8 loot, 9 placement preview.
+    int selectionKind{};
+    std::size_t resourceNodes{};
+    std::size_t coinPickups{};
+    std::size_t lootChests{};
+    std::size_t presentationEffects{};
+    std::size_t enemyProjectiles{};
+    std::size_t instancedEnemies{};
+    std::size_t enemyBatches{};
+    std::size_t lowDetailEnemies{};
+    std::size_t blobShadowCount{};
+    std::size_t blobShadowTriangles{};
+    std::size_t enemyFullAiUpdates{};
+    std::size_t enemyThrottledAiMoves{};
+    std::size_t enemySpatialRebuilds{};
+    std::size_t enemyStructureGridRebuilds{};
+    double enemySpatialRebuildMs{};
+    double simulationTickTotalMs{};
+    double selectionCompositeMs{};
+    double resourceImpactOverlaysMs{};
+    bool gpuTimersSupported{};
+    std::uint64_t gpuWorldSamples{};
+    std::uint64_t gpuPostProcessSamples{};
+    std::uint64_t gpuUiSamples{};
+    // Start-to-start cadence also includes work after record() is called.
+    double frameIntervalMs{};
+    double gpuShadowMs{};
+    double gpuSelectionMs{};
+    double gpuSceneMs{};
+    std::uint64_t gpuShadowSamples{};
+    std::uint64_t gpuSelectionSamples{};
+    std::uint64_t gpuSceneSamples{};
+    double gpuTerrainMs{};
+    double gpuObjectsMs{};
+    double gpuEnvironmentMs{};
+    double gpuOverlaysMs{};
+    std::uint64_t gpuTerrainSamples{};
+    std::uint64_t gpuObjectsSamples{};
+    std::uint64_t gpuEnvironmentSamples{};
+    std::uint64_t gpuOverlaysSamples{};
+    WorldObjectTimings worldObjectTimings{};
     std::uint64_t gpuViewModelTargetSamples{};
     std::uint64_t gpuViewModelCompositeSamples{};
     std::size_t gpuQueriesIssued{};

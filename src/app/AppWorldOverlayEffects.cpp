@@ -163,20 +163,21 @@ void App::drawSoldBuildingVisuals() {
         material.bakedAo = 0.72F;
         renderer_->setWorldMaterial(material);
         if (const auto foundation =
-                automaticBuildingFoundation(
+                building.platformStorey < 0 ? automaticBuildingFoundation(
                     building.type,
                     building.gridPosition,
                     building.baseHeight,
                     building.foundationBottomHeight,
                     simulation_.terrain()
                         .config().cellSize,
-                    building.id)) {
+                    building.id) : std::nullopt) {
             const std::array<
                 ModularAnimationScale, 1>
                 foundationScale{{
                     {
                         .id = building.id,
                         .scale = scale,
+                        .scaleOrigin = center,
                     },
                 }};
             rlPushMatrix();
@@ -239,7 +240,7 @@ void App::drawSoldBuildingVisuals() {
         } else if (building.type == BuildingType::MissileLauncher) {
             static_cast<void>(renderer_->drawMissileLauncher({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::Flamethrower) {
-            static_cast<void>(renderer_->drawFlamethrower({x, baseY - sink, z}, yaw, tint, scale));
+            static_cast<void>(renderer_->drawFlamethrower({x, baseY - sink, z}, yaw, tint, scale, 0, {}, building.level));
         } else if (building.type == BuildingType::GunTurret) {
             static_cast<void>(renderer_->drawGunTurret(
                 {x, baseY - sink, z}, yaw, yaw, tint, scale, {}, building.level));
@@ -617,7 +618,8 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(renderer_->drawMissileLauncher(modelPosition, yaw, WHITE, scale, 0, {},
             simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::Flamethrower) {
-        static_cast<void>(renderer_->drawFlamethrower(modelPosition, yaw, WHITE, scale));
+        static_cast<void>(renderer_->drawFlamethrower(modelPosition, yaw, WHITE, scale, 0, {},
+            simulation_.snapshot().buildingBlueprintLevels[static_cast<std::size_t>(preview.type)]));
     } else if (preview.type == BuildingType::GunTurret) {
         static_cast<void>(renderer_->drawGunTurret(
             modelPosition, yaw, yaw, WHITE, scale));

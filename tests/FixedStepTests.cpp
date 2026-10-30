@@ -6,9 +6,12 @@
 
 void runSimulationTests();
 void runRunShopTests();
+void runPlayerClassAbilityTests();
 void runRunUpgradeTests();
+void runPowerupTests();
 void runResourceSystemTests();
 void runBuildingSystemTests();
+void runMenuBackgroundSceneTests();
 void runEnemySystemTests();
 void runEnvironmentSystemTests();
 void runCollisionWorldTests();
@@ -26,6 +29,7 @@ void runIceWandSystemTests();
 void runGameBalanceTests();
 void runMapDefinitionTests();
 void runTerrainHeightfieldTests();
+void runWorldSceneryTests();
 void runBuildGridTests();
 void runPlacementValidatorTests();
 void runFoundationSystemTests();
@@ -42,9 +46,12 @@ void runGlbCollisionTests();
 void runGlbNodeAnimationTests();
 void runSaturatingArithmeticTests();
 void runGeometryTests();
+void runRendererMathTests();
 void runResourceCostTests();
 void runUserSettingsTests();
 void runLootChestSystemTests();
+void runChestItemCombatTests();
+void runRelicTests();
 void runInsightSystemTests();
 void runObjectiveSystemTests();
 void runQuestSystemTests();
@@ -91,10 +98,12 @@ void fixedStepIgnoresNonFiniteFrames() {
 } // namespace
 
 int main() {
+    runWorldSceneryTests();
     fixedStepProducesSixtyTicksPerSecond();
     fixedStepClampsLongFrames();
     fixedStepIgnoresNonFiniteFrames();
     runGeometryTests();
+    runRendererMathTests();
     runResourceCostTests();
     runSaturatingArithmeticTests();
     runUserSettingsTests();
@@ -102,6 +111,7 @@ int main() {
     runMapDefinitionTests();
     runTerrainHeightfieldTests();
     runBuildGridTests();
+    runMenuBackgroundSceneTests();
     runPlacementValidatorTests();
     runFoundationSystemTests();
     runModularCombatTests();
@@ -134,9 +144,13 @@ int main() {
     runBombSystemTests();
     runIceWandSystemTests();
     runLootChestSystemTests();
+    runChestItemCombatTests();
+    runRelicTests();
     runResourceSystemTests();
     runRunShopTests();
     runSimulationTests();
+    runPlayerClassAbilityTests();
     runRunUpgradeTests();
+    runPowerupTests();
     return 0;
 }

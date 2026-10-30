@@ -115,6 +115,8 @@ struct EnemyStatusEffect {
     // Poison intensity is DPS, unlike the normalized control intensities.
     double tickRemaining{0.5};
     double pendingDamage{};
+    double basePoisonIntensity{};
+    int poisonDoses{};
     std::optional<BuildingType> sourceBuildingType;
 };
 
@@ -134,7 +136,6 @@ struct EnemyInstance {
     double speed;
     double damage;
     double attackCooldownRemaining;
-    double hitAnimationRemaining;
     double spawnAnimationRemaining;
     double splitAnimationRemaining;
     double ramWindup;
@@ -191,6 +192,8 @@ struct EnemyInstance {
     std::optional<EntityId> decoyTarget;
     double decoyRemaining{};
     double decoyFlashRemaining{};
+    double markRemaining{};
+    double markedDefenseMultiplier{1.0};
     std::array<EnemyStatusEffect, 3> statusEffects{{
         EnemyStatusEffect{.type = StatusEffectType::Freeze},
         EnemyStatusEffect{.type = StatusEffectType::Slow},
@@ -272,6 +275,14 @@ struct EnemyDamageResult {
     bool killed;
 };
 
+// Optional observation of the real damage pipeline for offline balance tests.
+// raw is after enemy-specific mitigation, before the remaining-HP clamp.
+struct EnemyDamageSample {
+    EntityId id;
+    double raw{};
+    double effective{};
+};
+
 struct EnemyPoisonHit {
     EnemyDamageResult result;
     std::optional<EntityId> source;
@@ -344,8 +355,9 @@ struct EnemyPerformanceStats {
 
 class EnemySystem {
   public:
-    static constexpr std::size_t MaxEnemies = 2048;
-    static constexpr std::size_t MaxActiveEnemies = 512;
+    static constexpr std::size_t MaxEnemies = 4096;
+    static constexpr std::size_t MaxActiveEnemies = 2048;
+    static_assert(MaxEnemies <= SpatialHash::MaxEntries);
     static constexpr std::uint32_t FirstEnemyIndex = 2000;
 
     [[nodiscard]] constexpr std::optional<std::size_t>
@@ -367,6 +379,7 @@ class EnemySystem {
     void reset();
     // Applies to live actors and future spawns; keeps health fraction/statuses.
     void setOvertimeDifficulty(OvertimeDifficulty difficulty);
+    void setWaveSpeedMultiplier(double multiplier);
     void spawnWave(std::span<const Vec3> positions);
     void spawnWave(std::span<const EnemySpawn> spawns);
     void spawnGroup(std::span<const EnemySpawn> spawns);
@@ -388,20 +401,24 @@ class EnemySystem {
         Vec3 origin, Vec3 direction, double maxDistance,
         const TerrainHeightfield* terrain = nullptr) const;
     std::optional<EnemyDamageResult> damage(EntityId id, double amount);
+    void setDamageSampling(bool enabled) { sampleDamage_ = enabled; damageSamples_.clear(); }
+    void clearDamageSamples() { damageSamples_.clear(); }
+    [[nodiscard]] std::span<const EnemyDamageSample> damageSamples() const { return damageSamples_; }
     bool applyPoison(EntityId id, std::optional<EntityId> source,
         double duration, double damagePerSecond,
-        std::optional<BuildingType> buildingType = {});
+        std::optional<BuildingType> buildingType = {}, int maximumDoses = 1);
+    bool markTarget(EntityId id, double duration, double defenseMultiplier);
+    [[nodiscard]] double markedDefenseDamage(EntityId id) const;
     // Tick once per gameplay step, including frozen enemies. Poison owns
     // its timer; movement/control updates must not decrement it again.
     std::span<const EnemyPoisonHit> tickPoison(double deltaSeconds);
+    void applyKnockback(EntityId id, Vec3 direction, double strength);
     [[nodiscard]] std::optional<EntityId> nearestEnemy(Vec3 position, double radius) const;
     [[nodiscard]] std::optional<EntityId> nearestEnemyInArc(
         Vec3 position, double radius, double yaw,
         double halfAngle, bool includeFlying = true,
         double maximumSurfaceHeightDifference =
             std::numeric_limits<double>::infinity()) const;
-    [[nodiscard]] std::optional<EntityId> densestEnemy(Vec3 position, double radius,
-                                                       double clusterRadius) const;
     [[nodiscard]] std::optional<EntityId> densestEnemyInArc(
         Vec3 position, double radius, double clusterRadius,
         double yaw, double halfAngle,
@@ -419,13 +436,8 @@ class EnemySystem {
         double intensity = 1.0,
         StatusEffectRules rules = {});
     bool clearStatus(EntityId id, StatusEffectType type);
-    std::span<const EntityId> applyStatusInRadius(
-        Vec3 position, double radius, StatusEffectType type,
-        std::optional<EntityId> source, double duration,
-        double intensity = 1.0,
-        StatusEffectRules rules = {});
     std::span<const EntityId> applySlowInRadius(Vec3 position, double radius, double multiplier,
-                                               double duration);
+                                               double duration, bool includeFlying = true);
     std::span<const EntityId> knockbackInRadius(
         Vec3 position, double radius, double strength);
     std::size_t defeatAll();
@@ -448,6 +460,8 @@ class EnemySystem {
     [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 
   private:
+    bool sampleDamage_{};
+    std::vector<EnemyDamageSample> damageSamples_;
     struct PendingSplit {
         EntityId id;
         Vec3 position;
@@ -523,6 +537,7 @@ class EnemySystem {
     std::vector<PendingSplit> pendingSplitBuffer_;
     std::vector<PendingSplit> delayedSplitBuffer_;
     OvertimeDifficulty overtime_{};
+    double waveSpeedMultiplier_{1};
     std::size_t activeCount_{};
     std::uint32_t firstIndex_{FirstEnemyIndex};
     std::uint32_t nextIndex_{FirstEnemyIndex};

@@ -52,6 +52,9 @@ class TrapSystem {
     [[nodiscard]] static AttackStats baseStats(BuildingType type, std::uint8_t level);
     [[nodiscard]] FinalAttackStats finalStats(const BuildingInstance& building) const;
     void setAttackModifiers(const AttackModifiers& modifiers) { modifiers_ = modifiers; }
+    void setBuildingUpgradeModifiers(const std::array<AttackModifiers, GameBalance::BuildingTypeCount>& modifiers) {
+        buildingUpgradeModifiers_ = modifiers;
+    }
     void reset();
     void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double radius,
@@ -70,6 +73,7 @@ class TrapSystem {
     std::vector<TrapHit> hitBuffer_;
     BuildingType bonusType_{BuildingType::Core};
     AttackModifiers modifiers_;
+    std::array<AttackModifiers, GameBalance::BuildingTypeCount> buildingUpgradeModifiers_{};
     AttackModifiers typeModifiers_;
     AttackCollisionQuery query_;
     double highGroundDamageMultiplier_{1.0};

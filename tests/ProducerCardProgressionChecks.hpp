@@ -32,12 +32,37 @@ inline void checkProducerCardProgression() {
     saved.runUpgradeChoices = {RunUpgradeEffect::UnlockQuarry, RunUpgradeEffect::Damage, RunUpgradeEffect::MoveSpeed};
     saved.runUpgradeRarities.fill(RunUpgradeRarity::Legendary);
     restore(saved);
+    const auto quarryTypeIndex = static_cast<std::size_t>(BuildingType::Quarry);
+    require(run->snapshot().nextProducerRatesPerSecond[quarryTypeIndex] >
+        run->snapshot().producerRatesPerSecond[quarryTypeIndex],
+        "upgrade snapshot exposes actual before/after production per second");
+    const auto& producerPreview = run->snapshot().producerCards.front().stats;
+    require(producerPreview.current.productionPerCycle && producerPreview.current.productionInterval &&
+        producerPreview.next && producerPreview.next->productionPerCycle &&
+        producerPreview.next->productionInterval &&
+        *producerPreview.next->productionPerCycle / *producerPreview.next->productionInterval >
+            *producerPreview.current.productionPerCycle / *producerPreview.current.productionInterval,
+        "producer card has real before/after production rates for the UI");
     require(run->selectRunUpgrade(0) && run->snapshot().runUpgradeStacks[quarry] == 2 &&
-        run->snapshot().buildingArsenalCount == 2,
-        "producer card raises its shared level once regardless of rarity or copy count");
+        run->snapshot().buildingArsenalCount == 1,
+        "producer card raises its shared level without using a defense slot");
     for (const auto& building : run->snapshot().buildings)
         if (building.type == BuildingType::Quarry) require(building.level == 2, "all producer copies upgrade together");
     auto upgraded = run->saveSuspendedRunState();
+    const auto beforeBatchUpgrade = run->snapshot();
+    require(beforeBatchUpgrade.producerAmountsPerCycle[quarryTypeIndex] == 2 &&
+        beforeBatchUpgrade.nextProducerAmountsPerCycle[quarryTypeIndex] == 3,
+        "producer preview explains the level-three batch increase separately from speed");
+    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry),
+        "producer fixture applies the batch-increasing card");
+    const auto afterBatchUpgrade = run->snapshot();
+    require(afterBatchUpgrade.producerAmountsPerCycle[quarryTypeIndex] ==
+            beforeBatchUpgrade.nextProducerAmountsPerCycle[quarryTypeIndex],
+        "preview batch size matches the actual card upgrade");
+    requireNear(afterBatchUpgrade.producerRatesPerSecond[quarryTypeIndex],
+        beforeBatchUpgrade.nextProducerRatesPerSecond[quarryTypeIndex], 1e-12,
+        "preview throughput matches actual production across a batch-size jump");
+    restore(upgraded);
     require(upgraded.producerRuntimes.size() == 2 && upgraded.producerRuntimes[0].level == 2 &&
         upgraded.producerRuntimes[1].level == 2, "card upgrade updates production runtimes too");
     upgraded.wood = upgraded.stone = upgraded.crystals = 999;
@@ -49,8 +74,13 @@ inline void checkProducerCardProgression() {
     require(run->snapshot().runUpgradeStacks[quarry] == 2 && run->snapshot().wood == budget.wood &&
         run->snapshot().stone == budget.stone && run->snapshot().crystals == budget.crystals,
         "normal direct producer upgrade cannot spend resources or bypass cards");
-    require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry) &&
-        !run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry), "producer cards stop at the core level");
+    for (int level = 3; level <= 9; ++level)
+        require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry),
+            "producer cards advance beyond level eight independently of the core");
+    require(run->grantDebugRunUpgradeBatch(RunUpgradeEffect::UnlockQuarry, 1000),
+        "producer cards continue to their representation limit");
+    require(!run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry),
+        "producer card level does not overflow saved storage");
     auto legacy = upgraded;
     legacy.buildingArsenalVersion = 4;
     legacy.runUpgradeStacks[quarry] = 1; legacy.runUpgradePower[quarry] = 1;
@@ -75,15 +105,15 @@ inline void checkProducerCardProgression() {
         restore(fixture);
         for (const auto effect : {RunUpgradeEffect::UnlockLumberMill, RunUpgradeEffect::UnlockQuarry,
                  RunUpgradeEffect::UnlockCrystalMine, RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::UnlockWall}) {
-            const bool room = run->snapshot().buildingArsenalCount < static_cast<std::size_t>(4 + extra);
-            require(run->grantDebugRunUpgrade(effect) == room, "all producer/defense acquisitions use one common slot cap");
+            require(run->grantDebugRunUpgrade(effect),
+                "producer and wall upgrades remain available without using defense slots");
         }
-        require(run->snapshot().buildingSlotLimit == 4 + extra &&
-            run->snapshot().buildingArsenalCount == static_cast<std::size_t>(4 + extra),
-            "meta ranks expose four, five or six structure slots");
+        require(run->snapshot().buildingSlotLimit == BaseRunBuildingSlots + extra &&
+            run->snapshot().buildingArsenalCount == 2,
+            "only the starter and newly acquired Cannon use defense slots");
         require(run->grantDebugRunUpgrade(RunUpgradeEffect::UnlockQuarry), "full roster still permits owned producer upgrades");
         fixture = run->saveSuspendedRunState();
         restore(fixture);
-        require(run->snapshot().buildingSlotLimit == 4 + extra, "active structure capacity survives resume");
+        require(run->snapshot().buildingSlotLimit == BaseRunBuildingSlots + extra, "active structure capacity survives resume");
     }
 }

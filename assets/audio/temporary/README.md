@@ -43,14 +43,10 @@ This folder does not alter resource costs, combat timing or drop probabilities.
   player movement and protection.
 - `run_start`, `defeat`, `victory`, `wave_warning`, `boss_spawn`, `boss_roar`,
   `ground_slam`: run, wave and boss events.
-- `music_menu`, `music_day`, `music_night`, `music_boss`: looping contextual music
-  with a short crossfade; pauses/upgrade choices lower the music level.
-- `forest_ambience`: low-level forest ambience, controlled by effects volume.
+- Contextual music and forest ambience now come from `muck/*.mp3`, described in
+  `muck/README.md`. Pauses and upgrade choices lower the music level.
 - `levelup_after`: `112. Levelup After.ogg`, played once when the final upgrade
   choice finishes closing the window and gameplay resumes.
-- `levelup_ambience`: `113. Levelup Ambience.ogg`, looping only while the upgrade
-  window is visible. Its volume follows that window's appearance/disappearance
-  and the effects volume slider; it stops on closing or leaving the run.
 
 Original grass footsteps, weapon/tool sweeps and building placement sound are
 preserved, including their volume and playback speed.
