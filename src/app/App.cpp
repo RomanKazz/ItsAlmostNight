@@ -256,7 +256,7 @@ int App::run() {
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "FORTBONK");
     SetExitKey(KEY_NULL);
-    applyFullscreenSetting(userSettings_.graphics.fullscreen);
+    applyDisplaySettings(userSettings_.graphics);
     renderer_.emplace();
     renderer_->settings() = userSettings_.graphics;
     renderer_->applyFrameRateLimit();
@@ -617,18 +617,40 @@ void App::rebuildTerrainGraphics() {
     renderer_->rebuildTerrain(simulation_.terrain(), exclusions);
 }
 
-void App::applyFullscreenSetting(bool fullscreen) {
-    const bool borderless = IsWindowState(
-        FLAG_BORDERLESS_WINDOWED_MODE);
-    if (borderless != fullscreen) {
+void App::applyDisplaySettings(const GraphicsSettings& settings) {
+    const int monitor = GetCurrentMonitor();
+    const bool explicitSize = settings.displayWidth > 0 && settings.displayHeight > 0;
+    const bool exclusive = settings.fullscreen && explicitSize;
+    const bool borderless = settings.fullscreen && !explicitSize;
+
+    if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) && !borderless)
         ToggleBorderlessWindowed();
-    }
-    if (!fullscreen) {
-        // Preserve the original fitted windowed behavior. Render resolution
-        // is configured independently and never grows the native window.
+    if (IsWindowFullscreen() && !exclusive) ToggleFullscreen();
+    const int nativeWidth = GetMonitorWidth(monitor);
+    const int nativeHeight = GetMonitorHeight(monitor);
+    const int width = exclusive ? settings.displayWidth : std::min(settings.displayWidth, nativeWidth);
+    const int height = exclusive ? settings.displayHeight : std::min(settings.displayHeight, nativeHeight);
+    if (exclusive) {
+        if (IsWindowMaximized()) RestoreWindow();
+        if (!IsWindowFullscreen()) ToggleFullscreen();
+        // raylib enters fullscreen at the desktop mode; resize afterwards to
+        // request the selected video mode rather than a relative render scale.
+        SetWindowSize(width, height);
+    } else if (borderless) {
+        if (!IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+    } else if (explicitSize) {
+        if (IsWindowMaximized()) RestoreWindow();
+        SetWindowSize(width, height);
+        const Vector2 origin = GetMonitorPosition(monitor);
+        SetWindowPosition(static_cast<int>(origin.x) + (nativeWidth - width) / 2,
+            static_cast<int>(origin.y) + (nativeHeight - height) / 2);
+    } else {
         MaximizeWindow();
     }
-    fullscreenApplied_ = fullscreen;
+    fullscreenApplied_ = settings.fullscreen;
+    displayWidthApplied_ = settings.displayWidth;
+    displayHeightApplied_ = settings.displayHeight;
+    if (renderer_) renderer_->applyFrameRateLimit();
 }
 
 void App::refreshDecorationExclusions(

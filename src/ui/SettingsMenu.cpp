@@ -2,11 +2,15 @@
 #include "ui/UiMenuStyle.hpp"
 #include "ui/UiViewport.hpp"
 
+#define GLFW_INCLUDE_NONE
+#include <external/glfw/include/GLFW/glfw3.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <functional>
 #include <vector>
+#include <utility>
 
 namespace ian {
 namespace {
@@ -54,6 +58,8 @@ void resetTab(UserSettings& settings, SettingsTab tab) {
         applyGraphicsPreset(settings.graphics, GraphicsQuality::High);
         settings.graphics.frameRateLimit = 60;
         settings.graphics.brightness = 0;
+        settings.graphics.displayWidth = 0;
+        settings.graphics.displayHeight = 0;
         settings.graphics.renderWidth = 1920;
         settings.graphics.renderHeight = 1080;
         settings.graphics.fullscreen = GraphicsSettings{}.fullscreen;
@@ -170,17 +176,58 @@ SettingsMenuResult drawSettingsMenu(UserSettings& settings, SettingsMenuState& s
         rows.push_back({std::string(t("Display mode", "Режим экрана")), {},
             std::string(graphics.fullscreen ? t("FULLSCREEN", "ПОЛНЫЙ ЭКРАН") : t("WINDOWED", "ОКНО")),
             [&graphics](int) { graphics.fullscreen = !graphics.fullscreen; }, {}, 0, {}, 0});
-        const float renderScale = std::min(static_cast<float>(graphics.renderWidth) / 1920,
-            static_cast<float>(graphics.renderHeight) / 1080);
-        rows.push_back({std::string(t("Render scale", "Масштаб рендера")),
-            {},
-            percentage(renderScale),
-            [&graphics](int step) {
-                constexpr std::array Heights{540, 720, 810, 1080, 1350, 1620, 2160};
-                int height = graphics.renderHeight;
-                cycle(height, Heights, step);
-                graphics.renderHeight = height;
-                graphics.renderWidth = height * 16 / 9;
+        const int monitor = GetCurrentMonitor();
+        const int monitorWidth = GetMonitorWidth(monitor);
+        const int monitorHeight = GetMonitorHeight(monitor);
+        const std::pair currentResolution{
+            graphics.displayWidth > 0 ? graphics.displayWidth : GetScreenWidth(),
+            graphics.displayHeight > 0 ? graphics.displayHeight : GetScreenHeight()};
+        std::vector<std::pair<int, int>> resolutions;
+        constexpr std::array commonResolutions{
+            std::pair{960, 540}, std::pair{1280, 720}, std::pair{1280, 800},
+            std::pair{1366, 768}, std::pair{1440, 900}, std::pair{1600, 900},
+            std::pair{1680, 1050}, std::pair{1920, 1080}, std::pair{1920, 1200},
+            std::pair{2560, 1080}, std::pair{2560, 1440}, std::pair{2560, 1600},
+            std::pair{3440, 1440}, std::pair{3840, 2160}};
+        int monitorCount = 0;
+        GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+        GLFWmonitor* display = monitor >= 0 && monitor < monitorCount ? monitors[monitor] : nullptr;
+        if (graphics.fullscreen && display) {
+            int modeCount = 0;
+            const GLFWvidmode* modes = glfwGetVideoModes(display, &modeCount);
+            for (int i = 0; i < modeCount; ++i) {
+                if (modes[i].width >= 960 && modes[i].height >= 540)
+                    resolutions.emplace_back(modes[i].width, modes[i].height);
+            }
+        } else {
+            int availableWidth = monitorWidth;
+            int availableHeight = monitorHeight;
+            if (display) {
+                int x = 0, y = 0;
+                glfwGetMonitorWorkarea(display, &x, &y, &availableWidth, &availableHeight);
+            }
+            for (const auto& resolution : commonResolutions) {
+                if (resolution.first <= availableWidth && resolution.second <= availableHeight)
+                    resolutions.push_back(resolution);
+            }
+            if (availableWidth > 0 && availableHeight > 0)
+                resolutions.emplace_back(availableWidth, availableHeight);
+        }
+        resolutions.push_back(currentResolution);
+        std::sort(resolutions.begin(), resolutions.end());
+        resolutions.erase(std::unique(resolutions.begin(), resolutions.end()), resolutions.end());
+        rows.push_back({std::string(t("Screen resolution", "Разрешение экрана")), {},
+            std::to_string(currentResolution.first) + " x " + std::to_string(currentResolution.second),
+            [&graphics, resolutions, currentResolution](int step) {
+                const auto found = std::find(resolutions.begin(), resolutions.end(), currentResolution);
+                const int count = static_cast<int>(resolutions.size());
+                const int current = static_cast<int>(found - resolutions.begin());
+                const auto selected = resolutions[static_cast<std::size_t>((current + step + count) % count)];
+                graphics.displayWidth = selected.first;
+                graphics.displayHeight = selected.second;
+                // Do not multiply a chosen output resolution by an old render-scale preference.
+                graphics.renderWidth = 1920;
+                graphics.renderHeight = 1080;
             }, {}, 0, {}, 0});
         const auto preset = detectGraphicsPreset(graphics);
         const auto presetLabel = !preset ? t("CUSTOM", "СВОИ") : *preset == GraphicsQuality::Low ? t("LOW", "НИЗКОЕ") :

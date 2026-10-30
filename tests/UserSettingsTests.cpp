@@ -25,6 +25,8 @@ void settingsRoundTrip() {
     require(!written.debugHotkeysEnabled, "debug shortcuts are disabled for a fresh player");
     written.debugHotkeysEnabled = true;
     written.graphics.fullscreen = true;
+    written.graphics.displayWidth = 1920;
+    written.graphics.displayHeight = 1200;
     written.graphics.renderWidth = 2560;
     written.graphics.renderHeight = 1440;
     written.graphics.inkOutlines = true;
@@ -56,6 +58,8 @@ void settingsRoundTrip() {
             "style toggle survives settings round trip");
     require(loaded.graphics.fullscreen,
             "fullscreen setting survives settings round trip");
+    require(loaded.graphics.displayWidth == 1920 && loaded.graphics.displayHeight == 1200,
+            "output resolution survives settings round trip independently of render scale");
     require(loaded.graphics.renderWidth == 2560 &&
                 loaded.graphics.renderHeight == 1440,
             "render resolution survives settings round trip");
@@ -215,6 +219,8 @@ void loadedValuesAreValidated() {
             "graphics": {
                 "pixelSize": 5,
                 "frameRateLimit": 119,
+                "displayWidth": -1,
+                "displayHeight": 99999,
                 "renderWidth": 100,
                 "renderHeight": 99999,
                 "outlineWidth": 99.0,
@@ -234,6 +240,8 @@ void loadedValuesAreValidated() {
             "unsupported pixel size selects nearest valid size");
     require(loaded.graphics.frameRateLimit == 120,
             "unsupported frame rate selects nearest valid limit");
+    require(loaded.graphics.displayWidth == 0 && loaded.graphics.displayHeight == 0,
+            "invalid output dimensions fall back to the fitted window");
     require(loaded.graphics.renderWidth == 960 &&
                 loaded.graphics.renderHeight == 2160,
             "render resolution is clamped to safe limits");
@@ -301,6 +309,8 @@ void graphicsPresetsAreCompleteAndDetectable() {
 void tabResetsPreserveOtherTabs() {
     ian::GraphicsSettings settings;
     settings.shadows = false;
+    settings.displayWidth = 1920;
+    settings.displayHeight = 1200;
     settings.pixelSize = 8;
     settings.frameRateLimit = 144;
     settings.performanceLogging = true;
@@ -311,6 +321,7 @@ void tabResetsPreserveOtherTabs() {
     ian::resetDisplaySettings(settings);
     require(settings.shadows && settings.pixelSize == 1 &&
                 settings.frameRateLimit == 60 &&
+                settings.displayWidth == 0 && settings.displayHeight == 0 &&
                 settings.renderWidth == 1920 &&
                 settings.renderHeight == 1080 &&
                 !settings.performanceLogging && !settings.enemyLod,

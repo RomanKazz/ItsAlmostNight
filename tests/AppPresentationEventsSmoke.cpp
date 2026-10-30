@@ -54,6 +54,18 @@ struct AppPresentationTestAccess {
         SetConfigFlags(FLAG_WINDOW_HIDDEN|FLAG_WINDOW_HIGHDPI);
         InitWindow(800,600,"Presentation event integration");
         if(!IsWindowReady()) return 77;
+        {
+            GraphicsSettings display;
+            display.displayWidth = 960;
+            display.displayHeight = 540;
+            app->applyDisplaySettings(display);
+            if (GetScreenWidth() != 960 || GetScreenHeight() != 540) {
+                std::cerr << "Output resolution did not resize the native window\n"; return 1;
+            }
+            display.displayWidth = 800;
+            display.displayHeight = 600;
+            app->applyDisplaySettings(display);
+        }
         app->renderer_.emplace();app->renderer_->initialize();
         SimulationSnapshot snapshot=app->simulation_.snapshot();
         if (const char* directory=std::getenv("IAN_ECONOMY_ENDLESS_CAPTURE")) {

@@ -94,6 +94,8 @@ const char* qualityName(GraphicsQuality quality) {
 
 void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "fullscreen", settings.fullscreen);
+    readValue(value, "displayWidth", settings.displayWidth);
+    readValue(value, "displayHeight", settings.displayHeight);
     if (value.contains("renderWidth")) {
         readValue(value, "renderWidth", settings.renderWidth);
     } else {
@@ -166,6 +168,11 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     }
 
     const GraphicsSettings defaults;
+    if (settings.displayWidth < 640 || settings.displayHeight < 360 ||
+        settings.displayWidth > 15360 || settings.displayHeight > 8640) {
+        settings.displayWidth = 0;
+        settings.displayHeight = 0;
+    }
     settings.renderWidth = std::clamp(settings.renderWidth, 960, 3840);
     settings.renderHeight = std::clamp(settings.renderHeight, 540, 2160);
     settings.shadowMapSize = nearestShadowMapSize(settings.shadowMapSize);
@@ -234,6 +241,8 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
 Json graphicsJson(const GraphicsSettings& settings) {
     return {
         {"fullscreen", settings.fullscreen},
+        {"displayWidth", settings.displayWidth},
+        {"displayHeight", settings.displayHeight},
         {"renderWidth", settings.renderWidth},
         {"renderHeight", settings.renderHeight},
         {"sky", settings.sky},
@@ -490,6 +499,8 @@ bool saveUserSettings(
 void resetDisplaySettings(GraphicsSettings& settings) {
     const GraphicsSettings defaults;
     settings.fullscreen = defaults.fullscreen;
+    settings.displayWidth = defaults.displayWidth;
+    settings.displayHeight = defaults.displayHeight;
     settings.renderWidth = defaults.renderWidth;
     settings.renderHeight = defaults.renderHeight;
     settings.sky = defaults.sky;

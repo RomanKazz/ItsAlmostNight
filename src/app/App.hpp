@@ -333,7 +333,7 @@ class App {
     suspendedRunTerrainSeed() const;
     void recordMetaProgression(std::span<const GameEvent> events,
                                const SimulationSnapshot& snapshot);
-    void applyFullscreenSetting(bool fullscreen);
+    void applyDisplaySettings(const GraphicsSettings& settings);
     void drawEnemySpawnMenu();
     void drawItemGrantMenu();
     void drawSandboxCardMenu(const SimulationSnapshot& snapshot);
@@ -463,6 +463,8 @@ class App {
     std::array<float, MaximumRunUpgradeChoices>
         runUpgradeCardHoverAmounts_{};
     bool fullscreenApplied_{};
+    int displayWidthApplied_{};
+    int displayHeightApplied_{};
     int graphicsPanelTab_{};
     bool debugSettings_{};
     TesterFeedback feedback_;

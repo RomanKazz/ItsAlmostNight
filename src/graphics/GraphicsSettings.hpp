@@ -29,6 +29,11 @@ struct GraphicsSettings {
     bool paperGrain{false};
     bool performanceLogging{false};
 
+    // Zero selects the fitted desktop/window size. Explicit values are output pixels.
+    int displayWidth{};
+    int displayHeight{};
+
+    // Internal world-render scale, independent from the output resolution.
     int renderWidth{1920};
     int renderHeight{1080};
     int shadowMapSize{2048};

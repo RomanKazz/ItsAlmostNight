@@ -56,6 +56,18 @@ int main(int argc, char** argv) {
     const bool fullscreen = settings.graphics.fullscreen;
     draw({.rowStep = 1, .valueStep = 1});
     require(settings.graphics.fullscreen != fullscreen, "keyboard navigation changes the focused option");
+    state.focusedRow = 1;
+    settings.graphics.fullscreen = false;
+    settings.graphics.displayWidth = 1280;
+    settings.graphics.displayHeight = 720;
+    settings.graphics.renderWidth = 1280;
+    settings.graphics.renderHeight = 720;
+    draw({.valueStep = 1});
+    require(settings.graphics.displayWidth > 0 && settings.graphics.displayHeight > 0 &&
+        (settings.graphics.displayWidth != 1280 || settings.graphics.displayHeight != 720),
+        "resolution arrows select output pixel dimensions");
+    require(settings.graphics.renderWidth == 1920 && settings.graphics.renderHeight == 1080,
+        "output resolution does not inherit the previous relative render scale");
     draw({.tabStep = 1});
     require(state.tab == SettingsTab::Audio, "Tab navigates player settings sections");
     const auto graphics = settings.graphics;

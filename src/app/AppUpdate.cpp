@@ -86,9 +86,16 @@ void App::update() {
         suspendedRunAvailable()) {
         discardSuspendedRun();
     }
-    if (renderer_ &&
-        renderer_->settings().fullscreen != fullscreenApplied_) {
-        applyFullscreenSetting(renderer_->settings().fullscreen);
+    if (renderer_) {
+        auto& graphics = renderer_->settings();
+        if (graphics.fullscreen != fullscreenApplied_ ||
+            graphics.displayWidth != displayWidthApplied_ ||
+            graphics.displayHeight != displayHeightApplied_) {
+            applyDisplaySettings(graphics);
+        } else if (!graphics.fullscreen && IsWindowResized() && graphics.displayWidth > 0) {
+            graphics.displayWidth = displayWidthApplied_ = GetScreenWidth();
+            graphics.displayHeight = displayHeightApplied_ = GetScreenHeight();
+        }
     }
     if (pendingLootGrant_) {
         for (int index = 0; index < pendingLootGrant_->count; ++index) {
