@@ -570,14 +570,17 @@ int scaledChestOpeningCost(
     int baseCost, int surcharge, double discountMultiplier,
     int previouslyOpenedPaidChests) {
     if (baseCost <= 0) return 0;
-    const double growth = std::pow(
-        1.15, std::min(std::max(0, previouslyOpenedPaidChests), 100));
-    const double scaled = std::min(
-        1'000'000.0,
-        (static_cast<double>(baseCost) +
-         static_cast<double>(std::max(0, surcharge))) *
-            growth * std::clamp(discountMultiplier, 0.01, 1.0));
-    return std::max(5, static_cast<int>(std::round(scaled / 5.0)) * 5);
+    constexpr double PriceGrowth = 1.35;
+    constexpr double MaximumPrice = 1'000'000.0;
+    const int opened = std::clamp(previouslyOpenedPaidChests, 0, 100);
+    const double discountedBase =
+        (static_cast<double>(baseCost) + std::max(0, surcharge)) *
+        std::clamp(discountMultiplier, 0.01, 1.0);
+    const double firstPrice = std::max(5.0, std::ceil(discountedBase / 5.0) * 5.0);
+    // At heavy discounts, rounding must still make each opening more expensive.
+    const double scaled = std::min(MaximumPrice, std::max(
+        discountedBase * std::pow(PriceGrowth, opened), firstPrice + 5.0 * opened));
+    return static_cast<int>(std::ceil(scaled / 5.0)) * 5;
 }
 
 int LootChestSystem::openingCost(

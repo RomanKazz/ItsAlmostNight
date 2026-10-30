@@ -120,10 +120,27 @@ void runLootChestSystemTests() {
     require(
         cost == 20,
         "first exploration chest keeps its base price");
-    require(ian::scaledChestOpeningCost(20, 0, 1.0, 1) == 25 &&
-            ian::scaledChestOpeningCost(20, 0, 1.0, 3) == 30 &&
+    require(ian::scaledChestOpeningCost(20, 0, 1.0, 1) == 30 &&
+            ian::scaledChestOpeningCost(20, 0, 1.0, 3) == 50 &&
             ian::scaledChestOpeningCost(20, 0, 1.0, 0) == 20,
-        "chest opening price grows multiplicatively per opening and rounds to five");
+        "chest price grows strongly per opening and rounds upward to five");
+    require(ian::scaledChestOpeningCost(20,0,1.0,9)==300 &&
+            ian::scaledChestOpeningCost(20,0,1.0,13)==990 &&
+            ian::scaledChestOpeningCost(20,0,1.0,19)==5990,
+        "mid and late chests remain meaningful coin purchases");
+    for(const double discount : {1.0, .5, .01}) {
+        int previous=0;
+        for(int opened=0;opened<36;++opened) {
+            const int price=ian::scaledChestOpeningCost(20,0,discount,opened);
+            require(price%5==0 && price>previous,
+                "every chest costs more even under large legacy discounts");
+            previous=price;
+        }
+    }
+    require(ian::scaledChestOpeningCost(0,999,1.0,50)==0 &&
+            ian::scaledChestOpeningCost(20,0,1.0,1'000'000)==1'000'000 &&
+            ian::scaledChestOpeningCost(20,0,1.0,-5)==20,
+        "reward chests stay free and extreme opening counts remain bounded");
     require(
         std::ranges::none_of(
             chests.chests(),
@@ -145,7 +162,8 @@ void runLootChestSystemTests() {
     int poorCoins = cost - 1;
     require(chests.open(id, poorCoins) ==
                 ian::ChestOpenResult::InsufficientCoins &&
-                poorCoins == cost - 1,
+                poorCoins == cost - 1 && chests.openedPaidChestCount()==0 &&
+                chests.openingCost(chests.chests().front())==cost,
             "failed chest purchase never spends coins");
     const auto freeChest = std::ranges::find_if(
         chests.chests(), [id](const ian::LootChestInstance& chest) {
@@ -161,12 +179,13 @@ void runLootChestSystemTests() {
                 ian::ChestOpenResult::Opened &&
             keyCoins == 3 &&
             chests.openedPaidChestCount() == 1 &&
-            chests.openingCost(chests.chests().front()) == 25,
+            chests.openingCost(chests.chests().front()) == 30,
         "free key opening does not spend coins");
     int coins = chests.openingCost(chests.chests().front()) + 4;
     require(chests.open(id, coins) == ian::ChestOpenResult::Opened &&
                 coins == 4 &&
-                chests.openedPaidChestCount() == 2,
+                chests.openedPaidChestCount() == 2 &&
+                chests.openingCost(chests.chests().front()) == 40,
             "chest purchase spends configured coins once");
     require(chests.open(id, coins) ==
                 ian::ChestOpenResult::AlreadyOpen &&
