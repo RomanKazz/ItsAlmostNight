@@ -154,7 +154,6 @@ void App::drawFeedback() const {
     const ScopedUiCanvas canvas;
     feedback_.draw({static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())},
         currentLanguage() == Language::Russian, userSettings_.accessibility.reduceFlashes);
-    HideCursor();
     ui_.drawCursor();
 }
 

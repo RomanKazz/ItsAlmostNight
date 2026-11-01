@@ -1092,6 +1092,7 @@ class Renderer {
     int iceMagicTintLocation_{-1};
     int iceMagicIntensityLocation_{-1};
     Matrix lightViewProjection_{};
+    float frameTimeSeconds_{};
     Matrix ssaoProjection_{};
     Matrix ssaoInverseProjection_{};
     Matrix ssaoViewMatrix_{};

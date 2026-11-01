@@ -326,7 +326,6 @@ void App::render() {
             itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
             (coreDefenseMenuVisible_ && coreMenuPointerActive_);
         if (uiCursorVisible) {
-            HideCursor();
             ui_.drawCursor();
         }
         uiOverlaysMilliseconds +=

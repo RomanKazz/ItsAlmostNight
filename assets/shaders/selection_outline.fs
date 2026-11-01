@@ -36,11 +36,12 @@ float viewDepthAt(vec2 uv, float depth)
 // ground: the ground under the expanded pixel is naturally nearer than the
 // selected sample a few pixels higher. Window depth is affine on a plane,
 // so two samples let us compare both surfaces along the same view ray.
-float occluderDepthAtSource(sampler2D depths, vec2 sourceUv, float centerDepth)
+float occluderDepthAtSource(sampler2D depths, vec2 centerUv, vec2 sourceUv, float centerDepth)
 {
-    vec2 awayUv = clamp(2.0*fragTexCoord - sourceUv, texelSize*0.5, vec2(1.0) - texelSize*0.5);
+    vec2 depthTexel = 1.0 / vec2(textureSize(depths, 0));
+    vec2 awayUv = clamp(2.0*centerUv - sourceUv, depthTexel*0.5, vec2(1.0) - depthTexel*0.5);
     float awayDepth = texture(depths, awayUv).r;
-    if (awayDepth >= 0.999999) return viewDepthAt(fragTexCoord, centerDepth);
+    if (awayDepth >= 0.999999) return viewDepthAt(centerUv, centerDepth);
     float projectedDepth = clamp(2.0*centerDepth - awayDepth, 0.0, 1.0);
     return viewDepthAt(sourceUv, projectedDepth);
 }
@@ -116,16 +117,31 @@ void main()
         float maskRawDepth = texture(selectionDepth, fragTexCoord).r;
         float maskDepth = viewDepthAt(fragTexCoord, maskRawDepth);
         if (maskDepth + 0.002 < selectedDepth &&
-            occluderDepthAtSource(selectionDepth, outsideUv, maskRawDepth) + 0.002 < selectedDepth) discard;
+            occluderDepthAtSource(selectionDepth, fragTexCoord, outsideUv, maskRawDepth) + 0.002 < selectedDepth) discard;
     }
     if (depthOcclusionEnabled > 0.5)
     {
-        // Keep real foreground occluders, but do not let the perspective
-        // gradient of ground shave an otherwise visible exterior contour.
-        float visibleRawDepth = texture(sceneDepth, fragTexCoord).r;
-        float visibleDepth = viewDepthAt(fragTexCoord, visibleRawDepth);
-        if (visibleDepth + 0.002 < selectedDepth &&
-            occluderDepthAtSource(sceneDepth, outsideUv, visibleRawDepth) + 0.002 < selectedDepth) discard;
+        // The scene may render at a different resolution than the full-size
+        // selection mask. A single nearest-depth sample can hit a different
+        // face of the selected mesh and cut its outline into triangle shapes.
+        // Only an occluder covering the complete scene-pixel footprint counts.
+        vec2 sceneSize = vec2(textureSize(sceneDepth, 0));
+        vec2 sceneTexel = 1.0 / sceneSize;
+        vec2 baseUv = (floor(fragTexCoord * sceneSize - 0.5) + 0.5) * sceneTexel;
+        float tolerance = max(0.004, selectedDepth * max(sceneTexel.x, sceneTexel.y) * 2.5);
+        bool blocked = true;
+        for (int y = 0; y < 2; ++y) {
+            for (int x = 0; x < 2; ++x) {
+                vec2 uv = clamp(baseUv + vec2(x, y) * sceneTexel,
+                    sceneTexel * 0.5, vec2(1.0) - sceneTexel * 0.5);
+                float rawDepth = texture(sceneDepth, uv).r;
+                float visibleDepth = viewDepthAt(uv, rawDepth);
+                float projectedDepth = occluderDepthAtSource(sceneDepth, uv, outsideUv, rawDepth);
+                if (visibleDepth + tolerance >= selectedDepth ||
+                    projectedDepth + tolerance >= selectedDepth) blocked = false;
+            }
+        }
+        if (blocked) discard;
     }
     if (alpha <= 0.001)
     {

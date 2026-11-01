@@ -164,6 +164,9 @@ class GameUi {
     Texture2D sliderKnob_{};
     Texture2D sliderKnobHover_{};
     Texture2D cursorHand_{};
+    mutable void* nativeCursor_{};
+    mutable int nativeCursorWidth_{};
+    mutable int nativeCursorHeight_{};
     Texture2D checkIcon_{};
     Texture2D arrowLeft_{};
     Texture2D arrowRight_{};

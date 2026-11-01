@@ -179,6 +179,7 @@ void Renderer::initialize() {
 
 
 void Renderer::beginFrame() {
+    frameTimeSeconds_ = static_cast<float>(GetTime());
     performanceStats_.gpuQueriesIssued = 0U;
     performanceStats_.finalBatchSubmissionMs = 0.0;
     performanceStats_.presentThreadCpuMs = 0.0;

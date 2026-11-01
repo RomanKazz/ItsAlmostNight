@@ -851,7 +851,7 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &toonShadingEnabled, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.toonLightSteps,
                    &settings_.lightingSteps, SHADER_UNIFORM_FLOAT);
-    const float timeSeconds = static_cast<float>(GetTime());
+    const float timeSeconds = frameTimeSeconds_;
     SetShaderValue(shader, worldShaderLocations_.timeSeconds,
                    &timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.shadowsEnabled,

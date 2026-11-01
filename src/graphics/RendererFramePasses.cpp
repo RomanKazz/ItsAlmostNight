@@ -978,7 +978,7 @@ bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
     // selected geometry replaces a previously drawn black occluder.
     rlDrawRenderBatchActive();
     rlDisableColorBlend();
-    const float timeSeconds = static_cast<float>(GetTime());
+    const float timeSeconds = frameTimeSeconds_;
     constexpr float NoWind = 0.0F;
     constexpr Vector4 WhiteMask{1.0F, 1.0F, 1.0F, 1.0F};
     SetShaderValue(resources_.selectionMaskShader().get(),

@@ -20,6 +20,9 @@
 #undef GUI_POINTER_POSITION
 #include <lunasvg.h>
 
+#define GLFW_INCLUDE_NONE
+#include <external/glfw/include/GLFW/glfw3.h>
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -424,6 +427,12 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
+    if (nativeCursor_) {
+        if (auto* window = glfwGetCurrentContext()) glfwSetCursor(window, nullptr);
+        glfwDestroyCursor(static_cast<GLFWcursor*>(nativeCursor_));
+        nativeCursor_ = nullptr;
+    }
+    nativeCursorWidth_ = nativeCursorHeight_ = 0;
     if (damageVignetteShader_.id != 0 && damageVignetteStrengthLocation_ >= 0)
         UnloadShader(damageVignetteShader_);
     damageVignetteShader_ = {};
@@ -1136,9 +1145,39 @@ float GameUi::drawSliderBar(
 }
 
 void GameUi::drawCursor() const {
-    if (!IsTextureValid(cursorHand_)) {
-        return;
+    if (!IsTextureValid(cursorHand_)) return;
+    const float scale = UiViewport::fromScreen({static_cast<float>(GetScreenWidth()),
+        static_cast<float>(GetScreenHeight())}).scale;
+    const int cursorWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(cursorHand_.width) * 1.12F * scale)));
+    const int cursorHeight = std::max(1, static_cast<int>(std::lround(static_cast<float>(cursorHand_.height) * 1.12F * scale)));
+    if (auto* window = glfwGetCurrentContext()) {
+        if (cursorWidth != nativeCursorWidth_ || cursorHeight != nativeCursorHeight_) {
+            Image image = LoadImage("assets/ui/cursorHand_beige.png");
+            if (IsImageValid(image)) {
+                ImageResize(&image, cursorWidth, cursorHeight);
+                ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+                const GLFWimage pixels{image.width, image.height, static_cast<unsigned char*>(image.data)};
+                GLFWcursor* replacement = glfwCreateCursor(&pixels,
+                    static_cast<int>(std::lround(2 * scale)), static_cast<int>(std::lround(scale)));
+                if (replacement) {
+                    glfwSetCursor(window, replacement);
+                    if (nativeCursor_) glfwDestroyCursor(static_cast<GLFWcursor*>(nativeCursor_));
+                    nativeCursor_ = replacement;
+                }
+                UnloadImage(image);
+            }
+            nativeCursorWidth_ = cursorWidth;
+            nativeCursorHeight_ = cursorHeight;
+        }
+        if (nativeCursor_) {
+            // The OS compositor moves this cursor independently of game FPS.
+            // ShowCursor does not recenter the pointer like EnableCursor does.
+            glfwSetCursor(window, static_cast<GLFWcursor*>(nativeCursor_));
+            ShowCursor();
+            return;
+        }
     }
+    HideCursor();
     const Vector2 mouse = uiMousePosition();
     constexpr float Scale = 1.12F;
     const float width =
