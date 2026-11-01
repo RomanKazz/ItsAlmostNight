@@ -1055,18 +1055,25 @@ void App::update() {
     }
     groundCameraWasGrounded_ =
         eventSnapshot.playerGrounded;
+    // Sway follows the same per-frame view as the world camera, instead of
+    // receiving a large kick on physics frames and zero on intervening frames.
+    const bool liveLook = eventSnapshot.state != RunState::Paused &&
+        !eventSnapshot.runUpgradeChoicePending && !eventSnapshot.playerRespawning && !playerArrival_.active();
+    constexpr double ViewPitchLimit = 1.5533430342749532;
+    const double visualYaw = eventSnapshot.playerYaw + (liveLook ? pendingYaw_ : 0.0);
+    const double visualPitch = std::clamp(eventSnapshot.playerPitch + (liveLook ? pendingPitch_ : 0.0),
+        -ViewPitchLimit, ViewPitchLimit);
     if (!cameraInertiaInitialized_) {
-        previousVisualYaw_ = eventSnapshot.playerYaw;
-        previousVisualPitch_ = eventSnapshot.playerPitch;
+        previousVisualYaw_ = visualYaw;
+        previousVisualPitch_ = visualPitch;
         cameraInertiaInitialized_ = true;
     }
     const double yawDelta = std::atan2(
-        std::sin(eventSnapshot.playerYaw - previousVisualYaw_),
-        std::cos(eventSnapshot.playerYaw - previousVisualYaw_));
-    const double pitchDelta =
-        eventSnapshot.playerPitch - previousVisualPitch_;
-    previousVisualYaw_ = eventSnapshot.playerYaw;
-    previousVisualPitch_ = eventSnapshot.playerPitch;
+        std::sin(visualYaw - previousVisualYaw_),
+        std::cos(visualYaw - previousVisualYaw_));
+    const double pitchDelta = visualPitch - previousVisualPitch_;
+    previousVisualYaw_ = visualYaw;
+    previousVisualPitch_ = visualPitch;
     updateWeaponLookSway(yawDelta, pitchDelta, frameSeconds);
 
     const double yawSin = std::sin(eventSnapshot.playerYaw);

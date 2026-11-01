@@ -29,10 +29,16 @@ void App::renderGameplayFrame(
     std::optional<EntityId> pinnedModularBuilding,
     PerformanceClock::time_point renderPreparationStart,
     RenderFrameTimings& timings) {
-    const double visualYaw = snapshot.playerYaw;
+    // Mouse input may be waiting for the next 60 Hz physics step. Render it
+    // immediately; after the step consumes it, snapshot + pending stays equal.
+    // This uses actual input only, without velocity prediction or smoothing.
+    const bool liveLook = snapshot.state != RunState::Paused &&
+        !snapshot.runUpgradeChoicePending && !snapshot.playerRespawning && !playerArrival_.active();
+    constexpr double ViewPitchLimit = 1.5533430342749532;
+    const double visualYaw = snapshot.playerYaw + (liveLook ? pendingYaw_ : 0.0);
     const auto arrivalCamera = playerArrival_.cameraMotion();
-    const double visualPitch = snapshot.playerPitch +
-        arrivalCamera.pitch * motionLandingIntensity_;
+    const double visualPitch = std::clamp(snapshot.playerPitch + (liveLook ? pendingPitch_ : 0.0),
+        -ViewPitchLimit, ViewPitchLimit) + arrivalCamera.pitch * motionLandingIntensity_;
     const double cosPitch = std::cos(visualPitch);
     Vector3 position = {
         static_cast<float>(snapshot.playerPosition.x),
