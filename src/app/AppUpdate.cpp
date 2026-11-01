@@ -651,6 +651,10 @@ void App::update() {
     }
     playerDamageFlashRemaining_ =
         std::max(0.0, playerDamageFlashRemaining_ - frameSeconds);
+    playerDamageEdgeRemaining_ = std::max(0.0, playerDamageEdgeRemaining_ - frameSeconds);
+    coreDamageEdgeRemaining_ = std::max(0.0, coreDamageEdgeRemaining_ - frameSeconds);
+    if (playerDamageEdgeRemaining_ <= 0.0) playerDamageEdgeStrength_ = 0.0F;
+    if (coreDamageEdgeRemaining_ <= 0.0) coreDamageEdgeStrength_ = 0.0F;
     damagedBuildingHealthBarRemaining_ = std::max(
         0.0,
         damagedBuildingHealthBarRemaining_ - frameSeconds);

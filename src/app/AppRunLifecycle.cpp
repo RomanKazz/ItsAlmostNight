@@ -63,6 +63,8 @@ void App::resetRunClientState(
     crystalHudBounceRemaining_ = 0.0;
     coinHudBounceRemaining_ = 0.0;
     playerDamageFlashRemaining_ = 0.0;
+    playerDamageEdgeRemaining_ = coreDamageEdgeRemaining_ = 0.0;
+    playerDamageEdgeStrength_ = coreDamageEdgeStrength_ = 0.0F;
     playerRespawnRevealRemaining_ = 0.0;
     recentlyDamagedBuilding_.reset();
     damagedBuildingHealthBarRemaining_ = 0.0;

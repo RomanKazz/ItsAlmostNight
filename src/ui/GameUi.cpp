@@ -388,6 +388,13 @@ void GameUi::initialize() {
     }
     minimapCircleShader_ = LoadShader(
         nullptr, "assets/shaders/minimap_circle.fs");
+    damageVignetteShader_ = LoadShader(nullptr, "assets/shaders/damage_vignette.fs");
+    damageVignetteStrengthLocation_ = GetShaderLocation(damageVignetteShader_, "damageStrength");
+    if (damageVignetteStrengthLocation_ >= 0) {
+        Image pixel = GenImageColor(1, 1, WHITE);
+        damageVignettePixel_ = LoadTextureFromImage(pixel);
+        UnloadImage(pixel);
+    }
     panelInsets_ = {16, 16, 16, 18};
     insetInsets_ = {9, 9, 9, 9};
     buttonInsets_ = {12, 10, 12, 14};
@@ -417,6 +424,11 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
+    if (damageVignetteShader_.id != 0 && damageVignetteStrengthLocation_ >= 0)
+        UnloadShader(damageVignetteShader_);
+    damageVignetteShader_ = {};
+    damageVignetteStrengthLocation_ = -1;
+    unloadTexture(damageVignettePixel_);
     minimapLandscape_.shutdown();
     minimapMarkers_.clear();
     for (auto& icon : mapIcons_) unloadTexture(icon);
@@ -515,6 +527,18 @@ Texture2D GameUi::mapIconTexture(MapIcon icon) const {
 
 void GameUi::updateMinimapMarkers(const SimulationSnapshot& snapshot) {
     minimapMarkers_ = collectMinimapMarkers(snapshot);
+}
+
+void GameUi::drawDamageVignette(float playerStrength, float coreStrength) const {
+    if (damageVignetteStrengthLocation_ < 0 || !IsTextureValid(damageVignettePixel_) ||
+        (playerStrength <= .001F && coreStrength <= .001F)) return;
+    const float strength[]{std::clamp(playerStrength, 0.0F, 1.0F),
+                           std::clamp(coreStrength, 0.0F, 1.0F)};
+    BeginShaderMode(damageVignetteShader_);
+    SetShaderValue(damageVignetteShader_, damageVignetteStrengthLocation_, strength, SHADER_UNIFORM_VEC2);
+    DrawTexturePro(damageVignettePixel_, {0, 0, 1, 1},
+        {0, 0, static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())}, {}, 0, WHITE);
+    EndShaderMode();
 }
 
 bool GameUi::beginMinimapTarget() const {

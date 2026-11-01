@@ -76,6 +76,7 @@ struct DamageIndicator {
     double remaining;
     double duration;
     bool severe;
+    bool core{};
 };
 
 struct ArrowVisual {

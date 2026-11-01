@@ -144,10 +144,6 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         }
         break;
     case LootUpgradeEffect::Blueprint:
-        grantBlueprintInsightForExistingBuildings(
-            lootStacks_[lootUpgradeIndex(
-                LootUpgradeEffect::Blueprint)] + 1);
-        break;
     case LootUpgradeEffect::Hourglass:
     case LootUpgradeEffect::Rope:
     case LootUpgradeEffect::Magnet:

@@ -1818,10 +1818,9 @@ void runSimulationTests() {
             "walls are already available without a defense card");
         requireNear(
             blueprintSimulation.snapshot().totalInsightEarned,
-            beforeBlueprint + blueprintSimulation
-                .insightSystem().config().firstBuildingTypeBonus,
+            beforeBlueprint,
             1e-9,
-            "Blueprint immediately rewards already-built unique types");
+            "legacy Blueprint no longer grants XP for existing buildings");
         require(blueprintSimulation.grantDebugRunUpgrade(ian::RunUpgradeEffect::UnlockWall) &&
             blueprintSimulation.snapshot().unlockedBuildings[static_cast<std::size_t>(ian::BuildingType::Wall)] &&
             blueprintSimulation.snapshot().buildingArsenalCount==1 &&
@@ -3736,7 +3735,7 @@ void runSimulationTests() {
                 ian::PlayerWeapon::IceWand,
         "chronomancer starts with Ice Wand, Hourglass and Rope");
 
-    // Real construction XP develops every class before choosing any upgrade card.
+    // A controlled XP reward develops every class before choosing any upgrade card.
     // Derived growth must survive saves without becoming a second saved multiplier.
     {
         auto balance = simulationBalance;
@@ -3781,8 +3780,13 @@ void runSimulationTests() {
             ian::PlayerCommand build;
             build.placeBuilding = ian::PlaceBuildingCommand{ian::BuildingType::Core,{0,0},0};
             run->tick(0.0, build);
+            requireNear(run->snapshot().totalInsightEarned, 0.0, 1e-12,
+                "constructing the Core does not grant a character level");
+            ian::PlayerCommand reward;
+            reward.grantInsight = ian::GrantInsightCommand{5.0};
+            run->tick(0.0, reward);
             require(run->snapshot().playerLevel == 2 && run->snapshot().runUpgradeChoicePending,
-                "normal construction XP activates class growth immediately at level two: " + std::string(character.name) + " lvl " + std::to_string(run->snapshot().playerLevel) + " XP " + std::to_string(run->snapshot().currentInsight));
+                "a controlled XP reward activates class growth immediately at level two: " + std::string(character.name) + " lvl " + std::to_string(run->snapshot().playerLevel) + " XP " + std::to_string(run->snapshot().currentInsight));
             const auto& grown = run->snapshot();
             require(grown.unlockedBuildings[static_cast<std::size_t>(character.startingBuilding)],
                 "placing a core enables the class's advertised starting blueprint");
@@ -4364,9 +4368,8 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, defeatWave);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "cleared non-final wave enters dawn state");
-    require(simulation.snapshot().runUpgradeChoicePending &&
-                simulation.snapshot().playerLevel > 1,
-            "first night now grants an early level-up reward");
+    require(!simulation.snapshot().runUpgradeChoicePending,
+            "night completion does not create a level-up before XP drops are collected");
     require(
         !simulation.snapshot().coinPickups.empty() &&
             simulation.snapshot().coins == 0,
@@ -4390,11 +4393,9 @@ void runSimulationTests() {
     require(simulation.snapshot().crystals == simulation.snapshot().waveCompletionReward,
             "wave completion grants crystals reward");
     simulation.tick(0.5);
-    requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
-                "early reward choice pauses the dawn timer");
+    requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration - 0.5, 1e-12,
+                "dawn advances without a synthetic wave XP reward");
     resolveLevelUps(simulation);
-    require(simulation.snapshot().currentInsight > 0.0,
-        "wave completion fills Insight");
     require(!simulation.snapshot().tutorialObjective,
             "tutorial disappears after first night");
     phaseEvents = simulation.takeEvents();
@@ -4416,9 +4417,9 @@ void runSimulationTests() {
     simulation.tick(0.5);
     requireNear(
         simulation.snapshot().phaseTimeRemaining,
-        dawnDuration - 0.5, 1e-12,
+        dawnDuration - 1.0, 1e-12,
         "dawn timer continues when the XP bar is not full");
-    simulation.tick(dawnDuration - 1.0);
+    simulation.tick(dawnDuration - 1.5);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "dawn remains active before timer expires");
     simulation.tick(1.0);

@@ -107,6 +107,7 @@ class GameUi {
     bool drawKeyCap(Rectangle bounds, std::string_view text,
                     bool pressed = false,
                     unsigned char alpha = 255) const;
+    void drawDamageVignette(float playerStrength, float coreStrength) const;
     [[nodiscard]] bool beginMinimapTarget() const;
     void endMinimapTarget() const;
     void drawMinimapTarget(
@@ -209,6 +210,9 @@ class GameUi {
     std::array<Texture2D, static_cast<std::size_t>(MapIcon::Count)> mapIcons_{};
     RenderTexture2D minimapFrameTarget_{};
     Shader minimapCircleShader_{};
+    Shader damageVignetteShader_{};
+    Texture2D damageVignettePixel_{};
+    int damageVignetteStrengthLocation_{-1};
     bool minimapTargetCacheValid_{};
     bool minimapFrameTargetCacheValid_{};
     double minimapTargetLastRefreshSeconds_{};

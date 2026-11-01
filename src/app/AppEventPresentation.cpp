@@ -1246,6 +1246,9 @@ void App::processPresentationEvents(
         if (event.type == GameEventType::PlayerDamaged) {
             addDamageIndicator(event.position, eventSnapshot, false);
             playerDamageFlashRemaining_ = 0.18;
+            playerDamageEdgeRemaining_ = PlayerDamageEdgeSeconds;
+            playerDamageEdgeStrength_ = std::max(playerDamageEdgeStrength_, static_cast<float>(
+                .72 + .28 * std::clamp(event.amount / std::max(1.0, eventSnapshot.playerMaxHealth * .18), 0.0, 1.0)));
             const double deltaX =
                 event.position.x - eventSnapshot.playerPosition.x;
             const double deltaZ =
@@ -1264,7 +1267,10 @@ void App::processPresentationEvents(
                 });
             }
         } else if (event.type == GameEventType::CoreDamaged) {
-            addDamageIndicator(event.position, eventSnapshot, false);
+            addDamageIndicator(event.position, eventSnapshot, false, true);
+            coreDamageEdgeRemaining_ = CoreDamageEdgeSeconds;
+            coreDamageEdgeStrength_ = std::max(coreDamageEdgeStrength_, static_cast<float>(
+                .72 + .28 * std::clamp(event.amount / std::max(1.0, eventSnapshot.coreMaxHealth * .12), 0.0, 1.0)));
         } else if (event.type == GameEventType::BossRamImpact) {
             addDamageIndicator(event.position, eventSnapshot, true);
         } else if (event.type == GameEventType::ChestOpened) {
@@ -1352,6 +1358,8 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::PlayerRespawned) {
             playerRespawnRevealRemaining_ = PlayerRespawnRevealSeconds;
             playerDamageFlashRemaining_ = 0.0;
+            playerDamageEdgeRemaining_ = 0.0;
+            playerDamageEdgeStrength_ = 0.0F;
             cameraImpulseOffset_ = {};
             cameraShakeRemaining_ = 0.0;
             cameraBobAmount_ = 0.0;
@@ -1392,12 +1400,6 @@ void App::processPresentationEvents(
                     std::to_string(event.coinAmount) +
                     " Coins";
                 coinHudBounceRemaining_ = 0.32;
-            }
-            if (event.insightAmount > 0.0) {
-                message += "  +" +
-                    std::to_string(static_cast<int>(
-                        std::lround(event.insightAmount))) +
-                    " XP";
             }
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";

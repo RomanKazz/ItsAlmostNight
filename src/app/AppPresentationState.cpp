@@ -221,7 +221,7 @@ void App::addCameraImpulse(Vec3 localOffset) {
 }
 
 void App::addDamageIndicator(Vec3 sourcePosition,
-                             const SimulationSnapshot& snapshot, bool severe) {
+                             const SimulationSnapshot& snapshot, bool severe, bool core) {
     const double offsetX = sourcePosition.x - snapshot.playerPosition.x;
     const double offsetZ = sourcePosition.z - snapshot.playerPosition.z;
     const double worldAngle = std::atan2(offsetX, -offsetZ);
@@ -232,7 +232,7 @@ void App::addDamageIndicator(Vec3 sourcePosition,
         const double difference =
             std::atan2(std::sin(indicator.relativeAngle - relativeAngle),
                        std::cos(indicator.relativeAngle - relativeAngle));
-        if (std::abs(difference) < 0.2) {
+        if (indicator.core == core && std::abs(difference) < 0.2) {
             indicator.relativeAngle = relativeAngle;
             indicator.severe = indicator.severe || severe;
             indicator.duration = indicator.severe ? 1.4 : 1.0;
@@ -250,6 +250,7 @@ void App::addDamageIndicator(Vec3 sourcePosition,
         .remaining = duration,
         .duration = duration,
         .severe = severe,
+        .core = core,
     });
 }
 

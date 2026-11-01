@@ -1604,9 +1604,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             indicator.remaining / indicator.duration;
         const auto alpha = static_cast<unsigned char>(
             220.0 * std::clamp(fade, 0.0, 1.0));
-        const Color color =
-            indicator.severe ? Color{255, 92, 42, alpha}
-                             : Color{235, 62, 62, alpha};
+        const Color color = indicator.core ? Color{188, 98, 255, alpha}
+            : indicator.severe ? Color{255, 92, 42, alpha} : Color{235, 62, 62, alpha};
         DrawTriangle(tip, baseLeft, baseRight, color);
     }
 

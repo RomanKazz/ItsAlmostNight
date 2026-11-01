@@ -55,11 +55,13 @@ struct InsightConfig {
     double reducedRateMultiplier{0.5};
     double exhaustedMultiplier{0.2};
 
+    // Legacy action rewards remain readable for compatibility, but gameplay
+    // only grants XP from enemies, depleted resources and opened containers.
     double introGatherObjective{};
     double introCoreObjective{};
-    double normalWave{42.0};
-    double milestoneWave{77.0};
-    double bossWave{140.0};
+    double normalWave{};
+    double milestoneWave{};
+    double bossWave{};
     int milestoneWaveInterval{5};
     // EnemyType order: Basic, Fast, Heavy, Boss, Ranged, Sapper, Flying,
     // Splitter, Splitling, Bee, AirTank.
@@ -68,13 +70,11 @@ struct InsightConfig {
     std::array<double, 3> resourcePerUnit{};
     std::array<double, 3> resourceDepleted{{11.0, 14.0, 17.0}};
     std::array<double, 3> prop{{24.0, 32.0, 48.0}};
-    std::array<double, 10> building{{
-        5.6, 1.05, 2.1, 2.1, 4.2,
-        1.4, 1.4, 2.1, 2.1, 1.75}};
-    std::array<double, 4> modularBuilding{{1.4, 1.4, 0.7, 1.4}};
-    double firstBuildingTypeBonus{2.8};
-    double repairPerHealth{0.021};
-    std::array<double, 2> chest{{28.0, 49.0}};
+    std::array<double, 10> building{};
+    std::array<double, 4> modularBuilding{};
+    double firstBuildingTypeBonus{};
+    double repairPerHealth{};
+    std::array<double, 2> chest{};
 
     double hudSmallPulseSeconds{0.25};
     double hudLargePulseSeconds{0.55};

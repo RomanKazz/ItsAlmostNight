@@ -466,7 +466,6 @@ struct SimulationSnapshot {
     double phaseDuration;
     int earlyWaveBonus;
     int earlyWaveCoinBonus;
-    int earlyWaveInsightBonus;
     int wave;
     int bestWave;
     RunCombatStatistics runStatistics;
@@ -815,7 +814,6 @@ class Simulation {
                         const PlayerCommand& command);
     [[nodiscard]] int earlyWaveBonus() const;
     [[nodiscard]] int earlyWaveCoinBonus() const;
-    [[nodiscard]] int earlyWaveInsightBonus() const;
     void updateCombat(double deltaSeconds);
     void updateRepairStations(double deltaSeconds);
     void updateEliteEffects(double deltaSeconds);
@@ -985,10 +983,6 @@ class Simulation {
     void grantConfiguredInsight(double amount, InsightSource source,
                                 InsightCategory category,
                                 const InsightGrantContext& context);
-    void grantBlueprintInsightForType(
-        BuildingType type, int blueprintStackOrdinal);
-    void grantBlueprintInsightForExistingBuildings(
-        int blueprintStackOrdinal);
     void refreshRunUpgradeRuntimeEffects();
     void prepareRunUpgradeChoices(int selections = 1);
     void generateRunUpgradeChoices();

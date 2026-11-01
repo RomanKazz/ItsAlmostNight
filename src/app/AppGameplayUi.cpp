@@ -452,6 +452,16 @@ if (iceImpactFlashRemaining_ > 0.0 &&
     DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(),
                   {142, 229, 255, alpha});
 }
+if (showGameplayHud) {
+    const float comfort = userSettings_.accessibility.reduceFlashes ? .35F : 1.0F;
+    const auto pulse = [](double remaining, double duration) {
+        const float t = static_cast<float>(std::clamp(remaining / duration, 0.0, 1.0));
+        return t * t * (3.0F - 2.0F * t);
+    };
+    ui_.drawDamageVignette(
+        comfort * playerDamageEdgeStrength_ * pulse(playerDamageEdgeRemaining_, PlayerDamageEdgeSeconds),
+        comfort * coreDamageEdgeStrength_ * pulse(coreDamageEdgeRemaining_, CoreDamageEdgeSeconds));
+}
 if (showGameplayHud) powerup_drawing::drawHud(snapshot.powerups,
     static_cast<float>(snapshot.elapsedSeconds), uiScreenWidth(), uiScreenHeight(),
     userSettings_.accessibility.reduceFlashes);

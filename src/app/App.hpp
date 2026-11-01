@@ -150,6 +150,8 @@ class App {
     // Per enemy, shared by every damage source. Repeated hits never extend a flash.
     static constexpr double EnemyHitFlashInterval = 1.0 / 6.0;
     static constexpr double EnemyHitFlashDuration = 0.105;
+    static constexpr double PlayerDamageEdgeSeconds = 0.60;
+    static constexpr double CoreDamageEdgeSeconds = 0.85;
     static constexpr float EnemyHitFlashPeak = 0.92F;
     static constexpr double EnemyDeathHoldDuration = 0.065;
     static constexpr double EnemyDeathFadeDuration = 0.10;
@@ -379,7 +381,7 @@ class App {
     void addCameraShake(double duration, double strength);
     void addCameraImpulse(Vec3 localOffset);
     void addDamageIndicator(Vec3 sourcePosition,
-                            const SimulationSnapshot& snapshot, bool severe);
+                            const SimulationSnapshot& snapshot, bool severe, bool core = false);
     void addFloatingDamageNumber(Vec3 position, double damage,
                                  bool critical,
                                  double startDelay = 0.0,
@@ -795,6 +797,10 @@ class App {
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
+    double playerDamageEdgeRemaining_{};
+    double coreDamageEdgeRemaining_{};
+    float playerDamageEdgeStrength_{};
+    float coreDamageEdgeStrength_{};
     double playerRespawnRevealRemaining_{};
     double displayedPlayerHealthTrail_{-1.0};
     double displayedPlayerHealthMaximum_{};

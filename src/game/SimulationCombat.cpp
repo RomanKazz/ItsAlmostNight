@@ -54,15 +54,6 @@ int Simulation::earlyWaveCoinBonus() const {
     return remainingTimeUnits(phaseTimeRemaining_) * hourglassStacks;
 }
 
-int Simulation::earlyWaveInsightBonus() const {
-    const int hourglassStacks = lootStacks_[
-        lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
-    return saturatingMultiplyNonNegative(
-        saturatingMultiplyNonNegative(
-            remainingTimeUnits(phaseTimeRemaining_), hourglassStacks),
-        2);
-}
-
 void Simulation::updateRunPhase(
     double deltaSeconds, const PlayerCommand& command) {
     if (challengeActive()) {
@@ -74,9 +65,6 @@ void Simulation::updateRunPhase(
             : 0;
         const int earlyCoinBonus = command.startWaveEarly
             ? earlyWaveCoinBonus()
-            : 0;
-        const int earlyInsightBonus = command.startWaveEarly
-            ? earlyWaveInsightBonus()
             : 0;
         if (command.startWaveEarly && buildings_.hasCore() &&
             !unlimitedResources_) {
@@ -134,26 +122,11 @@ void Simulation::updateRunPhase(
                 const int grantedBonus = crystals_ - crystalsBeforeBonus;
                 coins_ = saturatingAdd(
                     coins_, earlyCoinBonus);
-                if (earlyInsightBonus > 0) {
-                    grantConfiguredInsight(
-                        static_cast<double>(earlyInsightBonus),
-                        InsightSource::Other,
-                        InsightCategory::Exploration,
-                        {.eventId =
-                             0xe411000000000000ULL |
-                             static_cast<std::uint64_t>(
-                                 saturatingAdd(wave_, 1)),
-                         .oneTime = true,
-                         .bypassDiminishing = true});
-                }
-                if (grantedBonus > 0 || earlyCoinBonus > 0 ||
-                    earlyInsightBonus > 0) {
+                if (grantedBonus > 0 || earlyCoinBonus > 0) {
                     events_.push_back({
                         .type = GameEventType::EarlyWaveBonusGranted,
                         .amount = grantedBonus,
                         .coinAmount = earlyCoinBonus,
-                        .insightAmount = static_cast<double>(
-                            earlyInsightBonus),
                     });
                 }
                 wave_ = saturatingAdd(wave_, 1);

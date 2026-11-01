@@ -37,20 +37,7 @@ std::size_t Simulation::runWeaponArsenalCount() const {
 
 namespace {
 
-constexpr std::uint64_t InsightHashSeed = 0x9e3779b97f4a7c15ULL;
 constexpr double BattlePotionAttackSpeedMultiplier = 1.35;
-
-std::uint64_t insightEntityEvent(std::uint64_t tag, EntityId id) {
-    std::uint64_t value = (static_cast<std::uint64_t>(id.generation) << 32U) |
-                          static_cast<std::uint64_t>(id.index);
-    value ^= tag + InsightHashSeed + (value << 6U) + (value >> 2U);
-    return value == 0 ? tag + 1 : value;
-}
-
-std::uint64_t insightIntegerEvent(std::uint64_t tag, std::uint64_t value) {
-    value ^= tag + InsightHashSeed + (value << 6U) + (value >> 2U);
-    return value == 0 ? tag + 1 : value;
-}
 
 } // namespace
 
@@ -782,86 +769,11 @@ void Simulation::grantConfiguredInsight(
     });
 }
 
-void Simulation::grantBlueprintInsightForType(
-    BuildingType type, int blueprintStackOrdinal) {
-    if (unlimitedResources_ || blueprintStackOrdinal <= 0) {
-        return;
-    }
-    // Keep existing checkpoint reward keys stable when the building catalog grows.
-    constexpr std::uint64_t LegacyBuildingStride = 16U;
-    const std::uint64_t typeIndex = static_cast<std::uint64_t>(type);
-    const bool legacyType = typeIndex < LegacyBuildingStride;
-    const std::uint64_t rewardKey = legacyType
-        ? static_cast<std::uint64_t>(blueprintStackOrdinal - 1) * LegacyBuildingStride + typeIndex + 1U
-        : static_cast<std::uint64_t>(blueprintStackOrdinal);
-    grantConfiguredInsight(
-        insight_.config().firstBuildingTypeBonus,
-        InsightSource::StructureBuilt,
-        InsightCategory::Building,
-        {.eventId = insightIntegerEvent(legacyType ? 0x501U : 0x600U + typeIndex, rewardKey),
-         .oneTime = true});
-}
-
-void Simulation::grantBlueprintInsightForExistingBuildings(
-    int blueprintStackOrdinal) {
-    std::array<bool, GameBalance::BuildingTypeCount> present{};
-    for (const BuildingInstance& building : buildings_.buildings()) {
-        present[static_cast<std::size_t>(building.type)] = true;
-    }
-    for (std::size_t type = 0; type < present.size(); ++type) {
-        if (present[type]) {
-            grantBlueprintInsightForType(
-                static_cast<BuildingType>(type),
-                blueprintStackOrdinal);
-        }
-    }
-}
-
 void Simulation::processInsightEvent(const GameEvent& event) {
-    const InsightConfig& config = insight_.config();
-    switch (event.type) {
-    case GameEventType::WaveCompleted: {
-        const bool boss = event.critical;
-        const bool milestone = !boss && config.milestoneWaveInterval > 0 &&
-            event.amount % config.milestoneWaveInterval == 0;
-        grantConfiguredInsight(boss ? config.bossWave
-                                      : milestone ? config.milestoneWave : config.normalWave,
-            InsightSource::WaveCompleted, InsightCategory::Combat,
-            {.eventId = insightIntegerEvent(0x200U,
-                 static_cast<std::uint64_t>(std::max(0, event.amount))),
-             .oneTime = true, .bypassDiminishing = true});
+    // XP comes only from physical drops (enemies, resources and containers).
+    // Completing a night resets the legacy budget without awarding extra XP.
+    if (event.type == GameEventType::WaveCompleted) {
         insight_.beginNewDiminishingCycle();
-        break;
-    }
-    case GameEventType::BuildingPlaced:
-        if (!unlimitedResources_ && event.entityId && event.buildingType) {
-            const auto type = static_cast<std::size_t>(*event.buildingType);
-            grantConfiguredInsight(config.building[type], InsightSource::StructureBuilt,
-                InsightCategory::Building,
-                {.eventId = insightEntityEvent(0x500U, *event.entityId), .oneTime = true});
-            const int blueprintStacks = lootStacks_[
-                lootUpgradeIndex(LootUpgradeEffect::Blueprint)];
-            for (int stack = 1; stack <= blueprintStacks; ++stack) {
-                grantBlueprintInsightForType(
-                    *event.buildingType, stack);
-            }
-        }
-        break;
-    case GameEventType::ModularBuildingPlaced:
-        if (!unlimitedResources_ && event.entityId && event.amount >= 0 && event.amount < 4) {
-            grantConfiguredInsight(config.modularBuilding[static_cast<std::size_t>(event.amount)],
-                InsightSource::StructureBuilt, InsightCategory::Building,
-                {.eventId = insightEntityEvent(0x510U, *event.entityId), .oneTime = true});
-        }
-        break;
-    case GameEventType::BuildingRepaired:
-    case GameEventType::ModularBuildingRepaired:
-        if (!unlimitedResources_ && event.amount > 0)
-            grantConfiguredInsight(config.repairPerHealth * event.amount,
-                InsightSource::StructureRepaired, InsightCategory::Repair, {});
-        break;
-    default:
-        break;
     }
 }
 

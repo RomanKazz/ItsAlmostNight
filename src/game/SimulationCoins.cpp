@@ -114,20 +114,9 @@ void Simulation::updateCoinPickups(
                            coinSeed(*event.entityId, tick_),
                            isDestructibleProp(*event.resourceType) ? 0.5 : 1.0,
                            isDestructibleProp(*event.resourceType));
-        } else if (event.type == GameEventType::ChestOpened) {
-            const auto chest = std::find_if(
-                lootChests_.chests().begin(), lootChests_.chests().end(),
-                [&event](const LootChestInstance& value) {
-                    return value.id == *event.entityId;
-                });
-            if (chest != lootChests_.chests().end()) {
-                dropExperience(chest->position,
-                    static_cast<int>(std::lround(experienceConfig.chest[
-                        static_cast<std::size_t>(chest->type)])),
-                    coinSeed(*event.entityId, tick_));
-            }
         }
     }
+
     const auto rolledCoinValue = [this](
         EntityId id, EnemyType type,
         bool elite) -> int {

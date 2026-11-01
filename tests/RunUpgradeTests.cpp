@@ -549,8 +549,13 @@ void runRunUpgradeTests() {
     require(normal->previewPlacement(BuildingType::Turret, {4, 0}).error == PlacementError::BlueprintRequired &&
         normal->previewPlacement(BuildingType::LumberMill, {4, 0}).error != PlacementError::BlueprintRequired,
         "combat needs a card, while producers are placeable immediately");
+    require(!normal->snapshot().runUpgradeChoicePending,
+        "construction does not produce level-up cards");
+    PlayerCommand xpFixture;
+    xpFixture.grantInsight = GrantInsightCommand{1.0};
+    normal->tick(0, xpFixture);
     require(normal->snapshot().runUpgradeChoicePending,
-        "normal construction XP produces level-up cards");
+        "an XP reward produces level-up cards");
     const auto offer = normal->snapshot();
     require(offer.runUpgradeChoiceCount == LevelUpRunUpgradeChoices,
         "level-up presents three free choices and a paid alternative");
